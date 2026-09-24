@@ -1,0 +1,20 @@
+# Meson cross file for GCCSDK arm-riscos-gnueabihf (based on the one GCCSDK's
+# autobuilder ships in develop/gcc/meson-arm-riscos-gnueabihf.txt).
+[binaries]
+c = '@GCCSDK_ENV@/bin/arm-riscos-gnueabihf-gcc'
+cpp = '@GCCSDK_ENV@/bin/arm-riscos-gnueabihf-g++'
+ar = '@GCCSDK_ENV@/bin/arm-riscos-gnueabihf-ar'
+strip = '@GCCSDK_ENV@/bin/arm-riscos-gnueabihf-strip'
+
+[properties]
+needs_exe_wrapper = true
+
+[built-in options]
+c_args = ['-O2', '-mfpu=vfpv3', '-mfloat-abi=hard']
+cpp_args = ['-O2', '-mfpu=vfpv3', '-mfloat-abi=hard']
+
+[host_machine]
+system = 'riscos'
+cpu_family = 'arm'
+cpu = 'armv7'
+endian = 'little'

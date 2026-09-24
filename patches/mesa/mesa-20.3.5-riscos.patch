@@ -1,0 +1,101 @@
+diff -ru mesa-a/meson.build mesa-b/meson.build
+--- a/meson.build	2026-09-24 21:26:06.165897522 +0000
++++ b/meson.build	2026-09-24 21:26:15.732426003 +0000
+@@ -436,7 +436,7 @@
+ 
+ # Android uses emutls for versions <= P/28. For USE_ELF_TLS we need ELF TLS.
+ use_elf_tls = false
+-if not ['windows', 'freebsd', 'openbsd'].contains(host_machine.system()) and (not with_platform_android or get_option('platform-sdk-version') >= 29)
++if not ['windows', 'freebsd', 'openbsd', 'riscos'].contains(host_machine.system()) and (not with_platform_android or get_option('platform-sdk-version') >= 29)
+   pre_args += '-DUSE_ELF_TLS'
+   use_elf_tls = true
+ endif
+diff -ru mesa-a/src/mesa/drivers/osmesa/meson.build mesa-b/src/mesa/drivers/osmesa/meson.build
+--- a/src/mesa/drivers/osmesa/meson.build	2026-09-24 21:26:06.189817578 +0000
++++ b/src/mesa/drivers/osmesa/meson.build	2026-09-24 21:26:15.732547137 +0000
+@@ -24,7 +24,7 @@
+   osmesa_link_with += libglapi
+ endif
+ 
+-libosmesa = shared_library(
++libosmesa = library(
+   osmesa_lib_name,
+   ['osmesa.c', glapitable_h, glapitemp_h],
+   gnu_symbol_visibility : 'hidden',
+diff -ru mesa-a/src/util/detect_os.h mesa-b/src/util/detect_os.h
+--- a/src/util/detect_os.h	2026-09-24 21:26:06.174756647 +0000
++++ b/src/util/detect_os.h	2026-09-24 21:26:15.731983112 +0000
+@@ -52,6 +52,12 @@
+ #define DETECT_OS_UNIX 1
+ #endif
+ 
++/* RISC OS via GCCSDK/UnixLib: a POSIX-ish userland without /proc */
++#if defined(__riscos__)
++#define DETECT_OS_RISCOS 1
++#define DETECT_OS_UNIX 1
++#endif
++
+ #if defined(__GNU__)
+ #define DETECT_OS_HURD 1
+ #define DETECT_OS_UNIX 1
+@@ -124,6 +130,9 @@
+ #ifndef DETECT_OS_UNIX
+ #define DETECT_OS_UNIX 0
+ #endif
++#ifndef DETECT_OS_RISCOS
++#define DETECT_OS_RISCOS 0
++#endif
+ #ifndef DETECT_OS_WINDOWS
+ #define DETECT_OS_WINDOWS 0
+ #endif
+diff -ru mesa-a/src/util/os_misc.c mesa-b/src/util/os_misc.c
+--- a/src/util/os_misc.c	2026-09-24 21:26:06.179256693 +0000
++++ b/src/util/os_misc.c	2026-09-24 21:26:15.732203104 +0000
+@@ -65,6 +65,8 @@
+ #  include <sys/sysctl.h>
+ #elif DETECT_OS_HAIKU
+ #  include <kernel/OS.h>
++#elif DETECT_OS_RISCOS
++#  include <unistd.h>
+ #elif DETECT_OS_WINDOWS
+ #  include <windows.h>
+ #else
+@@ -184,6 +186,10 @@
+    ret = GlobalMemoryStatusEx(&status);
+    *size = status.ullTotalPhys;
+    return (ret == TRUE);
++#elif DETECT_OS_RISCOS
++   /* No portable query; callers treat false as "unknown". */
++   (void)size;
++   return false;
+ #else
+ #error unexpected platform in os_sysinfo.c
+    return false;
+diff -ru mesa-a/src/util/u_endian.h mesa-b/src/util/u_endian.h
+--- a/src/util/u_endian.h	2026-09-24 21:26:35.673839223 +0000
++++ b/src/util/u_endian.h	2026-09-24 21:26:35.705781259 +0000
+@@ -89,6 +89,12 @@
+ 
+ #endif
+ 
++/* RISC OS: ARM little-endian; don't depend on UnixLib's <endian.h> macros */
++#if defined(__riscos__) && !defined(UTIL_ARCH_LITTLE_ENDIAN)
++#define UTIL_ARCH_LITTLE_ENDIAN 1
++#define UTIL_ARCH_BIG_ENDIAN 0
++#endif
++
+ #if !defined(UTIL_ARCH_LITTLE_ENDIAN) || !defined(UTIL_ARCH_BIG_ENDIAN)
+ # error "UTIL_ARCH_LITTLE_ENDIAN and/or UTIL_ARCH_BIG_ENDIAN were unset."
+ #elif UTIL_ARCH_LITTLE_ENDIAN == UTIL_ARCH_BIG_ENDIAN
+diff -ru mesa-a/src/util/u_thread.h mesa-b/src/util/u_thread.h
+--- a/src/util/u_thread.h	2026-09-24 21:26:35.682641954 +0000
++++ b/src/util/u_thread.h	2026-09-24 21:26:35.705908754 +0000
+@@ -113,6 +113,8 @@
+    pthread_setname_np(name);
+ #elif DETECT_OS_HAIKU
+    rename_thread(find_thread(NULL), name);
++#elif DETECT_OS_RISCOS
++   /* UnixLib has no thread names */
+ #else
+ #warning Not sure how to call pthread_setname_np
+ #endif
