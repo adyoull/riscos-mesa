@@ -63,7 +63,7 @@ and `tests/glestest.c` (OpenGL ES) are complete programs.
 | `libEGL.a` | EGL 1.4 for RISC OS. Contexts: OpenGL 2.1 (compatibility), OpenGL ES 1.1, ES 2.0 (GLSL ES 1.00). Surfaces: Wimp windows (visible area or work area views), full screen (sprite plot after vsync, or straight into screen memory), pbuffers, sprite pixmaps. Extensions: sync objects, surfaceless contexts, buffer age, swap with damage, partial update, surface locking, debug callbacks, platform displays | `-lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libOSMesa.a` | Mesa 20.3.5 classic OSMesa (swrast), one static library: OpenGL 2.1 + GLSL 1.20, OpenGL ES 1.1 and 2.0 | `-lOSMesa -lstdc++ -lz -lm` |
 | `libGLU.a` | GLU 1.3 (9.0.1) | `-lGLU` before `-lOSMesa` |
-| `libSDL2.a` | SDL 2.26 with the RISC OS driver: desktop windows and full screen, OpenGL and OpenGL ES contexts, typing, the scroll wheel, 180 dpi desktops, cooperative multitasking | `-lSDL2 -lOSMesa -lstdc++ -lz -lm` |
+| `libSDL2.a` | SDL 2.26 with the RISC OS drivers: desktop windows and full screen, OpenGL and OpenGL ES contexts, typing, the scroll wheel, 180 dpi desktops, cooperative multitasking, and sound through SharedSoundBuffer (mixes with other programs) | `-lSDL2 -lOSMesa -lstdc++ -lz -lm` |
 | `libglut.a` | freeglut 3.8.0 with a native RISC OS back end: Wimp windows and subwindows, Wimp menus, full screen and game mode, keyboard (with key releases), mouse, wheel. `libfreeglut-gles.a` is the OpenGL ES build (`-DFREEGLUT_GLES`) | `-lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libbcm_host.a` | DispmanX compatibility, a porting aid for Raspberry Pi 1–3 Khronos code. Empty `libGLESv2`, `libGLESv1_CM`, `libvcos` and `libvchiq_arm` come with it so Pi link lines work | `-lbcm_host -lEGL -lOSMesa -lstdc++ -lz -lm` |
 
@@ -80,7 +80,7 @@ The GitHub [Releases](../../releases) page has, for each release:
 | `riscos-mesa-devkit-VERSION.tgz` | the static libraries, headers and `LICENCES.txt`, for building your own programs |
 | `riscos-mesa-tests-VERSION.zip` | the test programs and their Obey files, with a ReadMe |
 | `riscos-mesa-hello_pi-VERSION.zip` | the Raspberry Pi's `hello_triangle`, `hello_triangle2` and `hello_teapot`, rebuilt |
-| `riscos-mesa-ports-VERSION.zip` | Mesa's EGL demos (gears, torus, ...) and SDL's GL test programs, in desktop windows |
+| `riscos-mesa-ports-VERSION.zip` | Mesa's EGL demos (gears, torus, ...) and SDL's GL test programs, in desktop windows, and SDL's loopwave sound test |
 | `riscos-mesa-glut-VERSION.zip` | freeglut's demos (shapes, Lorenz, fractals, subwindows, menus, game mode...) over riscos-mesa's freeglut |
 
 The programs are ELF (&E1F) and need SharedUnixLibrary and ARMEABISupport

@@ -1,16 +1,21 @@
-riscos-mesa: SDL 2's own OpenGL test programs
-=============================================
+riscos-mesa: SDL 2's own test programs
+======================================
 
-testgl2, testgles and testgles2 from SDL 2.26.0, built from their unchanged
-source against riscos-mesa's SDL2 (which has OpenGL, OpenGL ES 1.1 and 2.0
-through its RISC OS video driver). Each opens a 640x480 desktop window with
-a spinning cube.
+testgl2, testgles, testgles2 and loopwave from SDL 2.26.0, built from their
+unchanged source against riscos-mesa's SDL2 (which has OpenGL, OpenGL ES
+1.1 and 2.0 through its RISC OS video driver, and sound through its RISC OS
+audio driver). The GL tests each open a 640x480 desktop window with a
+spinning cube.
 
 Needs SharedUnixLibrary and ARMEABISupport.
 
 !TestGL2    desktop OpenGL
 !TestGLES   OpenGL ES 1.1
 !TestGLES2  OpenGL ES 2.0 shaders (slower: shaders run on the CPU)
+!LoopWave   sound: plays a sample over and over through SharedSoundBuffer
+            (it mixes with other programs' sound). It has no window, so it
+            runs single-tasking; press Escape to stop it. Its Output file
+            says which audio driver was used ("riscos" is the new one).
 
 Escape or the close icon quits. SDL's test options work too if you run the
 !RunImage from a command line, for example --fullscreen, --vsync or

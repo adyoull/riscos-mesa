@@ -4,7 +4,7 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## Unreleased (20.3.5-6): freeglut
+## Unreleased (20.3.5-6): freeglut, SDL sound
 
 Host-tested; not yet tested on a Raspberry Pi.
 
@@ -29,6 +29,11 @@ Host-tested; not yet tested on a Raspberry Pi.
   (later ones on top), and showing one replots those above it. Before,
   the newest was drawn first, so a surface created inside another was
   hidden by it.
+- **SDL2 sound:** a RISC OS audio driver (from riscos-openttd, the shared
+  SDL overlay), playing through SharedSoundBuffer/StreamManager so SDL
+  programs' sound mixes with other programs'. SDL falls back to its `dsp`
+  driver (DigitalRenderer) if the modules aren't there. New `!LoopWave`
+  (SDL's loopwave test) in the ports zip.
 - **Tests:** the EGL host harness has 265 checks (stacking). Its fake Wimp
   can now click, drag, release, turn the wheel and choose from menus.
   `tests/host-harness/glut/run.sh` drives freeglut's demos (23 checks).

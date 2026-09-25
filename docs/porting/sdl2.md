@@ -1,7 +1,8 @@
 # Porting SDL 2 programs that use OpenGL or OpenGL ES
 
-**Worked port:** SDL 2.26's own GL test programs, built from their
-unchanged source by `build/build-ports.sh` into `stage/ports/sdl2-tests`:
+**Worked port:** SDL 2.26's own GL test programs (and `loopwave`, for
+sound), built from their unchanged source by `build/build-ports.sh` into
+`stage/ports/sdl2-tests`:
 
 - `testgl2`: desktop OpenGL;
 - `testgles`: OpenGL ES 1.1;
@@ -27,6 +28,19 @@ its window and context from SDL has no window code to change.
   loading it works too.
 - **Windows:** resizing, switching to full screen and back, and EX0 EY0
   (180 dpi) scaling are handled by the driver.
+- **Sound:** `SDL_OpenAudioDevice` / `SDL_OpenAudio` play through the RISC
+  OS audio driver, over SharedSoundBuffer (it mixes with other programs'
+  sound and resamples to the hardware rate). Load the modules in `!Run`:
+
+  ```
+  RMEnsure SharedSound 1.07 IfThere System:Modules.SSound Then RMLoad System:Modules.SSound
+  RMEnsure StreamManager 0.03 IfThere System:Modules.StreamMan Then RMLoad System:Modules.StreamMan
+  RMEnsure SharedSoundBuffer 0.07 IfThere System:Modules.SSBuffer Then RMLoad System:Modules.SSBuffer
+  ```
+
+  Without them SDL falls back to its `dsp` driver (DigitalRenderer).
+  `SDL_AUDIODRIVER=riscos` or `dsp` forces one. `!LoopWave`
+  (SDL's loopwave test) is the worked example.
 
 ## Step by step
 

@@ -1,0 +1,19 @@
+| !LoopWave: SDL 2.26's own test program loopwave, unchanged, built against
+| riscos-mesa's SDL2. It plays sample.wav over and over through SDL's RISC OS
+| audio driver (SharedSoundBuffer, so it mixes with other programs' sound).
+| It has no window, so it runs single-tasking: press Escape to stop it.
+| Its log (the audio drivers found and the one used) goes to the file
+| Output in this application.
+Set LoopWave$Dir <Obey$Dir>
+Set LoopWave$Output /|<LoopWave$Dir>/Output
+RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
+RMEnsure SharedUnixLibrary 1.16 Error !LoopWave needs SharedUnixLibrary 1.16 or later
+RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
+RMEnsure ARMEABISupport 0.00 Error !LoopWave needs ARMEABISupport
+| Sound: SharedSoundBuffer (with RISC OS 5), else DigitalRenderer (SDL's
+| dsp driver)
+RMEnsure SharedSound 1.07 IfThere System:Modules.SSound Then RMLoad System:Modules.SSound
+RMEnsure StreamManager 0.03 IfThere System:Modules.StreamMan Then RMLoad System:Modules.StreamMan
+RMEnsure SharedSoundBuffer 0.07 IfThere System:Modules.SSBuffer Then RMLoad System:Modules.SSBuffer
+RMEnsure SharedSoundBuffer 0.07 RMEnsure DigitalRenderer 0.51 IfThere System:Modules.DRenderer Then RMLoad System:Modules.DRenderer
+Do Run <LoopWave$Dir>.!RunImage /<LoopWave$Dir>/sample.wav

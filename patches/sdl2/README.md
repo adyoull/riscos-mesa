@@ -57,6 +57,19 @@ order), used by BOTH projects:
     way (`!OpenTTD`), so its `Set SDL$IconSprite` line is now unnecessary.
   - Before, the task name was always "SDL", because Wimp_Initialise
     happened before any window title was set.
+- Sound (2026-09-26, from riscos-openttd commit a34e9bd): a RISC OS audio
+  driver, `src/audio/riscos/SDL_riscosaudio.[ch]`, playing through the
+  RISC OS 5 SharedSoundBuffer and StreamManager modules (over SharedSound),
+  so SDL programs' sound mixes with other programs'. S16 stereo at the
+  program's rate (SharedSoundBuffer resamples); about 60 ms queued; the
+  audio thread sleeps rather than spins while the queue drains. It comes
+  before SDL's `dsp` driver; if the modules aren't loaded it declines, and
+  SDL falls back to `dsp` (UnixLib's `/dev/dsp` over DigitalRenderer).
+  Registered by `sdl2-configure.ac.riscosaudio.p`,
+  `include.SDL_config.h.in.p`, `src.audio.SDL_audio.c.p` and
+  `src.audio.SDL_sysaudio.h.p`; configure reports
+  `Audio drivers : disk dummy oss riscos`. Programs' `!Run` files should
+  RMEnsure SSound, StreamMan and SSBuffer (see ports/sdl2-tests `!LoopWave`).
 - `sdl2-configure.ac.host.p`: OpenTTD's triplet fix (arm-riscos-gnueabihf
   is not Linux). `sdl2-configure.ac.osmesa.p`: the OSMesa option.
 
