@@ -69,9 +69,6 @@ extern "C" {
 /* EXPERIMENTAL, may go: full screen banks switch before the vsync wait
    instead of after (for finding out when the display applies a switch) */
 #define EGL_FLIP_FIRST_RISCOS           0x3FFF
-/* EXPERIMENTAL, may go: how a window surface is plotted (0 SpriteOp 34,
-   1 clean its cache range first, 2 SpriteOp 52, 3 whole-cache sync first) */
-#define EGL_PLOT_METHOD_RISCOS          0x3FFE
 
 /* ModeFlags colour order bits reported as EGL_NATIVE_VISUAL_ID */
 #define EGL_RISCOS_VISUAL_TBGR          0x0000

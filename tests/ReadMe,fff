@@ -79,14 +79,10 @@ Run in this order and note the output:
       in their results and a Sprite file "eglfx" (the small view's
       memory): please send those.
 
-   e) The small view in egl-window2 draws correctly into its memory but
-      shows black on the Pi. These narrow it down (does the small cube
-      appear in each?):
-      egl-fx-copy    the test program copies the small view into its own
-                     sprite and plots that on top (may flicker)
-      egl-fx-first   the small view's surface is created before the main one
-      egl-fx-big     the small view 400x300 instead of 160x120
-      egl-fx-corner  the small view at the work area's top left corner
+   e) egl-fx-first, egl-fx-big, egl-fx-corner: the small view created
+      first, 400x300, and at the work area's corner. All should show the
+      small spinning cube. (On the Pi 4 small sprites are cached between
+      plots, so the library pads small surfaces' sprites to 1 MB.)
 
 Please report: the fps figures, anything that crashes (with the error
 text), the fps in the window title, whether the scroll wheel zooms (in a window

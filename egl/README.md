@@ -53,6 +53,9 @@ you get no configs.
   surfaces. If you also draw other things in the window, run the loop
   yourself and call `eglPlotSurfaceRISCOS(dpy, surface, block)` for each
   rectangle.
+- Surface sprites smaller than 1 MB are padded with unused rows (never
+  shown). On the Pi 4, something caches small sprites between plots, so
+  a small surface otherwise kept showing its first image.
 - Give the window a background colour. The Wimp then clears any part the GL
   image doesn't cover, for example just after a resize.
 - **Swap interval** doesn't wait in a window, because waiting would stop
