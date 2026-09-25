@@ -47,6 +47,11 @@
 #define MAX_PBUFFER 4096
 #define MAX_SWAP_INTERVAL 4
 #define MAX_BANKS 3
+/* Window surface sprites smaller than this get extra (unused, clipped off)
+   rows. On the Pi 4 (RISC OS 5) a small sprite kept showing the image it
+   had when first plotted - black, or a frozen frame - while 400x300 and
+   bigger ones updated: something caches small sprites between plots. */
+#define MIN_SPRITE_BYTES (1024 * 1024)
 
 /* 32bpp, 90x90 dpi, sprite type 6: 0x00BBGGRR */
 #define SPRITE_MODE_TYPE6 (1 | (90 << 1) | (90 << 14) | (6 << 27))
@@ -114,6 +119,7 @@ typedef struct egl_surface {
     int *area;                  /* malloc'd sprite area */
     int *sprite;                /* sprite in it */
     int sprite_mode;            /* mode word / selector used to make it */
+    int sprite_h;               /* rows in the sprite: > h when padded (see MIN_SPRITE_BYTES) */
     /* pbuffer */
     void *mem;
     /* bookkeeping */
@@ -274,40 +280,6 @@ static int wanted_size(const egl_surface *surf, const screen_info *s, int *w, in
     return 1;
 }
 
-/* Plot a window surface's sprite for one rectangle of a Wimp redraw or
-   update loop (block = the Wimp_RedrawWindow/UpdateWindow block). */
-static void plot_rectangle(const egl_surface *surf, const int *block, const screen_info *s)
-{
-    _kernel_swi_regs r;
-    int x, top;
-
-    if (!surf->sprite)
-        return;
-    if (surf->fixed) {
-        x = block[1] - block[5] + surf->wa_x;       /* work area origin + offset */
-        top = block[4] - block[6] + surf->wa_y;
-    } else {
-        x = block[1];                               /* visible area top left */
-        top = block[4];
-    }
-    if (surf->plot_method == 1 || surf->plot_method == 3) {
-        /* Push the CPU's cached writes of the image out before the plot. */
-        r.r[0] = surf->plot_method == 1 ? 1 : 0;
-        r.r[1] = (int) surf->pixels;
-        r.r[2] = (int) surf->pixels + surf->stride * 4 * surf->h - 1;
-        _kernel_swi(OS_SynchroniseCodeAreas, &r, &r);
-    }
-    r.r[0] = 512 + (surf->plot_method == 2 ? 52 : 34);   /* 34: PutSpriteUserCoords */
-    r.r[1] = (int) surf->area;
-    r.r[2] = (int) surf->sprite;
-    r.r[3] = x;
-    r.r[4] = top - (surf->h << s->yeig);
-    r.r[5] = 0;
-    r.r[6] = 0;                 /* 52: no scaling */
-    r.r[7] = 0;                 /* 52: no translation table */
-    _kernel_swi(OS_SpriteOp, &r, &r);
-}
-
 typedef struct { int x0, y0, x1, y1; } os_rect;    /* screen OS units, x1/y1 exclusive */
 
 #define MAX_PIECES 16
@@ -322,6 +294,57 @@ static void set_graphics_window(const os_rect *c)
         _kernel_oswrch(v[i] & 0xFF);
         _kernel_oswrch((v[i] >> 8) & 0xFF);
     }
+}
+
+/* Plot a window surface's sprite for one rectangle of a Wimp redraw or
+   update loop (block = the Wimp_RedrawWindow/UpdateWindow block). */
+static void plot_rectangle(const egl_surface *surf, const int *block, const screen_info *s,
+                           const os_rect *clip)
+{
+    _kernel_swi_regs r;
+    int x, top;
+    os_rect vis;
+
+    if (!surf->sprite)
+        return;
+    if (surf->handle == -1) {
+        x = 0;
+        top = s->height << s->yeig;                 /* top of the screen */
+    } else if (surf->fixed) {
+        x = block[1] - block[5] + surf->wa_x;       /* work area origin + offset */
+        top = block[4] - block[6] + surf->wa_y;
+    } else {
+        x = block[1];                               /* visible area top left */
+        top = block[4];
+    }
+    if (surf->sprite_h > surf->h) {
+        /* padded sprite: show only the surface's own rows */
+        vis.x0 = x > clip->x0 ? x : clip->x0;
+        vis.x1 = x + (surf->w << s->xeig) < clip->x1 ? x + (surf->w << s->xeig) : clip->x1;
+        vis.y1 = top < clip->y1 ? top : clip->y1;
+        vis.y0 = top - (surf->h << s->yeig) > clip->y0 ? top - (surf->h << s->yeig) : clip->y0;
+        if (vis.x0 >= vis.x1 || vis.y0 >= vis.y1)
+            return;
+        set_graphics_window(&vis);
+    }
+    if (surf->plot_method == 1 || surf->plot_method == 3) {
+        /* Push the CPU's cached writes of the image out before the plot. */
+        r.r[0] = surf->plot_method == 1 ? 1 : 0;
+        r.r[1] = (int) surf->pixels;
+        r.r[2] = (int) surf->pixels + surf->stride * 4 * surf->h - 1;
+        _kernel_swi(OS_SynchroniseCodeAreas, &r, &r);
+    }
+    r.r[0] = 512 + (surf->plot_method == 2 ? 52 : 34);   /* 34: PutSpriteUserCoords */
+    r.r[1] = (int) surf->area;
+    r.r[2] = (int) surf->sprite;
+    r.r[3] = x;
+    r.r[4] = top - (surf->sprite_h << s->yeig);
+    r.r[5] = 0;
+    r.r[6] = 0;                 /* 52: no scaling */
+    r.r[7] = 0;                 /* 52: no translation table */
+    _kernel_swi(OS_SpriteOp, &r, &r);
+    if (surf->sprite_h > surf->h)
+        set_graphics_window(clip);
 }
 
 /* Where a work area surface sits on screen during a redraw/update loop. */
@@ -397,11 +420,11 @@ static void plot_loop(egl_display *d, int handle, egl_surface *only, int *block,
             }
             if (n == 1 && pieces[0].x0 == clip.x0 && pieces[0].x1 == clip.x1 &&
                 pieces[0].y0 == clip.y0 && pieces[0].y1 == clip.y1) {
-                plot_rectangle(surf, block, &s);
+                plot_rectangle(surf, block, &s, &clip);
             } else {
                 for (i = 0; i < n; i++) {
                     set_graphics_window(&pieces[i]);
-                    plot_rectangle(surf, block, &s);
+                    plot_rectangle(surf, block, &s, &pieces[i]);
                 }
                 set_graphics_window(&clip);
             }
@@ -411,7 +434,7 @@ static void plot_loop(egl_display *d, int handle, egl_surface *only, int *block,
                 surf->destroy_pending || !surf->fixed)
                 continue;
             if (only == NULL || only == surf || !only->fixed)
-                plot_rectangle(surf, block, &s);
+                plot_rectangle(surf, block, &s, &clip);
         }
         r.r[1] = (int) block;
         if (_kernel_swi(Wimp_GetRectangle, &r, &r) != NULL)
@@ -444,13 +467,12 @@ static void present(egl_display *d, egl_surface *surf, const screen_info *s)
         }
         if (surf->direct || !surf->sprite)
             return;
-        r.r[0] = 512 + 34;
-        r.r[1] = (int) surf->area;
-        r.r[2] = (int) surf->sprite;
-        r.r[3] = 0;
-        r.r[4] = (s->height - surf->h) << s->yeig;  /* top of the screen */
-        r.r[5] = 0;
-        _kernel_swi(OS_SpriteOp, &r, &r);
+        {
+            os_rect all;
+            all.x0 = 0; all.y0 = 0;
+            all.x1 = s->width << s->xeig; all.y1 = s->height << s->yeig;
+            plot_rectangle(surf, NULL, s, &all);
+        }
         return;
     }
 
@@ -573,7 +595,7 @@ static int setup_banks(egl_surface *surf, const screen_info *s)
 static int update_window_buffer(egl_surface *surf, const screen_info *s)
 {
     _kernel_swi_regs r;
-    int w, h, size, mode;
+    int w, h, size, mode, sprite_h;
 
     if (!wanted_size(surf, s, &w, &h))
         return fail(EGL_BAD_NATIVE_WINDOW), -1;
@@ -620,7 +642,10 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
         return 0;
 
     free_buffers(surf);
-    size = 16 + 44 + w * 4 * h;
+    sprite_h = h;
+    if ((long) w * 4 * h < MIN_SPRITE_BYTES)
+        sprite_h = (MIN_SPRITE_BYTES + w * 4 - 1) / (w * 4);
+    size = 16 + 44 + w * 4 * sprite_h;
     surf->area = (int *) malloc(size);
     if (!surf->area)
         return fail(EGL_BAD_ALLOC), -1;
@@ -633,7 +658,7 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
     r.r[2] = (int) "egl";
     r.r[3] = 0;                 /* no palette */
     r.r[4] = w;
-    r.r[5] = h;
+    r.r[5] = sprite_h;
     r.r[6] = mode;
     if (_kernel_swi(OS_SpriteOp, &r, &r) != NULL) {
         free(surf->area);
@@ -644,6 +669,7 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
     surf->pixels = (char *) surf->sprite + surf->sprite[8];
     surf->w = w;
     surf->h = h;
+    surf->sprite_h = sprite_h;
     surf->stride = w;
     surf->sprite_mode = mode;
     return 1;
@@ -1732,7 +1758,11 @@ EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS(EGLDisplay dpy, EGLSurface su
     if (s->kind != SURF_WINDOW || s->handle == -1)
         return fail(EGL_BAD_SURFACE);
     read_screen(&scr);
-    plot_rectangle(s, block, &scr);
+    {
+        os_rect clip;
+        clip.x0 = block[7]; clip.y0 = block[8]; clip.x1 = block[9]; clip.y1 = block[10];
+        plot_rectangle(s, block, &scr, &clip);
+    }
     return ok();
 }
 
