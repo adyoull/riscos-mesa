@@ -12,7 +12,7 @@ export CC=$HOST-gcc CXX=$HOST-g++ AR=$HOST-ar RANLIB=$HOST-ranlib STRIP=$HOST-st
 # with a frame > 4 KB (Mesa has 19, up to 135 KB) must probe page by page or
 # it jumps past the guard page and dies with "abort on data transfer"/SIGEMT.
 # (The GCCSDK "NEON builds die with SIGEMT" warning is most likely this.)
-# Flags chosen by benchmark on a Pi 4 (docs/START-HERE.md): -O3 tuned for
+# Flags chosen by benchmark on a Pi 4 (Pi 4 benchmark, glbench): -O3 tuned for
 # Cortex-A72 with VFPv4 is ~14% faster at texturing/blending than -O2 VFPv3;
 # NEON added nothing. VFPv4: Pi 2 and later (as ARMv7 already requires).
 export RO_CFLAGS="-O3 -mtune=cortex-a72 -mfpu=vfpv4 -mfloat-abi=hard -fstack-clash-protection"

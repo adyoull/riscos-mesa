@@ -8,8 +8,8 @@ order), used by BOTH projects:
   screen framebuffer (from openttd-riscos-buildkit.tgz).
 - Fix 13: stay a Wimp task in full screen (no Wimp_CloseDown), become a
   task at VideoInit when the desktop is running, Wimp_SetMode instead of
-  OS_ScreenMode while a task. Re-applied here from the START-HERE
-  description: **compare with riscos-openttd commit 9d90de1 and keep one.**
+  OS_ScreenMode while a task. Re-applied here from the OpenTTD port's notes
+  (**compare with riscos-openttd commit 9d90de1 and keep one**).
 - OpenGL via OSMesa (`SDL_riscosopengl.[ch]` + small hooks), compiled only
   with `--enable-video-riscos-osmesa`. Desktop GL 2.1, and (2026-09-25)
   OpenGL ES 1.1 / 2.0 with `SDL_GL_CONTEXT_PROFILE_ES`, which needs
