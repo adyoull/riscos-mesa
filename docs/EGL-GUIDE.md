@@ -385,7 +385,7 @@ Link with `-lbcm_host -lEGL -lOSMesa -lstdc++ -lz -lm`. Empty `libGLESv2`, `libG
 
 `tests/dmxtest.c` is a complete example; the `dmx-*` Obey files in the tests zip run it.
 
-**Programs already built for the Pi's Khronos module** (for example the GCCSDK autobuilder's `!HelloTriangle`) can't use riscos-mesa as they are: they call that module's SWIs through stub libraries linked into them. Rebuild them from source against the riscos-mesa devkit instead. `ports/hello_pi` does exactly that for `hello_triangle` (ES 1.1) and `hello_triangle2` (ES 2.0 shaders and a framebuffer object), and its README is a step-by-step porting template. The two applications are in the tests zip's `hello_pi` folder.
+**Programs already built for the Pi's Khronos module** (for example the GCCSDK autobuilder's `!HelloTriangle`) can't use riscos-mesa as they are: they call that module's SWIs through stub libraries linked into them. Rebuild them from source against the riscos-mesa devkit instead. `ports/hello_pi` does exactly that for `hello_triangle` (ES 1.1) and `hello_triangle2` (ES 2.0 shaders and a framebuffer object), and its README is a step-by-step porting template. The two applications are in the release's `riscos-mesa-hello_pi` zip.
 
 - **Initial API:** the initial EGL API is OpenGL ES, as the EGL spec says and Pi code expects, so it doesn't need `eglBindAPI`.
 - **Precision:** fragment shaders with no default float precision compile, using mediump with a warning, as they did on the Pi.

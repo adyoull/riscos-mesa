@@ -1,0 +1,29 @@
+riscos-mesa: the Raspberry Pi's hello_triangle examples, rebuilt
+=================================================================
+
+These are two of the Raspberry Pi's own hello_pi examples, rebuilt from
+source against riscos-mesa (EGL, OpenGL ES and the DispmanX compatibility
+library). They show that existing Pi Khronos programs port to riscos-mesa.
+They run on any RISC OS 5 machine, the Pi 4 included.
+
+Needs SharedUnixLibrary and ARMEABISupport (the !Run files load them from
+System:Modules if they aren't loaded already).
+
+Like the originals they draw over the whole screen and don't multitask.
+The desktop is redrawn when they exit.
+
+!HelloTriangle   spinning cube with three photo textures (OpenGL ES 1.1).
+                 Press any key to exit.
+!HelloTriangle2  Julia set over a Mandelbrot set (OpenGL ES 2.0 shaders).
+                 Move the mouse to change it; click Menu to exit.
+                 The shaders run on the CPU, so it renders about 320
+                 pixels wide and scales that up to the screen.
+                 *Set HelloTriangle2$Scale N renders at 1/N of the screen
+                 size instead (lower N: sharper and slower).
+
+Please report: whether the textures show on the cube, whether the fractals
+follow the mouse, and roughly how many frames a second each manages.
+
+The sources and the notes on porting other Pi programs are in
+ports/hello_pi in the riscos-mesa repository. Licence: BSD (the Raspberry
+Pi userland licence, in each application's Licence file).

@@ -3,6 +3,7 @@
 # (tools/mkrozip.py), so SparkFS / the RISC OS unzip give the files their
 # real types and plain names; NAME,xxx files in stage/ become NAME + type.
 #   build/package.sh VERSION    -> dist/riscos-mesa-tests-VERSION.zip
+#                                  dist/riscos-mesa-hello_pi-VERSION.zip
 #                                  dist/riscos-mesa-devkit-VERSION.tgz
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
@@ -12,11 +13,18 @@ mkdir -p "$HERE/dist"
 TMP=$(mktemp -d)
 cp -r "$STAGE/tests" "$TMP/riscos-mesa-tests"
 cp "$HERE/LICENCES.txt" "$TMP/riscos-mesa-tests/Licences,fff"
-# The Raspberry Pi examples rebuilt from source (build-hello-pi.sh)
-[ -d "$STAGE/hello_pi" ] && cp -r "$STAGE/hello_pi" "$TMP/riscos-mesa-tests/hello_pi"
 rm -f "$HERE/dist/riscos-mesa-tests-$V.zip"
 ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-tests-$V.zip" riscos-mesa-tests )
 rm -rf "$TMP"
+# The Raspberry Pi examples rebuilt from source (build-hello-pi.sh), in a
+# zip of their own: -> dist/riscos-mesa-hello_pi-VERSION.zip
+if [ -d "$STAGE/hello_pi" ]; then
+  TMP=$(mktemp -d)
+  cp -r "$STAGE/hello_pi" "$TMP/riscos-mesa-hello_pi"
+  rm -f "$HERE/dist/riscos-mesa-hello_pi-$V.zip"
+  ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-hello_pi-$V.zip" riscos-mesa-hello_pi )
+  rm -rf "$TMP"
+fi
 ( cd "$STAGE/.." && tar czf "$HERE/dist/riscos-mesa-devkit-$V.tgz" \
     --transform "s#^stage#riscos-mesa-devkit-$V#" stage/lib/libOSMesa.a stage/lib/libGLU.a \
     stage/lib/libSDL2.a stage/lib/libSDL2main.a stage/lib/libz.a stage/lib/libEGL.a \

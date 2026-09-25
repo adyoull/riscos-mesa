@@ -121,20 +121,8 @@ Run in this order and note the output:
                     *Unset SDL$WindowScale turns it back on.
       egl-window    the cube should fill the window, sharp, not doubled.
 
-   j) The Raspberry Pi's own examples, rebuilt from source (hello_pi
-      folder). They show that existing Pi Khronos programs port to
-      riscos-mesa. Like the originals they draw over the whole screen and
-      don't multitask; the desktop is redrawn when they exit.
-      !HelloTriangle   spinning cube with three photo textures (ES 1.1).
-                       Press any key to exit.
-      !HelloTriangle2  Julia set over a Mandelbrot set (ES 2.0 shaders);
-                       move the mouse to change it, click Menu to exit.
-                       The shaders run on the CPU, so it renders about
-                       320 pixels wide, scaled up. *Set HelloTriangle2$Scale
-                       N renders at 1/N of the screen size instead (lower
-                       N: sharper and slower).
-      Please check: the textures show on the cube, the fractals follow the
-      mouse, and roughly how many frames a second each manages.
+   j) The Raspberry Pi's own hello_triangle examples, rebuilt from
+      source, are in a separate zip (riscos-mesa-hello_pi); see its ReadMe.
 
 Please report: the fps figures, anything that crashes (with the error
 text), the fps in the window title, whether the scroll wheel zooms (in a window

@@ -13,7 +13,7 @@ GL="-I$STAGE/include -L$STAGE/lib -I$P/libs/revision"
 PILIBS="-lbcm_host -lEGL -lGLESv2 -lvcos -lvchiq_arm -lOSMesa -lstdc++ -lz -lm"
 rm -rf "$O"
 mkdir -p "$O"
-cp -r "$P/riscos/!HelloTriangle" "$P/riscos/!HelloTriangle2" "$O/"
+cp -r "$P/riscos/!HelloTriangle" "$P/riscos/!HelloTriangle2" "$P/riscos/ReadMe,fff" "$O/"
 $CC $RO_CFLAGS $GL -static "$P/hello_triangle/triangle.c" "$P/libs/revision/revision.c" \
     -o "$O/!HelloTriangle/!RunImage,e1f" $PILIBS
 $CC $RO_CFLAGS $GL -static "$P/hello_triangle2/triangle2.c" "$P/libs/revision/revision.c" \
