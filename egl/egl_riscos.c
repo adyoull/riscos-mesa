@@ -69,6 +69,9 @@
 #ifndef OS_ChangeDynamicArea
 #define OS_ChangeDynamicArea 0x2A
 #endif
+#ifndef OS_SynchroniseCodeAreas
+#define OS_SynchroniseCodeAreas 0x6E
+#endif
 #ifndef OS_ScreenMode
 #define OS_ScreenMode       0x65
 #endif
@@ -104,6 +107,9 @@ typedef struct egl_surface {
     void *bank_addr[MAX_BANKS + 1];
     int no_banks;               /* don't try screen banks (failed, or preserved contents wanted) */
     int want_banks;             /* banks asked for at creation: 0 (sprite plot), 2 or 3 */
+    int plot_method;            /* experiment, EGL_PLOT_METHOD_RISCOS: 0 SpriteOp 34,
+                                   1 clean the image's cache range first, 2 SpriteOp 52,
+                                   3 whole-cache sync first */
     int flip_first;             /* experiment: switch bank before the vsync wait */
     int *area;                  /* malloc'd sprite area */
     int *sprite;                /* sprite in it */
@@ -284,12 +290,21 @@ static void plot_rectangle(const egl_surface *surf, const int *block, const scre
         x = block[1];                               /* visible area top left */
         top = block[4];
     }
-    r.r[0] = 512 + 34;          /* PutSpriteUserCoords, pixel for pixel */
+    if (surf->plot_method == 1 || surf->plot_method == 3) {
+        /* Push the CPU's cached writes of the image out before the plot. */
+        r.r[0] = surf->plot_method == 1 ? 1 : 0;
+        r.r[1] = (int) surf->pixels;
+        r.r[2] = (int) surf->pixels + surf->stride * 4 * surf->h - 1;
+        _kernel_swi(OS_SynchroniseCodeAreas, &r, &r);
+    }
+    r.r[0] = 512 + (surf->plot_method == 2 ? 52 : 34);   /* 34: PutSpriteUserCoords */
     r.r[1] = (int) surf->area;
     r.r[2] = (int) surf->sprite;
     r.r[3] = x;
     r.r[4] = top - (surf->h << s->yeig);
     r.r[5] = 0;
+    r.r[6] = 0;                 /* 52: no scaling */
+    r.r[7] = 0;                 /* 52: no translation table */
     _kernel_swi(OS_SpriteOp, &r, &r);
 }
 
@@ -1094,6 +1109,11 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreateWindowSurface(EGLDisplay dpy, EGLConfig c
         case EGL_VG_ALPHA_FORMAT:
             break;              /* OpenVG only, ignored */
         case EGL_FLIP_FIRST_RISCOS:       s->flip_first = (v != 0); break;
+        case EGL_PLOT_METHOD_RISCOS:
+            if (v < 0 || v > 3)
+                goto bad_attr;
+            s->plot_method = v;
+            break;
         case EGL_SCREEN_BANKS_RISCOS:
             if (win != -1 || v < 0 || v == 1 || v > MAX_BANKS)
                 goto bad_attr;

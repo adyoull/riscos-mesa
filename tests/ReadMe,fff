@@ -79,6 +79,11 @@ Run in this order and note the output:
       in their results and a Sprite file "eglfx" (the small view's
       memory): please send those.
 
+   e) egl-window2-c1, -c2, -c3: the small view plotted three different
+      ways (1: CPU cache range cleaned before the plot, 2: SpriteOp 52
+      instead of 34, 3: whole cache synchronised first). Which, if any,
+      shows the small cube?
+
 Please report: the fps figures, anything that crashes (with the error
 text), the fps in the window title, whether the scroll wheel zooms (in a window
 and in full screen), whether the cube redraws after you drag

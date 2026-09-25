@@ -295,6 +295,7 @@ static void wimp_end(void)
     task_handle = 0;
 }
 
+static int plot_method;
 static int fx_errors;
 static EGLint fx_last_error;
 static EGLContext fx_ctx;
@@ -402,13 +403,17 @@ static int run_window(int second, double limit)
 
     cfg = pick_config(EGL_WINDOW_BIT, 16);
     ctx = cfg ? eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL) : EGL_NO_CONTEXT;
-    ws = cfg ? eglCreateWindowSurface(dpy, cfg, handle, NULL) : EGL_NO_SURFACE;
+    {
+        EGLint pa[] = { EGL_PLOT_METHOD_RISCOS, plot_method, EGL_NONE };
+        ws = cfg ? eglCreateWindowSurface(dpy, cfg, handle, pa) : EGL_NO_SURFACE;
+    }
     fx_ctx = ctx;
     if (second == 2 && ctx != EGL_NO_CONTEXT)
         fx_ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);   /* -R: its own context */
     if (second && cfg) {
         EGLint fa[] = { EGL_WORK_AREA_X_RISCOS, 32, EGL_WORK_AREA_Y_RISCOS, -32,
-                        EGL_WORK_AREA_WIDTH_RISCOS, 160, EGL_WORK_AREA_HEIGHT_RISCOS, 120, EGL_NONE };
+                        EGL_WORK_AREA_WIDTH_RISCOS, 160, EGL_WORK_AREA_HEIGHT_RISCOS, 120,
+                        EGL_PLOT_METHOD_RISCOS, plot_method, EGL_NONE };
         fx = eglCreateWindowSurface(dpy, cfg, handle, fa);
         if (fx == EGL_NO_SURFACE) say("work area surface failed (0x%04x)\n", eglGetError());
     }
@@ -419,8 +424,8 @@ static int run_window(int second, double limit)
         fputs(summary, stdout);
         return 1;
     }
-    say("GL_RENDERER %s, GL_VERSION %s\n", (const char *) glGetString(GL_RENDERER),
-        (const char *) glGetString(GL_VERSION));
+    say("GL_RENDERER %s, GL_VERSION %s, plot method %d\n", (const char *) glGetString(GL_RENDERER),
+        (const char *) glGetString(GL_VERSION), plot_method);
 
     tstart = last_title = hr_seconds();
     while (!quit) {
@@ -616,6 +621,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-f")) mode = 'f';
         else if (!strcmp(argv[i], "-r")) second = 1;
         else if (!strcmp(argv[i], "-R")) second = 2;
+        else if (!strcmp(argv[i], "-c") && i + 1 < argc) plot_method = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-d")) direct = 1;
         else if (!strcmp(argv[i], "-p")) pattern = 1;
         else if (!strcmp(argv[i], "-b") && i + 1 < argc) want_banks = atoi(argv[++i]);
