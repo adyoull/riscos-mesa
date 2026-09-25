@@ -347,9 +347,9 @@ eglMakeCurrent(dpy, surf, surf, ctx);
 - **Speed:** ES 1.1 is fixed function and runs as fast as desktop GL. ES 2.0 is all shaders, and shaders run through Mesa's GLSL interpreter, several times slower for the same scene. Keep ES 2.0 programs small, or render at a low resolution and scale up.
 - With SDL2, ask for ES the usual way: `SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES)` and a major version of 1 or 2.
 
-## Code written for the Raspberry Pi (DispmanX)
+## Running existing Raspberry Pi 1–3 programs (DispmanX)
 
-This is a porting aid for existing code, not another way to write RISC OS programs: new code uses OpenGL ES with the native types, as in the previous section. Programs written for the Raspberry Pi's Khronos stack get their window through DispmanX, then use EGL and OpenGL ES. The DispmanX compatibility library (`libbcm_host`) lets that code build and run unchanged in the usual case. Linking it changes nothing for native windows, and one program can use both. The element you create is a rectangle of the screen, and each `eglSwapBuffers` plots the surface there, after the vsync wait, scaled from the source rectangle to the destination.
+**Not the way to write RISC OS programs.** This layer exists only so that existing programs written for the Raspberry Pi 1–3's Khronos stack run on this backend without rewriting their window set-up; new code uses the native types, as in the previous section. Programs written for the Raspberry Pi's Khronos stack get their window through DispmanX, then use EGL and OpenGL ES. The DispmanX compatibility library (`libbcm_host`) lets that code build and run unchanged in the usual case. Linking it changes nothing for native windows, and one program can use both. The element you create is a rectangle of the screen, and each `eglSwapBuffers` plots the surface there, after the vsync wait, scaled from the source rectangle to the destination.
 
 ```c
 #include "bcm_host.h"                 /* first: makes the native window a pointer */
