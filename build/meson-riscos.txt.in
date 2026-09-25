@@ -11,8 +11,8 @@ pkgconfig = 'pkg-config'
 needs_exe_wrapper = true
 
 [built-in options]
-c_args = ['-O2', '-mfpu=vfpv3', '-mfloat-abi=hard']
-cpp_args = ['-O2', '-mfpu=vfpv3', '-mfloat-abi=hard']
+c_args = ['-O2', '-mfpu=vfpv3', '-mfloat-abi=hard', '-fstack-clash-protection']
+cpp_args = ['-O2', '-mfpu=vfpv3', '-mfloat-abi=hard', '-fstack-clash-protection']
 
 [host_machine]
 system = 'riscos'

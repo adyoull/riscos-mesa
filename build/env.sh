@@ -7,8 +7,12 @@ export GCCSDK_ENV STAGE SRC
 export PATH="$GCCSDK_ENV/bin:$PATH"
 export HOST=arm-riscos-gnueabihf
 export CC=$HOST-gcc CXX=$HOST-g++ AR=$HOST-ar RANLIB=$HOST-ranlib STRIP=$HOST-strip
-# VFP but no NEON: GCCSDK README reports NEON builds can die with SIGEMT.
-export RO_CFLAGS="-O2 -mfpu=vfpv3 -mfloat-abi=hard"
+# -fstack-clash-protection is REQUIRED: ARMEABISupport maps the 1 MB stack
+# a page at a time as the guard page below it is touched, so any function
+# with a frame > 4 KB (Mesa has 19, up to 135 KB) must probe page by page or
+# it jumps past the guard page and dies with "abort on data transfer"/SIGEMT.
+# (The GCCSDK "NEON builds die with SIGEMT" warning is most likely this.)
+export RO_CFLAGS="-O2 -mfpu=vfpv3 -mfloat-abi=hard -fstack-clash-protection"
 # Let meson/configure find our libs (zlib etc.) and nothing from the build host.
 export PKG_CONFIG_LIBDIR="$STAGE/lib/pkgconfig:$STAGE/share/pkgconfig"
 export PKG_CONFIG_SYSROOT_DIR=
