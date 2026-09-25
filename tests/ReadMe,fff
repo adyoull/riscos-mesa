@@ -86,8 +86,9 @@ Run in this order and note the output:
 
    f) egl-damage: the extensions in 20.3.5-4. After the first frame only
       the middle half of the window is redrawn and shown (buffer age and
-      swap with damage). The middle's background slowly changes colour
-      while the edges keep the first frame's blue. Compare the present
+      swap with damage). The middle's background fades from blue to red
+      and back every 8 seconds, while the edges keep the first frame's
+      blue. Compare the present
       time in the title with egl-window. egl-check now also checks the
       new extensions (sync objects, surfaceless contexts, surface
       locking, the debug callback).

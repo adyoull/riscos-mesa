@@ -1,5 +1,5 @@
-riscos-mesa 20.3.5-3 - licences
-===============================
+riscos-mesa - licences
+======================
 
 These programs and libraries are made of the parts below. Each keeps its
 own licence; all of them allow free use and redistribution, including in

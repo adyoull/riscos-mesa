@@ -538,7 +538,11 @@ static int run_window(int second, double limit)
                 /* Buffer age 1 = the buffer still holds the last frame:
                    redraw and show only the middle. */
                 EGLint age = 0, rect[4];
-                float c = (frames % 120) / 120.0f;
+                /* Background fades blue -> red -> blue over 8 s, by
+                   the clock: counting frames made it flash at 500 fps. */
+                double ph = (t0 - tstart) / 8.0;
+                float c = (float) (ph - (long) ph);
+                c = c < 0.5f ? 2 * c : 2 - 2 * c;
                 eglQuerySurface(dpy, ws, EGL_BUFFER_AGE_EXT, &age);
                 rect[0] = w / 4; rect[1] = h / 4; rect[2] = w / 2; rect[3] = h / 2;
                 if (age == 1) {
