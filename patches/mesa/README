@@ -1,0 +1,3 @@
+Changes to Mesa 20.3.5 for RISC OS. They are under the licence of the files
+they change: MIT (Mesa), except the change to include/c11/threads_posix.h,
+which is under the Boost Software License 1.0. See LICENCES.txt.

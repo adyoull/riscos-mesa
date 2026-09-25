@@ -40,3 +40,8 @@ The older `sdl2-riscos-framebuffer.p` from the buildkit is superseded by
 
 Regenerate after editing: in a git tree of pristine SDL + these patches,
 `git diff --no-prefix <pristine> HEAD -- <file> > src.video.riscos.<file>.p`.
+
+## Licence
+These patches change SDL files, so they are under SDL's zlib licence, like
+the files they change (including the new SDL_riscosopengl.c/.h, which
+carry SDL's notice). The rest of riscos-mesa is MIT: see LICENCES.txt.

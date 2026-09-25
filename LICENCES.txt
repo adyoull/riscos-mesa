@@ -12,8 +12,17 @@ General Public License: see section 8 and UnixLib's own guidance there.
 Open source programs meet this automatically; a closed source program must
 offer its object files so it can be relinked with a modified UnixLib.
 
- 1. riscos-mesa (EGL library, SDL RISC OS overlay changes, patches, tests,
-    tools, documentation) - MIT
+ 1. riscos-mesa's own files (the EGL library egl/egl_riscos.c and
+    EGL/eglext_riscos.h, test programs, tools, build scripts,
+    documentation) - MIT
+    Changes to other projects' files keep the licence of the file they
+    change:
+    - patches/mesa - MIT, as Mesa, except the change to
+      include/c11/threads_posix.h, which is under the Boost licence (see 3)
+    - patches/sdl2 (the SDL RISC OS driver overlay, including the new
+      SDL_riscosopengl.c/.h, which carry SDL's notice) - zlib, as SDL (see 6)
+    - the RISC OS section of EGL/eglplatform.h - Khronos, as the rest of
+      that file (see 4)
  2. Mesa 3D 20.3.5 (libOSMesa) - MIT, with some parts under other
     permissive licences (see 3)
  3. C11 threads emulation in Mesa - Boost Software License 1.0

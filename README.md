@@ -78,11 +78,15 @@ bison, flex, autoconf, automake, libtool.
 | `tests/host-harness/egl` | runs the EGL library on Linux against a fake Wimp and screen (206 checks) |
 
 ## Licences
-This project (EGL library, SDL overlay changes, patches, scripts, tests,
-docs): MIT. Mesa: MIT (some parts Boost / SGI Free B). Khronos headers:
-Khronos MIT-style. GLU: SGI Free Software Licence B. SDL, zlib: zlib.
-UnixLib (linked into every GCCSDK program): BSD with some LGPL v2 parts, so
-closed source programs must offer their object files for relinking. GCC
-runtime: GPL v3 with the Runtime Library Exception.
+riscos-mesa's own files (the EGL library, test programs, tools, build
+scripts, docs): MIT (`LICENSE`). Patches to other projects keep the licence
+of the files they change: `patches/mesa` is MIT like Mesa (its one change to
+`include/c11/threads_posix.h` is Boost), `patches/sdl2` is zlib like SDL, and
+the RISC OS section of `EGL/eglplatform.h` is under the Khronos licence.
+Mesa: MIT (some parts Boost / SGI Free B). Khronos headers: Khronos
+MIT-style. GLU: SGI Free Software Licence B. SDL, zlib: zlib. UnixLib
+(linked into every GCCSDK program): BSD with some LGPL v2 parts, so closed
+source programs must offer their object files for relinking. GCC runtime:
+GPL v3 with the Runtime Library Exception.
 [LICENCES.txt](LICENCES.txt) has all the texts; it ships in the tests zip
 (`Licences`) and the devkit. Include it with programs you build.
