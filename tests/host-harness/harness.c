@@ -129,7 +129,24 @@ int main(void) {
     CHECK(pw == 64 && (tl & 0xFFFFFF) == 0x00FF00, "back to a window: green top shown at 64x48");
 
     dev.gl_config.profile_mask = SDL_GL_CONTEXT_PROFILE_ES;
-    CHECK(RISCOS_GL_CreateContext(&dev, &win) == NULL, "GLES refused");
+    dev.gl_config.major_version = 3; dev.gl_config.minor_version = 0;
+    CHECK(RISCOS_GL_CreateContext(&dev, &win) == NULL, "GLES 3.0 refused");
+    {
+        SDL_GLContext es;
+        const char *v;
+        dev.gl_config.major_version = 2;
+        es = RISCOS_GL_CreateContext(&dev, &win);
+        v = es ? (const char *) glGetString(GL_VERSION) : NULL;
+        CHECK(es && v && strncmp(v, "OpenGL ES 2.0", 13) == 0, "GLES 2.0 context");
+        if (es) RISCOS_GL_DeleteContext(&dev, es);
+        dev.gl_config.major_version = 1; dev.gl_config.minor_version = 1;
+        es = RISCOS_GL_CreateContext(&dev, &win);
+        v = es ? (const char *) glGetString(GL_VERSION) : NULL;
+        CHECK(es && v && strncmp(v, "OpenGL ES-CM 1.1", 16) == 0, "GLES 1.1 context");
+        if (es) RISCOS_GL_DeleteContext(&dev, es);
+        current_ctx = ctx;
+        RISCOS_GL_MakeCurrent(&dev, &win, ctx);
+    }
     dev.gl_config.profile_mask = SDL_GL_CONTEXT_PROFILE_CORE; dev.gl_config.major_version = 3; dev.gl_config.minor_version = 2;
     CHECK(RISCOS_GL_CreateContext(&dev, &win) == NULL, "core 3.2 refused");
     printf("  (%s)\n", errbuf);

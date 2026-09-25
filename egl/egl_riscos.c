@@ -33,6 +33,17 @@
 #include <kernel.h>
 #include <swis.h>
 
+/* DispmanX compatibility: libbcm_host provides these when it's linked. */
+#include "riscos_dispmanx.h"
+#pragma weak __riscos_dispmanx_window
+#pragma weak __riscos_dispmanx_placement
+
+#ifndef OSMESA_ES1_PROFILE                  /* riscos-mesa's Mesa patch */
+#define OSMESA_ES1_PROFILE 0x1001
+#define OSMESA_ES2_PROFILE 0x1002
+#endif
+#define RENDERABLE_BITS (EGL_OPENGL_BIT | EGL_OPENGL_ES_BIT | EGL_OPENGL_ES2_BIT)
+
 #define EGL_RISCOS_VENDOR  "riscos-mesa"
 #define EGL_RISCOS_VERSION "1.4 riscos-mesa (OSMesa)"
 #define EGL_RISCOS_EXTENSIONS \
@@ -114,7 +125,8 @@ typedef struct egl_surface {
     EGLint swap_behavior;
     int swap_interval;
     /* window */
-    int handle;                 /* Wimp window handle, -1 = screen */
+    int handle;                 /* Wimp window handle, -1 = screen, -3 = DispmanX element */
+    int dmx;                    /* DispmanX element (handle -3) */
     int fixed;                  /* work area rectangle given */
     int wa_x, wa_y;             /* its top left, OS units */
     int direct;                 /* rendering into screen memory */
@@ -148,6 +160,8 @@ typedef struct egl_context {
     EGLint magic;
     const egl_config *cfg;
     OSMesaContext om;
+    EGLenum api;                /* EGL_OPENGL_API or EGL_OPENGL_ES_API */
+    int es;                     /* OpenGL ES version: 1 or 2 (0 = desktop GL) */
     int release_flush;          /* EGL_KHR_context_flush_control */
     int surfaceless;            /* has been current without a surface */
     int had_surface;            /* has been current with one */
@@ -322,7 +336,7 @@ static int wanted_size(const egl_surface *surf, const screen_info *s, int *w, in
     if (surf->handle == -1) {
         *w = s->width;
         *h = s->height;
-    } else if (surf->fixed) {
+    } else if (surf->fixed || surf->dmx) {
         *w = surf->w;
         *h = surf->h;
     } else {
@@ -537,6 +551,65 @@ static int damage_rects(const egl_surface *surf, const EGLint *rects, int n,
     return m;
 }
 
+/* DispmanX compatibility: after the vsync wait, plot the surface (its
+   source rectangle) scaled to the element's destination rectangle. */
+static void present_dmx(egl_surface *surf, const screen_info *s)
+{
+    riscos_dmx_placement pl;
+    _kernel_swi_regs r;
+    int factors[4], i, sw, sh, sxe, sye;
+    long long top, y;
+    os_rect clip, all;
+
+    if (!__riscos_dispmanx_placement || !__riscos_dispmanx_placement(surf->dmx, &pl))
+        return;                         /* element gone */
+    for (i = 0; i < surf->swap_interval; i++)
+        _kernel_osbyte(19, 0, 0);
+    if (!pl.visible || !surf->sprite || pl.w <= 0 || pl.h <= 0)
+        return;
+    sw = pl.src_w > 0 ? pl.src_w : surf->w;
+    sh = pl.src_h > 0 ? pl.src_h : surf->h;
+    sxe = surf->sprite_mode == SPRITE_MODE_TYPE6 ? 1 : s->xeig;   /* 90 dpi = eig 1 */
+    sye = surf->sprite_mode == SPRITE_MODE_TYPE6 ? 1 : s->yeig;
+    factors[0] = pl.w << s->xeig;       /* x: multiply, then divide */
+    factors[1] = pl.h << s->yeig;
+    factors[2] = sw << sxe;
+    factors[3] = sh << sye;
+
+    all.x0 = 0; all.y0 = 0;
+    all.x1 = s->width << s->xeig; all.y1 = s->height << s->yeig;
+    clip.x0 = pl.x << s->xeig;
+    clip.x1 = (pl.x + pl.w) << s->xeig;
+    clip.y1 = (s->height - pl.y) << s->yeig;
+    clip.y0 = (s->height - pl.y - pl.h) << s->yeig;
+    if (clip.x0 < 0) clip.x0 = 0;
+    if (clip.y0 < 0) clip.y0 = 0;
+    if (clip.x1 > all.x1) clip.x1 = all.x1;
+    if (clip.y1 > all.y1) clip.y1 = all.y1;
+    if (clip.x0 >= clip.x1 || clip.y0 >= clip.y1)
+        return;
+
+    /* The source rectangle's top left lands on the destination's top left;
+       the sprite's padding rows (see MIN_SPRITE_BYTES) fall outside. */
+    top = ((long long) (s->height - pl.y) << s->yeig) +
+          ((long long) (pl.src_y << sye) * factors[1]) / factors[3];
+    /* whole screen pixels, so the top row lands on the destination's top */
+    y = top - (((((long long) (surf->sprite_h << sye) * factors[1]) / factors[3])
+                >> s->yeig) << s->yeig);
+    set_graphics_window(&clip);
+    r.r[0] = 512 + 52;                  /* PutSpriteScaled */
+    r.r[1] = (int) surf->area;
+    r.r[2] = (int) surf->sprite;
+    r.r[3] = (int) ((pl.x << s->xeig) -
+                    ((long long) (pl.src_x << sxe) * factors[0]) / factors[2]);
+    r.r[4] = (int) y;
+    r.r[5] = 0;
+    r.r[6] = (int) factors;
+    r.r[7] = 0;
+    _kernel_swi(OS_SpriteOp, &r, &r);
+    set_graphics_window(&all);
+}
+
 /* Show a finished frame of a window surface: all of it, or only the damaged
    rectangles (rects/n as for eglSwapBuffersWithDamageKHR; NULL = all). */
 static void present(egl_display *d, egl_surface *surf, const screen_info *s,
@@ -547,6 +620,10 @@ static void present(egl_display *d, egl_surface *surf, const screen_info *s,
     os_rect dmg[MAX_DAMAGE];
     int i, nd;
 
+    if (surf->dmx) {
+        present_dmx(surf, s);           /* always the whole surface */
+        return;
+    }
     nd = damage_rects(surf, rects, n, s, dmg);
     if (nd == 0 && !surf->banks)
         return;                         /* all rectangles empty: nothing changed */
@@ -931,7 +1008,7 @@ static int config_attrib(const egl_config *c, EGLint attrib, EGLint *value)
     case EGL_COLOR_BUFFER_TYPE:        v = EGL_RGB_BUFFER; break;
     case EGL_CONFIG_CAVEAT:            v = EGL_NONE; break;
     case EGL_CONFIG_ID:                v = c->id; break;
-    case EGL_CONFORMANT:               v = EGL_OPENGL_BIT; break;
+    case EGL_CONFORMANT:               v = RENDERABLE_BITS; break;
     case EGL_DEPTH_SIZE:               v = c->depth; break;
     case EGL_LEVEL:                    v = 0; break;
     case EGL_MAX_PBUFFER_WIDTH:
@@ -944,7 +1021,7 @@ static int config_attrib(const egl_config *c, EGLint attrib, EGLint *value)
         v = (c->layout == LAYOUT_TRGB) ? EGL_RISCOS_VISUAL_TRGB : EGL_RISCOS_VISUAL_TBGR;
         break;
     case EGL_NATIVE_VISUAL_TYPE:       v = EGL_NONE; break;
-    case EGL_RENDERABLE_TYPE:          v = EGL_OPENGL_BIT; break;
+    case EGL_RENDERABLE_TYPE:          v = RENDERABLE_BITS; break;
     case EGL_SAMPLE_BUFFERS:
     case EGL_SAMPLES:                  v = 0; break;
     case EGL_STENCIL_SIZE:             v = c->stencil; break;
@@ -1119,7 +1196,7 @@ EGLAPI const char *EGLAPIENTRY eglQueryString(EGLDisplay dpy, EGLint name)
     case EGL_VENDOR:      return EGL_RISCOS_VENDOR;
     case EGL_VERSION:     return EGL_RISCOS_VERSION;
     case EGL_EXTENSIONS:  return EGL_RISCOS_EXTENSIONS;
-    case EGL_CLIENT_APIS: return "OpenGL";
+    case EGL_CLIENT_APIS: return "OpenGL OpenGL_ES";
     }
     fail(EGL_BAD_PARAMETER);
     return NULL;
@@ -1274,17 +1351,26 @@ static EGLSurface create_window_surface(EGLDisplay dpy, EGLConfig config,
     egl_surface *s;
     screen_info scr;
     window_state ws;
-    int i, have_w = 0, have_h = 0;
+    int i, have_w = 0, have_h = 0, dmx = 0, dmx_w = 0, dmx_h = 0;
 
     if (!(d = get_display(dpy, 1)) || !(c = get_config(d, config)))
         return EGL_NO_SURFACE;
-    if (win != -1 && (win == 0 || !get_window_state(win, &ws))) {
+    if (win != -1 && win != 0 && __riscos_dispmanx_window &&
+        __riscos_dispmanx_window((const void *) win, &dmx, &dmx_w, &dmx_h)) {
+        /* a pointer to an EGL_DISPMANX_WINDOW_T (DispmanX compatibility) */
+    } else if (win != -1 && (win == 0 || !get_window_state(win, &ws))) {
         fail(EGL_BAD_NATIVE_WINDOW);
         return EGL_NO_SURFACE;
     }
     if (!(s = new_surface(d, c, SURF_WINDOW)))
         return EGL_NO_SURFACE;
     s->handle = win;
+    if (dmx) {
+        s->handle = -3;
+        s->dmx = dmx;
+        s->w = dmx_w;
+        s->h = dmx_h;
+    }
 
     for (i = 0; attrib_list && attrib_list[i] != EGL_NONE; i += 2) {
         EGLint a = attrib_list[i], v = attrib_list[i + 1];
@@ -1299,7 +1385,7 @@ static EGLSurface create_window_surface(EGLDisplay dpy, EGLConfig config,
             break;              /* OpenVG only, ignored */
         case EGL_FLIP_FIRST_RISCOS:       s->flip_first = (v != 0); break;
         case EGL_SCREEN_BANKS_RISCOS:
-            if (win != -1 || v < 0 || v == 1 || v > MAX_BANKS)
+            if (s->handle != -1 || v < 0 || v == 1 || v > MAX_BANKS)
                 goto bad_attr;
             s->want_banks = v;
             break;
@@ -1312,7 +1398,7 @@ static EGLSurface create_window_surface(EGLDisplay dpy, EGLConfig config,
         }
     }
     if (have_w || have_h) {
-        if (!have_w || !have_h || s->w < 1 || s->h < 1 || win == -1)
+        if (!have_w || !have_h || s->w < 1 || s->h < 1 || s->handle < 0)
             goto bad_attr;
         s->fixed = 1;
     }
@@ -1629,8 +1715,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglReleaseTexImage(EGLDisplay dpy, EGLSurface surf
 EGLAPI EGLBoolean EGLAPIENTRY eglBindAPI(EGLenum api)
 {
     ENTER();
-    if (api != EGL_OPENGL_API)
-        return fail(EGL_BAD_PARAMETER); /* OpenGL ES / OpenVG not (yet) */
+    if (api != EGL_OPENGL_API && api != EGL_OPENGL_ES_API)
+        return fail(EGL_BAD_PARAMETER); /* no OpenVG */
     bound_api = api;
     return ok();
 }
@@ -1710,17 +1796,21 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
     EGLint major = 1, minor = 0, flags = 0;
     EGLint profile = EGL_CONTEXT_OPENGL_COMPATIBILITY_PROFILE_BIT_KHR;
     int attribs[20], i, n = 0, explicit_version = 0, explicit_profile = 0;
-    int release_flush = 1;
+    int release_flush = 1, es = 0;
 
     ENTER();
     if (!(d = get_display(dpy, 1)) || !(c = get_config(d, config)))
         return EGL_NO_CONTEXT;
-    if (bound_api != EGL_OPENGL_API) {
+    if (bound_api != EGL_OPENGL_API && bound_api != EGL_OPENGL_ES_API) {
         fail(EGL_BAD_MATCH);
         return EGL_NO_CONTEXT;
     }
     if (share_context != EGL_NO_CONTEXT && !(share = get_context(d, share_context)))
         return EGL_NO_CONTEXT;
+    if (share && share->api != bound_api) {
+        fail(EGL_BAD_MATCH);            /* can't share between GL and GLES */
+        return EGL_NO_CONTEXT;
+    }
 
     for (i = 0; attrib_list && attrib_list[i] != EGL_NONE; i += 2) {
         EGLint a = attrib_list[i], v = attrib_list[i + 1];
@@ -1767,6 +1857,22 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
         fail(EGL_BAD_MATCH);
         return EGL_NO_CONTEXT;
     }
+    if (bound_api == EGL_OPENGL_ES_API) {
+        /* EGL_CONTEXT_CLIENT_VERSION (default 1); classic swrast gives
+           ES 1.1 and ES 2.0 */
+        if (explicit_profile || (flags & EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE_BIT_KHR)) {
+            fail(EGL_BAD_ATTRIBUTE);    /* desktop GL only */
+            return EGL_NO_CONTEXT;
+        }
+        if (major == 1 && (minor == 0 || minor == 1))
+            es = 1;
+        else if (major == 2 && minor == 0)
+            es = 2;
+        else {
+            fail(EGL_BAD_MATCH);        /* ES 3.x: not with this renderer */
+            return EGL_NO_CONTEXT;
+        }
+    }
 
     attribs[n++] = OSMESA_FORMAT;
     attribs[n++] = c->layout == LAYOUT_TRGB ? OSMESA_BGRA : OSMESA_RGBA;
@@ -1775,10 +1881,13 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
     attribs[n++] = OSMESA_ACCUM_BITS;   attribs[n++] = 0;
     /* The profile only applies to GL 3.2+ (EGL_KHR_create_context). */
     attribs[n++] = OSMESA_PROFILE;
-    attribs[n++] = (explicit_profile && profile == EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR &&
-                    (major > 3 || (major == 3 && minor >= 2)))
-                   ? OSMESA_CORE_PROFILE : OSMESA_COMPAT_PROFILE;
-    if (explicit_version && (major > 2 || (major == 2 && minor > 1))) {
+    if (es)
+        attribs[n++] = es == 1 ? OSMESA_ES1_PROFILE : OSMESA_ES2_PROFILE;
+    else
+        attribs[n++] = (explicit_profile && profile == EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR &&
+                        (major > 3 || (major == 3 && minor >= 2)))
+                       ? OSMESA_CORE_PROFILE : OSMESA_COMPAT_PROFILE;
+    if (!es && explicit_version && (major > 2 || (major == 2 && minor > 1))) {
         attribs[n++] = OSMESA_CONTEXT_MAJOR_VERSION; attribs[n++] = major;
         attribs[n++] = OSMESA_CONTEXT_MINOR_VERSION; attribs[n++] = minor;
     }
@@ -1792,11 +1901,13 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
     ctx->om = OSMesaCreateContextAttribs(attribs, share ? share->om : NULL);
     if (!ctx->om) {
         free(ctx);
-        fail(EGL_BAD_MATCH);            /* e.g. GL 3.x asked for: this is 2.1 */
+        fail(EGL_BAD_MATCH);            /* e.g. GL 3.x asked for: this is 2.1 / ES 2.0 */
         return EGL_NO_CONTEXT;
     }
     ctx->magic = MAGIC_CONTEXT;
     ctx->cfg = c;
+    ctx->api = bound_api;
+    ctx->es = es;
     ctx->release_flush = release_flush;
     ctx->next = d->contexts;
     d->contexts = ctx;
@@ -1928,10 +2039,17 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw,
     return ok();
 }
 
+/* One context is current at a time (OSMesa has one). EGL keeps one per
+   client API, so report it only for its own API. */
+static egl_context *current_for_api(void)
+{
+    return (cur_ctx && cur_ctx->api == bound_api) ? cur_ctx : NULL;
+}
+
 EGLAPI EGLContext EGLAPIENTRY eglGetCurrentContext(void)
 {
     ENTER();
-    return cur_ctx ? (EGLContext) cur_ctx : EGL_NO_CONTEXT;
+    return current_for_api() ? (EGLContext) cur_ctx : EGL_NO_CONTEXT;
 }
 
 EGLAPI EGLSurface EGLAPIENTRY eglGetCurrentSurface(EGLint readdraw)
@@ -1941,13 +2059,13 @@ EGLAPI EGLSurface EGLAPIENTRY eglGetCurrentSurface(EGLint readdraw)
         fail(EGL_BAD_PARAMETER);
         return EGL_NO_SURFACE;
     }
-    return cur_surf ? (EGLSurface) cur_surf : EGL_NO_SURFACE;
+    return (current_for_api() && cur_surf) ? (EGLSurface) cur_surf : EGL_NO_SURFACE;
 }
 
 EGLAPI EGLDisplay EGLAPIENTRY eglGetCurrentDisplay(void)
 {
     ENTER();
-    return cur_ctx ? (EGLDisplay) &display : EGL_NO_DISPLAY;
+    return current_for_api() ? (EGLDisplay) &display : EGL_NO_DISPLAY;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglQueryContext(EGLDisplay dpy, EGLContext context,
@@ -1962,8 +2080,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglQueryContext(EGLDisplay dpy, EGLContext context
         return fail(EGL_BAD_PARAMETER);
     switch (attribute) {
     case EGL_CONFIG_ID:              *value = c->cfg->id; break;
-    case EGL_CONTEXT_CLIENT_TYPE:    *value = EGL_OPENGL_API; break;
-    case EGL_CONTEXT_CLIENT_VERSION: *value = 0; break;    /* GL ES only */
+    case EGL_CONTEXT_CLIENT_TYPE:    *value = c->api; break;
+    case EGL_CONTEXT_CLIENT_VERSION: *value = c->es; break;   /* ES only; 0 for GL */
     case EGL_RENDER_BUFFER:
         if (!c->current || !cur_surf)
             *value = EGL_NONE;
@@ -2481,7 +2599,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS(EGLDisplay dpy, EGLSurface su
         return EGL_FALSE;
     if (!block)
         return fail(EGL_BAD_PARAMETER);
-    if (s->kind != SURF_WINDOW || s->handle == -1)
+    if (s->kind != SURF_WINDOW || s->handle < 0)
         return fail(EGL_BAD_SURFACE);
     read_screen(&scr);
     {

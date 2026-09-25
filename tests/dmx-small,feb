@@ -1,0 +1,5 @@
+| riscos-mesa DispmanX compatibility test: double-click to run. It runs over the
+| desktop for 5 seconds (like Raspberry Pi programs, it does not multitask), then
+| the desktop is redrawn. Results are saved in this directory.
+Dir <Obey$Dir>
+Run dmxtest -s -o dmx-small

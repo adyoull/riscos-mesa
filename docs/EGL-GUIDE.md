@@ -1,12 +1,12 @@
 # RISC OS EGL programming guide
 
-For riscos-mesa v20.3.5-4 (September 2026). Andrew Youll.
+For riscos-mesa v20.3.5-5 (September 2026). Andrew Youll.
 
 ## Overview
 
-`libEGL` gives RISC OS programs the standard Khronos way to set up OpenGL: EGL 1.4 on top of Mesa's software renderer (OSMesa), with desktop OpenGL 2.1 and GLSL 1.20. You write ordinary EGL and GL code; the library handles Wimp windows, full screen and sprites.
+`libEGL` gives RISC OS programs the standard Khronos way to set up OpenGL: EGL 1.4 on top of Mesa's software renderer (OSMesa), with desktop OpenGL 2.1 (GLSL 1.20), OpenGL ES 1.1 and OpenGL ES 2.0. You write ordinary EGL and GL code; the library handles Wimp windows, full screen and sprites. Code written for the Raspberry Pi's Khronos stack can keep its DispmanX window code through a compatibility library.
 
-- **Where it comes from:** riscos-mesa, release v20.3.5-3 or later; the standard extensions need v20.3.5-4 (devkit `riscos-mesa-devkit-20.3.5-4.tgz`: `lib/libEGL.a`, `lib/libOSMesa.a`, `include/EGL/`, `include/GL/`).
+- **Where it comes from:** riscos-mesa, release v20.3.5-3 or later; the standard extensions need v20.3.5-4, OpenGL ES and DispmanX compatibility v20.3.5-5 (devkit `riscos-mesa-devkit-20.3.5-5.tgz`: `lib/libEGL.a`, `lib/libOSMesa.a`, `lib/libbcm_host.a`, `include/EGL/`, `include/GL/`, `include/GLES/`, `include/GLES2/`).
 - **Runs on:** RISC OS 5 on ARMv7 with VFP (Raspberry Pi 2, 3, 4), with SharedUnixLibrary and ARMEABISupport loaded. Tested on a Pi 4.
 - **Toolchain:** GCCSDK GCC 10 (`arm-riscos-gnueabihf`), static ELF programs.
 
@@ -127,7 +127,7 @@ int main(void)
 
 Points to note:
 
-- **Ask for `EGL_OPENGL_BIT`.** EGL's default `EGL_RENDERABLE_TYPE` is OpenGL ES, which this library doesn't offer, so without it you get no configs.
+- **Ask for `EGL_OPENGL_BIT`.** EGL's default `EGL_RENDERABLE_TYPE` is OpenGL ES. This library's configs support both, but other EGL implementations may not, so desktop GL code should say what it needs.
 - **The swap shows the frame.** GL draws into an off-screen sprite; `eglSwapBuffers` waits for vsync (if the swap interval is 1 or more) and copies it to the screen.
 - **From the desktop,** this draws over it and doesn't redraw it afterwards. A desktop program should either use a window (next section) or call `Wimp_ForceRedraw` with window handle -1 on exit.
 
@@ -294,7 +294,7 @@ Ask only for what you need; `eglChooseConfig` sorts the matches as the EGL spec 
 
 | Attribute | Useful values | Notes |
 | --- | --- | --- |
-| `EGL_RENDERABLE_TYPE` | `EGL_OPENGL_BIT` | Required: the default is OpenGL ES |
+| `EGL_RENDERABLE_TYPE` | `EGL_OPENGL_BIT`, `EGL_OPENGL_ES_BIT`, `EGL_OPENGL_ES2_BIT` | Every config supports all three; the default is ES |
 | `EGL_SURFACE_TYPE` | `EGL_WINDOW_BIT`, `EGL_PBUFFER_BIT`, `EGL_PIXMAP_BIT` | All configs support all three |
 | `EGL_DEPTH_SIZE` | 0, 16, 24 | 3D scenes need 16 or 24 |
 | `EGL_STENCIL_SIZE` | 0, 8 | 8 only comes with depth 24 |
@@ -321,6 +321,64 @@ ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, want_21);
 - The draw and read surfaces passed to `eglMakeCurrent` must be the same surface.
 
 **Function pointers.** `eglGetProcAddress` returns every EGL function (including the RISC OS ones) and every GL function, including core GL 1.x/2.x entry points (`EGL_KHR_get_all_proc_addresses`).
+
+## OpenGL ES
+
+Bind the ES API before creating the context, and say which version you want with `EGL_CONTEXT_CLIENT_VERSION`: 1 (the default) gives OpenGL ES 1.1, 2 gives OpenGL ES 2.0 with GLSL ES 1.00. Both come from the same software renderer as desktop GL, and every config supports them.
+
+```c
+#include <EGL/egl.h>
+#include <GLES2/gl2.h>                /* or <GLES/gl.h> for ES 1.1 */
+
+static const EGLint ctx_attr[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
+eglBindAPI(EGL_OPENGL_ES_API);
+ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, ctx_attr);
+/* surfaces, eglMakeCurrent and eglSwapBuffers exactly as for desktop GL */
+```
+
+- Link as for desktop GL: `-lEGL -lOSMesa -lstdc++ -lz -lm`. The ES functions (including ES 1.1's `glOrthof`, `glFrustumf` and fixed-point calls) are in libOSMesa.
+- ES 3.x gives `EGL_BAD_MATCH`: the renderer lacks what ES 3.0 needs.
+- A desktop GL context and an ES context can't share objects.
+- One context is current at a time. Making an ES context current releases a desktop GL one, and the other way round.
+- **Speed:** ES 1.1 is fixed function and runs as fast as desktop GL. ES 2.0 is all shaders, and shaders run through Mesa's GLSL interpreter, several times slower for the same scene. Keep ES 2.0 programs small, or render at a low resolution and scale up.
+- With SDL2, ask for ES the usual way: `SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES)` and a major version of 1 or 2.
+
+## Code written for the Raspberry Pi (DispmanX)
+
+Programs written for the Raspberry Pi's Khronos stack get their window through DispmanX, then use EGL and OpenGL ES. The DispmanX compatibility library (`libbcm_host`) lets that code build and run unchanged in the usual case: the element you create is a rectangle of the screen, and each `eglSwapBuffers` plots the surface there, after the vsync wait, scaled from the source rectangle to the destination.
+
+```c
+#include "bcm_host.h"                 /* first: makes the native window a pointer */
+#include <EGL/egl.h>
+#include <GLES2/gl2.h>
+
+static EGL_DISPMANX_WINDOW_T nativewindow;
+uint32_t w, h;
+VC_RECT_T dst, src;
+
+bcm_host_init();
+graphics_get_display_size(0, &w, &h);             /* the current screen mode */
+vc_dispmanx_rect_set(&dst, 0, 0, w, h);            /* whole screen ... */
+vc_dispmanx_rect_set(&src, 0, 0, (w / 2) << 16, (h / 2) << 16);   /* ... from half size */
+DISPMANX_DISPLAY_HANDLE_T disp = vc_dispmanx_display_open(0);
+DISPMANX_UPDATE_HANDLE_T upd = vc_dispmanx_update_start(0);
+nativewindow.element = vc_dispmanx_element_add(upd, disp, 0, &dst, 0, &src,
+                                               DISPMANX_PROTECTION_NONE, 0, 0, 0);
+nativewindow.width = w / 2;
+nativewindow.height = h / 2;
+vc_dispmanx_update_submit_sync(upd);
+surface = eglCreateWindowSurface(dpy, cfg, &nativewindow, NULL);
+```
+
+Link with `-lbcm_host -lEGL -lOSMesa -lstdc++ -lz -lm`. Empty `libGLESv2`, `libGLESv1_CM`, `libvcos` and `libvchiq_arm` are supplied, so a Pi link line only needs `-lOSMesa -lstdc++ -lz -lm` added at the end.
+
+- **Include `bcm_host.h` before the EGL headers** (the Pi examples do), or compile with `-DEGL_RISCOS_DISPMANX`. It makes `EGLNativeWindowType` a pointer, as on the Pi; the compiler stops with an error if the order is wrong.
+- **Supported:** `bcm_host_init`, `graphics_get_display_size`, opening and closing the display and `vc_dispmanx_display_get_info`, updates (they take effect at once), adding, moving (`vc_dispmanx_element_change_attributes`: destination, source, opacity 0 to hide) and removing elements.
+- **When the element is removed or the program exits,** the desktop underneath is redrawn.
+- **Not supported:** layers and alpha blending between elements, rotation and flips, DispmanX resources (`vc_dispmanx_resource_*`, 2D images), `vc_dispmanx_vsync_callback`, and other VideoCore services (OpenMAX, MMAL).
+- **It doesn't multitask,** just as it didn't on the Pi: the program paints over the desktop until it exits. For a desktop program, use a Wimp window as the native window instead.
+
+`tests/dmxtest.c` is a complete example; the `dmx-*` Obey files in the tests zip run it.
 
 ## Reference: RISC OS additions
 
@@ -502,7 +560,7 @@ From the riscos-mesa benchmark at 640x480 (ms per frame): clear 1.5, lit cube 5.
 
 **Limits**
 
-- Desktop OpenGL 2.1 only; OpenGL ES and GL 3.x contexts are refused.
+- OpenGL 2.1, OpenGL ES 1.1 and ES 2.0; GL 3.x, core profiles and ES 3.x are refused.
 - One thread: make all EGL and GL calls from the same thread.
 - OSMesa can't really release a context: after `eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT)` don't make GL calls.
 - No multisampling, no bind-to-texture, no EGL 1.5 entry points.
@@ -512,7 +570,7 @@ From the riscos-mesa benchmark at 640x480 (ms per frame): clear 1.5, lit cube 5.
 
 | Symptom | Cause and fix |
 | --- | --- |
-| `eglChooseConfig` returns no configs | Add `EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT` |
+| `eglChooseConfig` returns no configs | Check what you asked for: all configs are 32-bit RGBA with depth 0, 16 or 24 and no multisampling |
 | `eglCreateContext` returns `EGL_NO_CONTEXT`, `EGL_BAD_MATCH` | You asked for GL 3.x or core; ask for 2.1 or nothing |
 | `eglMakeCurrent` fails, `EGL_BAD_MATCH` | Surface and context configs are in different colour orders, or draw and read differ |
 | Random crashes (abort on data transfer, illegal instruction) | Compile everything with `-fstack-clash-protection` |

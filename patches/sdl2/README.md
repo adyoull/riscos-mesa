@@ -11,7 +11,9 @@ order), used by BOTH projects:
   OS_ScreenMode while a task. Re-applied here from the START-HERE
   description: **compare with riscos-openttd commit 9d90de1 and keep one.**
 - OpenGL via OSMesa (`SDL_riscosopengl.[ch]` + small hooks), compiled only
-  with `--enable-video-riscos-osmesa`. Without that flag the library has no
+  with `--enable-video-riscos-osmesa`. Desktop GL 2.1, and (2026-09-25)
+  OpenGL ES 1.1 / 2.0 with `SDL_GL_CONTEXT_PROFILE_ES`, which needs
+  riscos-mesa's OSMesa patch (`OSMESA_ES1_PROFILE`/`OSMESA_ES2_PROFILE`). Without that flag the library has no
   GL code at all (checked: no GL symbols), i.e. it is the OpenTTD driver.
 - Scroll wheel (2026-09-25, from riscos-openttd commit 210ba99): read with
   `OS_Pointer 2` on every poll and sent as `SDL_MOUSEWHEEL`, in a window

@@ -15,6 +15,10 @@ multitask properly (vsync, SDL_Delay and SDL_WaitEvent yield to the desktop).
   `-lOSMesa -lstdc++ -lz -lm`.
 - `libGLU.a`: GLU 1.3.
 - SDL2 with `SDL_WINDOW_OPENGL` / `SDL_GL_CreateContext` working on RISC OS.
+- OpenGL ES 1.1 and 2.0 contexts too (through EGL or SDL2).
+- `libbcm_host.a`: DispmanX compatibility, so EGL/GLES code written for
+  the Raspberry Pi's Khronos stack builds and runs unchanged. See
+  [dispmanx/README.md](dispmanx/README.md).
 - `libEGL.a`: EGL 1.4 over OSMesa, so programs can set up GL the standard
   Khronos way: Wimp windows, full screen (optionally straight into screen
   memory), pbuffers and sprites as pixmaps. Link with
@@ -31,8 +35,8 @@ Prebuilt test programs and a devkit (static libraries + headers) are on the
 SharedLibs (SOManager), SharedUnixLibrary and ARMEABISupport from PackMan.
 
 ## Limits
-- OpenGL 2.1 only. Requests for GL 3.0+ or a core profile fail, and so do
-  GLES contexts. That's what classic OSMesa grants; GL 3.x would need
+- OpenGL 2.1, OpenGL ES 1.1 and ES 2.0. Requests for GL 3.0+, a core
+  profile or ES 3.x fail. That's what classic OSMesa grants; GL 3.x would need
   Mesa 25.1's softpipe OSMesa (slower, threaded), which is a later option.
 - Pure CPU rendering on one core. Aim for 320x240 to 640x480.
 - Best in a 16M-colour screen mode (the GL image then plots with no
@@ -78,8 +82,8 @@ bison, flex, autoconf, automake, libtool.
 | `tests/host-harness/egl` | runs the EGL library on Linux against a fake Wimp and screen (206 checks) |
 
 ## Licences
-riscos-mesa's own files (the EGL library, test programs, tools, build
-scripts, docs): MIT (`LICENSE`). Patches to other projects keep the licence
+riscos-mesa's own files (the EGL library, the DispmanX compatibility
+library, test programs, tools, build scripts, docs): MIT (`LICENSE`). Patches to other projects keep the licence
 of the files they change: `patches/mesa` is MIT like Mesa (its one change to
 `include/c11/threads_posix.h` is Boost), `patches/sdl2` is zlib like SDL, and
 the RISC OS section of `EGL/eglplatform.h` is under the Khronos licence.

@@ -304,8 +304,33 @@ static int run_checks(void)
         eglGetError();
     }
 
+    /* OpenGL ES */
+    {
+        EGLint e2[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
+        EGLint e3[] = { EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE };
+        EGLContext es;
+        const char *v;
+        CHECK(eglBindAPI(EGL_OPENGL_ES_API), "bind OpenGL ES");
+        CHECK(eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, e3) == EGL_NO_CONTEXT &&
+              eglGetError() == EGL_BAD_MATCH, "ES 3.0 refused");
+        es = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, e2);
+        CHECK(es != EGL_NO_CONTEXT && eglMakeCurrent(dpy, pb, pb, es), "ES 2.0 context");
+        v = (const char *) glGetString(GL_VERSION);
+        say("ES: %s, GLSL %s\n", v ? v : "(null)", (const char *) glGetString(0x8B8C));
+        CHECK(v && !strncmp(v, "OpenGL ES 2.0", 13), "ES 2.0 version string");
+        eglMakeCurrent(dpy, pb, pb, ctx);
+        eglDestroyContext(dpy, es);
+        es = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+        CHECK(es != EGL_NO_CONTEXT && eglMakeCurrent(dpy, pb, pb, es), "ES 1.1 context");
+        v = (const char *) glGetString(GL_VERSION);
+        CHECK(v && !strncmp(v, "OpenGL ES-CM 1.1", 16), "ES 1.1 version string");
+        eglMakeCurrent(dpy, pb, pb, ctx);
+        eglDestroyContext(dpy, es);
+        eglBindAPI(EGL_OPENGL_API);
+    }
+
     /* error cases */
-    CHECK(!eglBindAPI(EGL_OPENGL_ES_API) && eglGetError() == EGL_BAD_PARAMETER, "GLES refused (not yet)");
+    CHECK(!eglBindAPI(EGL_OPENVG_API) && eglGetError() == EGL_BAD_PARAMETER, "OpenVG refused");
     {
         EGLint a[] = { EGL_CONTEXT_MAJOR_VERSION_KHR, 3, EGL_CONTEXT_MINOR_VERSION_KHR, 3,
                        EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR, EGL_NONE };

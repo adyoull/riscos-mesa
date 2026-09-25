@@ -175,3 +175,41 @@ diff -ruN mesa-a/src/util/u_thread.h mesa-b/src/util/u_thread.h
  
  typedef pthread_barrier_t util_barrier;
  
+diff -ru a/include/GL/osmesa.h b/include/GL/osmesa.h
+--- a/include/GL/osmesa.h	2026-09-25 17:35:55.055684799 +0100
++++ b/include/GL/osmesa.h	2026-09-25 17:35:55.070548942 +0100
+@@ -106,6 +106,10 @@
+ #define OSMESA_COMPAT_PROFILE        0x35
+ #define OSMESA_CONTEXT_MAJOR_VERSION 0x36
+ #define OSMESA_CONTEXT_MINOR_VERSION 0x37
++/* riscos-mesa: OpenGL ES contexts (values of OSMESA_PROFILE). ES 1.1
++   (common profile) and ES 2.0 are what classic swrast supports. */
++#define OSMESA_ES1_PROFILE           0x1001
++#define OSMESA_ES2_PROFILE           0x1002
+ 
+ 
+ typedef struct osmesa_context *OSMesaContext;
+@@ -150,7 +154,8 @@
+  * OSMESA_DEPTH_BITS             0*, 16, 24, 32
+  * OSMESA_STENCIL_BITS           0*, 8
+  * OSMESA_ACCUM_BITS             0*, 16
+- * OSMESA_PROFILE                OSMESA_COMPAT_PROFILE*, OSMESA_CORE_PROFILE
++ * OSMESA_PROFILE                OSMESA_COMPAT_PROFILE*, OSMESA_CORE_PROFILE,
++ *                               OSMESA_ES1_PROFILE, OSMESA_ES2_PROFILE
+  * OSMESA_CONTEXT_MAJOR_VERSION  1*, 2, 3
+  * OSMESA_CONTEXT_MINOR_VERSION  0+
+  *
+diff -ru a/src/mesa/drivers/osmesa/osmesa.c b/src/mesa/drivers/osmesa/osmesa.c
+--- a/src/mesa/drivers/osmesa/osmesa.c	2026-09-25 17:35:55.053585113 +0100
++++ b/src/mesa/drivers/osmesa/osmesa.c	2026-09-25 17:35:55.070366879 +0100
+@@ -727,6 +727,10 @@
+             api_profile = API_OPENGL_COMPAT;
+          else if (profile == OSMESA_CORE_PROFILE)
+             api_profile = API_OPENGL_CORE;
++         else if (profile == OSMESA_ES1_PROFILE)    /* riscos-mesa */
++            api_profile = API_OPENGLES;
++         else if (profile == OSMESA_ES2_PROFILE)    /* riscos-mesa */
++            api_profile = API_OPENGLES2;
+          else
+             return NULL;
+          break;

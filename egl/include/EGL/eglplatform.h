@@ -99,7 +99,22 @@ typedef int EGLNativeWindowType;
  *            sprite area); rendering goes straight into its image.  */
 typedef int   EGLNativeDisplayType;
 typedef void *EGLNativePixmapType;
+#if defined(EGL_RISCOS_DISPMANX)
+/* DispmanX compatibility (riscos-mesa's bcm_host): code written for the
+ * Raspberry Pi's Khronos stack passes a pointer to an EGL_DISPMANX_WINDOW_T
+ * as the native window. Defined by bcm_host.h, or -DEGL_RISCOS_DISPMANX.
+ * Same size as the handle, so the library underneath is the same.  */
+#include "interface/vmcs_host/vc_dispmanx_types.h"
+typedef struct {
+    DISPMANX_ELEMENT_HANDLE_T element;
+    int width;   /* the surface's size in pixels */
+    int height;
+} EGL_DISPMANX_WINDOW_T;
+typedef void *EGLNativeWindowType;
+#else
 typedef int   EGLNativeWindowType;
+#endif
+#define EGL_RISCOS_NATIVE_TYPES_DEFINED 1
 
 #elif defined(__WINSCW__) || defined(__SYMBIAN32__)  /* Symbian */
 

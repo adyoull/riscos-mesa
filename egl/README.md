@@ -19,13 +19,15 @@ full screen program, and pbuffer and pixmap use.
 | | |
 |---|---|
 | Version | EGL 1.4, with the extensions listed under [Extensions](#extensions) (sync objects, surfaceless contexts, buffer age, swap with damage, surface locking, debug callbacks, platform displays) and `EGL_RISCOS_wimp_window` |
-| Client API | `EGL_OPENGL_API` only: OpenGL 2.1 compatibility profile, GLSL 1.20 (Mesa 20.3 classic swrast). A request for GL 3.x or core gives `EGL_BAD_MATCH`. `eglBindAPI(EGL_OPENGL_ES_API)` fails for now. |
+| Client API | `EGL_OPENGL_API`: OpenGL 2.1 compatibility profile, GLSL 1.20 (Mesa 20.3 classic swrast); a request for GL 3.x or core gives `EGL_BAD_MATCH`. `EGL_OPENGL_ES_API`: OpenGL ES 1.1 and 2.0 (see [OpenGL ES](#opengl-es)). |
 | Configs | 8: RGBA 8888 with depth/stencil 0/0, 16/0, 24/0, 24/8, in each of the two RISC OS 32bpp colour orders. The configs matching the current screen mode have the lowest IDs. Caveat `EGL_NONE`, no multisampling. |
 | Surfaces | window, pbuffer (up to 4096x4096), pixmap. All preserve their contents across swaps. |
 
-**Remember the EGL default:** `eglChooseConfig` matches `EGL_RENDERABLE_TYPE`
-= `EGL_OPENGL_ES_BIT` unless you say otherwise. Ask for `EGL_OPENGL_BIT`, or
-you get no configs.
+**The EGL default:** `eglChooseConfig` matches `EGL_RENDERABLE_TYPE` =
+`EGL_OPENGL_ES_BIT` unless you say otherwise. Every config here supports
+desktop GL and both ES versions, so that finds them all; ask for
+`EGL_OPENGL_BIT` anyway in desktop GL code, so it also works with EGL
+implementations that don't.
 
 ## Native types
 | EGL type | RISC OS meaning |
@@ -102,6 +104,36 @@ If a window surface's order matches the screen, the plot is a straight copy.
 Otherwise SpriteExtend converts it. Screen modes below 16M colours work
 through SpriteExtend too, but haven't been tested.
 
+## OpenGL ES
+
+From v20.3.5-5 the library also makes OpenGL ES contexts: ES 1.1 (fixed
+function, the common profile) and ES 2.0 (GLSL ES 1.00). They come from the
+same Mesa software renderer as desktop GL, through a small OSMesa patch
+(`OSMESA_ES1_PROFILE` / `OSMESA_ES2_PROFILE`).
+
+    eglBindAPI(EGL_OPENGL_ES_API);
+    static const EGLint ctx_attr[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
+    ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, ctx_attr);
+
+- Include `GLES/gl.h` (ES 1.1) or `GLES2/gl2.h` (ES 2.0) instead of
+  `GL/gl.h`; link as before (`-lEGL -lOSMesa -lstdc++ -lz -lm`). The ES
+  functions are in libOSMesa.
+- `EGL_CONTEXT_CLIENT_VERSION` 1 (the default) or 2. ES 3.x gives
+  `EGL_BAD_MATCH`: the renderer lacks what ES 3.0 needs.
+- Every config supports desktop GL, ES 1 and ES 2 (`EGL_RENDERABLE_TYPE`
+  has all three bits), so the EGL default (ES) finds configs too.
+- A GL and an ES context can't share objects (`EGL_BAD_MATCH`).
+- One context is current at a time: making an ES context current releases
+  a desktop GL one and the other way round. `eglGetCurrentContext` reports
+  the current context only while its API is the bound one.
+- ES 2.0 is all shaders, and shaders run through Mesa's GLSL interpreter:
+  expect roughly a sixth of the speed of the same scene in fixed-function
+  ES 1.1 or desktop GL.
+
+Code written for the Raspberry Pi's Khronos stack (DispmanX windows) can use
+the compatibility library in `dispmanx/` (`libbcm_host`): see
+[dispmanx/README.md](../dispmanx/README.md).
+
 ## Extensions
 
 `eglQueryString(dpy, EGL_EXTENSIONS)` lists the display extensions below;
@@ -150,10 +182,9 @@ This library is one concrete answer to the parts that can be settled now:
 2. **Wimp integration.** GL output lives in the window's own redraw cycle,
    so covering, dragging and scrolling work. No layer sits on top of the
    desktop, and nothing is left behind when a program crashes.
-3. **EGL + desktop GL now, GLES next.** Classic swrast can also run GLES
-   1.1/2.0 contexts. Adding them needs a small OSMesa patch plus
-   `EGL_OPENGL_ES_API`, and would let GLES code written for the Pi 1-3
-   Khronos module run on every machine.
+3. **Desktop GL and GLES.** Classic swrast runs GL 2.1, ES 1.1 and ES 2.0
+   contexts. With the DispmanX compatibility library, GLES code written for
+   the Pi 1-3 Khronos module runs on every machine.
 4. **Linking.** Today it's static (`libEGL.a` + `libOSMesa.a`). The API
    boundary is the standard Khronos one, so the implementation can later
    move behind a relocatable module with a function table (like the Shared

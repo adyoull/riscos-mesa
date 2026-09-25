@@ -17,6 +17,8 @@ rm -f "$HERE/dist/riscos-mesa-tests-$V.zip"
 rm -rf "$TMP"
 ( cd "$STAGE/.." && tar czf "$HERE/dist/riscos-mesa-devkit-$V.tgz" \
     --transform "s#^stage#riscos-mesa-devkit-$V#" stage/lib/libOSMesa.a stage/lib/libGLU.a \
-    stage/lib/libSDL2.a stage/lib/libSDL2main.a stage/lib/libz.a stage/lib/libEGL.a stage/include \
+    stage/lib/libSDL2.a stage/lib/libSDL2main.a stage/lib/libz.a stage/lib/libEGL.a \
+    stage/lib/libbcm_host.a stage/lib/libGLESv2.a stage/lib/libGLESv1_CM.a stage/lib/libvcos.a \
+    stage/lib/libvchiq_arm.a stage/include \
     --transform "s#^LICENCES.txt#riscos-mesa-devkit-$V/LICENCES.txt#" -C "$HERE" LICENCES.txt )
 ls -la "$HERE/dist"

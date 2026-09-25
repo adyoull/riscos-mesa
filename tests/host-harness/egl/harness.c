@@ -18,7 +18,9 @@
 
 #include "fake_riscos.h"
 
-static int failures, checks;
+int failures, checks;
+void test_gles(EGLDisplay dpy);
+void test_dispmanx(EGLDisplay dpy);
 
 #define CHECK(cond, ...) do { checks++; if (!(cond)) { failures++; \
     printf("FAIL %s:%d: ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); } } while (0)
@@ -73,13 +75,13 @@ static void test_basics(void)
     CHECK(eglGetDisplay((EGLNativeDisplayType) 5) == EGL_NO_DISPLAY, "only the default display");
     CHECK(!eglGetConfigs(dpy, cfgs, 16, &n) && eglGetError() == EGL_NOT_INITIALIZED, "not initialised");
     CHECK(eglInitialize(dpy, &major, &minor) && major == 1 && minor == 4, "initialise 1.4");
-    CHECK(strcmp(eglQueryString(dpy, EGL_CLIENT_APIS), "OpenGL") == 0, "client APIs");
+    CHECK(strcmp(eglQueryString(dpy, EGL_CLIENT_APIS), "OpenGL OpenGL_ES") == 0, "client APIs");
     ext = eglQueryString(dpy, EGL_EXTENSIONS);
     CHECK(ext && strstr(ext, "EGL_RISCOS_wimp_window"), "extension string");
     CHECK(eglGetConfigs(dpy, NULL, 0, &n) && n == 8, "8 configs (got %d)", n);
 
     /* The spec's default EGL_RENDERABLE_TYPE is ES: desktop GL configs don't match. */
-    CHECK(eglChooseConfig(dpy, NULL, cfgs, 16, &n) && n == 0, "default choose = ES = none (%d)", n);
+    CHECK(eglChooseConfig(dpy, NULL, cfgs, 16, &n) && n == 8, "default choose (ES) = all (%d)", n);
     {
         EGLint a[] = { EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_NONE };
         CHECK(eglChooseConfig(dpy, a, cfgs, 16, &n) && n == 8, "GL configs (%d)", n);
@@ -104,7 +106,7 @@ static void test_basics(void)
         EGLint a[] = { EGL_FRONT_BUFFER_AUTO_REFRESH_ANDROID, 1, EGL_NONE };
         CHECK(!eglChooseConfig(dpy, a, cfgs, 16, &n) && eglGetError() == EGL_BAD_ATTRIBUTE, "bad attribute");
     }
-    CHECK(!eglBindAPI(EGL_OPENGL_ES_API) && eglGetError() == EGL_BAD_PARAMETER, "no GLES yet");
+    CHECK(!eglBindAPI(EGL_OPENVG_API) && eglGetError() == EGL_BAD_PARAMETER, "no OpenVG");
     CHECK(eglBindAPI(EGL_OPENGL_API) && eglQueryAPI() == EGL_OPENGL_API, "bind GL");
     CHECK(eglGetProcAddress("glClear") != NULL, "GetProcAddress gl");
     CHECK(eglGetProcAddress("eglRedrawWindowRISCOS") ==
@@ -937,6 +939,8 @@ static void *run(void *arg)
     test_damage();
     test_lock();
     test_debug();
+    test_gles(dpy);
+    test_dispmanx(dpy);
     test_trgb_screen();
     return NULL;
 }

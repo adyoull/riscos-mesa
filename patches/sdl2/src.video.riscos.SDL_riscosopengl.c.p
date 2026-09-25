@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..80eaba9
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.c
-@@ -0,0 +1,382 @@
+@@ -0,0 +1,392 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -81,6 +81,8 @@ index 0000000..80eaba9
 +#define OSMESA_COMPAT_PROFILE        0x35
 +#define OSMESA_CONTEXT_MAJOR_VERSION 0x36
 +#define OSMESA_CONTEXT_MINOR_VERSION 0x37
++#define OSMESA_ES1_PROFILE           0x1001  /* riscos-mesa's Mesa patch */
++#define OSMESA_ES2_PROFILE           0x1002
 +
 +/* 32bpp, 90x90 dpi, new format sprite: pixels are 0x00BBGGRR */
 +#define GL_SPRITE_TYPE6 (1 | (90 << 1) | (90 << 14) | (6 << 27))
@@ -215,8 +217,12 @@ index 0000000..80eaba9
 +    int attribs[20];
 +    int n = 0;
 +
-+    if (_this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_ES) {
-+        SDL_SetError("OpenGL ES contexts are not supported by the OSMesa backend");
++    /* OpenGL ES: classic swrast provides ES 1.1 and ES 2.0 */
++    if (_this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_ES &&
++        _this->gl_config.major_version != 1 &&
++        !(_this->gl_config.major_version == 2 && _this->gl_config.minor_version == 0)) {
++        SDL_SetError("OpenGL ES %d.%d isn't available (OSMesa provides ES 1.1 and 2.0)",
++                     _this->gl_config.major_version, _this->gl_config.minor_version);
 +        return NULL;
 +    }
 +    if (_this->gl_config.share_with_current_context) {
@@ -235,11 +241,15 @@ index 0000000..80eaba9
 +    attribs[n++] = OSMESA_STENCIL_BITS; attribs[n++] = _this->gl_config.stencil_size;
 +    attribs[n++] = OSMESA_ACCUM_BITS;   attribs[n++] = _this->gl_config.accum_red_size ? 16 : 0;
 +    attribs[n++] = OSMESA_PROFILE;
-+    attribs[n++] = (_this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_CORE)
-+                   ? OSMESA_CORE_PROFILE : OSMESA_COMPAT_PROFILE;
++    if (_this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_ES)
++        attribs[n++] = (_this->gl_config.major_version == 1) ? OSMESA_ES1_PROFILE : OSMESA_ES2_PROFILE;
++    else
++        attribs[n++] = (_this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_CORE)
++                       ? OSMESA_CORE_PROFILE : OSMESA_COMPAT_PROFILE;
 +    /* SDL defaults to 2.1 compat; only ask for a version when the app did. */
-+    if (_this->gl_config.major_version > 2 ||
-+        _this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_CORE) {
++    if (_this->gl_config.profile_mask != SDL_GL_CONTEXT_PROFILE_ES &&
++        (_this->gl_config.major_version > 2 ||
++         _this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_CORE)) {
 +        attribs[n++] = OSMESA_CONTEXT_MAJOR_VERSION; attribs[n++] = _this->gl_config.major_version;
 +        attribs[n++] = OSMESA_CONTEXT_MINOR_VERSION; attribs[n++] = _this->gl_config.minor_version;
 +    }
@@ -248,7 +258,7 @@ index 0000000..80eaba9
 +    ctx->osmesa = OSMesaCreateContextAttribs(attribs, share ? share->osmesa : NULL);
 +    if (!ctx->osmesa) {
 +        SDL_free(ctx);
-+        SDL_SetError("OSMesaCreateContextAttribs failed (requested GL %d.%d; this Mesa provides 2.1)",
++        SDL_SetError("OSMesaCreateContextAttribs failed (requested GL %d.%d; this Mesa provides 2.1, ES 1.1 and ES 2.0)",
 +                     _this->gl_config.major_version, _this->gl_config.minor_version);
 +        return NULL;
 +    }

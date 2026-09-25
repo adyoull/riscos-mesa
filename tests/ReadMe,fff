@@ -93,6 +93,20 @@ Run in this order and note the output:
       new extensions (sync objects, surfaceless contexts, surface
       locking, the debug callback).
 
+   g) OpenGL ES and code written for the Raspberry Pi (20.3.5-5).
+      egl-check now also makes OpenGL ES 1.1 and 2.0 contexts.
+      dmxtest is written the way Raspberry Pi Khronos programs are
+      (bcm_host, a DispmanX element, then EGL and OpenGL ES) and uses the
+      DispmanX compatibility library. Like Pi programs it doesn't
+      multitask: it runs over the desktop for 5 seconds, then the desktop
+      is redrawn. Results are saved as dmx-es1 etc.
+      dmx-es1     ES 1.1 lit cube, half resolution scaled to full screen
+      dmx-es2     the same with ES 2.0 shaders (slower: they run on the CPU)
+      dmx-small   320x240 shown 640x480 in the middle of the screen
+      dmx-native  ES 1.1 at the screen's full resolution
+      Please check: the cube spins, the colours look right, the small one
+      sits in the middle, and the desktop comes back afterwards.
+
 Please report: the fps figures, anything that crashes (with the error
 text), the fps in the window title, whether the scroll wheel zooms (in a window
 and in full screen), whether the cube redraws after you drag

@@ -43,4 +43,9 @@ mkdir -p "$STAGE/lib" "$STAGE/include/GL" "$STAGE/include/KHR"
 cp libOSMesa-full.a "$STAGE/lib/libOSMesa.a"
 cp ../include/GL/gl.h ../include/GL/glext.h ../include/GL/osmesa.h "$STAGE/include/GL/"
 cp ../include/KHR/khrplatform.h "$STAGE/include/KHR/"
+# OpenGL ES 1.1 and 2.0 (OSMESA_ES1_PROFILE / OSMESA_ES2_PROFILE, our patch):
+# the entry points are already in libOSMesa.
+mkdir -p "$STAGE/include/GLES" "$STAGE/include/GLES2"
+cp ../include/GLES/gl.h ../include/GLES/glext.h ../include/GLES/glplatform.h "$STAGE/include/GLES/"
+cp ../include/GLES2/gl2.h ../include/GLES2/gl2ext.h ../include/GLES2/gl2platform.h "$STAGE/include/GLES2/"
 echo "OK: $STAGE/lib/libOSMesa.a ($(du -h "$STAGE/lib/libOSMesa.a" | cut -f1))"

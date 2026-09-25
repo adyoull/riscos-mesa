@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/mman.h>
 #include <kernel.h>
 #include <swis.h>
 #include "fake_riscos.h"
@@ -16,6 +18,7 @@
 fake_screen_t fake_screen;
 fake_window_t fake_windows[FAKE_MAX_WINDOWS];
 int fake_vsyncs, fake_update_calls, fake_redraw_calls, fake_plots;
+int fake_force_redraws, fake_force_rect[5], fake_scaled_plots;
 
 static _kernel_oserror err = { 1, "fake error" };
 static int clip[4];                  /* graphics window, OS units x0,y0,x1,y1 (excl.) */
@@ -164,6 +167,34 @@ static _kernel_oserror *sprite_op(_kernel_swi_regs *r)
         }
         return NULL;
     }
+    if (reason == 52) {                             /* put sprite scaled */
+        const int *spr = (const int *) (long) r->r[2];
+        const int *f = (const int *) (long) r->r[6];
+        int w = spr[4] + 1, h = spr[5] + 1, log2bpp, flags, dx, dy, ow, oh, swap;
+        int px0 = r->r[3] >> fake_screen.xeig, py0 = r->r[4] >> fake_screen.yeig;
+        const unsigned int *pix = (const unsigned int *) ((const char *) spr + spr[8]);
+        if ((r->r[0] & 0xF00) != 0x200) return error("plot: pointer form only");
+        mode_info(spr[10], &log2bpp, &flags);
+        swap = ((flags ^ fake_screen.flags) & 0x4000) != 0;
+        /* sprite eig 1 (90 dpi) and screen eig 1 in the fake */
+        ow = (int) (((long long) (w << 1) * (f ? f[0] : 1) / (f ? f[2] : 1)) >> fake_screen.xeig);
+        oh = (int) (((long long) (h << 1) * (f ? f[1] : 1) / (f ? f[3] : 1)) >> fake_screen.yeig);
+        fake_plots++;
+        fake_scaled_plots++;
+        for (dy = 0; dy < oh; dy++) {               /* dy: rows from the top of the plot */
+            int y_up = py0 + (oh - 1 - dy), oy = y_up << fake_screen.yeig;
+            int sy = (int) ((long long) dy * h / oh);
+            if (y_up < 0 || y_up >= fake_screen.h || oy < clip[1] || oy >= clip[3]) continue;
+            for (dx = 0; dx < ow; dx++) {
+                int x = px0 + dx, ox = x << fake_screen.xeig;
+                unsigned int p = pix[(size_t) sy * w + (int) ((long long) dx * w / ow)];
+                if (x < 0 || x >= fake_screen.w || ox < clip[0] || ox >= clip[2]) continue;
+                if (swap) p = (p & 0xFF00FF00u) | ((p >> 16) & 0xFF) | ((p & 0xFF) << 16);
+                fake_screen.mem[(size_t) (fake_screen.h - 1 - y_up) * (fake_screen.line_length / 4) + x] = p;
+            }
+        }
+        return NULL;
+    }
     return error("SpriteOp reason not faked");
 }
 
@@ -276,6 +307,11 @@ _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out
         r.r[0] = start_redraw(block, w, wa);
         break;
     }
+    case 0x400D1:   /* Wimp_ForceRedraw */
+        fake_force_redraws++;
+        fake_force_rect[0] = r.r[0]; fake_force_rect[1] = r.r[1]; fake_force_rect[2] = r.r[2];
+        fake_force_rect[3] = r.r[3]; fake_force_rect[4] = r.r[4];
+        break;
     case 0x400CA:   /* Wimp_GetRectangle: only ever one rectangle */
         r.r[0] = 0;
         full_clip();
@@ -285,6 +321,24 @@ _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out
     }
     if (out) *out = r;
     return e;
+}
+
+/* OS_ValidateAddress: carry clear if every page of r0..r1 is mapped. */
+_kernel_oserror *_kernel_swi_c(int no, _kernel_swi_regs *in, _kernel_swi_regs *out, int *carry)
+{
+    if (no == 0x3A) {
+        long pg = sysconf(_SC_PAGESIZE);
+        unsigned long a = (unsigned long) (unsigned) in->r[0] & ~(pg - 1);
+        unsigned long end = (unsigned long) (unsigned) in->r[1];
+        unsigned char v;
+        *carry = 0;
+        for (; a < end; a += pg)
+            if (mincore((void *) a, pg, &v) != 0) { *carry = 1; break; }
+        if (out) *out = *in;
+        return NULL;
+    }
+    *carry = 0;
+    return _kernel_swi(no, in, out);
 }
 
 int _kernel_osbyte(int op, int x, int y)
