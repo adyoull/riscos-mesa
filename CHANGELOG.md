@@ -4,6 +4,35 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## Unreleased (20.3.5-6): freeglut
+
+Host-tested; not yet tested on a Raspberry Pi.
+
+- **freeglut 3.8.0 with a native RISC OS back end** (`glut/riscos`,
+  `build/build-freeglut.sh`, `patches/freeglut`): `libglut.a` (OpenGL) and
+  `libfreeglut-gles.a` (OpenGL ES 1.1/2.0), with `GL/glut.h` and
+  `GL/freeglut*.h`. GLUT programs usually build unchanged:
+  - GLUT windows are Wimp windows and multitask; subwindows (nested to any
+    depth) are EGL work area surfaces inside them;
+  - GLUT menus are Wimp menus (Menu opens them, Adjust keeps them open),
+    also in the ES build;
+  - key releases, special keys (and Shift/Ctrl/Alt on their own), mouse
+    motion, entry, the scroll wheel, pointer hiding and warping;
+  - single-buffered programs are shown after each display callback and
+    while idle or timer callbacks draw;
+  - full screen and game mode are borderless windows covering the desktop
+    in the current screen mode.
+- **Worked port and guide:** freeglut's demos (`!Shapes`, `!One`,
+  `!Subwin`, `!Lorenz`, `!Fractals`, `!Resizer`, `!View3D`, `!Keyboard`)
+  in the new `riscos-mesa-glut` zip; [docs/porting/glut.md](docs/porting/glut.md).
+- **EGL:** work area surfaces in a window now stack in creation order
+  (later ones on top), and showing one replots those above it. Before,
+  the newest was drawn first, so a surface created inside another was
+  hidden by it.
+- **Tests:** the EGL host harness has 265 checks (stacking). Its fake Wimp
+  can now click, drag, release, turn the wheel and choose from menus.
+  `tests/host-harness/glut/run.sh` drives freeglut's demos (23 checks).
+
 ## 20.3.5-5: OpenGL ES, porting aids and porting guides
 
 All tests pass on a Raspberry Pi 4.

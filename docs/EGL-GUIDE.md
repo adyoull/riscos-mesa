@@ -204,6 +204,7 @@ EGLSurface view = eglCreateWindowSurface(dpy, cfg, window_handle, view_attrs);
 - Width and height must both be given; X and Y default to 0.
 - A window can have several surfaces, and one context can draw into each in turn: `eglMakeCurrent` the surface, draw, `eglSwapBuffers`, move on. Set `glViewport` each time, since each surface has its own size.
 - Work area surfaces are always drawn on top of a visible area surface in the same window, and the library never plots the visible area surface underneath them (that would flash).
+- Work area surfaces in the same window stack in the order they were created: a later one is drawn over an earlier one where they overlap, and showing the earlier one (its `eglSwapBuffers`) replots the later ones over it. freeglut uses this for subwindows inside subwindows.
 - `eglRedrawWindowRISCOS` redraws all of them.
 
 **Mixing GL with your own drawing.** If the window also has text, icons or Draw graphics, run the redraw loop yourself and call `eglPlotSurfaceRISCOS` for each rectangle:

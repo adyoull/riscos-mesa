@@ -17,7 +17,8 @@
  *   instead makes a fixed-size surface at a work area position (top left
  *   corner at EGL_WORK_AREA_X_RISCOS, EGL_WORK_AREA_Y_RISCOS, in OS units,
  *   y usually <= 0). It scrolls with the work area, so you can put a GL
- *   view inside a window that has other content.
+ *   view inside a window that has other content. Work area surfaces in a
+ *   window stack in creation order (later ones on top).
  *
  *   The library never calls Wimp_Poll: the task owns its event loop. On a
  *   Redraw_Window_Request call eglRedrawWindowRISCOS with the poll block. It

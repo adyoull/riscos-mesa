@@ -338,6 +338,34 @@ static void test_window(void)
               "redraw: same, and the window surface still fills around it");
         fake_watch[2] = fake_watch[0];      /* watch off */
         eglDestroySurface(dpy, fx);
+
+        /* Work area surfaces stack in creation order: a later one (10x10
+           at (40, -14): px 115, row 275) is on top of an earlier one, and
+           showing the earlier one replots it (a subwindow's subwindow). */
+        {
+            EGLint b[] = { EGL_WORK_AREA_X_RISCOS, 40, EGL_WORK_AREA_Y_RISCOS, -14,
+                           EGL_WORK_AREA_WIDTH_RISCOS, 10, EGL_WORK_AREA_HEIGHT_RISCOS, 10, EGL_NONE };
+            EGLSurface fa = eglCreateWindowSurface(dpy, cfg, 0x1000, a);
+            EGLSurface fb = eglCreateWindowSurface(dpy, cfg, 0x1000, b);
+            CHECK(fa != EGL_NO_SURFACE && fb != EGL_NO_SURFACE, "two work area surfaces");
+            eglMakeCurrent(dpy, fb, fb, ctx);
+            clear(1, 0, 0);
+            eglSwapBuffers(dpy, fb);
+            eglMakeCurrent(dpy, fa, fa, ctx);
+            clear(0, 1, 0);
+            eglSwapBuffers(dpy, fa);
+            CHECK(box_is(115, 275, 10, 10, RED_TBGR) && RGB(fake_screen_pixel(105, 273)) == GREEN &&
+                  RGB(fake_screen_pixel(125, 285)) == GREEN,
+                  "showing the lower surface keeps the later one on top");
+            memset(fake_screen.mem, 0, fake_screen.w * fake_screen.h * 4);
+            block[0] = 0x1000;
+            eglRedrawWindowRISCOS(dpy, block);
+            CHECK(box_is(115, 275, 10, 10, RED_TBGR) && RGB(fake_screen_pixel(105, 273)) == GREEN,
+                  "redraw: same stacking");
+            eglMakeCurrent(dpy, ws, ws, ctx);
+            eglDestroySurface(dpy, fb);
+            eglDestroySurface(dpy, fa);
+        }
     }
 
     /* Swapping a surface that isn't current */

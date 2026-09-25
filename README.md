@@ -27,9 +27,13 @@ GL programs multitask properly.
    desktop window.
 3. **Porting aids for existing code.** They sit alongside the native EGL
    and don't replace it:
+   - **freeglut (GLUT)** with a native RISC OS back end: GLUT windows are
+     Wimp windows, GLUT menus are Wimp menus, and GLUT programs usually
+     build unchanged. See [glut/README.md](glut/README.md).
    - [Porting guides](docs/porting/README.md), each with a worked port in
-     `ports/`: Mesa's EGL demos (eglut), the *OpenGL ES 2.0 Programming
-     Guide* samples (esUtil), SDL 2 GL programs, and Raspberry Pi code.
+     `ports/`: GLUT programs (freeglut's demos), Mesa's EGL demos (eglut),
+     the *OpenGL ES 2.0 Programming Guide* samples (esUtil), SDL 2 GL
+     programs, and Raspberry Pi code.
    - **DispmanX compatibility (`libbcm_host`)** for EGL/GLES code written
      for the Raspberry Pi 1–3 Khronos stack. It builds unchanged, and in
      the desktop it runs in a multitasking window. See
@@ -60,10 +64,12 @@ and `tests/glestest.c` (OpenGL ES) are complete programs.
 | `libOSMesa.a` | Mesa 20.3.5 classic OSMesa (swrast), one static library: OpenGL 2.1 + GLSL 1.20, OpenGL ES 1.1 and 2.0 | `-lOSMesa -lstdc++ -lz -lm` |
 | `libGLU.a` | GLU 1.3 (9.0.1) | `-lGLU` before `-lOSMesa` |
 | `libSDL2.a` | SDL 2.26 with the RISC OS driver: desktop windows and full screen, OpenGL and OpenGL ES contexts, typing, the scroll wheel, 180 dpi desktops, cooperative multitasking | `-lSDL2 -lOSMesa -lstdc++ -lz -lm` |
+| `libglut.a` | freeglut 3.8.0 with a native RISC OS back end: Wimp windows and subwindows, Wimp menus, full screen and game mode, keyboard (with key releases), mouse, wheel. `libfreeglut-gles.a` is the OpenGL ES build (`-DFREEGLUT_GLES`) | `-lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libbcm_host.a` | DispmanX compatibility, a porting aid for Raspberry Pi 1–3 Khronos code. Empty `libGLESv2`, `libGLESv1_CM`, `libvcos` and `libvchiq_arm` come with it so Pi link lines work | `-lbcm_host -lEGL -lOSMesa -lstdc++ -lz -lm` |
 
 Headers: `EGL/` (with `EGL/eglext_riscos.h` for the RISC OS additions),
-`GL/`, `GLES/`, `GLES2/`, `KHR/`, `SDL2/`, `bcm_host.h` and `interface/`.
+`GL/` (with `GL/glut.h` and `GL/freeglut*.h`), `GLES/`, `GLES2/`, `KHR/`,
+`SDL2/`, `bcm_host.h` and `interface/`.
 
 ## Download
 
@@ -75,6 +81,7 @@ The GitHub [Releases](../../releases) page has, for each release:
 | `riscos-mesa-tests-VERSION.zip` | the test programs and their Obey files, with a ReadMe |
 | `riscos-mesa-hello_pi-VERSION.zip` | the Raspberry Pi's `hello_triangle`, `hello_triangle2` and `hello_teapot`, rebuilt |
 | `riscos-mesa-ports-VERSION.zip` | Mesa's EGL demos (gears, torus, ...) and SDL's GL test programs, in desktop windows |
+| `riscos-mesa-glut-VERSION.zip` | freeglut's demos (shapes, Lorenz, fractals, subwindows, menus, game mode...) over riscos-mesa's freeglut |
 
 The programs are ELF (&E1F) and need SharedUnixLibrary and ARMEABISupport
 (and SharedLibs for the test programs) from PackMan. The zips store RISC OS
@@ -104,6 +111,7 @@ filetypes. Releases are numbered after the Mesa version they contain
     build/build-glu.sh
     build/build-sdl2.sh      # SDL 2.26 + patches/sdl2 (the RISC OS overlay)
     build/build-egl.sh       # libEGL.a, libbcm_host.a + headers
+    build/build-freeglut.sh  # libglut.a, libfreeglut-gles.a (freeglut 3.8.0 + glut/riscos)
     build/build-tests.sh     # -> stage/tests/*,e1f
     build/build-hello-pi.sh  # Pi hello_triangle/2, hello_teapot -> stage/hello_pi
     build/build-ports.sh     # ported examples (docs/porting) -> stage/ports
@@ -121,6 +129,8 @@ python3-mako, bison, flex, autoconf, automake and libtool.
   checks a binary.
 - **New programs:** use EGL. See [docs/EGL-GUIDE.md](docs/EGL-GUIDE.md),
   `tests/egltest.c` and `tests/glestest.c`.
+- **GLUT programs:** link `-lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm`;
+  see [docs/porting/glut.md](docs/porting/glut.md).
 - **Existing programs:** see [docs/porting/](docs/porting/README.md).
 - **SDL2:**
   - `patches/sdl2/*.p` is a complete RISC OS driver overlay in GCCSDK
@@ -144,9 +154,10 @@ python3-mako, bison, flex, autoconf, automake and libtool.
 | `glestest` (`gles-*`) | OpenGL ES 1.1 and 2.0 in a desktop window, full screen and into a sprite |
 | `dmxtest` (`dmx-*`) | the DispmanX compatibility library, full screen and window mode |
 | `sdlgltest` | SDL2 GL in a desktop window: fps in the title, F full screen, Space vsync |
-| `hello_pi` and `ports` zips | real programs: the Pi examples, Mesa's demos, SDL's GL tests |
+| `hello_pi`, `ports` and `glut` zips | real programs: the Pi examples, Mesa's demos, SDL's GL tests, freeglut's demos |
 | `tests/host-harness` | the SDL GL glue on Linux with emulated SWIs |
-| `tests/host-harness/egl` | libEGL and libbcm_host on Linux against a fake screen, Wimp and SpriteOp (262 checks); `portrun.c` runs whole ported programs |
+| `tests/host-harness/egl` | libEGL and libbcm_host on Linux against a fake screen, Wimp and SpriteOp (265 checks); `portrun.c` runs whole ported programs |
+| `tests/host-harness/glut` | freeglut's RISC OS back end on Linux: freeglut's demos driven by scripted keys, clicks, drags, menus, the wheel and resizing (23 checks) |
 
 ## Licences
 
@@ -159,12 +170,15 @@ python3-mako, bison, flex, autoconf, automake and libtool.
   - `patches/sdl2` is zlib, like SDL.
   - The RISC OS section of `EGL/eglplatform.h` is under the Khronos
     licence.
+- **freeglut's RISC OS back end** (`glut/riscos`) is MIT, like freeglut;
+  `patches/freeglut` keeps freeglut's licence.
 - **Ported programs** keep theirs: Raspberry Pi userland BSD, mesa-demos
-  MIT, SDL's tests zlib.
+  MIT, SDL's tests zlib, freeglut's demos MIT/X.
 - **Third-party components:**
   - Mesa: MIT (some parts Boost / SGI Free B).
   - Khronos headers: Khronos MIT-style.
   - GLU: SGI Free Software Licence B.
+  - freeglut: MIT/X style.
   - SDL and zlib: zlib.
   - UnixLib, linked into every GCCSDK program: BSD with some LGPL v2
     parts, so closed source programs must offer their object files for

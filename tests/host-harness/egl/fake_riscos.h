@@ -1,7 +1,7 @@
 #ifndef FAKE_RISCOS_H
 #define FAKE_RISCOS_H
 
-#define FAKE_MAX_WINDOWS 4
+#define FAKE_MAX_WINDOWS 16
 
 typedef struct {
     int w, h, xeig, yeig, log2bpp, flags, line_length;
@@ -35,15 +35,35 @@ extern int fake_watch[4], fake_watch_value, fake_watch_hits;
 /* A scripted Wimp task (Wimp_Initialise/CreateWindow/OpenWindow/Poll...).
    Wimp_Poll first returns one Redraw_Window_Request for the newest window,
    then fake_wimp_nulls Null_Reason_Codes (when nulls are unmasked), then
-   each fake_wimp_script entry: {reason, value} with reason 8 = key
-   (value = RISC OS key code), 6 = click or 2 = Open_Window_Request
-   (value = width | height << 16, OS units, same top left), then
-   Close_Window_Request.
+   each fake_wimp_script entry {reason, a, b, c}, each followed by a null
+   event when nulls are unmasked:
+     8 = Key_Pressed (a = RISC OS key code)
+     6 = Mouse_Click at pixel a, b of the newest window's visible area
+         (from its top left) with buttons c (4 Select, 2 Menu, 1 Adjust);
+         the buttons stay held (Wimp_GetPointerInfo) until an FAKE_RELEASE
+     2 = Open_Window_Request (a = width | height << 16, OS units, same top left)
+     9 = Menu_Selection (a, b, c = item indices, -1 ends)
+     FAKE_MOVE = pointer to pixel a, b (null event only)
+     FAKE_RELEASE = buttons released (null event only)
+     FAKE_WHEEL = scroll wheel moved by a (null event only)
+     FAKE_NULL = a null event
+   then Close_Window_Request.
    fake_wimp_hook, if set, is called before each Poll returns (a frame). */
-extern int fake_wimp_nulls, fake_wimp_script[16][2], fake_wimp_script_len;
+extern int fake_wimp_nulls, fake_wimp_script[64][4], fake_wimp_script_len;
 extern int fake_wimp_polls, fake_wimp_keys_passed, fake_wimp_tasks;
 extern void (*fake_wimp_hook)(int reason);
-extern const char *fake_wimp_title;
-extern int fake_wimp_desktop;           /* Wimp_ReadSysInfo 0 reports a desktop */   /* the newest window's indirected title */
+extern const char *fake_wimp_title;      /* the newest window's indirected title */
+extern int fake_wimp_desktop;           /* Wimp_ReadSysInfo 0 reports a desktop */
+#define FAKE_MOVE    100
+#define FAKE_RELEASE 101
+#define FAKE_WHEEL   102
+#define FAKE_NULL    103
+/* The pointer (OS units, buttons), the wheel count, menus opened,
+   OS_Byte 106 calls (pointer on/off) and the internal keys held down
+   (OS_Byte 121) */
+extern int fake_pointer[3], fake_wheel, fake_menus_opened, fake_pointer_shape;
+extern const int *fake_menu;            /* the last Wimp_CreateMenu block */
+extern unsigned char fake_keys_down[128];
+extern int fake_log_menus;              /* print each menu opened to stderr */
 
 #endif

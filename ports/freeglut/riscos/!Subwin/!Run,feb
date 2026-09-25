@@ -1,0 +1,12 @@
+| !Subwin: freeglut's subwin demo: a window with nested subwindows. Keys typed go
+| to the (sub)window under the pointer.
+| Built unchanged from freeglut 3.8.0 (progs/demos) against riscos-mesa's
+| freeglut, whose RISC OS back end uses Wimp windows, Wimp menus and native
+| EGL. Text output goes to the file Output in this application.
+Set Subwin$Dir <Obey$Dir>
+Set Subwin$Output /|<Subwin$Dir>/Output
+RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
+RMEnsure SharedUnixLibrary 1.16 Error !Subwin needs SharedUnixLibrary 1.16 or later
+RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
+RMEnsure ARMEABISupport 0.00 Error !Subwin needs ARMEABISupport
+Run <Subwin$Dir>.!RunImage

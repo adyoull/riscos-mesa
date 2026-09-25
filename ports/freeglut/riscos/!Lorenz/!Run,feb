@@ -1,0 +1,12 @@
+| !Lorenz: freeglut's Lorenz attractor. Cursor keys turn the view, Page Up/Down zoom;
+| s stops, g goes, Space steps, r resets, Escape quits.
+| Built unchanged from freeglut 3.8.0 (progs/demos) against riscos-mesa's
+| freeglut, whose RISC OS back end uses Wimp windows, Wimp menus and native
+| EGL. Text output goes to the file Output in this application.
+Set Lorenz$Dir <Obey$Dir>
+Set Lorenz$Output /|<Lorenz$Dir>/Output
+RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
+RMEnsure SharedUnixLibrary 1.16 Error !Lorenz needs SharedUnixLibrary 1.16 or later
+RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
+RMEnsure ARMEABISupport 0.00 Error !Lorenz needs ARMEABISupport
+Run <Lorenz$Dir>.!RunImage

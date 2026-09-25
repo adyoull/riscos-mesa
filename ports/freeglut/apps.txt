@@ -1,0 +1,9 @@
+# !App  sources in freeglut-3.8.0/progs/demos
+Shapes shapes/shapes.c shapes/glmatrix.c
+One One/one.c
+Subwin subwin/subwin.c
+Lorenz Lorenz/lorenz.c
+Fractals Fractals/fractals.c
+Resizer resizer/resizer.c
+View3D 3dview/3dview.c
+Keyboard keyboard/keyboard.c

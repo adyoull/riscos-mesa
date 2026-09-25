@@ -1,0 +1,85 @@
+diff --git a/src/fg_internal.h b/src/fg_internal.h
+index f71ef118..a4ca89e4 100644
+--- a/src/fg_internal.h
++++ b/src/fg_internal.h
+@@ -37,8 +37,14 @@
+  * XXX: If so, remove the first set of defined()'s below.
+  */
+ #if !defined(TARGET_HOST_POSIX_X11) && !defined(TARGET_HOST_MS_WINDOWS) && !defined(TARGET_HOST_MAC_OSX) && !defined(TARGET_HOST_SOLARIS) && \
+-    !defined(TARGET_HOST_ANDROID) && !defined(TARGET_HOST_BLACKBERRY) && !defined(TARGET_HOST_POSIX_WAYLAND) && !defined(TARGET_HOST_MACOS_COCOA)
+-#if defined(_MSC_VER) || defined(__WATCOMC__) || defined(__MINGW32__) \
++    !defined(TARGET_HOST_ANDROID) && !defined(TARGET_HOST_BLACKBERRY) && !defined(TARGET_HOST_POSIX_WAYLAND) && !defined(TARGET_HOST_MACOS_COCOA) && \
++    !defined(TARGET_HOST_RISCOS)
++#if defined(__riscos__)
++/* RISC OS (GCCSDK): the Wimp, with riscos-mesa's EGL. Before the Unix test:
++   GCCSDK's compiler defines __unix__ too. */
++#   define  TARGET_HOST_RISCOS  1
++
++#elif defined(_MSC_VER) || defined(__WATCOMC__) || defined(__MINGW32__) \
+     || defined(_WIN32) || defined(_WIN32_WCE) \
+     || ( defined(__CYGWIN__) && defined(X_DISPLAY_MISSING) )
+ #   define  TARGET_HOST_MS_WINDOWS 1
+@@ -111,6 +117,10 @@
+ #   define  TARGET_HOST_MACOS_COCOA    0
+ #endif
+ 
++#ifndef  TARGET_HOST_RISCOS
++#   define  TARGET_HOST_RISCOS         0
++#endif
++
+ #define  FREEGLUT_MAX_MENUS            3
+ 
+ #include <stdio.h>
+@@ -213,6 +223,9 @@
+ #if TARGET_HOST_MACOS_COCOA
+ #include "cocoa/fg_internal_cocoa.h"
+ #endif
++#if TARGET_HOST_RISCOS
++#include "riscos/fg_internal_riscos.h"
++#endif
+ 
+ 
+ /*
+diff --git a/src/fg_main.c b/src/fg_main.c
+index daf507eb..594944a6 100644
+--- a/src/fg_main.c
++++ b/src/fg_main.c
+@@ -50,6 +50,9 @@ extern void fgPlatformMainLoopPreliminaryWork( void );
+ extern void fgPlatformInitWork(SFG_Window* window);
+ extern void fgPlatformPosResZordWork(SFG_Window* window, unsigned int workMask);
+ extern void fgPlatformVisibilityWork(SFG_Window* window);
++#if TARGET_HOST_RISCOS
++extern void fgPlatformDisplayDone(SFG_Window* window);
++#endif
+ 
+ 
+ void fghOnReshapeNotify(SFG_Window *window, int width, int height, GLboolean forceNotify)
+@@ -124,6 +127,10 @@ void fghRedrawWindow ( SFG_Window *window )
+ 
+     fgSetWindow( window );
+     INVOKE_WCB( *window, Display, ( ) );
++#if TARGET_HOST_RISCOS
++    /* Show single-buffered windows once they're drawn */
++    fgPlatformDisplayDone( window );
++#endif
+ 
+     fgSetWindow( current_window );
+ }
+diff --git a/src/fg_window.c b/src/fg_window.c
+index 4c4cdd34..f630a95e 100644
+--- a/src/fg_window.c
++++ b/src/fg_window.c
+@@ -105,7 +105,12 @@ void fgOpenWindow( SFG_Window* window, const char* title,
+ 
+     fgSetWindow( window );
+ 
+-#ifndef EGL_VERSION_1_0
++#if TARGET_HOST_RISCOS
++    /* A single-buffered window is shown after each display callback (the
++       RISC OS back end draws every window off screen) */
++    window->Window.DoubleBuffered =
++        ( fgState.DisplayMode & GLUT_DOUBLE ) ? 1 : 0;
++#elif !defined(EGL_VERSION_1_0)
+     window->Window.DoubleBuffered =
+         ( fgState.DisplayMode & GLUT_DOUBLE ) ? 1 : 0;
+ 

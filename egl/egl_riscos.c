@@ -464,7 +464,7 @@ static void plot_loop(egl_display *d, int handle, egl_surface *only, int *block,
     _kernel_swi_regs r;
     egl_surface *surf, *f;
     os_rect clip, pieces[MAX_PIECES], hole;
-    int n, i;
+    int n, i, above;
 
     /* Visible area surfaces first, but never over the work area surfaces
        (plotting them twice would flash the wrong image there while the
@@ -497,11 +497,16 @@ static void plot_loop(egl_display *d, int handle, egl_surface *only, int *block,
                 set_graphics_window(&clip);
             }
         }
+        /* Work area surfaces in stacking order. Showing one replots those
+           above it too (a subwindow's own subwindows, say). */
+        above = (only == NULL || !only->fixed);
         for (surf = d->surfaces; surf; surf = surf->next) {
+            if (surf == only)
+                above = 1;
             if (surf->kind != SURF_WINDOW || surf->handle != handle ||
                 surf->destroy_pending || !surf->fixed)
                 continue;
-            if (only == NULL || only == surf || !only->fixed)
+            if (above)
                 plot_rectangle(surf, block, &s, &clip);
         }
         r.r[1] = (int) block;
@@ -1395,10 +1400,15 @@ static egl_surface *new_surface(egl_display *d, const egl_config *c, int kind)
     return s;
 }
 
+/* Surfaces are kept in creation order: for work area surfaces in the same
+   window that is their stacking order (later ones on top). */
 static void add_surface(egl_display *d, egl_surface *s)
 {
-    s->next = d->surfaces;
-    d->surfaces = s;
+    egl_surface **p = &d->surfaces;
+    while (*p)
+        p = &(*p)->next;
+    s->next = NULL;
+    *p = s;
 }
 
 static EGLSurface create_window_surface(EGLDisplay dpy, EGLConfig config,

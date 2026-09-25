@@ -1,0 +1,38 @@
+freeglut demos for riscos-mesa
+==============================
+
+These are demos from freeglut 3.8.0 (progs/demos), built unchanged against
+riscos-mesa's freeglut. freeglut is the open source GLUT: the small library
+most OpenGL example programs, tutorials and books use to open a window and
+read the keyboard and mouse. riscos-mesa's freeglut has a native RISC OS
+back end:
+
+- each GLUT window is a Wimp window (subwindows are drawn inside it), and
+  the programs multitask;
+- GLUT menus are Wimp menus: click Menu over a window that has one
+  (Select or Adjust too, if the program attached the menu to them). A
+  choice made with Adjust leaves the menu open;
+- drawing goes through riscos-mesa's EGL and software OpenGL 2.1;
+- full screen and game mode cover the desktop with a window without a
+  title bar, in the current screen mode.
+
+Mouse buttons: Select is GLUT's left button, Menu the middle one and
+Adjust the right one, as on the mouse.
+
+!Shapes    every GLUT shape; Page Up / Page Down change the shape
+!One       two windows, nested subwindows, menus and game mode (Escape
+           leaves game mode)
+!Subwin    nested subwindows; typing goes to the one under the pointer
+!Lorenz    the Lorenz attractor
+!Fractals  an affine fractal (Koch snowflake)
+!Resizer   moving, resizing, hiding and showing windows from the keyboard
+!View3D    a lit scene; drag with Select to turn it, F1 for help
+!Keyboard  shows the keys (and special keys, with Shift/Ctrl/Alt) held
+
+Text the programs print goes to the file Output inside each application.
+
+The programs need SharedUnixLibrary and ARMEABISupport (from PackMan) and a
+machine with VFPv4 (Raspberry Pi 2 or later and similar). Each application
+includes freeglut's licence (MIT/X style).
+
+To build your own GLUT programs, see docs/porting/glut.md in riscos-mesa.

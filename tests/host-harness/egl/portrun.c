@@ -5,9 +5,17 @@
  * a host libOSMesa; see README.md.
  *
  * Environment: FRAMES = null events to deliver (frames, for animating
- * programs); KEYS = comma-separated RISC OS key codes to deliver after
- * them, where "r<w>x<h>" resizes the window instead (OS units); PPM =
- * where to save the fake 1280x720 screen when the close request comes.
+ * programs); KEYS = a comma-separated script delivered after them, each
+ * entry followed by a null event:
+ *   <n>          key press, RISC OS key code n (0x... for hex)
+ *   r<w>x<h>     resize the window (OS units)
+ *   c<x>:<y>[:<b>]  click at pixel x, y of the window (buttons b: 4 Select
+ *                (default), 2 Menu, 1 Adjust), held until "u"
+ *   m<x>:<y>     move the pointer there;  u  release the buttons
+ *   s<i>[:<j>[:<k>]]  choose from the open menu (item indices)
+ *   w<d>         turn the scroll wheel by d;  n  one more null event
+ * PPM = where to save the fake 1280x720 screen when the close request
+ * comes; MENUS=1 prints each menu opened.
  * The fake reports a running desktop (Wimp_ReadSysInfo), so DispmanX
  * programs use libbcm_host's window mode unless <App>$Display says "full".
  */
@@ -38,10 +46,25 @@ static void *run(void *x) {
   fake_set_screen(1280, 720, 0, 5); fake_reset_clip();
   fake_wimp_nulls = atoi(getenv("FRAMES")); fake_wimp_hook = hook;
   fake_wimp_desktop = 1;             /* Wimp_ReadSysInfo reports a desktop */
-  /* KEYS: comma-separated key codes; an entry "r<w>x<h>" resizes the window (OS units) */
-  while (k && *k) { if (*k == 'r') { int w = strtol(k + 1, &k, 0), h = strtol(k + 1, &k, 0);
-      fake_wimp_script[fake_wimp_script_len][0] = 2; fake_wimp_script[fake_wimp_script_len++][1] = w | (h << 16); }
-    else { fake_wimp_script[fake_wimp_script_len][0] = 8; fake_wimp_script[fake_wimp_script_len++][1] = strtol(k, &k, 0); }
+  fake_log_menus = getenv("MENUS") != NULL;
+  while (k && *k) {
+    int *e = fake_wimp_script[fake_wimp_script_len++], i;
+    e[1] = e[2] = e[3] = -1;
+    switch (*k) {
+    case 'r': { int w = strtol(k + 1, &k, 0), h = strtol(k + 1, &k, 0); e[0] = 2; e[1] = w | (h << 16); break; }
+    case 'c': e[0] = 6; e[3] = 0; goto numbers;
+    case 'm': e[0] = FAKE_MOVE; goto numbers;
+    case 's': e[0] = 9; goto numbers;
+    case 'w': e[0] = FAKE_WHEEL; goto numbers;
+    case 'u': e[0] = FAKE_RELEASE; k++; break;
+    case 'n': e[0] = FAKE_NULL; k++; break;
+    default:  e[0] = 8; e[1] = strtol(k, &k, 0); break;
+    numbers:
+      k++;
+      for (i = 1; i <= 3; i++) { e[i] = strtol(k, &k, 0); if (*k != ':') break; k++; }
+      if (e[0] == 6 && e[3] <= 0) e[3] = 4;
+      break;
+    }
     if (*k == ',') k++; }
   clock_gettime(CLOCK_MONOTONIC, &t0);
   app_main(ac, av);

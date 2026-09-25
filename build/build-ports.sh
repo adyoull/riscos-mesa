@@ -7,10 +7,13 @@
 #                                                    -> $STAGE/ports/sdl2-tests
 #   ports/esbook      the OpenGL ES 2.0 Programming Guide samples over our
 #                     esUtil_RISCOS.c                -> $STAGE/ports/esbook
+#   ports/freeglut    freeglut 3.8.0's demos, unchanged, over our freeglut
+#                     (RISC OS back end in glut/)    -> $STAGE/ports/freeglut
 # The book's samples have no licence, so they aren't in this repository or
 # in release zips: they are fetched at a pinned commit and built for your
 # own use (skipped if they can't be fetched).
-# Needs build-mesa.sh, build-egl.sh and build-sdl2.sh first.
+# Needs build-mesa.sh, build-glu.sh, build-egl.sh, build-sdl2.sh and
+# build-freeglut.sh first.
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 HERE=$(cd "$(dirname "$0")/.." && pwd)
@@ -50,6 +53,22 @@ for spec in "TestGL2 testgl2 HAVE_OPENGL" "TestGLES testgles HAVE_OPENGLES" "Tes
   cp "$SRC/SDL-release-2.26.0/LICENSE.txt" "$OUT/sdl2-tests/!$1/Licence,fff"
 done
 cp "$P/sdl2-tests/riscos/ReadMe,fff" "$OUT/sdl2-tests/"
+
+# --- freeglut 3.8.0's demos (progs/demos in the source build-freeglut.sh
+#     fetched), unchanged; riscos_output.c sends their text to a file ---
+G="$P/freeglut"; GD="$SRC/freeglut-3.8.0/progs/demos"
+mkdir -p "$OUT/freeglut"
+while read -r app srcs; do
+  case "$app" in ''|'#'*) continue;; esac
+  cp -r "$G/riscos/!$app" "$OUT/freeglut/"
+  files=""; for f in $srcs; do files="$files $GD/$f"; done
+  $CC $CF -DOUTPUT_VAR="\"$app\$Output\"" -static $files "$P/sdl2-tests/riscos_output.c" \
+      -o "$OUT/freeglut/!$app/!RunImage,e1f" -L"$STAGE/lib" -lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm
+  $STRIP "$OUT/freeglut/!$app/!RunImage,e1f"
+  cp "$SRC/freeglut-3.8.0/COPYING" "$OUT/freeglut/!$app/Licence,fff"
+done < "$G/apps.txt"
+cp "$GD/Fractals/fractals.dat" "$OUT/freeglut/!Fractals/fractals.dat,fff"
+cp "$G/riscos/ReadMe,fff" "$OUT/freeglut/"
 
 # --- OpenGL ES 2.0 Programming Guide samples (fetched, not redistributed) ---
 BOOK_COMMIT=604a02cc84f9cc4369f7efe93d2a1d7f2cab2ba7

@@ -1,0 +1,12 @@
+| !Resizer: freeglut's resizer: a window (and a second one) that you can move,
+| resize, hide and show from the keyboard; the keys are listed in Output.
+| Built unchanged from freeglut 3.8.0 (progs/demos) against riscos-mesa's
+| freeglut, whose RISC OS back end uses Wimp windows, Wimp menus and native
+| EGL. Text output goes to the file Output in this application.
+Set Resizer$Dir <Obey$Dir>
+Set Resizer$Output /|<Resizer$Dir>/Output
+RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
+RMEnsure SharedUnixLibrary 1.16 Error !Resizer needs SharedUnixLibrary 1.16 or later
+RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
+RMEnsure ARMEABISupport 0.00 Error !Resizer needs ARMEABISupport
+Run <Resizer$Dir>.!RunImage

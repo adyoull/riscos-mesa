@@ -1,0 +1,13 @@
+| !Shapes: freeglut's shapes demo: every GLUT solid and wire shape, lit.
+| Page Up / Page Down change the shape; the keys listed in the window change
+| slices, stacks, projection, shading and more.
+| Built unchanged from freeglut 3.8.0 (progs/demos) against riscos-mesa's
+| freeglut, whose RISC OS back end uses Wimp windows, Wimp menus and native
+| EGL. Text output goes to the file Output in this application.
+Set Shapes$Dir <Obey$Dir>
+Set Shapes$Output /|<Shapes$Dir>/Output
+RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
+RMEnsure SharedUnixLibrary 1.16 Error !Shapes needs SharedUnixLibrary 1.16 or later
+RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
+RMEnsure ARMEABISupport 0.00 Error !Shapes needs ARMEABISupport
+Run <Shapes$Dir>.!RunImage

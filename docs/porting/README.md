@@ -11,6 +11,7 @@ Pi's hello_pi examples) all work on a Raspberry Pi 4.
 | --- | --- | --- | --- |
 | Mesa's demos, or anything using a small window library over EGL (eglut, esUtil, your own) | replace the library's window code with a Wimp window | [mesa-demos.md](mesa-demos.md) | `ports/mesa-demos`: eglgears, es1 gears, torus, es2gears, egltri |
 | The *OpenGL ES 2.0 Programming Guide* samples (esUtil) | the same, for esUtil | [esbook.md](esbook.md) | `ports/esbook`: all ten LinuxX11 samples |
+| GLUT programs (freeglut): tutorials, books, course code | riscos-mesa's freeglut, with a native RISC OS back end; usually no changes | [glut.md](glut.md) | `ports/freeglut`: freeglut's demos (shapes, subwindows, menus, game mode...) |
 | SDL 2 programs using OpenGL or OpenGL ES | SDL does it; no window code to change | [sdl2.md](sdl2.md) | SDL's testgl2, testgles, testgles2 |
 | Raspberry Pi 1–3 Khronos programs (`bcm_host`, DispmanX) | the DispmanX compatibility library (a desktop window by default, or full screen) | [hello_pi.md](hello_pi.md) | `ports/hello_pi`: hello_triangle, hello_triangle2, hello_teapot |
 
@@ -36,6 +37,7 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
 - Link lines:
   - EGL: `-lEGL -lOSMesa -lstdc++ -lz -lm`.
   - SDL2: `-lSDL2 -lOSMesa -lstdc++ -lz -lm` (add `-lGLU` if used).
+  - GLUT: `-lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm`.
   - Pi code: `-lbcm_host -lEGL -lOSMesa -lstdc++ -lz -lm`.
   - Never `-pthread`: UnixLib has threads built in, and GCCSDK's GCC
     rejects it.

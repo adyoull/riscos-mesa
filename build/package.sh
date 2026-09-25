@@ -5,6 +5,7 @@
 #   build/package.sh VERSION    -> dist/riscos-mesa-tests-VERSION.zip
 #                                  dist/riscos-mesa-hello_pi-VERSION.zip
 #                                  dist/riscos-mesa-ports-VERSION.zip
+#                                  dist/riscos-mesa-glut-VERSION.zip
 #                                  dist/riscos-mesa-devkit-VERSION.tgz
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
@@ -38,10 +39,19 @@ if [ -d "$STAGE/ports" ]; then
   ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-ports-$V.zip" riscos-mesa-ports )
   rm -rf "$TMP"
 fi
+# freeglut's demos over our freeglut (build-ports.sh), in a zip of their own:
+# -> dist/riscos-mesa-glut-VERSION.zip
+if [ -d "$STAGE/ports/freeglut" ]; then
+  TMP=$(mktemp -d)
+  cp -r "$STAGE/ports/freeglut" "$TMP/riscos-mesa-glut"
+  rm -f "$HERE/dist/riscos-mesa-glut-$V.zip"
+  ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-glut-$V.zip" riscos-mesa-glut )
+  rm -rf "$TMP"
+fi
 ( cd "$STAGE/.." && tar czf "$HERE/dist/riscos-mesa-devkit-$V.tgz" \
     --transform "s#^stage#riscos-mesa-devkit-$V#" stage/lib/libOSMesa.a stage/lib/libGLU.a \
     stage/lib/libSDL2.a stage/lib/libSDL2main.a stage/lib/libz.a stage/lib/libEGL.a \
     stage/lib/libbcm_host.a stage/lib/libGLESv2.a stage/lib/libGLESv1_CM.a stage/lib/libvcos.a \
-    stage/lib/libvchiq_arm.a stage/include \
+    stage/lib/libvchiq_arm.a stage/lib/libglut.a stage/lib/libfreeglut-gles.a stage/include \
     --transform "s#^LICENCES.txt#riscos-mesa-devkit-$V/LICENCES.txt#" -C "$HERE" LICENCES.txt )
 ls -la "$HERE/dist"

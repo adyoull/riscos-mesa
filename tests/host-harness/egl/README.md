@@ -26,7 +26,7 @@ heap in one arena, and the tests run on a thread whose stack is at 1.5 GB.
     gcc $F harness.c fake_riscos.c ../../../egl/egl_riscos.c harness_es.o bcm_host.o \
       -o harness -L$O -lOSMesa -lpthread -Wl,-rpath,$O && ./harness
 
-Expected: `262 checks, 0 failures: ALL PASS`.
+Expected: `265 checks, 0 failures: ALL PASS`.
 
 ## Running a port (docs/porting)
 
@@ -34,7 +34,12 @@ Expected: `262 checks, 0 failures: ALL PASS`.
 
 - The fake answers Wimp_Initialise, CreateWindow, OpenWindow and Poll
   from a script. It sends a redraw, then FRAMES null events, then the
-  KEYS script (key presses, or window resizes), then a close request.
+  KEYS script, then a close request. The script can press keys, resize
+  the window, click (Select, Menu, Adjust) at a position, move the pointer,
+  release the buttons, turn the scroll wheel and choose from an open Wimp
+  menu (see `portrun.c`; `MENUS=1` prints each menu opened). The fake also
+  answers Wimp_GetPointerInfo, Wimp_CreateMenu, OS_Pointer 2 and OS_Byte
+  121.
 - The screen is saved as a PPM file for checking.
 
 For example, mesa-demos' es2gears over `ports/mesa-demos/eglut_riscos.c`:
@@ -51,3 +56,6 @@ For example, mesa-demos' es2gears over `ports/mesa-demos/eglut_riscos.c`:
 
 (`fake_riscos.c` and `portrun.c` are built without `__riscos__`; the port
 and `egl_riscos.c` with it.)
+
+freeglut's RISC OS back end has its own run script built on this fake:
+`../glut/run.sh` (see `glut/README.md`).
