@@ -18,7 +18,8 @@ multitask properly (vsync, SDL_Delay and SDL_WaitEvent yield to the desktop).
 - `libEGL.a`: EGL 1.4 over OSMesa, so programs can set up GL the standard
   Khronos way: Wimp windows, full screen (optionally straight into screen
   memory), pbuffers and sprites as pixmaps. Link with
-  `-lEGL -lOSMesa -lstdc++ -lz -lm`. See [egl/README.md](egl/README.md).
+  `-lEGL -lOSMesa -lstdc++ -lz -lm`. See the [programming guide](docs/EGL-GUIDE.md)
+  and [egl/README.md](egl/README.md).
 
 ## Download
 Releases are numbered after the Mesa version they contain (first: `v20.3.5`).
