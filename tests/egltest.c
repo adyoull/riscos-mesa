@@ -90,6 +90,8 @@ static void cube(void)
 }
 
 /* Draw the cube at angle a into a w x h viewport. */
+static float zoom = 6;             /* camera distance; the scroll wheel changes it */
+
 static void scene(int w, int h, float a, float r, float g, float b)
 {
     static const float lpos[4] = {2, 3, 4, 0};
@@ -106,7 +108,7 @@ static void scene(int w, int h, float a, float r, float g, float b)
     glFrustum(-(float) w / h, (float) w / h, -1, 1, 2, 20);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glTranslatef(0, 0, -6);
+    glTranslatef(0, 0, -zoom);
     glRotatef(a, 1, 0.7f, 0.3f);
     cube();
 }
@@ -287,6 +289,35 @@ static void wimp_end(void)
     task_handle = 0;
 }
 
+static int fx_errors;
+static EGLint fx_last_error;
+
+/* Scroll wheel zoom (as in sdlgltest): OS_Pointer 2 gives the wheel's
+   accumulated position; only used while the pointer is over our window,
+   and not with -r, where the wheel scrolls the window. */
+static void wheel_zoom(int handle, int second)
+{
+    static int last_y, valid;
+    int ptr[5];
+    _kernel_swi_regs r;
+    int dy;
+
+    r.r[0] = 2;
+    if (_kernel_swi(OS_Pointer, &r, &r) != NULL)
+        return;
+    dy = r.r[1] - last_y;
+    last_y = r.r[1];
+    if (!valid) { valid = 1; return; }
+    if (dy == 0 || dy > 64 || dy < -64 || second)
+        return;
+    r.r[1] = (int) ptr;
+    if (_kernel_swi(Wimp_GetPointerInfo, &r, &r) != NULL || ptr[3] != handle)
+        return;
+    zoom -= 0.5f * dy;
+    if (zoom < 3.5f) zoom = 3.5f;
+    if (zoom > 20) zoom = 20;
+}
+
 static int run_window(int second, double limit)
 {
     static char title[96] = "egltest";
@@ -308,7 +339,11 @@ static int run_window(int second, double limit)
     memset(wb, 0, sizeof wb);
     wb[0] = 200; wb[1] = 200; wb[2] = 200 + 1280; wb[3] = 200 + 960;   /* 640x480 at eig 1 */
     wb[4] = 0; wb[5] = 0; wb[6] = -1;
-    wb[7] = (int) 0xFF000002u;              /* moveable, all tools */
+    /* Moveable, back, close, title, toggle size, adjust size. Scroll bars
+       only with -r: the main surface is pinned to the visible area, so
+       without a work area surface there's nothing to scroll, and the wheel
+       zooms instead. */
+    wb[7] = (int) (second ? 0xFF000002u : 0xCF000002u);
     wb[8] = 7 | (2 << 8) | (7 << 16) | (4 << 24);   /* title fg/bg, work fg/bg (grey) */
     wb[9] = 3 | (1 << 8) | (12 << 16);
     wb[10] = 0; wb[11] = -2400; wb[12] = 3840; wb[13] = 0;
@@ -360,11 +395,22 @@ static int run_window(int second, double limit)
             t1 = hr_seconds();
             eglSwapBuffers(dpy, ws);
             if (fx != EGL_NO_SURFACE) {
-                eglMakeCurrent(dpy, fx, fx, ctx);
-                scene(160, 120, -2 * a, 0.3f, 0.1f, 0.1f);
-                eglSwapBuffers(dpy, fx);
+                float z = zoom;
+                zoom = 6;
+                if (!eglMakeCurrent(dpy, fx, fx, ctx)) {
+                    fx_errors++;
+                    fx_last_error = eglGetError();
+                } else {
+                    scene(160, 120, -2 * a, 0.3f, 0.1f, 0.1f);
+                    if (!eglSwapBuffers(dpy, fx)) {
+                        fx_errors++;
+                        fx_last_error = eglGetError();
+                    }
+                }
+                zoom = z;
                 eglMakeCurrent(dpy, ws, ws, ctx);
             }
+            wheel_zoom(handle, second);
             t2 = hr_seconds();
             render += t1 - t0;
             present += t2 - t1;
@@ -406,6 +452,9 @@ static int run_window(int second, double limit)
         say("window %dx%d: %ld frames in %.1f s = %.1f fps; render %.2f ms, present %.2f ms per frame%s\n",
             w, h, frames, t, frames / (t > 0 ? t : 1), frames ? 1000 * render / frames : 0,
             frames ? 1000 * present / frames : 0, fx != EGL_NO_SURFACE ? " (incl. the second surface)" : "");
+        if (fx != EGL_NO_SURFACE)
+            say("second surface: %d errors%s (last EGL error 0x%04x)\n", fx_errors,
+                fx_errors ? " - it wasn't drawn" : "", fx_last_error);
     }
     eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglTerminate(dpy);
@@ -423,7 +472,8 @@ static int run_fullscreen(int direct, int interval, double limit)
     EGLConfig cfg;
     EGLContext ctx;
     EGLSurface fs;
-    EGLint w, h, rb;
+    EGLint w, h, rb, banks = 0;
+    char how[64];
     EGLint attrs[] = { EGL_RENDER_BUFFER, direct ? EGL_SINGLE_BUFFER : EGL_BACK_BUFFER, EGL_NONE };
     double t0, t1, t2, tstart, render = 0, present = 0;
     long frames = 0;
@@ -447,6 +497,7 @@ static int run_fullscreen(int direct, int interval, double limit)
     eglQuerySurface(dpy, fs, EGL_WIDTH, &w);
     eglQuerySurface(dpy, fs, EGL_HEIGHT, &h);
     eglQuerySurface(dpy, fs, EGL_RENDER_BUFFER, &rb);
+    eglQuerySurface(dpy, fs, EGL_SCREEN_BANKS_RISCOS, &banks);
 
     tstart = hr_seconds();
     do {
@@ -462,11 +513,19 @@ static int run_fullscreen(int direct, int interval, double limit)
         a += 2;
     } while (t2 - tstart < limit);
 
+    if (rb == EGL_SINGLE_BUFFER)
+        snprintf(how, sizeof how, "direct to screen memory");
+    else if (banks > 0)
+        snprintf(how, sizeof how, "%d screen banks", banks);
+    else
+        snprintf(how, sizeof how, "double buffered (sprite plot)");
     say("full screen %dx%d, %s, swap interval %d: %ld frames in %.1f s = %.1f fps; "
         "render %.2f ms, present %.2f ms per frame\n",
-        w, h, rb == EGL_SINGLE_BUFFER ? "direct to screen memory" : "double buffered (sprite plot)",
+        w, h, how,
         interval, frames, t2 - tstart, frames / (t2 - tstart), 1000 * render / frames,
         1000 * present / frames);
+    if (!direct && banks == 0)
+        say("  (no screen banks: not enough screen memory, or not a 32bpp mode in this colour order)\n");
     if (direct && rb != EGL_SINGLE_BUFFER)
         say("  (-d asked for direct rendering but the screen mode isn't 32bpp in this colour order)\n");
     eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);

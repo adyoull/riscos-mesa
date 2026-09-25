@@ -72,7 +72,7 @@ bison, flex, autoconf, automake, libtool.
 | `sdlgltest [w h] [-f]` | SDL2 GL desktop window, spinning cube, fps in title; F full screen, Space vsync |
 | `egltest [-w [-r] \| -f [-d]]` | EGL: checks (pbuffer, sprite pixmap, errors), desktop window (+ work area surface), full screen (+ direct) |
 | `tests/host-harness` | runs the SDL GL glue on Linux with emulated SWIs |
-| `tests/host-harness/egl` | runs the EGL library on Linux against a fake Wimp and screen (90 checks) |
+| `tests/host-harness/egl` | runs the EGL library on Linux against a fake Wimp and screen (104 checks) |
 
 ## Licences
 Mesa: MIT. GLU: SGI Free Software Licence B (MIT-style). SDL: zlib. Patches

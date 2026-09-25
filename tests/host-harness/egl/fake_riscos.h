@@ -5,7 +5,9 @@
 
 typedef struct {
     int w, h, xeig, yeig, log2bpp, flags, line_length;
-    unsigned int *mem;
+    unsigned int *mem;          /* room for 3 banks; bank n at mem + (n-1) * w * h */
+    int da_size, da_max;        /* screen dynamic area size and limit, bytes */
+    int vdu_bank, display_bank;
 } fake_screen_t;
 
 typedef struct {
@@ -21,6 +23,7 @@ extern int fake_vsyncs, fake_update_calls, fake_redraw_calls, fake_plots;
 void fake_set_screen(int w, int h, int trgb, int log2bpp);
 fake_window_t *fake_open_window(int handle, int x0, int y0, int x1, int y1, int sx, int sy);
 unsigned int fake_screen_pixel(int x, int y_from_top);
+unsigned int fake_bank_pixel(int bank, int x, int y_from_top);
 void fake_reset_clip(void);
 
 #endif

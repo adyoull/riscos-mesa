@@ -59,13 +59,24 @@ you get no configs.
   every task. Pace frames with `Wimp_PollIdle`.
 
 ### Full screen (`EGL_RISCOS_SCREEN_WINDOW`)
-- The surface is the size of the screen mode. The swap plots it at the top
-  left, after waiting for vsync (`OS_Byte 19`) as many times as the swap
-  interval says (default 1, 0 = don't wait).
-- With `EGL_RENDER_BUFFER` set to `EGL_SINGLE_BUFFER`, in a 32bpp mode with
-  the config's colour order, GL renders straight into screen memory. The
-  swap then has nothing to copy, but you see the frame as it's drawn.
-  `eglQuerySurface(EGL_RENDER_BUFFER)` tells you which one you got.
+- The surface is the size of the screen mode. The swap waits for vsync
+  (`OS_Byte 19`) as many times as the swap interval says (default 1,
+  0 = don't wait).
+- **Screen banks (default):** in a 32bpp mode with the config's colour
+  order, GL renders into a screen bank that isn't being shown, and the swap
+  switches the display to it (`OS_Byte 113`). Nothing is copied and no half-drawn
+  frame is ever seen. It uses 3 banks if screen memory can be grown enough, else 2;
+  `eglQuerySurface(EGL_SCREEN_BANKS_RISCOS)` says how many. Bank contents
+  aren't preserved across swaps (`EGL_SWAP_BEHAVIOR` is
+  `EGL_BUFFER_DESTROYED`); setting `EGL_BUFFER_PRESERVED` switches to the
+  sprite method. The library puts the display back on bank 1 when the
+  surface goes (and at exit).
+- **Sprite:** without enough screen memory, or in other modes, GL renders
+  into a sprite that the swap plots at the top left.
+- **Single buffer:** with `EGL_RENDER_BUFFER` set to `EGL_SINGLE_BUFFER`, GL
+  renders straight into the visible screen. Nothing is copied, but you see
+  the frame as it's drawn (tearing). `eglQuerySurface(EGL_RENDER_BUFFER)`
+  tells you which one you got.
 - A mode change is picked up at the next swap.
 
 ### Pixmaps

@@ -27,10 +27,15 @@
  *   yourself and call eglPlotSurfaceRISCOS for each rectangle instead.
  *
  *   The native window EGL_RISCOS_SCREEN_WINDOW (-1) is the whole screen, for
- *   full screen / single tasking programs. With EGL_RENDER_BUFFER set to
- *   EGL_SINGLE_BUFFER, and a 32bpp screen mode in the config's pixel order,
- *   GL renders straight into screen memory (no copy on swap, but you see the
- *   frame being drawn); otherwise the surface is double buffered.
+ *   full screen / single tasking programs. In a 32bpp screen mode in the
+ *   config's pixel order it renders straight into screen memory: by default
+ *   into a hidden screen bank, shown on swap (OS_Byte 113) after the vsync
+ *   wait, using 3 banks if screen memory allows, else 2 (query
+ *   EGL_SCREEN_BANKS_RISCOS). Bank surfaces don't preserve their contents
+ *   (EGL_SWAP_BEHAVIOR is EGL_BUFFER_DESTROYED; setting EGL_BUFFER_PRESERVED
+ *   switches to plotting a sprite). EGL_RENDER_BUFFER = EGL_SINGLE_BUFFER
+ *   draws into the visible bank (you see the frame being drawn). Without
+ *   enough screen memory, or in other modes, a sprite is plotted on swap.
  *
  *   Swap interval: full screen, eglSwapBuffers waits for vertical sync
  *   (OS_Byte 19) that many times. In a desktop window it doesn't wait
@@ -58,6 +63,8 @@ extern "C" {
 #define EGL_WORK_AREA_Y_RISCOS          0x3FF1
 #define EGL_WORK_AREA_WIDTH_RISCOS      0x3FF2
 #define EGL_WORK_AREA_HEIGHT_RISCOS     0x3FF3
+/* eglQuerySurface: screen banks a full screen surface flips between (0 = none) */
+#define EGL_SCREEN_BANKS_RISCOS         0x3FF4
 
 /* ModeFlags colour order bits reported as EGL_NATIVE_VISUAL_ID */
 #define EGL_RISCOS_VISUAL_TBGR          0x0000

@@ -46,6 +46,7 @@
 
 #define MAX_PBUFFER 4096
 #define MAX_SWAP_INTERVAL 4
+#define MAX_BANKS 3
 
 /* 32bpp, 90x90 dpi, sprite type 6: 0x00BBGGRR */
 #define SPRITE_MODE_TYPE6 (1 | (90 << 1) | (90 << 14) | (6 << 27))
@@ -61,6 +62,12 @@
 #endif
 #ifndef Wimp_GetRectangle
 #define Wimp_GetRectangle   0x400CA
+#endif
+#ifndef OS_ReadDynamicArea
+#define OS_ReadDynamicArea  0x5C
+#endif
+#ifndef OS_ChangeDynamicArea
+#define OS_ChangeDynamicArea 0x2A
 #endif
 #ifndef OS_ScreenMode
 #define OS_ScreenMode       0x65
@@ -92,6 +99,10 @@ typedef struct egl_surface {
     int fixed;                  /* work area rectangle given */
     int wa_x, wa_y;             /* its top left, OS units */
     int direct;                 /* rendering into screen memory */
+    int banks;                  /* > 0: flipping between this many screen banks */
+    int draw_bank;              /* bank being drawn (1..banks) */
+    void *bank_addr[MAX_BANKS + 1];
+    int no_banks;               /* don't try screen banks (failed, or preserved contents wanted) */
     int *area;                  /* malloc'd sprite area */
     int *sprite;                /* sprite in it */
     int sprite_mode;            /* mode word / selector used to make it */
@@ -319,6 +330,15 @@ static void present(egl_display *d, egl_surface *surf, const screen_info *s)
     if (surf->handle == -1) {
         for (i = 0; i < surf->swap_interval; i++)
             _kernel_osbyte(19, 0, 0);
+        if (surf->banks) {
+            /* Show the finished bank, then draw into the oldest one. With
+               three banks that one isn't on screen even if the display
+               only switches at the next vsync. */
+            _kernel_osbyte(113, surf->draw_bank, 0);
+            surf->draw_bank = surf->draw_bank % surf->banks + 1;
+            surf->pixels = surf->bank_addr[surf->draw_bank];
+            return;
+        }
         if (surf->direct || !surf->sprite)
             return;
         r.r[0] = 512 + 34;
@@ -356,8 +376,27 @@ static void present(egl_display *d, egl_surface *surf, const screen_info *s)
 /* ------------------------------------------------------------------ */
 /* Buffers                                                             */
 
+static int banks_in_use;
+
+static void restore_banks(void)
+{
+    _kernel_osbyte(113, 1, 0);          /* display and draw bank 1 again */
+    _kernel_osbyte(112, 1, 0);
+}
+
+static void restore_banks_atexit(void)
+{
+    if (banks_in_use)
+        restore_banks();
+}
+
 static void free_buffers(egl_surface *surf)
 {
+    if (surf->banks) {
+        restore_banks();
+        surf->banks = 0;
+        banks_in_use--;
+    }
     free(surf->area);
     surf->area = NULL;
     surf->sprite = NULL;
@@ -365,6 +404,65 @@ static void free_buffers(egl_surface *surf)
     surf->mem = NULL;
     surf->pixels = NULL;
     surf->direct = 0;
+}
+
+static void *vdu_bank_start(int bank)
+{
+    static const int vars[] = { 148, -1 };
+    int val = 0;
+    _kernel_swi_regs r;
+    _kernel_osbyte(112, bank, 0);
+    r.r[0] = (int) vars;
+    r.r[1] = (int) &val;
+    _kernel_swi(OS_ReadVduVariables, &r, &r);
+    return (void *) val;
+}
+
+/* Hardware double (or triple) buffering: render into a screen bank that
+   isn't being shown and switch the display to it on swap (OS_Byte 113),
+   so a frame is never seen half drawn and nothing is copied. Grows screen
+   memory if it can. Returns the number of banks (2 or 3), or 0. */
+static int setup_banks(egl_surface *surf, const screen_info *s)
+{
+    static const int vars[] = { 7, -1 };    /* ScreenSize */
+    static int atexit_done;
+    _kernel_swi_regs r;
+    int screen_size = 0, have, n, i;
+
+    r.r[0] = (int) vars;
+    r.r[1] = (int) &screen_size;
+    if (_kernel_swi(OS_ReadVduVariables, &r, &r) != NULL || screen_size <= 0)
+        return 0;
+    r.r[0] = 2;                             /* screen memory dynamic area */
+    if (_kernel_swi(OS_ReadDynamicArea, &r, &r) != NULL)
+        return 0;
+    have = r.r[1];
+    for (n = MAX_BANKS; n >= 2; n--) {
+        if (have < n * screen_size) {
+            r.r[0] = 2;
+            r.r[1] = n * screen_size - have;
+            _kernel_swi(OS_ChangeDynamicArea, &r, &r);
+            r.r[0] = 2;
+            if (_kernel_swi(OS_ReadDynamicArea, &r, &r) != NULL)
+                return 0;
+            have = r.r[1];
+        }
+        if (have >= n * screen_size)
+            break;
+    }
+    if (n < 2)
+        return 0;
+    for (i = 1; i <= n; i++)
+        surf->bank_addr[i] = vdu_bank_start(i);
+    _kernel_osbyte(112, 1, 0);
+    _kernel_osbyte(113, 1, 0);
+    if (surf->bank_addr[1] != s->start || surf->bank_addr[2] == surf->bank_addr[1])
+        return 0;
+    if (!atexit_done) {
+        atexit(restore_banks_atexit);   /* never leave the desktop on bank 2 */
+        atexit_done = 1;
+    }
+    return n;
 }
 
 /* Make a window surface's buffer fit the window and the screen mode.
@@ -376,6 +474,27 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
 
     if (!wanted_size(surf, s, &w, &h))
         return fail(EGL_BAD_NATIVE_WINDOW), -1;
+
+    if (surf->handle == -1 && surf->render_buffer == EGL_BACK_BUFFER && !surf->no_banks &&
+        screen_layout(s) == surf->cfg->layout && s->start != NULL &&
+        (s->line_length & 3) == 0) {
+        if (surf->banks && surf->bank_addr[1] == s->start && surf->w == w &&
+            surf->h == h && surf->stride == s->line_length / 4)
+            return 0;
+        free_buffers(surf);
+        surf->banks = setup_banks(surf, s);
+        if (surf->banks) {
+            banks_in_use++;
+            surf->draw_bank = 2;
+            surf->pixels = surf->bank_addr[2];
+            surf->w = w;
+            surf->h = h;
+            surf->stride = s->line_length / 4;
+            surf->swap_behavior = EGL_BUFFER_DESTROYED;
+            return 1;
+        }
+        surf->no_banks = 1;             /* not enough screen memory: plot a sprite */
+    }
 
     if (surf->handle == -1 && surf->render_buffer == EGL_SINGLE_BUFFER &&
         screen_layout(s) == surf->cfg->layout && s->start != NULL &&
@@ -1047,6 +1166,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglQuerySurface(EGLDisplay dpy, EGLSurface surface
         *value = (s->kind == SURF_PIXMAP || s->direct) ? EGL_SINGLE_BUFFER : EGL_BACK_BUFFER;
         break;
     case EGL_SWAP_BEHAVIOR:    *value = s->swap_behavior; break;
+    case EGL_SCREEN_BANKS_RISCOS: *value = s->banks; break;
     case EGL_MULTISAMPLE_RESOLVE: *value = EGL_MULTISAMPLE_RESOLVE_DEFAULT; break;
     case EGL_HORIZONTAL_RESOLUTION:
     case EGL_VERTICAL_RESOLUTION:
@@ -1074,7 +1194,18 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSurfaceAttrib(EGLDisplay dpy, EGLSurface surfac
     case EGL_SWAP_BEHAVIOR:
         if (value != EGL_BUFFER_PRESERVED && value != EGL_BUFFER_DESTROYED)
             return fail(EGL_BAD_PARAMETER);
-        s->swap_behavior = value;   /* contents are always preserved */
+        s->swap_behavior = value;
+        if (value == EGL_BUFFER_PRESERVED && s->handle == -1 && !s->no_banks) {
+            s->no_banks = 1;            /* screen banks can't preserve: use a sprite */
+            if (s->banks) {
+                screen_info scr;
+                read_screen(&scr);
+                if (update_window_buffer(s, &scr) < 0)
+                    return EGL_FALSE;
+                if (s == cur_surf && cur_ctx && !bind(cur_ctx, s))
+                    return fail(EGL_BAD_ALLOC);
+            }
+        }
         break;
     case EGL_MIPMAP_LEVEL:
         break;
@@ -1409,6 +1540,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
     changed = update_window_buffer(s, &scr);
     if (changed < 0)
         return EGL_FALSE;
+    if (s->banks)
+        changed = 1;                    /* now drawing into another bank */
     if (changed && !bind(cur_ctx, s))
         return fail(EGL_BAD_ALLOC);
     return ok();

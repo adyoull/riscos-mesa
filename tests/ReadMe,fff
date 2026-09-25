@@ -55,16 +55,19 @@ Run in this order and note the output:
       Paint (a lit cube on dark red with 4 green pixels top left).
    b) egltest -w  (from the desktop, e.g. double-click or TaskWindow)
       Desktop window with a spinning cube, fps and render/present ms in
-      the title. Resize it, scroll it, drag other windows over it, and
-      close it to finish. Add -r for a second, small GL view inside the
-      window at a fixed work area position: it should scroll with the
-      window's contents. Add -t N to stop after N seconds and -o file to
+      the title. The scroll wheel zooms. Resize it, drag other windows over
+      it, and close it to finish. In a window there's no vsync (waiting
+      would stop the desktop), so some tearing is expected.
+      Add -r for a second, small GL view (a cube on dark red, spinning the
+      other way) at a fixed work area position: this window has scroll
+      bars, and the small view should scroll with the window's contents. Add -t N to stop after N seconds and -o file to
       save the summary.
    c) egltest -f  (full screen over the current mode for 5 s, -t N)
-      Double buffered, waits for vsync. Also try  egltest -f -v 0
-      (no vsync, shows the maximum speed) and  egltest -f -d -v 0
-      (renders straight into screen memory: expect tearing but a lower
-      "present" time). The desktop is frozen while it runs and redrawn
+      Renders into a hidden screen bank and shows it at vsync (3 banks if
+      screen memory can grow that far, else 2): should be tear free, at
+      up to the display's refresh rate. The summary says how many banks.
+      Also try  egltest -f -v 0  (no vsync wait: maximum speed, may tear)
+      and  egltest -f -d -v 0  (draws into the visible screen: tears). The desktop is frozen while it runs and redrawn
       afterwards.
 
 Please report: the fps figures, anything that crashes (with the error

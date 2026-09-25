@@ -38,7 +38,9 @@ void fake_set_screen(int w, int h, int trgb, int log2bpp)
     fake_screen.log2bpp = log2bpp;
     fake_screen.flags = trgb ? 0x4000 : 0;
     fake_screen.line_length = w * 4;
-    fake_screen.mem = calloc((size_t) w * h, 4);
+    fake_screen.mem = calloc((size_t) w * h * 3, 4);
+    fake_screen.da_size = fake_screen.da_max = w * h * 4;     /* one bank, can't grow */
+    fake_screen.vdu_bank = fake_screen.display_bank = 1;
 }
 
 fake_window_t *fake_open_window(int handle, int x0, int y0, int x1, int y1, int sx, int sy)
@@ -63,6 +65,12 @@ static fake_window_t *find_window(int handle)
         if (fake_windows[i].handle == handle && handle != 0)
             return &fake_windows[i];
     return NULL;
+}
+
+unsigned int fake_bank_pixel(int bank, int x, int y_from_top)
+{
+    return fake_screen.mem[(size_t) (bank - 1) * fake_screen.w * fake_screen.h +
+                           (size_t) y_from_top * (fake_screen.line_length / 4) + x];
 }
 
 unsigned int fake_screen_pixel(int x, int y_from_top)
@@ -207,7 +215,9 @@ _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out
             case 9:   *vals = fake_screen.log2bpp; break;
             case 11:  *vals = fake_screen.w - 1; break;
             case 12:  *vals = fake_screen.h - 1; break;
-            case 148: *vals = (int) (long) fake_screen.mem; break;
+            case 7:   *vals = fake_screen.w * fake_screen.h * 4; break;
+            case 148: *vals = (int) (long) (fake_screen.mem + (size_t) (fake_screen.vdu_bank - 1) *
+                                            fake_screen.w * fake_screen.h); break;
             default:  *vals = 0;
             }
         }
@@ -219,6 +229,16 @@ _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out
         r.r[2] = (r.r[1] == 9) ? log2bpp : (r.r[1] == 0) ? flags : 0;
         break;
     }
+    case 0x5C:      /* OS_ReadDynamicArea */
+        if (r.r[0] != 2) { e = error("only the screen area is faked"); break; }
+        r.r[1] = fake_screen.da_size;
+        r.r[2] = fake_screen.da_max;
+        break;
+    case 0x2A:      /* OS_ChangeDynamicArea */
+        if (r.r[0] != 2) { e = error("only the screen area is faked"); break; }
+        if (fake_screen.da_size + r.r[1] > fake_screen.da_max) { e = error("Area can't grow"); break; }
+        fake_screen.da_size += r.r[1];
+        break;
     case OS_ScreenMode:
         if (r.r[0] != 1) { e = error("ScreenMode reason not faked"); break; }
         screen_selector[0] = 1;
@@ -265,8 +285,14 @@ _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out
 
 int _kernel_osbyte(int op, int x, int y)
 {
-    (void) x; (void) y;
+    (void) y;
+    int banks = fake_screen.da_size / (fake_screen.w * fake_screen.h * 4);
     if (op == 19) fake_vsyncs++;
+    if ((op == 112 || op == 113) && x >= 0 && x <= banks) {
+        if (x == 0) x = fake_screen.display_bank;
+        if (op == 112) fake_screen.vdu_bank = x;
+        else fake_screen.display_bank = x;
+    }
     return 0;
 }
 

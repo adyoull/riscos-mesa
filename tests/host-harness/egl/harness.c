@@ -348,6 +348,73 @@ static void test_window(void)
     eglMakeCurrent(dpy, ws, ws, ctx);
     eglDestroySurface(dpy, fs);
 
+    /* Full screen with screen banks: 3 when screen memory can grow that far */
+    {
+        EGLint nb = -1, sb = 0;
+        int bank;
+        fake_screen.da_max = 3 * 640 * 480 * 4;
+        memset(fake_screen.mem, 0, 3 * 640 * 480 * 4);
+        fs = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, NULL);
+        eglQuerySurface(dpy, fs, EGL_SCREEN_BANKS_RISCOS, &nb);
+        eglQuerySurface(dpy, fs, EGL_SWAP_BEHAVIOR, &sb);
+        CHECK(nb == 3 && fake_screen.da_size == 3 * 640 * 480 * 4, "3 screen banks (%d), memory grown", nb);
+        CHECK(sb == EGL_BUFFER_DESTROYED, "bank surface: contents not preserved");
+        eglMakeCurrent(dpy, fs, fs, ctx);
+        eglSwapInterval(dpy, 1);
+        fake_vsyncs = 0;
+        fake_plots = 0;
+        clear(1, 0, 0);
+        glFinish();
+        CHECK(fake_screen.display_bank == 1 && RGB(fake_bank_pixel(1, 5, 5)) != RED_TBGR &&
+              RGB(fake_bank_pixel(2, 5, 5)) == RED_TBGR, "drawn into hidden bank 2, bank 1 still shown");
+        eglSwapBuffers(dpy, fs);
+        CHECK(fake_screen.display_bank == 2 && fake_vsyncs == 1 && fake_plots == 0,
+              "swap: vsync then show bank 2, no plot");
+        clear(0, 1, 0);
+        glFinish();
+        CHECK(RGB(fake_bank_pixel(3, 5, 5)) == GREEN && RGB(fake_bank_pixel(2, 5, 5)) == RED_TBGR,
+              "next frame goes to bank 3; bank 2 untouched while shown");
+        eglSwapBuffers(dpy, fs);
+        bank = fake_screen.display_bank;
+        clear(0, 0, 1);
+        glFinish();
+        CHECK(bank == 3 && RGB(fake_bank_pixel(1, 5, 5)) == BLUE_TBGR, "then bank 3 shown, bank 1 drawn");
+        eglSwapBuffers(dpy, fs);
+        CHECK(fake_screen.display_bank == 1 && fake_screen.vdu_bank == 1, "round to bank 1");
+        clear(1, 1, 1);
+        eglSwapBuffers(dpy, fs);
+        CHECK(fake_screen.display_bank == 2, "bank 2 again");
+        /* asking for preserved contents switches to the sprite method */
+        CHECK(eglSurfaceAttrib(dpy, fs, EGL_SWAP_BEHAVIOR, EGL_BUFFER_PRESERVED), "set preserved");
+        eglQuerySurface(dpy, fs, EGL_SCREEN_BANKS_RISCOS, &nb);
+        CHECK(nb == 0 && fake_screen.display_bank == 1, "preserved: no banks, display back on bank 1");
+        memset(fake_screen.mem, 0, fake_screen.w * fake_screen.h * 4);
+        clear(0, 1, 0);
+        eglSwapBuffers(dpy, fs);
+        CHECK(box_is(0, 0, 640, 480, GREEN) && fake_plots == 1, "then plotted as a sprite");
+        eglMakeCurrent(dpy, ws, ws, ctx);
+        eglDestroySurface(dpy, fs);
+
+        /* 2 banks when that's all there is; destroying restores bank 1 */
+        fake_screen.da_size = 640 * 480 * 4;
+        fake_screen.da_max = 2 * 640 * 480 * 4;
+        fs = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, NULL);
+        eglQuerySurface(dpy, fs, EGL_SCREEN_BANKS_RISCOS, &nb);
+        CHECK(nb == 2, "2 banks (%d)", nb);
+        eglMakeCurrent(dpy, fs, fs, ctx);
+        clear(1, 0, 0);
+        eglSwapBuffers(dpy, fs);
+        clear(0, 1, 0);
+        glFinish();
+        CHECK(fake_screen.display_bank == 2 && RGB(fake_bank_pixel(1, 5, 5)) == GREEN, "2 banks alternate");
+        eglMakeCurrent(dpy, ws, ws, ctx);
+        eglSwapBuffers(dpy, fs);            /* not current: refused, no flip */
+        eglGetError();
+        eglDestroySurface(dpy, fs);
+        CHECK(fake_screen.display_bank == 1 && fake_screen.vdu_bank == 1, "destroy: display back on bank 1");
+        fake_screen.da_size = fake_screen.da_max = 640 * 480 * 4;
+    }
+
     /* Full screen, single buffered: straight into screen memory */
     {
         EGLint a[] = { EGL_RENDER_BUFFER, EGL_SINGLE_BUFFER, EGL_NONE };
