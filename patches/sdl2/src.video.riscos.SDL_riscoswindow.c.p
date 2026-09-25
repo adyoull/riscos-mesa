@@ -1,8 +1,8 @@
 diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow.c
-index f47d33a..d3eba96 100644
+index f47d33a..ddb709d 100644
 --- src/video/riscos/SDL_riscoswindow.c
 +++ src/video/riscos/SDL_riscoswindow.c
-@@ -30,10 +30,189 @@
+@@ -30,10 +30,221 @@
  
  #include "SDL_riscosvideo.h"
  #include "SDL_riscoswindow.h"
@@ -46,6 +46,35 @@ index f47d33a..d3eba96 100644
 +    if (_kernel_swi(OS_ReadModeVariable, &regs, &regs) != NULL)
 +        return 640;
 +    return regs.r[2] + 1;
++}
++
++/* 2026: high resolution desktops. In a mode with 1 OS unit per pixel
++   (EX0 EY0, "180dpi") a window the size the program asked for would look
++   half size, so each SDL pixel is shown as 2x2 screen pixels, as a normal
++   90dpi (EX1 EY1) mode would show it. SDL$WindowScale overrides this
++   (1 = never scale, 2-4 = always scale by that much). Automatic scaling is
++   skipped if the scaled window wouldn't fit on the screen. */
++void
++RISCOS_ChooseWindowScale(_THIS, SDL_Window *window)
++{
++    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
++    int xeig = RISCOS_WimpReadEig(4), yeig = RISCOS_WimpReadEig(5);
++    const char *env = SDL_getenv("SDL$WindowScale");
++    int sx, sy;
++
++    if (env && *env >= '1' && *env <= '4' && env[1] == 0) {
++        sx = sy = *env - '0';
++    } else {
++        sx = (xeig < 1) ? 2 : 1;
++        sy = (yeig < 1) ? 2 : 1;
++        if ((sx > 1 || sy > 1) &&
++            (window->w * sx > RISCOS_WimpScreenSize(11) ||
++             window->h * sy > RISCOS_WimpScreenSize(12) - (80 >> yeig))) {
++            sx = sy = 1;
++        }
++    }
++    vdata->wscale_x = sx;
++    vdata->wscale_y = sy;
 +}
 +
 +int
@@ -111,7 +140,7 @@ index f47d33a..d3eba96 100644
 +{
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +    int xeig = RISCOS_WimpReadEig(4), yeig = RISCOS_WimpReadEig(5);
-+    int w_os = window->w << xeig, h_os = window->h << yeig;
++    int w_os, h_os;
 +    int scr_w = RISCOS_WimpScreenSize(11) << xeig, scr_h = RISCOS_WimpScreenSize(12) << yeig;
 +    int block[23];
 +    unsigned char *b = (unsigned char *)block;
@@ -122,6 +151,9 @@ index f47d33a..d3eba96 100644
 +    if (RISCOS_WimpStart(_this) < 0)
 +        return -1;
 +    RISCOS_UpdateEigs(_this);
++    RISCOS_ChooseWindowScale(_this, window);
++    w_os = (window->w * vdata->wscale_x) << xeig;
++    h_os = (window->h * vdata->wscale_y) << yeig;
 +
 +    if (window->title)
 +        SDL_strlcpy(riscos_window_title, window->title, sizeof(riscos_window_title));
@@ -192,7 +224,7 @@ index f47d33a..d3eba96 100644
      SDL_WindowData *driverdata;
  
      driverdata = (SDL_WindowData *) SDL_calloc(1, sizeof(*driverdata));
-@@ -42,27 +221,163 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
+@@ -42,27 +253,164 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
      }
      driverdata->window = window;
  
@@ -278,8 +310,9 @@ index f47d33a..d3eba96 100644
 +
 +    xeig = RISCOS_WimpReadEig(4);
 +    yeig = RISCOS_WimpReadEig(5);
-+    w_os = window->w << xeig;
-+    h_os = window->h << yeig;
++    RISCOS_ChooseWindowScale(_this, window);
++    w_os = (window->w * vdata->wscale_x) << xeig;
++    h_os = (window->h * vdata->wscale_y) << yeig;
 +
 +    extent[0] = 0; extent[1] = -h_os; extent[2] = w_os; extent[3] = 0;
 +    regs.r[0] = vdata->wimp_window;

@@ -167,6 +167,14 @@ and include `EGL/eglext.h`.
 `egltest -w -D` (Obey file `egl-damage`) is a small example of buffer age
 with swap with damage.
 
+## High resolution desktops (EX0 EY0)
+In a "180 dpi" mode (one OS unit per pixel) a window surface is the
+window's visible area in real screen pixels, and its sprite is made at
+180 dpi so it plots pixel for pixel: EGL output is as sharp as the desktop.
+Size your window in OS units as usual; query `EGL_WIDTH`/`EGL_HEIGHT` for
+the pixel size. (Before 20.3.5-5 the sprite was always 90 dpi, so in these
+modes it was shown doubled and cropped.)
+
 ## Limits
 - Not thread safe: make all EGL and GL calls from one thread.
 - OSMesa can't un-bind a context. After releasing with `eglMakeCurrent(dpy,

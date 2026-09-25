@@ -78,8 +78,11 @@
    Cleaning the CPU cache or using SpriteOp 52 didn't help; padding did. */
 #define MIN_SPRITE_BYTES (1024 * 1024)
 
-/* 32bpp, 90x90 dpi, sprite type 6: 0x00BBGGRR */
-#define SPRITE_MODE_TYPE6 (1 | (90 << 1) | (90 << 14) | (6 << 27))
+/* 32bpp sprite type 6 (0x00BBGGRR) at the screen's resolution, so it plots
+   pixel for pixel: 90 dpi in a normal (EX1 EY1) mode, 180 dpi in a high
+   resolution (EX0 EY0) one. */
+#define SPRITE_MODE_TYPE6_EIG(xeig, yeig) \
+    (1 | ((180 >> (xeig)) << 1) | ((180 >> (yeig)) << 14) | (6 << 27))
 
 #ifndef Wimp_GetWindowState
 #define Wimp_GetWindowState 0x400CB
@@ -302,7 +305,7 @@ static int sprite_mode_for(int layout, const screen_info *s)
     _kernel_swi_regs r;
 
     if (layout == LAYOUT_TBGR)
-        return SPRITE_MODE_TYPE6;
+        return SPRITE_MODE_TYPE6_EIG(s->xeig, s->yeig);
     if (screen_layout(s) == LAYOUT_TRGB) {
         r.r[0] = 1;             /* return current mode specifier */
         if (_kernel_swi(OS_ScreenMode, &r, &r) == NULL)
@@ -569,8 +572,8 @@ static void present_dmx(egl_surface *surf, const screen_info *s)
         return;
     sw = pl.src_w > 0 ? pl.src_w : surf->w;
     sh = pl.src_h > 0 ? pl.src_h : surf->h;
-    sxe = surf->sprite_mode == SPRITE_MODE_TYPE6 ? 1 : s->xeig;   /* 90 dpi = eig 1 */
-    sye = surf->sprite_mode == SPRITE_MODE_TYPE6 ? 1 : s->yeig;
+    sxe = s->xeig;                      /* the sprite is at the screen's resolution */
+    sye = s->yeig;
     factors[0] = pl.w << s->xeig;       /* x: multiply, then divide */
     factors[1] = pl.h << s->yeig;
     factors[2] = sw << sxe;

@@ -1,5 +1,5 @@
 diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents.c
-index fcca470..a5ce521 100644
+index fcca470..0fd928f 100644
 --- src/video/riscos/SDL_riscosevents.c
 +++ src/video/riscos/SDL_riscosevents.c
 @@ -30,6 +30,7 @@
@@ -84,7 +84,7 @@ index fcca470..a5ce521 100644
      /* Check for key presses */
      while (key < 0xff) {
          key = _kernel_osbyte(121, key + 1, 0) & 0xff;
-@@ -111,36 +165,133 @@ static const Uint8 mouse_button_map[] = {
+@@ -111,36 +165,135 @@ static const Uint8 mouse_button_map[] = {
      SDL_BUTTON_X2 + 3
  };
  
@@ -118,6 +118,8 @@ index fcca470..a5ce521 100644
 +
 +    x = (ptr[0] - (state[1] - state[5])) >> xeig;
 +    y = ((state[4] - state[6]) - ptr[1]) >> yeig;
++    if (driverdata->wscale_x > 1) x /= driverdata->wscale_x;   /* scaled window */
++    if (driverdata->wscale_y > 1) y /= driverdata->wscale_y;
 +    if (x < 0) x = 0;
 +    if (y < 0) y = 0;
 +    if (x >= window->w) x = window->w - 1;
@@ -225,7 +227,7 @@ index fcca470..a5ce521 100644
  int
  RISCOS_InitEvents(_THIS)
  {
-@@ -165,10 +316,292 @@ RISCOS_InitEvents(_THIS)
+@@ -165,10 +318,292 @@ RISCOS_InitEvents(_THIS)
      return 0;
  }
  

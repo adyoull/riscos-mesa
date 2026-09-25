@@ -1,5 +1,5 @@
 diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosframebuffer.c
-index 5984199..91ad9e8 100644
+index 5984199..dd2d735 100644
 --- src/video/riscos/SDL_riscosframebuffer.c
 +++ src/video/riscos/SDL_riscosframebuffer.c
 @@ -40,6 +40,11 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
@@ -41,7 +41,7 @@ index 5984199..91ad9e8 100644
      /* Calculate pitch */
      *pitch = (((window->w * SDL_BYTESPERPIXEL(*format)) + 3) & ~3);
  
-@@ -88,32 +113,140 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
+@@ -88,32 +113,175 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
      return 0;
  }
  
@@ -52,13 +52,35 @@ index 5984199..91ad9e8 100644
 +    _kernel_oswrch((v >> 8) & 0xff);
 +}
 +
++/* 2026: the eigen factors a sprite plots with: a mode word's dpi (180 = 0,
++   90 = 1, 45 = 2), otherwise (a mode number or the screen's own mode
++   specifier) the screen's. */
++static void
++RISCOS_SpriteEigs(const sprite_header *spr, int xeig, int yeig, int *sxe, int *sye)
++{
++    unsigned int mode = (unsigned int) spr->mode;
++    *sxe = xeig;
++    *sye = yeig;
++    if ((mode & 1) && (mode >> 27) != 0) {
++        int xdpi = (mode >> 1) & 0x1FFF, ydpi = (mode >> 14) & 0x1FFF;
++        *sxe = xdpi >= 180 ? 0 : xdpi >= 90 ? 1 : 2;
++        *sye = ydpi >= 180 ? 0 : ydpi >= 90 ? 1 : 2;
++    }
++}
++
 +/* 2026: plot the framebuffer sprite for each rectangle of a Wimp redraw or
-+   update loop.  block is the Wimp_RedrawWindow/UpdateWindow block. */
++   update loop.  block is the Wimp_RedrawWindow/UpdateWindow block.  Each
++   SDL pixel covers wscale_x x wscale_y screen pixels (2x2 in EX0 EY0
++   modes, see RISCOS_ChooseWindowScale). */
 +void
 +RISCOS_WimpPlotWindow(_THIS, SDL_Window *window, int *block, int more)
  {
      SDL_WindowData *driverdata = (SDL_WindowData *) window->driverdata;
-+    int yeig = ((SDL_VideoData *) _this->driverdata)->yeig;
++    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
++    int xeig = vdata->xeig, yeig = vdata->yeig;
++    int sx = vdata->wscale_x > 0 ? vdata->wscale_x : 1;
++    int sy = vdata->wscale_y > 0 ? vdata->wscale_y : 1;
++    int scale[4], sxe, sye;
      _kernel_swi_regs regs;
 -    _kernel_oserror *error;
  
@@ -75,12 +97,23 @@ index 5984199..91ad9e8 100644
 +        if (driverdata && driverdata->fb_sprite) {
 +            int ox = block[1] - block[5];
 +            int oy = block[4] - block[6];
-+            regs.r[0] = 512+34;
++            /* wanted size / the sprite's own size (it may be a 90 dpi sprite
++               in a 180 dpi mode, which SpriteExtend already doubles) */
++            RISCOS_SpriteEigs(driverdata->fb_sprite, xeig, yeig, &sxe, &sye);
++            scale[0] = sx << xeig; scale[1] = sy << yeig;
++            scale[2] = 1 << sxe;   scale[3] = 1 << sye;
 +            regs.r[1] = (int)driverdata->fb_area;
 +            regs.r[2] = (int)driverdata->fb_sprite;
 +            regs.r[3] = ox;
-+            regs.r[4] = oy - (window->h << yeig);
++            regs.r[4] = oy - ((window->h * sy) << yeig);
 +            regs.r[5] = 0;
++            if (scale[0] == scale[2] && scale[1] == scale[3]) {
++                regs.r[0] = 512+34;     /* plain plot */
++            } else {
++                regs.r[0] = 512+52;     /* PutSpriteScaled */
++                regs.r[6] = (int)scale;
++                regs.r[7] = 0;          /* no translation table: SpriteExtend converts true colour */
++            }
 +            _kernel_swi(OS_SpriteOp, &regs, &regs);
 +        }
 +        regs.r[1] = (int)block;
@@ -95,6 +128,8 @@ index 5984199..91ad9e8 100644
 +{
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +    int xeig = vdata->xeig, yeig = vdata->yeig;
++    int sx = vdata->wscale_x > 0 ? vdata->wscale_x : 1;
++    int sy = vdata->wscale_y > 0 ? vdata->wscale_y : 1;
 +    int block[11], i;
 +    _kernel_swi_regs regs;
 +
@@ -105,10 +140,10 @@ index 5984199..91ad9e8 100644
 +            if (w <= 0 || h <= 0) continue;
 +        }
 +        block[0] = vdata->wimp_window;
-+        block[1] = l << xeig;
-+        block[2] = -((t + h) << yeig);
-+        block[3] = (l + w) << xeig;
-+        block[4] = -(t << yeig);
++        block[1] = (l * sx) << xeig;
++        block[2] = -(((t + h) * sy) << yeig);
++        block[3] = ((l + w) * sx) << xeig;
++        block[4] = -((t * sy) << yeig);
 +        regs.r[1] = (int)block;
 +        if (_kernel_swi(Wimp_UpdateWindow, &regs, &regs) != NULL)
 +            continue;

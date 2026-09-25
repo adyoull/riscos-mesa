@@ -34,6 +34,15 @@ order), used by BOTH projects:
   - GL vsync in a window paces to the display rate with the same
     cooperative wait; `OS_Byte 19` is only used full screen.
   - Full screen stays single tasking by design (no Wimp_Poll).
+- High resolution desktops (2026-09-25, from riscos-openttd commit
+  a062b36): in an EX0 EY0 ("180 dpi") mode a desktop window is shown with
+  each SDL pixel as 2x2 screen pixels, as a 90 dpi mode would show it, and
+  the mouse position is scaled to match. It falls back to 1:1 if the
+  doubled window wouldn't fit. `SDL$WindowScale` (1 = off, 2-4) overrides
+  it. The plot works out the scale from the sprite's own resolution too, so
+  a 90 dpi sprite (non-16M-colour screens) isn't doubled twice. Full screen
+  is unaffected. GL windows are scaled the same way (GL renders at the
+  window's SDL size).
 - `sdl2-configure.ac.host.p`: OpenTTD's triplet fix (arm-riscos-gnueabihf
   is not Linux). `sdl2-configure.ac.osmesa.p`: the OSMesa option.
 

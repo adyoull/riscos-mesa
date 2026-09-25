@@ -1,8 +1,8 @@
 diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
-index db6c86e..aa26685 100644
+index db6c86e..b704e4d 100644
 --- src/video/riscos/SDL_riscosvideo.h
 +++ src/video/riscos/SDL_riscosvideo.h
-@@ -31,8 +31,28 @@ typedef struct SDL_VideoData
+@@ -31,8 +31,30 @@ typedef struct SDL_VideoData
  {
      int last_mouse_buttons;
      Uint8 key_pressed[RISCOS_MAX_KEYS_PRESSED];
@@ -17,6 +17,7 @@ index db6c86e..aa26685 100644
 +    int buttons_inside;         /* buttons pressed while over our window */
 +    int xeig, yeig;             /* cached eigen factors of the current mode */
 +    int iconbar_icon;           /* icon bar icon handle, or -1 */
++    int wscale_x, wscale_y;     /* screen pixels per SDL pixel in a desktop window */
 +    int gl_swap_interval;       /* 2026: OpenGL swap interval (0 or 1) */
 +    Uint32 gl_next_frame;       /* 2026: when the next paced GL frame is due (ms) */
 +    SDL_threadID main_thread;   /* 2026: only this thread may call the Wimp */
@@ -27,6 +28,7 @@ index db6c86e..aa26685 100644
 +extern void RISCOS_WimpPlotWindow(_THIS, SDL_Window *window, int *block, int more);
 +extern int RISCOS_WimpReadEig(int var);
 +extern void RISCOS_UpdateEigs(_THIS);
++extern void RISCOS_ChooseWindowScale(_THIS, SDL_Window *window);
 +
  #endif /* SDL_riscosvideo_h_ */
  

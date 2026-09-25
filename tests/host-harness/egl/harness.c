@@ -458,6 +458,48 @@ static void test_window(void)
     eglDestroyContext(dpy, ctx);
 }
 
+/* A high resolution desktop (EX0 EY0, "180 dpi": one OS unit per pixel).
+   Surfaces are the window's size in real pixels and plot pixel for pixel. */
+static void test_eig0(void)
+{
+    EGLConfig cfg;
+    EGLContext ctx;
+    EGLSurface ws, fs;
+    EGLint w = 0, h = 0;
+
+    eglTerminate(dpy);
+    fake_set_screen(1280, 960, 0, 5);
+    fake_screen.xeig = fake_screen.yeig = 0;
+    fake_reset_clip();
+    eglInitialize(dpy, NULL, NULL);
+    cfg = choose(EGL_RISCOS_VISUAL_TBGR, 0, EGL_WINDOW_BIT);
+    ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+    /* visible area x 200..400, y 300..460 OS units = 200x160 pixels,
+       top left pixel (200, 960 - 460 = 500) */
+    fake_open_window(0x1000, 200, 300, 400, 460, 0, 0);
+    ws = eglCreateWindowSurface(dpy, cfg, 0x1000, NULL);
+    eglQuerySurface(dpy, ws, EGL_WIDTH, &w);
+    eglQuerySurface(dpy, ws, EGL_HEIGHT, &h);
+    CHECK(w == 200 && h == 160, "EX0 EY0: window surface in real pixels %dx%d", w, h);
+    eglMakeCurrent(dpy, ws, ws, ctx);
+    clear(1, 0, 0);
+    eglSwapBuffers(dpy, ws);
+    CHECK(box_is(200, 500, 200, 160, RED_TBGR), "EX0 EY0: frame fills the window");
+    CHECK(RGB(fake_screen_pixel(400, 500)) == 0 && RGB(fake_screen_pixel(200, 660)) == 0 &&
+          RGB(fake_screen_pixel(199, 500)) == 0, "EX0 EY0: and not beyond it (not doubled)");
+    fs = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, NULL);
+    eglQuerySurface(dpy, fs, EGL_WIDTH, &w);
+    eglMakeCurrent(dpy, fs, fs, ctx);
+    memset(fake_screen.mem, 0, fake_screen.w * fake_screen.h * 4);
+    clear(0, 1, 0);
+    eglSwapBuffers(dpy, fs);
+    CHECK(w == 1280 && box_is(0, 0, 1280, 960, GREEN), "EX0 EY0: full screen pixel for pixel");
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, ws);
+    eglDestroySurface(dpy, fs);
+    eglDestroyContext(dpy, ctx);
+}
+
 static void test_trgb_screen(void)
 {
     EGLConfig cfgs[16], cfg;
@@ -941,6 +983,7 @@ static void *run(void *arg)
     test_debug();
     test_gles(dpy);
     test_dispmanx(dpy);
+    test_eig0();
     test_trgb_screen();
     return NULL;
 }

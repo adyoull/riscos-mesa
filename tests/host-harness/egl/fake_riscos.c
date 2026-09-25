@@ -138,49 +138,26 @@ static _kernel_oserror *sprite_op(_kernel_swi_regs *r)
         area[3] += size;
         return NULL;
     }
-    if (reason == 34) {                             /* put sprite at user coords */
+    if (reason == 34 || reason == 52) {             /* put sprite (scaled) */
         const int *spr = (const int *) (long) r->r[2];
-        int w = spr[4] + 1, h = spr[5] + 1, log2bpp, flags, sx, sy;
+        const int *f = reason == 52 ? (const int *) (long) r->r[6] : NULL;
+        int w = spr[4] + 1, h = spr[5] + 1, log2bpp, flags, dx, dy, ow, oh, swap, sxe, sye;
         int px0 = r->r[3] >> fake_screen.xeig, py0 = r->r[4] >> fake_screen.yeig;
         const unsigned int *pix = (const unsigned int *) ((const char *) spr + spr[8]);
-        int swap;
         if ((r->r[0] & 0xF00) != 0x200) return error("plot: pointer form only");
         mode_info(spr[10], &log2bpp, &flags);
         swap = ((flags ^ fake_screen.flags) & 0x4000) != 0;
-        fake_plots++;
-        for (sy = 0; sy < h; sy++) {
-            int y_up = py0 + (h - 1 - sy);          /* pixels from the bottom */
-            int oy = y_up << fake_screen.yeig;
-            if (y_up < 0 || y_up >= fake_screen.h) continue;
-            if (oy < clip[1] || oy >= clip[3]) continue;
-            for (sx = 0; sx < w; sx++) {
-                int x = px0 + sx, ox = x << fake_screen.xeig;
-                unsigned int p = pix[(size_t) sy * w + sx];
-                if (x < 0 || x >= fake_screen.w || ox < clip[0] || ox >= clip[2]) continue;
-                if (swap) p = (p & 0xFF00FF00u) | ((p >> 16) & 0xFF) | ((p & 0xFF) << 16);
-                if (x >= fake_watch[0] && x < fake_watch[2] &&
-                    (fake_screen.h - 1 - y_up) >= fake_watch[1] && (fake_screen.h - 1 - y_up) < fake_watch[3] &&
-                    (p & 0xFFFFFF) == (unsigned) fake_watch_value)
-                    fake_watch_hits++;
-                fake_screen.mem[(size_t) (fake_screen.h - 1 - y_up) * (fake_screen.line_length / 4) + x] = p;
-            }
+        /* the sprite's own pixel size: a mode word's dpi, else the screen's */
+        sxe = fake_screen.xeig; sye = fake_screen.yeig;
+        if ((spr[10] & 1) && ((unsigned) spr[10] >> 27) != 0) {
+            int xdpi = (spr[10] >> 1) & 0x1FFF, ydpi = (spr[10] >> 14) & 0x1FFF;
+            sxe = xdpi >= 180 ? 0 : xdpi >= 90 ? 1 : 2;
+            sye = ydpi >= 180 ? 0 : ydpi >= 90 ? 1 : 2;
         }
-        return NULL;
-    }
-    if (reason == 52) {                             /* put sprite scaled */
-        const int *spr = (const int *) (long) r->r[2];
-        const int *f = (const int *) (long) r->r[6];
-        int w = spr[4] + 1, h = spr[5] + 1, log2bpp, flags, dx, dy, ow, oh, swap;
-        int px0 = r->r[3] >> fake_screen.xeig, py0 = r->r[4] >> fake_screen.yeig;
-        const unsigned int *pix = (const unsigned int *) ((const char *) spr + spr[8]);
-        if ((r->r[0] & 0xF00) != 0x200) return error("plot: pointer form only");
-        mode_info(spr[10], &log2bpp, &flags);
-        swap = ((flags ^ fake_screen.flags) & 0x4000) != 0;
-        /* sprite eig 1 (90 dpi) and screen eig 1 in the fake */
-        ow = (int) (((long long) (w << 1) * (f ? f[0] : 1) / (f ? f[2] : 1)) >> fake_screen.xeig);
-        oh = (int) (((long long) (h << 1) * (f ? f[1] : 1) / (f ? f[3] : 1)) >> fake_screen.yeig);
+        ow = (int) (((long long) (w << sxe) * (f ? f[0] : 1) / (f ? f[2] : 1)) >> fake_screen.xeig);
+        oh = (int) (((long long) (h << sye) * (f ? f[1] : 1) / (f ? f[3] : 1)) >> fake_screen.yeig);
         fake_plots++;
-        fake_scaled_plots++;
+        if (reason == 52) fake_scaled_plots++;
         for (dy = 0; dy < oh; dy++) {               /* dy: rows from the top of the plot */
             int y_up = py0 + (oh - 1 - dy), oy = y_up << fake_screen.yeig;
             int sy = (int) ((long long) dy * h / oh);
@@ -190,6 +167,10 @@ static _kernel_oserror *sprite_op(_kernel_swi_regs *r)
                 unsigned int p = pix[(size_t) sy * w + (int) ((long long) dx * w / ow)];
                 if (x < 0 || x >= fake_screen.w || ox < clip[0] || ox >= clip[2]) continue;
                 if (swap) p = (p & 0xFF00FF00u) | ((p >> 16) & 0xFF) | ((p & 0xFF) << 16);
+                if (x >= fake_watch[0] && x < fake_watch[2] &&
+                    (fake_screen.h - 1 - y_up) >= fake_watch[1] && (fake_screen.h - 1 - y_up) < fake_watch[3] &&
+                    (p & 0xFFFFFF) == (unsigned) fake_watch_value)
+                    fake_watch_hits++;
                 fake_screen.mem[(size_t) (fake_screen.h - 1 - y_up) * (fake_screen.line_length / 4) + x] = p;
             }
         }

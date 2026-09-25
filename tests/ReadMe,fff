@@ -114,6 +114,13 @@ Run in this order and note the output:
       Please check: the cube spins, the colours look right, the small one
       sits in the middle, and the desktop comes back afterwards.
 
+   i) High resolution desktops (EX0 EY0, 180 dpi). In such a mode:
+      sdlgltest     the window should now be the size it is in a 90 dpi
+                    mode, with the mouse lining up (it zooms with the
+                    wheel). *Set SDL$WindowScale 1 turns the scaling off,
+                    *Unset SDL$WindowScale turns it back on.
+      egl-window    the cube should fill the window, sharp, not doubled.
+
 Please report: the fps figures, anything that crashes (with the error
 text), the fps in the window title, whether the scroll wheel zooms (in a window
 and in full screen), whether the cube redraws after you drag
