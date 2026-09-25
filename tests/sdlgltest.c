@@ -56,7 +56,7 @@ int main(int argc, char **argv)
     char title[80], glinfo[160];
     Uint32 start, total_frames = 0;
     int cap = 0, waitmode = 0;
-    double limit = 0, t_start, t_frame, t_drawn, render_s = 0, present_s = 0,
+    double elapsed, limit = 0, t_start, t_frame, t_drawn, render_s = 0, present_s = 0,
            render_tot = 0, present_tot = 0;
     Uint32 last;
     float angle = 0, dist = 6.0f;
@@ -165,7 +165,7 @@ int main(int argc, char **argv)
     }
 
     render_tot += render_s; present_tot += present_s;   /* the last part-second */
-    t_frame = hr_seconds() - t_start;   /* run time, read before SDL_Quit resets SDL's clock */
+    elapsed = hr_seconds() - t_start;   /* before SDL_Quit, which resets SDL's tick count */
     SDL_GL_DeleteContext(ctx);
     SDL_DestroyWindow(win);
     SDL_Quit();
@@ -173,7 +173,7 @@ int main(int argc, char **argv)
            "%u frames in %.1f s = %.1f fps average\n"
            "per frame: render %.2f ms, present %.2f ms\n", VARIANT, glinfo, w, h,
            full ? "full screen (at quit)" : "window", hr_source(), (unsigned)total_frames,
-           t_frame, total_frames / (t_frame > 0 ? t_frame : 1),
+           elapsed, elapsed > 0 ? total_frames / elapsed : 0.0,
            total_frames ? render_tot * 1000 / total_frames : 0.0,
            total_frames ? present_tot * 1000 / total_frames : 0.0);
     return 0;
