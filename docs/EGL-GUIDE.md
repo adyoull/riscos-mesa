@@ -324,7 +324,7 @@ ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, want_21);
 
 ## OpenGL ES
 
-Bind the ES API before creating the context, and say which version you want with `EGL_CONTEXT_CLIENT_VERSION`: 1 (the default) gives OpenGL ES 1.1, 2 gives OpenGL ES 2.0 with GLSL ES 1.00. Both come from the same software renderer as desktop GL, and every config supports them.
+OpenGL ES uses the native RISC OS EGL exactly as desktop GL does: the same configs, and the same Wimp windows, work area views, full screen, sprites and pbuffers. Only the context differs. Bind the ES API before creating it, and say which version you want with `EGL_CONTEXT_CLIENT_VERSION`: 1 (the default) gives OpenGL ES 1.1, 2 gives OpenGL ES 2.0 with GLSL ES 1.00.
 
 ```c
 #include <EGL/egl.h>
@@ -333,8 +333,12 @@ Bind the ES API before creating the context, and say which version you want with
 static const EGLint ctx_attr[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
 eglBindAPI(EGL_OPENGL_ES_API);
 ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, ctx_attr);
-/* surfaces, eglMakeCurrent and eglSwapBuffers exactly as for desktop GL */
+surf = eglCreateWindowSurface(dpy, cfg, wimp_window_handle, NULL);   /* or -1, a sprite ... */
+eglMakeCurrent(dpy, surf, surf, ctx);
+/* Wimp_Poll loop, eglSwapBuffers and eglRedrawWindowRISCOS as in the desktop section */
 ```
+
+`tests/glestest.c` is a complete example: ES 1.1 or 2.0 in a desktop window, full screen and into a sprite.
 
 - Link as for desktop GL: `-lEGL -lOSMesa -lstdc++ -lz -lm`. The ES functions (including ES 1.1's `glOrthof`, `glFrustumf` and fixed-point calls) are in libOSMesa.
 - ES 3.x gives `EGL_BAD_MATCH`: the renderer lacks what ES 3.0 needs.
@@ -345,7 +349,7 @@ ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, ctx_attr);
 
 ## Code written for the Raspberry Pi (DispmanX)
 
-Programs written for the Raspberry Pi's Khronos stack get their window through DispmanX, then use EGL and OpenGL ES. The DispmanX compatibility library (`libbcm_host`) lets that code build and run unchanged in the usual case: the element you create is a rectangle of the screen, and each `eglSwapBuffers` plots the surface there, after the vsync wait, scaled from the source rectangle to the destination.
+This is a porting aid for existing code, not another way to write RISC OS programs: new code uses OpenGL ES with the native types, as in the previous section. Programs written for the Raspberry Pi's Khronos stack get their window through DispmanX, then use EGL and OpenGL ES. The DispmanX compatibility library (`libbcm_host`) lets that code build and run unchanged in the usual case. Linking it changes nothing for native windows, and one program can use both. The element you create is a rectangle of the screen, and each `eglSwapBuffers` plots the surface there, after the vsync wait, scaled from the source rectangle to the destination.
 
 ```c
 #include "bcm_host.h"                 /* first: makes the native window a pointer */

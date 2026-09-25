@@ -1,5 +1,13 @@
 # DispmanX compatibility (libbcm_host)
 
+**A porting aid, not the RISC OS API.** New programs use OpenGL ES (or
+desktop GL) through the native RISC OS EGL types - a Wimp window handle,
+`EGL_RISCOS_SCREEN_WINDOW` or a sprite - exactly as for desktop GL: see
+`docs/EGL-GUIDE.md` and `tests/glestest.c`. This library only exists so
+that existing Raspberry Pi code runs without rewriting its window set-up.
+Linking it changes nothing for native code: libEGL checks for a Wimp
+window handle or -1 first, and a program can use both kinds of window.
+
 Programs written for the Raspberry Pi's Khronos stack (the userland
 `hello_pi` examples and ports based on them) get their window through
 DispmanX and `bcm_host`, then use EGL and OpenGL ES. This library lets

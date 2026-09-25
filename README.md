@@ -15,10 +15,11 @@ multitask properly (vsync, SDL_Delay and SDL_WaitEvent yield to the desktop).
   `-lOSMesa -lstdc++ -lz -lm`.
 - `libGLU.a`: GLU 1.3.
 - SDL2 with `SDL_WINDOW_OPENGL` / `SDL_GL_CreateContext` working on RISC OS.
-- OpenGL ES 1.1 and 2.0 contexts too (through EGL or SDL2).
-- `libbcm_host.a`: DispmanX compatibility, so EGL/GLES code written for
-  the Raspberry Pi's Khronos stack builds and runs unchanged. See
-  [dispmanx/README.md](dispmanx/README.md).
+- OpenGL ES 1.1 and 2.0 contexts too, through the same native RISC OS EGL
+  (Wimp windows, full screen, sprites) or SDL2.
+- `libbcm_host.a`: a porting aid, DispmanX compatibility, so existing
+  EGL/GLES code written for the Raspberry Pi's Khronos stack builds and
+  runs unchanged. See [dispmanx/README.md](dispmanx/README.md).
 - `libEGL.a`: EGL 1.4 over OSMesa, so programs can set up GL the standard
   Khronos way: Wimp windows, full screen (optionally straight into screen
   memory), pbuffers and sprites as pixmaps. Link with

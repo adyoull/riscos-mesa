@@ -4,12 +4,15 @@
  * EGLNativeWindowType is a pointer), then the EGL and GLES headers.
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include "bcm_host.h"
 #define EGL_EGLEXT_PROTOTYPES 1
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
+#include <EGL/eglext_riscos.h>
 
 #include "fake_riscos.h"
 
@@ -135,6 +138,35 @@ void test_gles(EGLDisplay dpy)
         glReadPixels(5, 5, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
         CHECK(px[0] == 255 && px[1] == 255 && px[2] == 0, "ES 1.1 fixed function draw");
     }
+    /* OpenGL ES on the native RISC OS types: a Wimp window and a sprite */
+    {
+        EGLSurface ws, ps;
+        int *area = malloc(16 + 44 + 16 * 8 * 4), *spr = area + 4;
+        unsigned int *pix = (unsigned int *) ((char *) spr + 44);
+        fake_open_window(0x1000, 200, 300, 400, 460, 0, 0);    /* 100x80 at pixel (100, 250) */
+        ws = eglCreateWindowSurface(dpy, cfg, (EGLNativeWindowType) (intptr_t) 0x1000, NULL);
+        CHECK(ws != EGL_NO_SURFACE && eglMakeCurrent(dpy, ws, ws, c2), "ES 2 on a Wimp window");
+        memset(fake_screen.mem, 0, fake_screen.w * fake_screen.h * 4);
+        glClearColor(0, 1, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
+        eglSwapBuffers(dpy, ws);
+        CHECK(box(100, 250, 100, 80, GREEN), "ES 2 frame in the window");
+        area[0] = 16 + 44 + 16 * 8 * 4; area[1] = 1; area[2] = 16; area[3] = area[0];
+        memset(spr, 0, 44 + 16 * 8 * 4);
+        spr[0] = 44 + 16 * 8 * 4; spr[4] = 15; spr[5] = 7; spr[7] = 31; spr[8] = 44; spr[9] = 44;
+        spr[10] = 1 | (90 << 1) | (90 << 14) | (6 << 27);
+        ps = eglCreatePixmapSurface(dpy, cfg, spr, NULL);
+        CHECK(ps != EGL_NO_SURFACE && eglMakeCurrent(dpy, ps, ps, c1), "ES 1 on a sprite");
+        glClearColor(1, 0, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glFinish();
+        CHECK(RGB(pix[0]) == RED_TBGR && RGB(pix[16 * 8 - 1]) == RED_TBGR, "ES 1 drew into the sprite");
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(dpy, ws);
+        eglDestroySurface(dpy, ps);
+        free(area);
+    }
+
     eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglDestroySurface(dpy, pb);
     eglDestroyContext(dpy, c1);
@@ -182,6 +214,21 @@ void test_dispmanx(EGLDisplay dpy)
           eglGetError() == EGL_BAD_NATIVE_WINDOW, "unknown element refused");
     CHECK(eglCreateWindowSurface(dpy, cfg, (EGLNativeWindowType) 0x70000000, NULL) == EGL_NO_SURFACE &&
           eglGetError() == EGL_BAD_NATIVE_WINDOW, "unreadable pointer refused");
+    /* The native RISC OS types still work in a program built for DispmanX
+       (EGLNativeWindowType is a pointer here, so they need a cast). */
+    {
+        EGLSurface wimp, scr;
+        EGLint ww = 0;
+        fake_open_window(0x1000, 200, 300, 400, 460, 0, 0);
+        wimp = eglCreateWindowSurface(dpy, cfg, (EGLNativeWindowType) (intptr_t) 0x1000, NULL);
+        scr = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, NULL);
+        eglQuerySurface(dpy, wimp, EGL_WIDTH, &ww);
+        CHECK(wimp != EGL_NO_SURFACE && ww == 100, "Wimp window alongside DispmanX (width %d)", ww);
+        eglQuerySurface(dpy, scr, EGL_WIDTH, &ww);
+        CHECK(scr != EGL_NO_SURFACE && ww == 640, "whole screen alongside DispmanX");
+        eglDestroySurface(dpy, wimp);
+        eglDestroySurface(dpy, scr);
+    }
     ws = eglCreateWindowSurface(dpy, cfg, &nw, NULL);
     CHECK(ws != EGL_NO_SURFACE, "DispmanX window surface");
     eglQuerySurface(dpy, ws, EGL_WIDTH, &sw);

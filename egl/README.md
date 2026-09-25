@@ -114,6 +114,12 @@ same Mesa software renderer as desktop GL, through a small OSMesa patch
     eglBindAPI(EGL_OPENGL_ES_API);
     static const EGLint ctx_attr[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
     ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, ctx_attr);
+    surf = eglCreateWindowSurface(dpy, cfg, wimp_window_handle, NULL);
+
+ES contexts work with every native surface, exactly as desktop GL does: a
+Wimp window (with work area views and `eglRedrawWindowRISCOS`), the whole
+screen (`EGL_RISCOS_SCREEN_WINDOW`), a sprite pixmap or a pbuffer.
+`tests/glestest.c` is a complete example of each.
 
 - Include `GLES/gl.h` (ES 1.1) or `GLES2/gl2.h` (ES 2.0) instead of
   `GL/gl.h`; link as before (`-lEGL -lOSMesa -lstdc++ -lz -lm`). The ES
@@ -130,8 +136,9 @@ same Mesa software renderer as desktop GL, through a small OSMesa patch
   expect roughly a sixth of the speed of the same scene in fixed-function
   ES 1.1 or desktop GL.
 
-Code written for the Raspberry Pi's Khronos stack (DispmanX windows) can use
-the compatibility library in `dispmanx/` (`libbcm_host`): see
+Existing code written for the Raspberry Pi's Khronos stack (DispmanX
+windows) can instead use the compatibility library in `dispmanx/`
+(`libbcm_host`), a porting aid alongside the native types: see
 [dispmanx/README.md](../dispmanx/README.md).
 
 ## Extensions

@@ -15,12 +15,15 @@ $CC $RO_CFLAGS $GL -static "$T/prof.c"       -o "$STAGE/tests/prof,e1f"       $L
 [ -f "$STAGE/lib/libEGL.a" ] && $CC $RO_CFLAGS $GL -static "$T/egltest.c" "$T/hrtime.c" \
     -o "$STAGE/tests/egltest,e1f" -lEGL $LIBS
 # Raspberry Pi style (DispmanX) program, linked the way Pi makefiles do
-[ -f "$STAGE/lib/libbcm_host.a" ] && $CC $RO_CFLAGS $GL -static "$T/dmxtest.c" "$T/hrtime.c" \
+# OpenGL ES on the native RISC OS types (Wimp window, full screen, sprite)
+[ -f "$STAGE/lib/libEGL.a" ] && $CC $RO_CFLAGS $GL -static "$T/glestest.c" "$T/es_cube.c" "$T/hrtime.c" \
+    -o "$STAGE/tests/glestest,e1f" -lEGL $LIBS
+[ -f "$STAGE/lib/libbcm_host.a" ] && $CC $RO_CFLAGS $GL -static "$T/dmxtest.c" "$T/es_cube.c" "$T/hrtime.c" \
     -o "$STAGE/tests/dmxtest,e1f" -lbcm_host -lEGL -lGLESv2 -lvcos -lvchiq_arm $LIBS
 [ -f "$STAGE/lib/libSDL2.a" ] && $CC $RO_CFLAGS $GL -I"$STAGE/include/SDL2" -static "$T/sdlgltest.c" "$T/hrtime.c" \
     -o "$STAGE/tests/sdlgltest,e1f" -lSDL2 $LIBS
 for f in "$STAGE"/tests/*,e1f; do $STRIP "$f"; done
-cp "$T/ReadMe,fff" "$T"/egl-*,feb "$T"/dmx-*,feb "$STAGE/tests/"
+cp "$T/ReadMe,fff" "$T"/egl-*,feb "$T"/dmx-*,feb "$T"/gles-*,feb "$STAGE/tests/"
 # Left as ELF (&E1F), same as the OpenTTD build: needs SharedUnixLibrary
 # and ARMEABISupport loaded on the Pi.
 ls -la "$STAGE/tests"

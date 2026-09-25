@@ -1355,12 +1355,17 @@ static EGLSurface create_window_surface(EGLDisplay dpy, EGLConfig config,
 
     if (!(d = get_display(dpy, 1)) || !(c = get_config(d, config)))
         return EGL_NO_SURFACE;
-    if (win != -1 && win != 0 && __riscos_dispmanx_window &&
-        __riscos_dispmanx_window((const void *) win, &dmx, &dmx_w, &dmx_h)) {
-        /* a pointer to an EGL_DISPMANX_WINDOW_T (DispmanX compatibility) */
-    } else if (win != -1 && (win == 0 || !get_window_state(win, &ws))) {
-        fail(EGL_BAD_NATIVE_WINDOW);
-        return EGL_NO_SURFACE;
+    /* The RISC OS native types come first: -1 (the screen) or a Wimp window
+       handle. Only something that is neither is tried as a DispmanX window
+       (a pointer to an EGL_DISPMANX_WINDOW_T, when libbcm_host is linked):
+       the compatibility layer lets Raspberry Pi programs run, it doesn't
+       change the native calls. */
+    if (win != -1 && (win == 0 || !get_window_state(win, &ws))) {
+        if (win == 0 || !__riscos_dispmanx_window ||
+            !__riscos_dispmanx_window((const void *) win, &dmx, &dmx_w, &dmx_h)) {
+            fail(EGL_BAD_NATIVE_WINDOW);
+            return EGL_NO_SURFACE;
+        }
     }
     if (!(s = new_surface(d, c, SURF_WINDOW)))
         return EGL_NO_SURFACE;

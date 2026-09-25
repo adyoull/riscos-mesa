@@ -93,8 +93,15 @@ Run in this order and note the output:
       new extensions (sync objects, surfaceless contexts, surface
       locking, the debug callback).
 
-   g) OpenGL ES and code written for the Raspberry Pi (20.3.5-5).
-      egl-check now also makes OpenGL ES 1.1 and 2.0 contexts.
+   g) OpenGL ES (20.3.5-5). egl-check now also makes OpenGL ES 1.1 and
+      2.0 contexts. glestest uses OpenGL ES through the normal RISC OS
+      EGL types, like the egl-* tests:
+      gles-window   ES 1.1 cube in a desktop window (resize, cover, close)
+      gles-window2  the same with ES 2.0 shaders
+      gles-full     ES 1.1 full screen for 5 s
+      gles-full2    ES 2.0 full screen for 5 s
+      gles-pixmap   ES 2.0 into a sprite: saves Sprite file glespixmap
+   h) Code written for the Raspberry Pi (DispmanX compatibility).
       dmxtest is written the way Raspberry Pi Khronos programs are
       (bcm_host, a DispmanX element, then EGL and OpenGL ES) and uses the
       DispmanX compatibility library. Like Pi programs it doesn't
