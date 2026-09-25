@@ -1,12 +1,12 @@
 # RISC OS EGL programming guide
 
-For riscos-mesa v20.3.5-3 (September 2026). Andrew Youll.
+For riscos-mesa v20.3.5-4 (September 2026). Andrew Youll.
 
 ## Overview
 
 `libEGL` gives RISC OS programs the standard Khronos way to set up OpenGL: EGL 1.4 on top of Mesa's software renderer (OSMesa), with desktop OpenGL 2.1 and GLSL 1.20. You write ordinary EGL and GL code; the library handles Wimp windows, full screen and sprites.
 
-- **Where it comes from:** riscos-mesa, release v20.3.5-3 or later (devkit `riscos-mesa-devkit-20.3.5-3.tgz`: `lib/libEGL.a`, `lib/libOSMesa.a`, `include/EGL/`, `include/GL/`).
+- **Where it comes from:** riscos-mesa, release v20.3.5-3 or later; the standard extensions need v20.3.5-4 (devkit `riscos-mesa-devkit-20.3.5-4.tgz`: `lib/libEGL.a`, `lib/libOSMesa.a`, `include/EGL/`, `include/GL/`).
 - **Runs on:** RISC OS 5 on ARMv7 with VFP (Raspberry Pi 2, 3, 4), with SharedUnixLibrary and ARMEABISupport loaded. Tested on a Pi 4.
 - **Toolchain:** GCCSDK GCC 10 (`arm-riscos-gnueabihf`), static ELF programs.
 
@@ -394,6 +394,95 @@ and include `EGL/eglext.h`.
 
 `egltest -w -D` (Obey file `egl-damage`) is a small example of buffer age
 with swap with damage.
+
+## Using the extensions
+
+The biggest saving is redrawing only what changed: with buffer age and a damage swap, a mostly still window costs a fraction of a full frame to show. The other extensions matter mainly to code and libraries ported from elsewhere.
+
+**Redraw only what changed.** Ask for the buffer age each frame. With age 1 the buffer still holds the last frame, so draw only the part that changed and swap with that rectangle. Rectangles are x, y, width, height in pixels from the surface's bottom left, like `glScissor`.
+
+```c
+EGLint age = 0, rect[4] = { x, y, w, h };      /* the part that changes */
+eglQuerySurface(dpy, surf, EGL_BUFFER_AGE_EXT, &age);
+if (age == 1) {                               /* last frame still there */
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(rect[0], rect[1], rect[2], rect[3]);
+    draw_scene();
+    glDisable(GL_SCISSOR_TEST);
+    eglSwapBuffersWithDamageKHR(dpy, surf, rect, 1);
+} else {                                      /* 0: first frame, resized, mode change */
+    draw_scene();
+    eglSwapBuffers(dpy, surf);
+}
+```
+
+- In a window each rectangle is one `Wimp_UpdateWindow`; more than 16 are merged into their bounding box.
+- Full screen, each rectangle is plotted after the vsync wait. Screen banks and direct rendering always show the whole frame.
+- The age is 0 again after the window is resized or the screen mode changes: redraw everything then.
+- With `EGL_KHR_partial_update`, call `eglSetDamageRegionKHR` after the age query and before drawing; a plain `eglSwapBuffers` then shows only that region. It's `EGL_BAD_ACCESS` if you didn't query the age this frame or call it twice.
+- `egltest -w -D` (Obey file `egl-damage`) is a complete example: the edges keep the first frame while the middle changes colour.
+
+**Sync objects.** Fences and server waits exist so code written for GPUs runs unchanged. Here a fence is already signalled when you get it.
+
+```c
+EGLSyncKHR fence = eglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, NULL);  /* needs a current context */
+eglClientWaitSyncKHR(dpy, fence, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR, EGL_FOREVER_KHR);
+                                              /* -> EGL_CONDITION_SATISFIED_KHR */
+eglDestroySyncKHR(dpy, fence);
+```
+
+A reusable sync (`EGL_SYNC_REUSABLE_KHR`) starts unsignalled and changes with `eglSignalSyncKHR`. Everything runs on one thread, so nothing can signal it while you wait: an unsignalled wait returns `EGL_TIMEOUT_EXPIRED_KHR` at once, whatever the timeout.
+
+**No surface needed.** Make a context current with no surface to load textures or build framebuffer objects before a window exists.
+
+```c
+eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx);   /* both, or neither */
+/* ... glTexImage2D, glGenFramebuffersEXT ... */
+eglMakeCurrent(dpy, win, win, ctx);    /* viewport and scissor start at the window's size */
+```
+
+Drawing to framebuffer 0 while surfaceless goes into a 1x1 stand-in buffer and is lost.
+
+**Pixel access.** Lock a surface that isn't current to read or write its pixels directly: for software rendering of your own, or a video frame.
+
+```c
+EGLint ptr, pitch;
+eglLockSurfaceKHR(dpy, surf, NULL);           /* surf must not be current */
+eglQuerySurface(dpy, surf, EGL_BITMAP_POINTER_KHR, &ptr);
+eglQuerySurface(dpy, surf, EGL_BITMAP_PITCH_KHR, &pitch);       /* bytes per row */
+/* rows run top down; 32 bits a pixel */
+eglUnlockSurfaceKHR(dpy, surf);
+eglSwapBuffers(dpy, surf);                    /* shows it, no context needed */
+```
+
+- Red is at bit 0 and blue at bit 16 for `0x00BBGGRR` configs, the other way round for `0x00RRGGBB`. Query `EGL_BITMAP_PIXEL_RED_OFFSET_KHR` and friends rather than assuming.
+- In `eglChooseConfig`, `EGL_MATCH_FORMAT_KHR` = `EGL_FORMAT_RGBA_8888_EXACT_KHR` picks the `0x00RRGGBB` configs; `EGL_FORMAT_RGBA_8888_KHR` matches all of them.
+- A locked surface can't be made current or swapped (`EGL_BAD_ACCESS`).
+
+**Error reporting.** A debug callback gets every EGL error with the function that raised it, so you needn't check `eglGetError` after each call while developing.
+
+```c
+static void EGLAPIENTRY on_egl_error(EGLenum error, const char *command, EGLint type,
+                                     EGLLabelKHR thread, EGLLabelKHR object, const char *msg)
+{
+    log_printf("%s: %s\n", command, msg);      /* e.g. "eglMakeCurrent: EGL_BAD_MATCH" */
+}
+
+eglDebugMessageControlKHR(on_egl_error, NULL);  /* errors and critical messages */
+eglLabelObjectKHR(dpy, EGL_OBJECT_SURFACE_KHR, surf, "main view");   /* shows up as object */
+```
+
+Write to a file, not stdout: printing from a Wimp task opens a command window.
+
+**Platform displays.** Code that uses `eglGetPlatformDisplayEXT` (SDL, GLFW-style libraries) works with the RISC OS platform. The native window is a *pointer to* the Wimp handle; the pixmap is the sprite pointer as usual.
+
+```c
+int handle = window_handle;                   /* or -1 for the whole screen */
+EGLDisplay dpy = eglGetPlatformDisplayEXT(EGL_PLATFORM_RISCOS, NULL, NULL);
+EGLSurface s = eglCreatePlatformWindowSurfaceEXT(dpy, cfg, &handle, NULL);
+```
+
+**Flush control.** Creating a context with `EGL_CONTEXT_RELEASE_BEHAVIOR_KHR`, `EGL_CONTEXT_RELEASE_BEHAVIOR_NONE_KHR` skips the `glFlush` when you switch away from it. With software GL the saving is small.
 
 ## Limits, performance and troubleshooting
 
