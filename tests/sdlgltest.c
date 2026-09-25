@@ -1,9 +1,12 @@
 /*
  * sdlgltest - checks the SDL2 RISC OS OpenGL (OSMesa) path.
- * Opens an SDL_WINDOW_OPENGL window, spins a lit cube, prints FPS once a
- * second. Escape or closing the window quits. Space toggles vsync.
+ * Opens an SDL_WINDOW_OPENGL window (a desktop window when run from the
+ * desktop), spins a lit cube and shows the frame rate in the window title
+ * (a summary is printed after it quits: printing while running would pop up
+ * a command window over the desktop). Keys: F toggles full screen, Space toggles vsync,
+ * Escape or closing the window quits.
  *
- * Usage: sdlgltest [width height]
+ * Usage: sdlgltest [width height] [-f]     (-f: start full screen)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,14 +38,19 @@ static void cube(void)
 int main(int argc, char **argv)
 {
     static const float lpos[4] = {2, 3, 4, 0};
-    int w = 640, h = 480, running = 1, frames = 0, vsync = 0;
+    int w = 640, h = 480, running = 1, frames = 0, vsync = 0, full = 0, i;
+    char title[80], glinfo[160];
+    Uint32 start, total_frames = 0;
     Uint32 last;
     float angle = 0;
     SDL_Window *win;
     SDL_GLContext ctx;
     SDL_Event ev;
 
-    if (argc >= 3) { w = atoi(argv[1]); h = atoi(argv[2]); }
+    for (i = 1; i < argc; i++) {
+        if (argv[i][0] == '-' && argv[i][1] == 'f') full = 1;
+        else if (i + 1 < argc) { w = atoi(argv[i]); h = atoi(argv[i + 1]); i++; }
+    }
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         printf("SDL_Init: %s\n", SDL_GetError());
@@ -52,14 +60,13 @@ int main(int argc, char **argv)
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
     win = SDL_CreateWindow("sdlgltest", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                           w, h, SDL_WINDOW_OPENGL);
+                           w, h, SDL_WINDOW_OPENGL | (full ? SDL_WINDOW_FULLSCREEN : 0));
     if (!win) { printf("SDL_CreateWindow: %s\n", SDL_GetError()); return 1; }
     ctx = SDL_GL_CreateContext(win);
     if (!ctx) { printf("SDL_GL_CreateContext: %s\n", SDL_GetError()); return 1; }
 
-    printf("GL_RENDERER : %s\n", glGetString(GL_RENDERER));
-    printf("GL_VERSION  : %s\n", glGetString(GL_VERSION));
-    printf("GLSL        : %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+    SDL_snprintf(glinfo, sizeof glinfo, "%s / %s / GLSL %s", glGetString(GL_RENDERER),
+                 glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
     SDL_GL_SetSwapInterval(vsync);
 
     glEnable(GL_DEPTH_TEST);
@@ -68,16 +75,19 @@ int main(int argc, char **argv)
     glEnable(GL_COLOR_MATERIAL);
     glLightfv(GL_LIGHT0, GL_POSITION, lpos);
 
-    last = SDL_GetTicks();
+    last = start = SDL_GetTicks();
     while (running) {
         int dw, dh;
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) running = 0;
             if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE) running = 0;
+            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_f) {
+                full = !full;
+                SDL_SetWindowFullscreen(win, full ? SDL_WINDOW_FULLSCREEN : 0);
+            }
             if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_SPACE) {
                 vsync = !vsync;
                 SDL_GL_SetSwapInterval(vsync);
-                printf("vsync %s\n", vsync ? "on" : "off");
             }
         }
         SDL_GL_GetDrawableSize(win, &dw, &dh);
@@ -98,8 +108,11 @@ int main(int argc, char **argv)
         SDL_GL_SwapWindow(win);
 
         frames++;
+        total_frames++;
         if (SDL_GetTicks() - last >= 1000) {
-            printf("%d fps\n", frames);
+            SDL_snprintf(title, sizeof title, "sdlgltest %dx%d - %d fps%s", dw, dh, frames,
+                         vsync ? " (vsync)" : "");
+            SDL_SetWindowTitle(win, title);
             frames = 0;
             last = SDL_GetTicks();
         }
@@ -108,5 +121,7 @@ int main(int argc, char **argv)
     SDL_GL_DeleteContext(ctx);
     SDL_DestroyWindow(win);
     SDL_Quit();
+    printf("%s\n%u frames in %.1f s = %.1f fps average\n", glinfo, (unsigned)total_frames,
+           (SDL_GetTicks() - start) / 1000.0, total_frames * 1000.0 / (SDL_GetTicks() - start + 1));
     return 0;
 }

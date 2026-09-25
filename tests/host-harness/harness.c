@@ -1,12 +1,13 @@
-/* Host harness for SDL_riscosopengl.c: emulates the two SWIs it uses
-   (OS_SpriteOp 15 create sprite, OS_SpriteOp 52 via the framebuffer
-   hook) and the handful of SDL internals it calls, then drives it the
-   way SDL_video.c does. */
+/* Host harness for SDL_riscosopengl.c (Wimp-aware driver version).
+   Emulates OS_SpriteOp 15 and the few SDL internals the file uses, and
+   stands in for the driver's plot, then drives it the way SDL does:
+   window, full screen in an XRGB mode, back to a window, resize. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
-#include "../../SDL_internal.h"
+#include <stdint.h>
+#include <sys/mman.h>
 #include "../SDL_sysvideo.h"
 #include "SDL_riscosvideo.h"
 #include "SDL_riscoswindow.h"
@@ -16,99 +17,121 @@
 
 /* ---- SDL stubs ---- */
 static char errbuf[256];
-#include <sys/mman.h>
-/* RISC OS code casts pointers to int; keep heap below 2GB on this 64-bit host */
-void *SDL_malloc(size_t n) {
-    static char *pool, *top;
-    void *p;
-    if (!pool) { pool = top = mmap(NULL, 64<<20, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_32BIT, -1, 0); }
+void *SDL_malloc(size_t n) {          /* RISC OS code casts pointers to int: stay below 2GB */
+    static char *pool, *top; void *p;
+    if (!pool) pool = top = mmap(NULL, 64<<20, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_32BIT, -1, 0);
     n = (n + 15) & ~(size_t)15; p = top; top += n; return p;
 }
+void *SDL_calloc(size_t a, size_t b) { void *p = SDL_malloc(a*b); memset(p, 0, a*b); return p; }
 void SDL_free(void *p) { (void)p; }
 size_t SDL_strlcpy(char *d, const char *s, size_t n) { snprintf(d, n, "%s", s); return strlen(s); }
 int SDL_SetError(const char *fmt, ...) { va_list a; va_start(a, fmt); vsnprintf(errbuf, sizeof errbuf, fmt, a); va_end(a); return -1; }
 int SDL_Error(SDL_errorcode c) { return SDL_SetError("error %d", (int)c); }
 static SDL_GLContext current_ctx;
 SDL_GLContext SDL_GL_GetCurrentContext(void) { return current_ctx; }
+int SDL_GetWindowDisplayIndex(SDL_Window *w) { (void)w; return 0; }
+static Uint32 screen_format = SDL_PIXELFORMAT_XBGR8888;
+static int fake_selector[8];
+int SDL_GetCurrentDisplayMode(int i, SDL_DisplayMode *m) {
+    (void)i; memset(m, 0, sizeof *m); m->format = screen_format; m->driverdata = fake_selector; return 0;
+}
+int _kernel_osbyte(int a, int x, int y) { (void)a; (void)x; (void)y; return 0; }
 
-/* ---- SWI emulation ---- */
-static int plots;
-_kernel_oserror *_kernel_swi(int swi, _kernel_swi_regs *in, _kernel_swi_regs *out)
-{
+/* ---- OS_SpriteOp 15 ---- */
+static int last_mode_arg;
+_kernel_oserror *_kernel_swi(int swi, _kernel_swi_regs *in, _kernel_swi_regs *out) {
     static _kernel_oserror e = {0, "bad"};
+    (void)out;
     if (swi == 0x2E && (in->r[0] & 0xFF) == 15) {
-        int *area = (int *)(uintptr_t)(unsigned)in->r[1];      /* 64-bit host: see note */
-        int w = in->r[4], h = in->r[5];
-        int bytes = 44 + w * 4 * h;
-        int *spr;
+        int *area = (int *)(uintptr_t)(unsigned)in->r[1];
+        int w = in->r[4], h = in->r[5], bytes = 44 + w*4*h; int *spr;
         if (area[3] + bytes > area[0]) return &e;
-        spr = (int *)((char *)area + area[3]);
-        memset(spr, 0, 44);
+        spr = (int *)((char *)area + area[3]); memset(spr, 0, 44);
         spr[0] = bytes; strncpy((char *)&spr[1], (char *)(uintptr_t)(unsigned)in->r[2], 12);
-        spr[4] = w - 1; spr[5] = h - 1; spr[6] = 0; spr[7] = 31;
-        spr[8] = 44; spr[9] = 44; spr[10] = in->r[6];
-        area[1]++; area[3] += bytes;
-        return NULL;
+        spr[4] = w-1; spr[5] = h-1; spr[7] = 31; spr[8] = 44; spr[9] = 44; spr[10] = in->r[6];
+        last_mode_arg = in->r[6];
+        area[1]++; area[3] += bytes; return NULL;
     }
-    if (swi == 0x06) return NULL;
     return &e;
 }
 
-/* Stand-in for the driver's plot: check what it would put on screen. */
-static unsigned last_top_left, last_bottom_left; static int last_w, last_h;
-int RISCOS_UpdateWindowFramebuffer(_THIS, SDL_Window *window, const SDL_Rect *r, int n)
-{
+/* ---- the driver's plot, as seen by the screen ---- */
+static int plots; static unsigned tl, bl; static int pw, ph;
+int RISCOS_UpdateWindowFramebuffer(_THIS, SDL_Window *window, const SDL_Rect *r, int n) {
     SDL_WindowData *d = (SDL_WindowData *)window->driverdata;
     unsigned *px = (unsigned *)((char *)d->fb_sprite + d->fb_sprite->image_offset);
-    last_w = d->fb_sprite->width + 1; last_h = d->fb_sprite->height + 1;
-    last_top_left = px[0];
-    last_bottom_left = px[(last_h - 1) * last_w];
-    plots++;
-    return 0;
+    (void)_this; (void)r; (void)n;
+    pw = d->fb_sprite->width + 1; ph = d->fb_sprite->height + 1;
+    tl = px[0]; bl = px[(ph-1)*pw]; plots++; return 0;
 }
 
-int main(void)
-{
-    SDL_VideoDevice dev; SDL_VideoData vd; SDL_Window win; SDL_WindowData wd;
-    SDL_GLContext ctx; int fails = 0;
-    memset(&dev, 0, sizeof dev); memset(&vd, 0, sizeof vd);
-    memset(&win, 0, sizeof win); memset(&wd, 0, sizeof wd);
-    dev.driverdata = &vd; win.driverdata = &wd; wd.window = &win;
-    win.w = 64; win.h = 48;
+static SDL_Window *cur_win;
+static void frame(float r, float g, float b) {   /* top half colour, bottom half blue */
+    glViewport(0, 0, cur_win->w, cur_win->h);
+    glClearColor(0,0,1,1); glClear(GL_COLOR_BUFFER_BIT);
+    glColor3f(r,g,b); glRectf(-1,0,1,1);
+}
+#define CHECK(c, msg) do { if (c) printf("  ok   %s\n", msg); else { printf("  FAIL %s\n", msg); fails++; } } while (0)
+
+int main(void) {
+    SDL_VideoDevice dev; SDL_VideoData vd; SDL_Window win; SDL_WindowData *wd;
+    SDL_GLContext ctx, ctx2; int fails = 0, p;
+    memset(&dev,0,sizeof dev); memset(&vd,0,sizeof vd); memset(&win,0,sizeof win);
+    wd = SDL_calloc(1, sizeof *wd); wd->window = &win;
+    dev.driverdata = &vd; win.driverdata = wd; win.w = 64; win.h = 48;
     dev.gl_config.depth_size = 24; dev.gl_config.major_version = 2; dev.gl_config.minor_version = 1;
 
+    cur_win = &win;
     RISCOS_GL_LoadLibrary(&dev, NULL);
-    ctx = RISCOS_GL_CreateContext(&dev, &win);
-    if (!ctx) { printf("CreateContext failed: %s\n", errbuf); return 1; }
-    current_ctx = ctx;
-    printf("GL_VERSION via SDL path: %s\n", glGetString(GL_VERSION));
-    printf("GetProcAddress(glClear) = %p\n", RISCOS_GL_GetProcAddress(&dev, "glClear"));
+    ctx = RISCOS_GL_CreateContext(&dev, &win); current_ctx = ctx;
+    CHECK(ctx != NULL, "context created in an XBGR desktop mode");
+    printf("  GL_VERSION %s\n", glGetString(GL_VERSION));
+    CHECK(wd->gl_active && wd->fb_sprite, "GL sprite is the window framebuffer sprite");
+    CHECK(last_mode_arg == (int)(intptr_t)fake_selector, "sprite made in the screen's own mode");
 
-    /* frame 1: blue, red top half -> screen top-left must be red (0x..0000FF) */
-    glClearColor(0,0,1,1); glClear(GL_COLOR_BUFFER_BIT);
-    glColor3f(1,0,0); glRectf(-1,0,1,1);
-    RISCOS_GL_SwapWindow(&dev, &win);
-    printf("frame1 %dx%d top-left=%08x bottom-left=%08x\n", last_w, last_h, last_top_left, last_bottom_left);
-    if ((last_top_left & 0xFFFFFF) != 0x0000FF || (last_bottom_left & 0xFFFFFF) != 0xFF0000) fails++;
-    if (wd.fb_area != NULL) { printf("fb pointers not restored\n"); fails++; }
+    frame(1,0,0); RISCOS_GL_SwapWindow(&dev, &win);
+    CHECK(plots == 1 && (tl & 0xFFFFFF) == 0x0000FF && (bl & 0xFFFFFF) == 0xFF0000,
+          "window frame: red top (0x0000FF), blue bottom, rows top down");
 
-    /* resize, as SDL_SetWindowSize would; next swap rebinds */
-    win.w = 100; win.h = 80;
-    RISCOS_GL_SwapWindow(&dev, &win);
-    glViewport(0, 0, 100, 80);
-    glClearColor(0,1,0,1); glClear(GL_COLOR_BUFFER_BIT);
-    RISCOS_GL_SwapWindow(&dev, &win);
-    printf("after resize %dx%d top-left=%08x\n", last_w, last_h, last_top_left);
-    if (last_w != 100 || last_h != 80 || (last_top_left & 0xFFFFFF) != 0x00FF00) fails++;
+    /* A Wimp redraw after being covered plots fb_sprite again: content kept */
+    p = plots; RISCOS_UpdateWindowFramebuffer(&dev, &win, NULL, 0);
+    CHECK(plots == p + 1 && (tl & 0xFFFFFF) == 0x0000FF, "redraw request shows the last GL frame");
 
-    /* ES must be refused cleanly */
+
+    /* Full screen at 640x480 in a mode with the other RGB order: the swap
+       notices, rebinds, skips that one empty frame; the next frame shows. */
+    win.w = 640; win.h = 480; screen_format = SDL_PIXELFORMAT_XRGB8888;
+    p = plots; RISCOS_GL_SwapWindow(&dev, &win);
+    CHECK(plots == p && wd->gl_w == 640, "mode/size change: rebind, no stale plot");
+    frame(1,0,0); RISCOS_GL_SwapWindow(&dev, &win);
+    CHECK(pw == 640 && ph == 480 && last_mode_arg == (1 | (90 << 1) | (90 << 14) | (6 << 27)), "RGBA context in XRGB mode falls back to a type 6 sprite");
+    CHECK((tl & 0xFFFFFF) == 0x0000FF, "  ...and red is still red");
+
+    /* A context made while in the XRGB mode renders BGRA into the screen-mode sprite */
+    ctx2 = RISCOS_GL_CreateContext(&dev, &win); current_ctx = ctx2;
+    CHECK(ctx2 != NULL, "second context in XRGB mode");
+    frame(1,0,0); RISCOS_GL_SwapWindow(&dev, &win);
+    /* first swap may rebind (sprite mode changes to the screen's); draw again */
+    frame(1,0,0); RISCOS_GL_SwapWindow(&dev, &win);
+    CHECK(last_mode_arg == (int)(intptr_t)fake_selector && (tl & 0xFFFFFF) == 0xFF0000,
+          "XRGB mode: sprite in screen mode, red = 0x00FF0000");
+    RISCOS_GL_DeleteContext(&dev, ctx2); current_ctx = ctx;
+
+    /* Back to the desktop window */
+    win.w = 64; win.h = 48; screen_format = SDL_PIXELFORMAT_XBGR8888;
+    RISCOS_GL_MakeCurrent(&dev, &win, ctx);
+    frame(0,1,0); RISCOS_GL_SwapWindow(&dev, &win);
+    CHECK(pw == 64 && (tl & 0xFFFFFF) == 0x00FF00, "back to a window: green top shown at 64x48");
+
     dev.gl_config.profile_mask = SDL_GL_CONTEXT_PROFILE_ES;
-    if (RISCOS_GL_CreateContext(&dev, &win)) fails++; else printf("ES refused: %s\n", errbuf);
+    CHECK(RISCOS_GL_CreateContext(&dev, &win) == NULL, "GLES refused");
     dev.gl_config.profile_mask = SDL_GL_CONTEXT_PROFILE_CORE; dev.gl_config.major_version = 3; dev.gl_config.minor_version = 2;
-    if (RISCOS_GL_CreateContext(&dev, &win)) fails++; else printf("Core 3.2 refused: %s\n", errbuf);
+    CHECK(RISCOS_GL_CreateContext(&dev, &win) == NULL, "core 3.2 refused");
+    printf("  (%s)\n", errbuf);
 
     RISCOS_GL_DeleteContext(&dev, ctx);
     RISCOS_GL_DestroyWindowBuffer(&win);
-    printf("%d plots, %s\n", plots, fails ? "FAIL" : "ALL CHECKS PASSED");
+    CHECK(!wd->gl_active && !wd->fb_area, "window destroy frees the GL sprite");
+    printf("%d plots, %s\n", plots, fails ? "FAILURES" : "ALL CHECKS PASSED");
     return fails;
 }
