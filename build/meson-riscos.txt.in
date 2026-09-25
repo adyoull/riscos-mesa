@@ -5,6 +5,7 @@ c = '@GCCSDK_ENV@/bin/arm-riscos-gnueabihf-gcc'
 cpp = '@GCCSDK_ENV@/bin/arm-riscos-gnueabihf-g++'
 ar = '@GCCSDK_ENV@/bin/arm-riscos-gnueabihf-ar'
 strip = '@GCCSDK_ENV@/bin/arm-riscos-gnueabihf-strip'
+pkgconfig = 'pkg-config'
 
 [properties]
 needs_exe_wrapper = true

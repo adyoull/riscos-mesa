@@ -6,13 +6,14 @@ source "$(dirname "$0")/env.sh"
 T=$(cd "$(dirname "$0")/../tests" && pwd)
 mkdir -p "$STAGE/tests"
 GL="-I$STAGE/include -L$STAGE/lib"
-LIBS="-lOSMesa -lstdc++ -lz -lpthread -lm"
+LIBS="-lOSMesa -lstdc++ -lz -lm"
 $CC $RO_CFLAGS $GL -static "$T/osmesatest.c" -o "$STAGE/tests/osmesatest,e1f" $LIBS
 $CC $RO_CFLAGS $GL -static "$T/orient.c"     -o "$STAGE/tests/orient,e1f"     $LIBS
 $CC $RO_CFLAGS $GL -static "$T/prof.c"       -o "$STAGE/tests/prof,e1f"       $LIBS
 [ -f "$STAGE/lib/libGLU.a" ] && $CC $RO_CFLAGS $GL -static "$T/glutest.c" -o "$STAGE/tests/glutest,e1f" -lGLU $LIBS
 [ -f "$STAGE/lib/libSDL2.a" ] && $CC $RO_CFLAGS $GL -I"$STAGE/include/SDL2" -static "$T/sdlgltest.c" \
     -o "$STAGE/tests/sdlgltest,e1f" -lSDL2 $LIBS
+for f in "$STAGE"/tests/*,e1f; do $STRIP "$f"; done
 # Left as ELF (&E1F), same as the OpenTTD build: needs SharedUnixLibrary
 # and ARMEABISupport loaded on the Pi.
 ls -la "$STAGE/tests"

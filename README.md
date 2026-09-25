@@ -7,7 +7,7 @@ programs port without RISC OS-specific GL code.
 ## What you get
 - `libOSMesa.a`: one static library. OpenGL 2.1 compatibility profile,
   GLSL 1.20, classic swrast CPU rasteriser. Link with
-  `-lOSMesa -lstdc++ -lz -lpthread -lm`.
+  `-lOSMesa -lstdc++ -lz -lm`.
 - `libGLU.a`: GLU 1.3.
 - SDL2 with `SDL_WINDOW_OPENGL` / `SDL_GL_CreateContext` working on RISC OS.
 
@@ -21,11 +21,12 @@ programs port without RISC OS-specific GL code.
 
 ## Build (Linux, GCCSDK GCC 10 installed)
     export GCCSDK_ENV=/path/to/gccsdk/env   # has bin/arm-riscos-gnueabihf-gcc
+    build/build-zlib.sh      # skip if your env already has libz
     build/build-mesa.sh
     build/build-glu.sh
     build/build-sdl2.sh      # or apply patches/sdl2 to your own SDL overlay
     build/build-tests.sh     # -> stage/tests/*,e1f
-Everything installs into `stage/`. Host needs meson, ninja, python3-mako,
+Everything installs into `stage/`. No GCCSDK GCC 10 yet? See build/TOOLCHAIN.md. Host needs meson, ninja, python3-mako,
 bison, flex, autoconf, automake, libtool.
 
 ## Using it from another port

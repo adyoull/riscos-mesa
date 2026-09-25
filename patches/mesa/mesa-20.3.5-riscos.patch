@@ -1,6 +1,18 @@
-diff -ru mesa-a/meson.build mesa-b/meson.build
+diff -ruN mesa-a/include/c11/threads_posix.h mesa-b/include/c11/threads_posix.h
+--- a/include/c11/threads_posix.h	2026-09-24 22:54:50.718555224 +0000
++++ b/include/c11/threads_posix.h	2026-09-24 22:54:50.735591638 +0000
+@@ -43,7 +43,7 @@
+     Use pthread_mutex_timedlock() for `mtx_timedlock()'
+     Otherwise use mtx_trylock() + *busy loop* emulation.
+ */
+-#if !defined(__CYGWIN__) && !defined(__APPLE__) && !defined(__NetBSD__)
++#if !defined(__CYGWIN__) && !defined(__APPLE__) && !defined(__NetBSD__) && !defined(__riscos__)
+ #define EMULATED_THREADS_USE_NATIVE_TIMEDLOCK
+ #endif
+ 
+diff -ruN mesa-a/meson.build mesa-b/meson.build
 --- a/meson.build	2026-09-24 21:26:06.165897522 +0000
-+++ b/meson.build	2026-09-24 21:26:15.732426003 +0000
++++ b/meson.build	2026-09-25 04:45:44.372005850 +0000
 @@ -436,7 +436,7 @@
  
  # Android uses emutls for versions <= P/28. For USE_ELF_TLS we need ELF TLS.
@@ -10,7 +22,39 @@ diff -ru mesa-a/meson.build mesa-b/meson.build
    pre_args += '-DUSE_ELF_TLS'
    use_elf_tls = true
  endif
-diff -ru mesa-a/src/mesa/drivers/osmesa/meson.build mesa-b/src/mesa/drivers/osmesa/meson.build
+@@ -943,7 +943,7 @@
+ endif
+ 
+ # TODO: this is very incomplete
+-if ['linux', 'cygwin', 'gnu', 'freebsd', 'gnu/kfreebsd'].contains(host_machine.system())
++if ['linux', 'cygwin', 'gnu', 'freebsd', 'gnu/kfreebsd', 'riscos'].contains(host_machine.system())
+   pre_args += '-D_GNU_SOURCE'
+ elif host_machine.system() == 'sunos'
+   pre_args += '-D__EXTENSIONS__'
+@@ -1308,7 +1308,7 @@
+ # check for dl support
+ dep_dl = null_dep
+ if not cc.has_function('dlopen')
+-  dep_dl = cc.find_library('dl', required : host_machine.system() != 'windows')
++  dep_dl = cc.find_library('dl', required : not ['windows', 'riscos'].contains(host_machine.system()))
+ endif
+ if cc.has_function('dladdr', dependencies : dep_dl)
+   # This is really only required for megadrivers
+@@ -1351,7 +1351,12 @@
+   dep_zstd = null_dep
+ endif
+ 
+-dep_thread = dependency('threads')
++if host_machine.system() == 'riscos'
++  # UnixLib has pthreads built in and GCCSDK's GCC rejects -pthread
++  dep_thread = declare_dependency()
++else
++  dep_thread = dependency('threads')
++endif
+ if dep_thread.found() and host_machine.system() != 'windows'
+   pre_args += '-DHAVE_PTHREAD'
+   if host_machine.system() != 'netbsd' and cc.has_function(
+diff -ruN mesa-a/src/mesa/drivers/osmesa/meson.build mesa-b/src/mesa/drivers/osmesa/meson.build
 --- a/src/mesa/drivers/osmesa/meson.build	2026-09-24 21:26:06.189817578 +0000
 +++ b/src/mesa/drivers/osmesa/meson.build	2026-09-24 21:26:15.732547137 +0000
 @@ -24,7 +24,7 @@
@@ -22,7 +66,7 @@ diff -ru mesa-a/src/mesa/drivers/osmesa/meson.build mesa-b/src/mesa/drivers/osme
    osmesa_lib_name,
    ['osmesa.c', glapitable_h, glapitemp_h],
    gnu_symbol_visibility : 'hidden',
-diff -ru mesa-a/src/util/detect_os.h mesa-b/src/util/detect_os.h
+diff -ruN mesa-a/src/util/detect_os.h mesa-b/src/util/detect_os.h
 --- a/src/util/detect_os.h	2026-09-24 21:26:06.174756647 +0000
 +++ b/src/util/detect_os.h	2026-09-24 21:26:15.731983112 +0000
 @@ -52,6 +52,12 @@
@@ -48,7 +92,20 @@ diff -ru mesa-a/src/util/detect_os.h mesa-b/src/util/detect_os.h
  #ifndef DETECT_OS_WINDOWS
  #define DETECT_OS_WINDOWS 0
  #endif
-diff -ru mesa-a/src/util/os_misc.c mesa-b/src/util/os_misc.c
+diff -ruN mesa-a/src/util/memstream.c mesa-b/src/util/memstream.c
+--- a/src/util/memstream.c	2026-09-25 04:47:58.934710935 +0000
++++ b/src/util/memstream.c	2026-09-25 04:47:58.948507304 +0000
+@@ -51,7 +51,8 @@
+    }
+ 
+    return success;
+-#elif defined(__APPLE__)
++#elif defined(__APPLE__) || defined(__riscos__)
++   /* No open_memstream (UnixLib): callers fall back as on macOS */
+    return false;
+ #else
+    FILE *const f = open_memstream(bufp, sizep);
+diff -ruN mesa-a/src/util/os_misc.c mesa-b/src/util/os_misc.c
 --- a/src/util/os_misc.c	2026-09-24 21:26:06.179256693 +0000
 +++ b/src/util/os_misc.c	2026-09-24 21:26:15.732203104 +0000
 @@ -65,6 +65,8 @@
@@ -71,7 +128,7 @@ diff -ru mesa-a/src/util/os_misc.c mesa-b/src/util/os_misc.c
  #else
  #error unexpected platform in os_sysinfo.c
     return false;
-diff -ru mesa-a/src/util/u_endian.h mesa-b/src/util/u_endian.h
+diff -ruN mesa-a/src/util/u_endian.h mesa-b/src/util/u_endian.h
 --- a/src/util/u_endian.h	2026-09-24 21:26:35.673839223 +0000
 +++ b/src/util/u_endian.h	2026-09-24 21:26:35.705781259 +0000
 @@ -89,6 +89,12 @@
@@ -87,9 +144,9 @@ diff -ru mesa-a/src/util/u_endian.h mesa-b/src/util/u_endian.h
  #if !defined(UTIL_ARCH_LITTLE_ENDIAN) || !defined(UTIL_ARCH_BIG_ENDIAN)
  # error "UTIL_ARCH_LITTLE_ENDIAN and/or UTIL_ARCH_BIG_ENDIAN were unset."
  #elif UTIL_ARCH_LITTLE_ENDIAN == UTIL_ARCH_BIG_ENDIAN
-diff -ru mesa-a/src/util/u_thread.h mesa-b/src/util/u_thread.h
+diff -ruN mesa-a/src/util/u_thread.h mesa-b/src/util/u_thread.h
 --- a/src/util/u_thread.h	2026-09-24 21:26:35.682641954 +0000
-+++ b/src/util/u_thread.h	2026-09-24 21:26:35.705908754 +0000
++++ b/src/util/u_thread.h	2026-09-24 22:59:05.876152625 +0000
 @@ -113,6 +113,8 @@
     pthread_setname_np(name);
  #elif DETECT_OS_HAIKU
@@ -99,3 +156,22 @@ diff -ru mesa-a/src/util/u_thread.h mesa-b/src/util/u_thread.h
  #else
  #warning Not sure how to call pthread_setname_np
  #endif
+@@ -208,7 +210,7 @@
+ static inline int64_t
+ util_thread_get_time_nano(thrd_t thread)
+ {
+-#if defined(HAVE_PTHREAD) && !defined(__APPLE__) && !defined(__HAIKU__)
++#if defined(HAVE_PTHREAD) && !defined(__APPLE__) && !defined(__HAIKU__) && !defined(__riscos__)
+    struct timespec ts;
+    clockid_t cid;
+ 
+@@ -248,7 +250,8 @@
+  * util_barrier
+  */
+ 
+-#if defined(HAVE_PTHREAD) && !defined(__APPLE__)
++/* UnixLib has no pthread barriers: use the mutex+condvar fallback */
++#if defined(HAVE_PTHREAD) && !defined(__APPLE__) && !defined(__riscos__)
+ 
+ typedef pthread_barrier_t util_barrier;
+ 

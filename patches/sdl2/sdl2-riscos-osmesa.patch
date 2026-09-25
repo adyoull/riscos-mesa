@@ -1,7 +1,21 @@
 diff -ruN -x configure -x autom4te.cache SDL-release-2.26.0/configure.ac sdlp/configure.ac
 --- a/configure.ac	2022-11-22 00:15:58.000000000 +0000
-+++ b/configure.ac	2026-09-24 22:20:34.240976469 +0000
-@@ -4566,6 +4566,27 @@
++++ b/configure.ac	2026-09-25 04:56:28.436721761 +0000
+@@ -3746,7 +3746,13 @@
+ have_locale=no
+ 
+ dnl Set up the configuration based on the host platform!
++dnl GCCSDK GCC 10 uses the triplet arm-riscos-gnueabihf, which the Linux
++dnl branch below would claim via *-*-gnu*. Map it onto the RISC OS branch.
++sdl_platform_host="$host"
+ case "$host" in
++    *-riscos-*) sdl_platform_host=arm-unknown-riscos ;;
++esac
++case "$sdl_platform_host" in
+     *-*-linux*|*-*-uclinux*|*-*-gnu*|*-*-k*bsd*-gnu|*-*-bsdi*|*-*-freebsd*|*-*-dragonfly*|*-*-netbsd*|*-*-openbsd*|*-*-sysv5*|*-*-solaris*|*-*-hpux*|*-*-aix*|*-*-minix*|*-*-nto*)
+         case "$host" in
+             *-*-android*)
+@@ -4566,6 +4572,27 @@
              SOURCES="$SOURCES $srcdir/src/video/riscos/*.c"
              have_video=yes
              SUMMARY_video="${SUMMARY_video} riscos"
@@ -11,7 +25,7 @@ diff -ruN -x configure -x autom4te.cache SDL-release-2.26.0/configure.ac sdlp/co
 +            if test x$enable_video_riscos_osmesa = xyes; then
 +                AC_MSG_CHECKING(for OSMesa)
 +                save_LIBS="$LIBS"
-+                LIBS="$LIBS -lOSMesa -lstdc++ -lz -lpthread -lm"
++                LIBS="$LIBS -lOSMesa -lstdc++ -lz -lm"
 +                AC_LINK_IFELSE([AC_LANG_PROGRAM([[extern void *OSMesaGetProcAddress(const char *);]],
 +                                                [[OSMesaGetProcAddress("glFinish");]])],
 +                               [have_osmesa=yes], [have_osmesa=no])
@@ -21,7 +35,7 @@ diff -ruN -x configure -x autom4te.cache SDL-release-2.26.0/configure.ac sdlp/co
 +                    AC_DEFINE(SDL_VIDEO_OPENGL, 1, [ ])
 +                    AC_DEFINE(SDL_VIDEO_OPENGL_OSMESA, 1, [ ])
 +                    SUMMARY_video="${SUMMARY_video} opengl(osmesa)"
-+                    EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lOSMesa -lstdc++ -lz -lpthread -lm"
++                    EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lOSMesa -lstdc++ -lz -lm"
 +                else
 +                    AC_MSG_ERROR([--enable-video-riscos-osmesa given but libOSMesa was not found])
 +                fi

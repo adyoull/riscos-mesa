@@ -8,7 +8,7 @@ cd glu-9.0.1
 [ -x configure ] || NOCONFIGURE=1 ./autogen.sh
 mkdir -p build-ro && cd build-ro
 # -L/-l (not a path to the .a) so libtool doesn't copy OSMesa into libGLU.a
-OSMESA_CFLAGS="-I$STAGE/include" OSMESA_LIBS="-L$STAGE/lib -lOSMesa -lstdc++ -lz -lpthread -lm" \
+OSMESA_CFLAGS="-I$STAGE/include" OSMESA_LIBS="-L$STAGE/lib -lOSMesa -lstdc++ -lz -lm" \
 CFLAGS="$RO_CFLAGS" CXXFLAGS="$RO_CFLAGS" \
   ../configure --host=$HOST --prefix="$STAGE" --enable-osmesa --disable-shared --enable-static
 make -j"$(nproc)" && make install

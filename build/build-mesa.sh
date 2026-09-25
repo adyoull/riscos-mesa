@@ -21,19 +21,18 @@ sed "s#@GCCSDK_ENV@#$GCCSDK_ENV#g" "$HERE/build/meson-riscos.txt.in" > riscos-cr
   -Dllvm=disabled -Dshader-cache=disabled -Dzstd=disabled -Dlibunwind=disabled \
   -Dvalgrind=disabled -Ddri3=disabled -Dglvnd=false -Dbuild-tests=false \
   -Dshared-glapi=disabled -Dselinux=false -Dosmesa-bits=8 -Dbuildtype=release
-ninja -C build-ro src/mesa/drivers/osmesa/libOSMesa.a
-
-# Meson doesn't fold the internal static libs into libOSMesa.a; do it here so
-# consumers only need: -lOSMesa -lstdc++ -lz -lpthread -lm
-cd build-ro
-LIBS=$(ninja -t query src/mesa/drivers/osmesa/libOSMesa.a | sed -n '/input:/,/outputs:/p' \
-       | grep -oE '[^ |]+\.a$' | grep -v 'libOSMesa.a' || true)
-# Fall back to the known list if query output format differs.
+# The internal libraries Mesa's shared libOSMesa would link. A static
+# library doesn't pull its link_with deps into the build, so name them all.
 # (libglapi_static is link_whole, so meson already put it inside libOSMesa.a.)
-[ -n "$LIBS" ] || LIBS="src/compiler/glsl/glcpp/libglcpp.a src/compiler/glsl/libglsl.a
+LIBS="src/compiler/glsl/glcpp/libglcpp.a src/compiler/glsl/libglsl.a
   src/compiler/libcompiler.a src/compiler/nir/libnir.a
-  src/mesa/libmesa_classic.a src/mesa/libmesa_common.a src/util/format/libmesa_format.a
-  src/util/libmesa_util.a"
+  src/mesa/libmesa_classic.a src/mesa/libmesa_common.a
+  src/util/format/libmesa_format.a src/util/libmesa_util.a"
+ninja -C build-ro src/mesa/drivers/osmesa/libOSMesa.a $LIBS
+
+# Fold everything into ONE libOSMesa.a so consumers only need:
+#   -lOSMesa -lstdc++ -lz -lm
+cd build-ro
 rm -f libOSMesa-full.a
 { echo "CREATE libOSMesa-full.a"; echo "ADDLIB src/mesa/drivers/osmesa/libOSMesa.a"
   for a in $LIBS; do echo "ADDLIB $a"; done; echo SAVE; echo END; } | $AR -M
