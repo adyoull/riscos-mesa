@@ -11,10 +11,12 @@ V=${1:?usage: package.sh VERSION}
 mkdir -p "$HERE/dist"
 TMP=$(mktemp -d)
 cp -r "$STAGE/tests" "$TMP/riscos-mesa-tests"
+cp "$HERE/LICENCES.txt" "$TMP/riscos-mesa-tests/Licences,fff"
 rm -f "$HERE/dist/riscos-mesa-tests-$V.zip"
 ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-tests-$V.zip" riscos-mesa-tests )
 rm -rf "$TMP"
 ( cd "$STAGE/.." && tar czf "$HERE/dist/riscos-mesa-devkit-$V.tgz" \
     --transform "s#^stage#riscos-mesa-devkit-$V#" stage/lib/libOSMesa.a stage/lib/libGLU.a \
-    stage/lib/libSDL2.a stage/lib/libSDL2main.a stage/lib/libz.a stage/lib/libEGL.a stage/include )
+    stage/lib/libSDL2.a stage/lib/libSDL2main.a stage/lib/libz.a stage/lib/libEGL.a stage/include \
+    --transform "s#^LICENCES.txt#riscos-mesa-devkit-$V/LICENCES.txt#" -C "$HERE" LICENCES.txt )
 ls -la "$HERE/dist"

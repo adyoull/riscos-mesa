@@ -408,4 +408,6 @@ From the riscos-mesa benchmark at 640x480 (ms per frame): clear 1.5, lit cube 5.
 
 **A Pi 4 quirk the library works around:** small sprites (well under 1 MB) plotted repeatedly kept showing their first image, black or a frozen frame, even though their memory had changed. Window surface sprites are therefore padded to at least 1 MB with rows that are never shown. If your own code plots small sprites that change every frame, it may need the same treatment.
 
+**Licences.** Programs built with the devkit contain Mesa, UnixLib and the GCC runtime (and SDL, GLU, zlib if used). Ship `LICENCES.txt` from the devkit with them. UnixLib includes LGPL v2 code: open source programs are fine as they are; a closed source program must offer its object files so it can be relinked.
+
 Further reading: `egl/README.md` in the riscos-mesa repository, and `tests/egltest.c`, a complete example of every surface type.
