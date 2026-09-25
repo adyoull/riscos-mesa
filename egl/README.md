@@ -62,17 +62,18 @@ you get no configs.
 - The surface is the size of the screen mode. The swap waits for vsync
   (`OS_Byte 19`) as many times as the swap interval says (default 1,
   0 = don't wait).
-- **Screen banks (default):** in a 32bpp mode with the config's colour
-  order, GL renders into a screen bank that isn't being shown, and the swap
-  switches the display to it (`OS_Byte 113`). Nothing is copied and no half-drawn
-  frame is ever seen. It uses 3 banks if screen memory can be grown enough, else 2;
-  `eglQuerySurface(EGL_SCREEN_BANKS_RISCOS)` says how many. Bank contents
-  aren't preserved across swaps (`EGL_SWAP_BEHAVIOR` is
-  `EGL_BUFFER_DESTROYED`); setting `EGL_BUFFER_PRESERVED` switches to the
-  sprite method. The library puts the display back on bank 1 when the
-  surface goes (and at exit).
-- **Sprite:** without enough screen memory, or in other modes, GL renders
-  into a sprite that the swap plots at the top left.
+- **Sprite (default):** GL renders into a sprite that the swap plots at the
+  top left of the screen.
+- **Screen banks (experimental):** pass `EGL_SCREEN_BANKS_RISCOS` = 2 or 3
+  when creating the surface. In a 32bpp mode with the config's colour
+  order, GL then renders into a screen bank that isn't being shown, and the
+  swap switches the display to it (`OS_Byte 113`), with no copy. On the
+  Pi 4 this still tears (under investigation), so it's off by default.
+  `eglQuerySurface(EGL_SCREEN_BANKS_RISCOS)` says how many banks are in use (0
+  if screen memory was too small). Bank contents aren't preserved across
+  swaps (`EGL_SWAP_BEHAVIOR` is `EGL_BUFFER_DESTROYED`); setting
+  `EGL_BUFFER_PRESERVED` goes back to the sprite. The display returns to
+  bank 1 when the surface goes, and at exit.
 - **Single buffer:** with `EGL_RENDER_BUFFER` set to `EGL_SINGLE_BUFFER`, GL
   renders straight into the visible screen. Nothing is copied, but you see
   the frame as it's drawn (tearing). `eglQuerySurface(EGL_RENDER_BUFFER)`

@@ -62,17 +62,22 @@ Run in this order and note the output:
       other way) at a fixed work area position: this window has scroll
       bars, and the small view should scroll with the window's contents. Add -t N to stop after N seconds and -o file to
       save the summary.
-   c) egltest -f  (full screen over the current mode for 5 s, -t N)
-      Renders into a hidden screen bank and shows it at vsync (3 banks if
-      screen memory can grow that far, else 2): should be tear free, at
-      up to the display's refresh rate. The summary says how many banks.
-      Also try  egltest -f -v 0  (no vsync wait: maximum speed, may tear)
-      and  egltest -f -d -v 0  (draws into the visible screen: tears).
-      egl-full-fv: the same as egl-full but switching the screen bank
-      before the vsync wait. If egl-full tears and this doesn't (or the
-      other way round), that tells us when the Pi applies a bank switch.
-      Also note whether the tear line stays at one height or moves. The desktop is frozen while it runs and redrawn
-      afterwards.
+   c) Full screen over the current mode for 5 s (-t N to change). The
+      desktop is frozen while it runs and redrawn afterwards.
+      egl-full          sprite plotted after the vsync wait (default)
+      egl-full-novsync  the same without waiting (maximum speed)
+      egl-direct        draws straight into the visible screen (tears)
+      egl-banks         EXPERIMENTAL: 3 screen banks, switched at vsync
+      egl-banks-fv      the same, switching before the vsync wait
+      egl-tear          a white bar sweeping across black, plotted as
+                        egl-full: tearing shows as the bar broken sideways
+      egl-tear-banks    the same bar with 3 screen banks
+      For each: does it tear, and does the tear stay at one height or move?
+
+   d) egl-window2b: as egl-window2, but the small view has its own GL
+      context. Both window2 tests now save a line "second surface check"
+      in their results and a Sprite file "eglfx" (the small view's
+      memory): please send those.
 
 Please report: the fps figures, anything that crashes (with the error
 text), the fps in the window title, whether the scroll wheel zooms (in a window

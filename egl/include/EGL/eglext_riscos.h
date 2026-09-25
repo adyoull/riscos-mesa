@@ -27,15 +27,16 @@
  *   yourself and call eglPlotSurfaceRISCOS for each rectangle instead.
  *
  *   The native window EGL_RISCOS_SCREEN_WINDOW (-1) is the whole screen, for
- *   full screen / single tasking programs. In a 32bpp screen mode in the
- *   config's pixel order it renders straight into screen memory: by default
- *   into a hidden screen bank, shown on swap (OS_Byte 113) after the vsync
- *   wait, using 3 banks if screen memory allows, else 2 (query
- *   EGL_SCREEN_BANKS_RISCOS). Bank surfaces don't preserve their contents
- *   (EGL_SWAP_BEHAVIOR is EGL_BUFFER_DESTROYED; setting EGL_BUFFER_PRESERVED
- *   switches to plotting a sprite). EGL_RENDER_BUFFER = EGL_SINGLE_BUFFER
- *   draws into the visible bank (you see the frame being drawn). Without
- *   enough screen memory, or in other modes, a sprite is plotted on swap.
+ *   full screen / single tasking programs. By default GL renders into a
+ *   sprite that eglSwapBuffers plots after the vsync wait.
+ *   EGL_SCREEN_BANKS_RISCOS = 2 or 3 at creation (EXPERIMENTAL: tears on the
+ *   Pi 4 so far) renders into a hidden screen bank instead, shown on swap
+ *   (OS_Byte 113), in a 32bpp mode in the config's pixel order when screen
+ *   memory allows (eglQuerySurface gives the number used, 0 = none). Bank
+ *   surfaces don't preserve their contents (EGL_SWAP_BEHAVIOR is
+ *   EGL_BUFFER_DESTROYED; setting EGL_BUFFER_PRESERVED goes back to the
+ *   sprite). EGL_RENDER_BUFFER = EGL_SINGLE_BUFFER draws straight into the
+ *   visible screen (no copy; you see the frame being drawn).
  *
  *   Swap interval: full screen, eglSwapBuffers waits for vertical sync
  *   (OS_Byte 19) that many times. In a desktop window it doesn't wait
@@ -63,7 +64,7 @@ extern "C" {
 #define EGL_WORK_AREA_Y_RISCOS          0x3FF1
 #define EGL_WORK_AREA_WIDTH_RISCOS      0x3FF2
 #define EGL_WORK_AREA_HEIGHT_RISCOS     0x3FF3
-/* eglQuerySurface: screen banks a full screen surface flips between (0 = none) */
+/* Full screen: screen banks to flip between; creation (0, 2, 3) and query */
 #define EGL_SCREEN_BANKS_RISCOS         0x3FF4
 /* EXPERIMENTAL, may go: full screen banks switch before the vsync wait
    instead of after (for finding out when the display applies a switch) */

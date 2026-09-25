@@ -11,12 +11,16 @@
  *                                the title. Resize, scroll and cover it.
  *                                -r adds a second, fixed-size EGL surface at a
  *                                work area position (EGL_RISCOS_wimp_window).
- *   egltest -f [-d] [-v n] [-s fv] [-t secs] [-o file]
+ *   egltest -f [-d] [-b n] [-v n] [-s fv] [-p] [-t secs] [-o file]
  *                                full screen (native window -1) for 5 s or -t;
  *                                -d renders straight into screen memory
  *                                (EGL_SINGLE_BUFFER), -v swap interval (1),
- *                                -s fv switches screen bank before waiting
- *                                for vsync instead of after (experiment).
+ *                                -b 2|3 screen banks (experimental), -s fv
+ *                                switches bank before the vsync wait,
+ *                                -p a sweeping bar instead of the cube
+ *                                (makes tearing easy to see).
+ *   egltest -w -R                 as -r, but the second surface has its own
+ *                                GL context.
  * The desktop modes print a summary when they finish (printing while a Wimp
  * task pops up a command window); -o also writes it to a file.
  */
@@ -293,6 +297,39 @@ static void wimp_end(void)
 
 static int fx_errors;
 static EGLint fx_last_error;
+static EGLContext fx_ctx;
+
+/* Diagnostic for the work area surface: what GL thinks it drew, and what
+   is actually in the surface's memory (copied out with eglCopyBuffers into
+   a sprite, also saved as Sprite file "eglfx"). */
+static int *make_sprite_area(int w, int h, int **sprite);
+static void fx_check(EGLSurface fx)
+{
+    unsigned char px[4] = { 0, 0, 0, 0 };
+    GLint vp[4] = { 0, 0, 0, 0 };
+    int *area, *spr;
+    glFinish();
+    glReadPixels(80, 60, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+    glGetIntegerv(GL_VIEWPORT, vp);
+    say("second surface check: GL error 0x%x, viewport %d,%d %dx%d, GL reads R%02x G%02x B%02x",
+        glGetError(), vp[0], vp[1], vp[2], vp[3], px[0], px[1], px[2]);
+    area = make_sprite_area(160, 120, &spr);
+    if (area) {
+        _kernel_swi_regs r;
+        unsigned int *pix = (unsigned int *) ((char *) spr + spr[8]);
+        if (eglCopyBuffers(dpy, fx, spr))
+            say(", surface memory %08x (0x00BBGGRR)\n", pix[59 * 160 + 80]);
+        else
+            say(", eglCopyBuffers failed 0x%04x\n", eglGetError());
+        r.r[0] = 256 + 12;
+        r.r[1] = (int) area;
+        r.r[2] = (int) "eglfx";
+        _kernel_swi(OS_SpriteOp, &r, &r);
+        free(area);
+    } else {
+        say("\n");
+    }
+}
 
 /* Scroll wheel zoom (as in sdlgltest): OS_Pointer 2 gives the wheel's
    accumulated position; only used while the pointer is over our window,
@@ -366,6 +403,9 @@ static int run_window(int second, double limit)
     cfg = pick_config(EGL_WINDOW_BIT, 16);
     ctx = cfg ? eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL) : EGL_NO_CONTEXT;
     ws = cfg ? eglCreateWindowSurface(dpy, cfg, handle, NULL) : EGL_NO_SURFACE;
+    fx_ctx = ctx;
+    if (second == 2 && ctx != EGL_NO_CONTEXT)
+        fx_ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);   /* -R: its own context */
     if (second && cfg) {
         EGLint fa[] = { EGL_WORK_AREA_X_RISCOS, 32, EGL_WORK_AREA_Y_RISCOS, -32,
                         EGL_WORK_AREA_WIDTH_RISCOS, 160, EGL_WORK_AREA_HEIGHT_RISCOS, 120, EGL_NONE };
@@ -399,11 +439,13 @@ static int run_window(int second, double limit)
             if (fx != EGL_NO_SURFACE) {
                 float z = zoom;
                 zoom = 6;
-                if (!eglMakeCurrent(dpy, fx, fx, ctx)) {
+                if (!eglMakeCurrent(dpy, fx, fx, fx_ctx)) {
                     fx_errors++;
                     fx_last_error = eglGetError();
                 } else {
                     scene(160, 120, -2 * a, 0.3f, 0.1f, 0.1f);
+                    if (frames == 5)
+                        fx_check(fx);
                     if (!eglSwapBuffers(dpy, fx)) {
                         fx_errors++;
                         fx_last_error = eglGetError();
@@ -469,7 +511,7 @@ static int run_window(int second, double limit)
 /* ------------------------------------------------------------------ */
 /* Full screen mode                                                    */
 
-static int flip_first;
+static int flip_first, want_banks, pattern;
 
 static int run_fullscreen(int direct, int interval, double limit)
 {
@@ -479,7 +521,9 @@ static int run_fullscreen(int direct, int interval, double limit)
     EGLint w, h, rb, banks = 0;
     char how[64];
     EGLint attrs[] = { EGL_RENDER_BUFFER, direct ? EGL_SINGLE_BUFFER : EGL_BACK_BUFFER,
-                       EGL_FLIP_FIRST_RISCOS, flip_first, EGL_NONE };
+                       EGL_FLIP_FIRST_RISCOS, flip_first,
+                       EGL_SCREEN_BANKS_RISCOS, want_banks, EGL_NONE };
+    int bar = 0;
     double t0, t1, t2, tstart, render = 0, present = 0;
     long frames = 0;
     float a = 0;
@@ -507,7 +551,22 @@ static int run_fullscreen(int direct, int interval, double limit)
     tstart = hr_seconds();
     do {
         t0 = hr_seconds();
-        scene(w, h, a, 0.1f, 0.25f, 0.1f);
+        if (pattern) {
+            /* -p: a white bar sweeping across black. A tear shows as the
+               bar broken sideways at the tear line. */
+            glViewport(0, 0, w, h);
+            glDisable(GL_SCISSOR_TEST);
+            glClearColor(0, 0, 0, 1);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glEnable(GL_SCISSOR_TEST);
+            glScissor(bar, 0, 48, h);
+            glClearColor(1, 1, 1, 1);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glDisable(GL_SCISSOR_TEST);
+            bar = (bar + 24) % (w > 48 ? w - 48 : 1);
+        } else {
+            scene(w, h, a, 0.1f, 0.25f, 0.1f);
+        }
         glFinish();
         t1 = hr_seconds();
         eglSwapBuffers(dpy, fs);
@@ -530,7 +589,7 @@ static int run_fullscreen(int direct, int interval, double limit)
         w, h, how,
         interval, frames, t2 - tstart, frames / (t2 - tstart), 1000 * render / frames,
         1000 * present / frames);
-    if (!direct && banks == 0)
+    if (want_banks && banks == 0)
         say("  (no screen banks: not enough screen memory, or not a 32bpp mode in this colour order)\n");
     if (direct && rb != EGL_SINGLE_BUFFER)
         say("  (-d asked for direct rendering but the screen mode isn't 32bpp in this colour order)\n");
@@ -556,7 +615,10 @@ int main(int argc, char **argv)
         if (!strcmp(argv[i], "-w")) mode = 'w';
         else if (!strcmp(argv[i], "-f")) mode = 'f';
         else if (!strcmp(argv[i], "-r")) second = 1;
+        else if (!strcmp(argv[i], "-R")) second = 2;
         else if (!strcmp(argv[i], "-d")) direct = 1;
+        else if (!strcmp(argv[i], "-p")) pattern = 1;
+        else if (!strcmp(argv[i], "-b") && i + 1 < argc) want_banks = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-s") && i + 1 < argc) flip_first = !strcmp(argv[++i], "fv");
         else if (!strcmp(argv[i], "-v") && i + 1 < argc) interval = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-t") && i + 1 < argc) limit = atof(argv[++i]);
@@ -565,7 +627,7 @@ int main(int argc, char **argv)
             if (!outf) printf("can't write %s\n", argv[i]);
         } else {
             printf("usage: egltest [-o file] | -w [-r] [-t secs] [-o file] | "
-                   "-f [-d] [-v n] [-t secs] [-o file]\n");
+                   "-f [-d] [-b n] [-v n] [-s fv] [-p] [-t secs] [-o file]\n");
             return 1;
         }
     }

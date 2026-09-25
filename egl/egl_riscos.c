@@ -103,6 +103,7 @@ typedef struct egl_surface {
     int draw_bank;              /* bank being drawn (1..banks) */
     void *bank_addr[MAX_BANKS + 1];
     int no_banks;               /* don't try screen banks (failed, or preserved contents wanted) */
+    int want_banks;             /* banks asked for at creation: 0 (sprite plot), 2 or 3 */
     int flip_first;             /* experiment: switch bank before the vsync wait */
     int *area;                  /* malloc'd sprite area */
     int *sprite;                /* sprite in it */
@@ -524,7 +525,7 @@ static int setup_banks(egl_surface *surf, const screen_info *s)
     if (_kernel_swi(OS_ReadDynamicArea, &r, &r) != NULL)
         return 0;
     have = r.r[1];
-    for (n = MAX_BANKS; n >= 2; n--) {
+    for (n = surf->want_banks; n >= 2; n--) {
         if (have < n * screen_size) {
             r.r[0] = 2;
             r.r[1] = n * screen_size - have;
@@ -563,6 +564,7 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
         return fail(EGL_BAD_NATIVE_WINDOW), -1;
 
     if (surf->handle == -1 && surf->render_buffer == EGL_BACK_BUFFER && !surf->no_banks &&
+        surf->want_banks >= 2 &&
         screen_layout(s) == surf->cfg->layout && s->start != NULL &&
         (s->line_length & 3) == 0) {
         if (surf->banks && surf->bank_addr[1] == s->start && surf->w == w &&
@@ -1092,6 +1094,11 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreateWindowSurface(EGLDisplay dpy, EGLConfig c
         case EGL_VG_ALPHA_FORMAT:
             break;              /* OpenVG only, ignored */
         case EGL_FLIP_FIRST_RISCOS:       s->flip_first = (v != 0); break;
+        case EGL_SCREEN_BANKS_RISCOS:
+            if (win != -1 || v < 0 || v == 1 || v > MAX_BANKS)
+                goto bad_attr;
+            s->want_banks = v;
+            break;
         case EGL_WORK_AREA_X_RISCOS:      s->wa_x = v; break;
         case EGL_WORK_AREA_Y_RISCOS:      s->wa_y = v; break;
         case EGL_WORK_AREA_WIDTH_RISCOS:  s->w = v; have_w = 1; break;

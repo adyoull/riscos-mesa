@@ -368,7 +368,13 @@ static void test_window(void)
         int bank;
         fake_screen.da_max = 3 * 640 * 480 * 4;
         memset(fake_screen.mem, 0, 3 * 640 * 480 * 4);
+        EGLint b3[] = { EGL_SCREEN_BANKS_RISCOS, 3, EGL_NONE };
+        EGLint b2[] = { EGL_SCREEN_BANKS_RISCOS, 2, EGL_NONE };
         fs = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, NULL);
+        eglQuerySurface(dpy, fs, EGL_SCREEN_BANKS_RISCOS, &nb);
+        CHECK(nb == 0 && fake_screen.da_size == 640 * 480 * 4, "no banks unless asked for");
+        eglDestroySurface(dpy, fs);
+        fs = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, b3);
         eglQuerySurface(dpy, fs, EGL_SCREEN_BANKS_RISCOS, &nb);
         eglQuerySurface(dpy, fs, EGL_SWAP_BEHAVIOR, &sb);
         CHECK(nb == 3 && fake_screen.da_size == 3 * 640 * 480 * 4, "3 screen banks (%d), memory grown", nb);
@@ -412,9 +418,11 @@ static void test_window(void)
         /* 2 banks when that's all there is; destroying restores bank 1 */
         fake_screen.da_size = 640 * 480 * 4;
         fake_screen.da_max = 2 * 640 * 480 * 4;
-        fs = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, NULL);
+        fs = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, b3);
         eglQuerySurface(dpy, fs, EGL_SCREEN_BANKS_RISCOS, &nb);
         CHECK(nb == 2, "2 banks (%d)", nb);
+        CHECK(eglCreateWindowSurface(dpy, cfg, 0x1000, b2) == EGL_NO_SURFACE &&
+              eglGetError() == EGL_BAD_ATTRIBUTE, "banks only for the whole screen");
         eglMakeCurrent(dpy, fs, fs, ctx);
         clear(1, 0, 0);
         eglSwapBuffers(dpy, fs);
