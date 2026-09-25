@@ -7,7 +7,9 @@ source "$(dirname "$0")/env.sh"
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 cd "$SRC"
 if [ ! -d SDL-release-2.26.0 ]; then
-  curl -fsSL https://codeload.github.com/libsdl-org/SDL/tar.gz/refs/tags/release-2.26.0 | tar xz
+  fetch_verified https://codeload.github.com/libsdl-org/SDL/tar.gz/refs/tags/release-2.26.0 \
+    f38367892a6f243e8b4010e9e3d9714dc848e11b1a3f69c4af514dc6e7aca7f0 SDL-2.26.0.tgz
+  tar xzf SDL-2.26.0.tgz
   (cd SDL-release-2.26.0 && for p in "$HERE"/patches/sdl2/*.p; do patch -s -p0 < "$p"; done && ./autogen.sh)
 fi
 mkdir -p SDL-release-2.26.0/build-ro && cd SDL-release-2.26.0/build-ro

@@ -13,3 +13,21 @@ export RO_CFLAGS="-O2 -mfpu=vfpv3 -mfloat-abi=hard"
 export PKG_CONFIG_LIBDIR="$STAGE/lib/pkgconfig:$STAGE/share/pkgconfig"
 export PKG_CONFIG_SYSROOT_DIR=
 mkdir -p "$STAGE" "$SRC"
+
+# Download a source tarball and refuse to use it unless its SHA-256 matches.
+# The Mesa/SDL/zlib tarballs are GitHub-generated archives; GitHub has very
+# occasionally changed those bytes. If a check fails, compare the unpacked
+# tree with the upstream release before updating the pinned hash.
+fetch_verified() {   # url sha256 outfile
+  local url=$1 sum=$2 out=$3
+  if [ ! -f "$out" ]; then
+    curl -fsSL "$url" -o "$out.part" || { rm -f "$out.part"; return 1; }
+    mv "$out.part" "$out"
+  fi
+  if ! echo "$sum  $out" | sha256sum -c --status; then
+    echo "CHECKSUM MISMATCH for $out (from $url)" >&2
+    echo "  expected $sum" >&2
+    echo "  got      $(sha256sum "$out" | cut -d' ' -f1)" >&2
+    rm -f "$out"; return 1
+  fi
+}
