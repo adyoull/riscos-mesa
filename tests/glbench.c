@@ -4,14 +4,19 @@
  * per frame, so builds made with different compiler flags can be compared
  * on the same machine. Run from a TaskWindow; redirect to keep the result:
  *     glbench > result
- * Usage: glbench [width height seconds_per_scene [scene]]   (default 640 480 2, all)
+ * Usage: glbench [width height [seconds_per_scene [scene]]] [-o file]
+ *   defaults 640 480 2, all scenes
  *   scene: clear, cube, tex, blend, tris or glsl to run just that one.
+ *   -o file: write the results to file (and still show them). Use this
+ *            instead of "> file": UnixLib's start-up redirection has been
+ *            seen to crash in a TaskWindow.
  * If it crashes it prints the faulting address, the instruction words there
  * and the RISC OS error, so the fault can be looked up in the matching build.
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <math.h>
 #define GL_GLEXT_PROTOTYPES 1
 #include <GL/gl.h>
@@ -26,31 +31,41 @@
 
 static const char *current_scene = "start-up";
 
+/* Output goes to the screen and, with -o, also to a file. */
+static FILE *outf;
+static void out(const char *fmt, ...)
+{
+    va_list a;
+    va_start(a, fmt); vprintf(fmt, a); va_end(a);
+    if (outf) { va_start(a, fmt); vfprintf(outf, fmt, a); va_end(a); fflush(outf); }
+    fflush(stdout);
+}
+
+
 static void on_fault(int sig, siginfo_t *info, void *uctx)
 {
     unsigned int pc = info ? (unsigned int)(unsigned long)info->si_addr : 0;
     int i;
     (void)uctx;
-    printf("\n*** CRASH: signal %d (%s) in scene '%s'\n", sig,
+    out("\n*** CRASH: signal %d (%s) in scene '%s'\n", sig,
            sig == SIGILL ? "illegal instruction" : sig == SIGSEGV ? "segmentation fault" :
            sig == SIGBUS ? "bus error" : sig == SIGFPE ? "floating point" :
 #ifdef SIGEMT
            sig == SIGEMT ? "EMT: RISC OS hardware exception" :
 #endif
            "other", current_scene);
-    printf("*** fault address (pc): 0x%08x\n", pc);
+    out("*** fault address (pc): 0x%08x\n", pc);
 #ifdef __riscos__
     {
         _kernel_oserror *e = _kernel_last_oserror();
-        if (e) printf("*** RISC OS error &%08X: %s\n", (unsigned)e->errnum, e->errmess);
+        if (e) out("*** RISC OS error &%08X: %s\n", (unsigned)e->errnum, e->errmess);
     }
 #endif
     if (pc >= 0x8000 && pc < 0x10000000 && (pc & 3) == 0) {
-        printf("*** code at pc-8..pc+8:");
-        for (i = -2; i <= 2; i++) printf(" %08x", ((unsigned int *)(unsigned long)pc)[i]);
-        printf("\n");
+        out("*** code at pc-8..pc+8:");
+        for (i = -2; i <= 2; i++) out(" %08x", ((unsigned int *)(unsigned long)pc)[i]);
+        out("\n");
     }
-    fflush(stdout);
     _exit(3);
 }
 
@@ -265,7 +280,7 @@ static void run(const char *name, const char *what, void (*frame)(int))
         t = hr_seconds();
         if (t - f0 < best) best = t - f0;
     } while (t - t0 < secs || n < 5);
-    printf("%-6s %8.2f ms %8.1f fps   (best %6.2f ms)  %s\n",
+    out("%-6s %8.2f ms %8.1f fps   (best %6.2f ms)  %s\n",
            name, (t - t0) * 1000 / n, n / (t - t0), best * 1000, what);
     fflush(stdout);
 }
@@ -275,9 +290,18 @@ int main(int argc, char **argv)
     OSMesaContext ctx;
     unsigned char *buf;
     double start;
-    if (argc >= 3) { W = atoi(argv[1]); H = atoi(argv[2]); }
-    if (argc >= 4) secs = atof(argv[3]);
-    if (argc >= 5) only = argv[4];
+    {
+        int i, pos = 0;
+        for (i = 1; i < argc; i++) {
+            if (!strcmp(argv[i], "-o") && i + 1 < argc) {
+                outf = fopen(argv[++i], "w");
+                if (!outf) printf("can't write %s\n", argv[i]);
+            } else if (pos == 0) { W = atoi(argv[i]); pos++; }
+            else if (pos == 1) { H = atoi(argv[i]); pos++; }
+            else if (pos == 2) { secs = atof(argv[i]); pos++; }
+            else if (pos == 3) { only = argv[i]; pos++; }
+        }
+    }
     install_fault_reporter();
 
     ctx = OSMesaCreateContextExt(OSMESA_RGBA, 24, 8, 0, NULL);
@@ -287,7 +311,7 @@ int main(int argc, char **argv)
     }
     OSMesaPixelStore(OSMESA_Y_UP, 0);
 
-    printf("glbench: %s\n%s / %s\n%dx%d, %.1f s per scene, timer: %s\n\n",
+    out("glbench: %s\n%s / %s\n%dx%d, %.1f s per scene, timer: %s\n\n",
            VARIANT, glGetString(GL_RENDERER), glGetString(GL_VERSION), W, H, secs, hr_source());
     start = hr_seconds();
 #define WANT(n) (!only || !strcmp(only, n))
@@ -299,9 +323,9 @@ int main(int argc, char **argv)
     if (WANT("glsl"))  {
         reset_state(); current_scene = "glsl (compiling shaders)";
         if (glsl_setup())                              run("glsl",  "GLSL 1.20 per-pixel shaded cube", s_glsl);
-        else printf("glsl   shader compile failed\n");
+        else out("glsl   shader compile failed\n");
     }
-    printf("\ntotal %.1f s\n", hr_seconds() - start);
+    out("\ntotal %.1f s\n", hr_seconds() - start);
     OSMesaDestroyContext(ctx);
     return 0;
 }
