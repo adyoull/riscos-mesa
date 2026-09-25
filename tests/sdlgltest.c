@@ -4,7 +4,7 @@
  * desktop), spins a lit cube and shows the frame rate in the window title
  * (a summary is printed after it quits: printing while running would pop up
  * a command window over the desktop). Keys: F toggles full screen, Space toggles vsync,
- * Escape or closing the window quits.
+ * scroll wheel zooms the cube, Escape or closing the window quits.
  *
  * Usage: sdlgltest [width height] [-f]     (-f: start full screen)
  */
@@ -42,7 +42,7 @@ int main(int argc, char **argv)
     char title[80], glinfo[160];
     Uint32 start, total_frames = 0;
     Uint32 last;
-    float angle = 0;
+    float angle = 0, dist = 6.0f;
     SDL_Window *win;
     SDL_GLContext ctx;
     SDL_Event ev;
@@ -81,6 +81,11 @@ int main(int argc, char **argv)
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) running = 0;
             if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE) running = 0;
+            if (ev.type == SDL_MOUSEWHEEL) {
+                dist -= ev.wheel.y * 0.5f;          /* wheel away = closer */
+                if (dist < 3.0f) dist = 3.0f;
+                if (dist > 18.0f) dist = 18.0f;
+            }
             if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_f) {
                 full = !full;
                 SDL_SetWindowFullscreen(win, full ? SDL_WINDOW_FULLSCREEN : 0);
@@ -97,7 +102,7 @@ int main(int argc, char **argv)
         glFrustum(-1.0 * dw / dh, 1.0 * dw / dh, -1, 1, 2, 20);
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
-        glTranslatef(0, 0, -6);
+        glTranslatef(0, 0, -dist);
         glRotatef(angle, 1, 0, 0);
         glRotatef(angle * 0.7f, 0, 1, 0);
         angle += 2.0f;
@@ -110,8 +115,8 @@ int main(int argc, char **argv)
         frames++;
         total_frames++;
         if (SDL_GetTicks() - last >= 1000) {
-            SDL_snprintf(title, sizeof title, "sdlgltest %dx%d - %d fps%s", dw, dh, frames,
-                         vsync ? " (vsync)" : "");
+            SDL_snprintf(title, sizeof title, "sdlgltest %dx%d - %d fps%s - zoom %.1f", dw, dh, frames,
+                         vsync ? " (vsync)" : "", dist);
             SDL_SetWindowTitle(win, title);
             frames = 0;
             last = SDL_GetTicks();

@@ -1,5 +1,5 @@
 diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents.c
-index fcca470..02c0d6c 100644
+index fcca470..67555f3 100644
 --- src/video/riscos/SDL_riscosevents.c
 +++ src/video/riscos/SDL_riscosevents.c
 @@ -50,6 +50,44 @@ SDL_RISCOS_translate_keycode(int keycode)
@@ -217,7 +217,7 @@ index fcca470..02c0d6c 100644
  int
  RISCOS_InitEvents(_THIS)
  {
-@@ -165,9 +315,119 @@ RISCOS_InitEvents(_THIS)
+@@ -165,10 +315,166 @@ RISCOS_InitEvents(_THIS)
      return 0;
  }
  
@@ -327,6 +327,51 @@ index fcca470..02c0d6c 100644
 +    }
 +}
 +
++/* 2026: the scroll wheel. RISC OS 5 doesn't deliver it to us as Wimp
++   Scroll_Request events, so read it directly: OS_Pointer 2 returns the
++   accumulated position of the "alternate positioning device" (the wheel),
++   R0 = X, R1 = Y, +ve Y = wheel pushed away (scroll up). This works both
++   in a window and in full screen. */
++static int riscos_wheel_x, riscos_wheel_y;
++static SDL_bool riscos_wheel_valid = SDL_FALSE;
++
++static void
++RISCOS_PollWheel(_THIS)
++{
++    SDL_VideoData *driverdata = (SDL_VideoData *) _this->driverdata;
++    _kernel_swi_regs regs;
++    SDL_Window *window;
++    int dx, dy;
++
++    regs.r[0] = 2;
++    if (_kernel_swi(OS_Pointer, &regs, &regs) != NULL)
++        return;                         /* no wheel support in this OS */
++
++    if (!riscos_wheel_valid) {          /* first read: just take a baseline */
++        riscos_wheel_x = regs.r[0];
++        riscos_wheel_y = regs.r[1];
++        riscos_wheel_valid = SDL_TRUE;
++        return;
++    }
++    dx = regs.r[0] - riscos_wheel_x;
++    dy = regs.r[1] - riscos_wheel_y;
++    riscos_wheel_x = regs.r[0];
++    riscos_wheel_y = regs.r[1];
++    if (dx == 0 && dy == 0)
++        return;
++    /* Ignore a counter wrap or anything implausible. */
++    if (dx > 64 || dx < -64 || dy > 64 || dy < -64)
++        return;
++
++    /* Only while the pointer is over our window (always, in full screen). */
++    if (driverdata->wimp_window != 0 && !driverdata->pointer_in)
++        return;
++    window = SDL_GetMouseFocus();
++    if (window == NULL)
++        return;
++    SDL_SendMouseWheel(window, 0, (float)dx, (float)dy, SDL_MOUSEWHEEL_NORMAL);
++}
++
  void
  RISCOS_PumpEvents(_THIS)
  {
@@ -335,5 +380,7 @@ index fcca470..02c0d6c 100644
 +        RISCOS_PollWimp(_this);
 +    }
      RISCOS_PollMouse(_this);
++    RISCOS_PollWheel(_this);
      RISCOS_PollKeyboard(_this);
  }
+ 

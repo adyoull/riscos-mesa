@@ -13,6 +13,12 @@ order), used by BOTH projects:
 - OpenGL via OSMesa (`SDL_riscosopengl.[ch]` + small hooks), compiled only
   with `--enable-video-riscos-osmesa`. Without that flag the library has no
   GL code at all (checked: no GL symbols), i.e. it is the OpenTTD driver.
+- Scroll wheel (2026-09-25, from riscos-openttd commit 210ba99): read with
+  `OS_Pointer 2` on every poll and sent as `SDL_MOUSEWHEEL`, in a window
+  (while the pointer is over it) and in full screen. RISC OS 5 on the Pi
+  doesn't send Wimp `Scroll_Request` events. It's in
+  `src.video.riscos.SDL_riscosevents.c.p`; `scroll-wheel-only.diff` is the
+  same change on its own, against the previous events patch.
 - `sdl2-configure.ac.host.p`: OpenTTD's triplet fix (arm-riscos-gnueabihf
   is not Linux). `sdl2-configure.ac.osmesa.p`: the OSMesa option.
 
