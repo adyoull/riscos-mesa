@@ -4,7 +4,10 @@
  * per frame, so builds made with different compiler flags can be compared
  * on the same machine. Run from a TaskWindow; redirect to keep the result:
  *     glbench > result
- * Usage: glbench [width height seconds_per_scene]   (default 640 480 2)
+ * Usage: glbench [width height seconds_per_scene [scene]]   (default 640 480 2, all)
+ *   scene: clear, cube, tex, blend, tris or glsl to run just that one.
+ * If it crashes it prints the faulting address, the instruction words there
+ * and the RISC OS error, so the fault can be looked up in the matching build.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +18,56 @@
 #include <GL/glext.h>
 #include <GL/osmesa.h>
 #include "hrtime.h"
+#include <signal.h>
+#include <unistd.h>
+#ifdef __riscos__
+#include <kernel.h>
+#endif
+
+static const char *current_scene = "start-up";
+
+static void on_fault(int sig, siginfo_t *info, void *uctx)
+{
+    unsigned int pc = info ? (unsigned int)(unsigned long)info->si_addr : 0;
+    int i;
+    (void)uctx;
+    printf("\n*** CRASH: signal %d (%s) in scene '%s'\n", sig,
+           sig == SIGILL ? "illegal instruction" : sig == SIGSEGV ? "segmentation fault" :
+           sig == SIGBUS ? "bus error" : sig == SIGFPE ? "floating point" :
+#ifdef SIGEMT
+           sig == SIGEMT ? "EMT: RISC OS hardware exception" :
+#endif
+           "other", current_scene);
+    printf("*** fault address (pc): 0x%08x\n", pc);
+#ifdef __riscos__
+    {
+        _kernel_oserror *e = _kernel_last_oserror();
+        if (e) printf("*** RISC OS error &%08X: %s\n", (unsigned)e->errnum, e->errmess);
+    }
+#endif
+    if (pc >= 0x8000 && pc < 0x10000000 && (pc & 3) == 0) {
+        printf("*** code at pc-8..pc+8:");
+        for (i = -2; i <= 2; i++) printf(" %08x", ((unsigned int *)(unsigned long)pc)[i]);
+        printf("\n");
+    }
+    fflush(stdout);
+    _exit(3);
+}
+
+static void install_fault_reporter(void)
+{
+    struct sigaction sa;
+    memset(&sa, 0, sizeof sa);
+    sa.sa_sigaction = on_fault;
+    sa.sa_flags = SA_SIGINFO;
+    sigaction(SIGILL, &sa, NULL);
+    sigaction(SIGSEGV, &sa, NULL);
+    sigaction(SIGBUS, &sa, NULL);
+    sigaction(SIGFPE, &sa, NULL);
+#ifdef SIGEMT
+    sigaction(SIGEMT, &sa, NULL);
+#endif
+}
 
 #ifndef VARIANT
 #define VARIANT "unnamed build"
@@ -197,10 +250,13 @@ static void reset_state(void)
     glColor4f(1, 1, 1, 1);
 }
 
+static const char *only = NULL;
+
 static void run(const char *name, const char *what, void (*frame)(int))
 {
     double t0 = hr_seconds(), t, best = 1e9;
     int n = 0;
+    current_scene = name;
     frame(0); glFinish();                           /* warm-up */
     t0 = hr_seconds();
     do {
@@ -221,6 +277,8 @@ int main(int argc, char **argv)
     double start;
     if (argc >= 3) { W = atoi(argv[1]); H = atoi(argv[2]); }
     if (argc >= 4) secs = atof(argv[3]);
+    if (argc >= 5) only = argv[4];
+    install_fault_reporter();
 
     ctx = OSMesaCreateContextExt(OSMESA_RGBA, 24, 8, 0, NULL);
     buf = malloc((size_t)W * H * 4);
@@ -232,14 +290,17 @@ int main(int argc, char **argv)
     printf("glbench: %s\n%s / %s\n%dx%d, %.1f s per scene, timer: %s\n\n",
            VARIANT, glGetString(GL_RENDERER), glGetString(GL_VERSION), W, H, secs, hr_source());
     start = hr_seconds();
-    reset_state();                       run("clear",  "clear colour + depth", s_clear);
-    reset_state(); lit_setup();          run("cube",   "lit, smooth, depth-tested cube (fixed function)", s_cube);
-    reset_state(); tex_setup();          run("tex",    "full-screen bilinear textured quad", s_tex);
-    reset_state(); blend_setup();        run("blend",  "4 full-screen alpha-blended quads", s_blend);
-    reset_state(); tris_setup();         run("tris",   "12288 lit triangles via vertex arrays", s_tris);
-    reset_state();
-    if (glsl_setup())                    run("glsl",   "GLSL 1.20 per-pixel shaded cube", s_glsl);
-    else printf("glsl   shader compile failed\n");
+#define WANT(n) (!only || !strcmp(only, n))
+    if (WANT("clear")) { reset_state();                run("clear", "clear colour + depth", s_clear); }
+    if (WANT("cube"))  { reset_state(); lit_setup();   run("cube",  "lit, smooth, depth-tested cube (fixed function)", s_cube); }
+    if (WANT("tex"))   { reset_state(); tex_setup();   run("tex",   "full-screen bilinear textured quad", s_tex); }
+    if (WANT("blend")) { reset_state(); blend_setup(); run("blend", "4 full-screen alpha-blended quads", s_blend); }
+    if (WANT("tris"))  { reset_state(); tris_setup();  run("tris",  "12288 lit triangles via vertex arrays", s_tris); }
+    if (WANT("glsl"))  {
+        reset_state(); current_scene = "glsl (compiling shaders)";
+        if (glsl_setup())                              run("glsl",  "GLSL 1.20 per-pixel shaded cube", s_glsl);
+        else printf("glsl   shader compile failed\n");
+    }
     printf("\ntotal %.1f s\n", hr_seconds() - start);
     OSMesaDestroyContext(ctx);
     return 0;
