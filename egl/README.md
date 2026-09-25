@@ -19,7 +19,7 @@ full screen program, and pbuffer and pixmap use.
 | | |
 |---|---|
 | Version | EGL 1.4, with the extensions listed under [Extensions](#extensions) (sync objects, surfaceless contexts, buffer age, swap with damage, surface locking, debug callbacks, platform displays) and `EGL_RISCOS_wimp_window` |
-| Client API | `EGL_OPENGL_API`: OpenGL 2.1 compatibility profile, GLSL 1.20 (Mesa 20.3 classic swrast); a request for GL 3.x or core gives `EGL_BAD_MATCH`. `EGL_OPENGL_ES_API`: OpenGL ES 1.1 and 2.0 (see [OpenGL ES](#opengl-es)). |
+| Client API | `EGL_OPENGL_API`: OpenGL 2.1 compatibility profile, GLSL 1.20 (Mesa 20.3 classic swrast); a request for GL 3.x or core gives `EGL_BAD_MATCH`. `EGL_OPENGL_ES_API`: OpenGL ES 1.1 and 2.0 (see [OpenGL ES](#opengl-es)). The initial API is OpenGL ES, as the EGL spec says: desktop GL code calls `eglBindAPI(EGL_OPENGL_API)` first. |
 | Configs | 8: RGBA 8888 with depth/stencil 0/0, 16/0, 24/0, 24/8, in each of the two RISC OS 32bpp colour orders. The configs matching the current screen mode have the lowest IDs. Caveat `EGL_NONE`, no multisampling. |
 | Surfaces | window, pbuffer (up to 4096x4096), pixmap. All preserve their contents across swaps. |
 

@@ -12,6 +12,8 @@ mkdir -p "$HERE/dist"
 TMP=$(mktemp -d)
 cp -r "$STAGE/tests" "$TMP/riscos-mesa-tests"
 cp "$HERE/LICENCES.txt" "$TMP/riscos-mesa-tests/Licences,fff"
+# The Raspberry Pi examples rebuilt from source (build-hello-pi.sh)
+[ -d "$STAGE/hello_pi" ] && cp -r "$STAGE/hello_pi" "$TMP/riscos-mesa-tests/hello_pi"
 rm -f "$HERE/dist/riscos-mesa-tests-$V.zip"
 ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-tests-$V.zip" riscos-mesa-tests )
 rm -rf "$TMP"

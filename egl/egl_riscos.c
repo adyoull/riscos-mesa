@@ -195,7 +195,10 @@ typedef struct egl_display {
 
 static egl_display display = { MAGIC_DISPLAY, 0, {{0, 0, 0, 0}}, 0, NULL, NULL, NULL, NULL };
 static EGLint last_error = EGL_SUCCESS;
-static EGLenum bound_api = EGL_OPENGL_API;
+/* The EGL spec's initial API is OpenGL ES when it's supported (code written
+   for the Pi's Khronos stack relies on it); desktop GL code binds
+   EGL_OPENGL_API. */
+static EGLenum bound_api = EGL_OPENGL_ES_API;
 static egl_context *cur_ctx;
 static egl_surface *cur_surf;
 
@@ -1764,7 +1767,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglReleaseThread(void)
     ENTER();
     if (cur_ctx)
         eglMakeCurrent((EGLDisplay) &display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-    bound_api = EGL_OPENGL_API;
+    bound_api = EGL_OPENGL_ES_API;
     return ok();
 }
 

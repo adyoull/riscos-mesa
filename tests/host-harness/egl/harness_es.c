@@ -115,6 +115,17 @@ void test_gles(EGLDisplay dpy)
         glReadPixels(5, 5, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
         CHECK(px[0] == 0 && px[1] == 255 && glGetError() == GL_NO_ERROR, "ES 2 shader draw (%d %d %d)",
               px[0], px[1], px[2]);
+        {
+            /* Pi code (hello_triangle2) leaves out the fragment shader's
+               default float precision; the VideoCore compiler accepted
+               that, and our Mesa patch takes mediump instead of failing. */
+            const char *fs2 = "uniform vec4 col; void main() { float a = 0.5; gl_FragColor = col * a; }";
+            GLuint f2 = glCreateShader(GL_FRAGMENT_SHADER);
+            glShaderSource(f2, 1, &fs2, NULL); glCompileShader(f2);
+            glGetShaderiv(f2, GL_COMPILE_STATUS, &ok);
+            CHECK(ok, "fragment shader with no default precision compiles");
+            glDeleteShader(f2);
+        }
     }
     CHECK(eglGetCurrentContext() == c2, "current ES context");
     eglBindAPI(EGL_OPENGL_API);

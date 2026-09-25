@@ -1,0 +1,10 @@
+| !HelloTriangle: the Raspberry Pi hello_triangle example (OpenGL ES 1.1
+| through DispmanX), rebuilt from source against riscos-mesa.
+| Like the Pi original it draws over the whole screen and does not
+| multitask. Press any key to exit; the desktop is then redrawn.
+Set HelloTriangle$Dir <Obey$Dir>
+RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
+RMEnsure SharedUnixLibrary 1.16 Error !HelloTriangle needs SharedUnixLibrary 1.16 or later
+RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
+RMEnsure ARMEABISupport 0.00 Error !HelloTriangle needs ARMEABISupport
+Run <HelloTriangle$Dir>.!RunImage

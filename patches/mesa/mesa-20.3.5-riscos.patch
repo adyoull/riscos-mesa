@@ -213,3 +213,25 @@ diff -ru a/src/mesa/drivers/osmesa/osmesa.c b/src/mesa/drivers/osmesa/osmesa.c
           else
              return NULL;
           break;
+diff -ru a/src/compiler/glsl/ast_to_hir.cpp b/src/compiler/glsl/ast_to_hir.cpp
+--- a/src/compiler/glsl/ast_to_hir.cpp	2026-09-25 18:44:44.195376859 +0100
++++ b/src/compiler/glsl/ast_to_hir.cpp	2026-09-25 18:44:44.210003836 +0100
+@@ -2664,6 +2664,18 @@
+ 
+       precision =
+          state->symbols->get_default_precision_qualifier(type_name);
++      if (precision == ast_precision_none &&
++          state->stage == MESA_SHADER_FRAGMENT &&
++          strcmp(type_name, "float") == 0) {
++         /* riscos-mesa: the Raspberry Pi's VideoCore compiler accepted
++          * fragment shaders with no default float precision, and programs
++          * written for it rely on that. Precision is only a hint here:
++          * take mediump and warn instead of failing. */
++         _mesa_glsl_warning(loc, state,
++                            "No precision specified in this scope for type `%s', "
++                            "using mediump", type->name);
++         precision = ast_precision_medium;
++      }
+       if (precision == ast_precision_none) {
+          _mesa_glsl_error(loc, state,
+                           "No precision specified in this scope for type `%s'",

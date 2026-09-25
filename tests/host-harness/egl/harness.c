@@ -106,6 +106,7 @@ static void test_basics(void)
         EGLint a[] = { EGL_FRONT_BUFFER_AUTO_REFRESH_ANDROID, 1, EGL_NONE };
         CHECK(!eglChooseConfig(dpy, a, cfgs, 16, &n) && eglGetError() == EGL_BAD_ATTRIBUTE, "bad attribute");
     }
+    CHECK(eglQueryAPI() == EGL_OPENGL_ES_API, "initial API is OpenGL ES (EGL spec)");
     CHECK(!eglBindAPI(EGL_OPENVG_API) && eglGetError() == EGL_BAD_PARAMETER, "no OpenVG");
     CHECK(eglBindAPI(EGL_OPENGL_API) && eglQueryAPI() == EGL_OPENGL_API, "bind GL");
     CHECK(eglGetProcAddress("glClear") != NULL, "GetProcAddress gl");

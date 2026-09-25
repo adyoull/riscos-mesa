@@ -62,4 +62,5 @@ include it before the EGL headers, as the Pi examples do, or compile with
   ES 2.0 programs are all shaders, which are slow on the CPU.
 
 `tests/dmxtest.c` is a complete example, written the way `hello_triangle`
-is.
+is. `ports/hello_pi` has the real `hello_triangle` and `hello_triangle2`
+rebuilt from the Pi's source, with notes on porting other programs.

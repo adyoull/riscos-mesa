@@ -138,6 +138,7 @@ In the desktop you create the window yourself, pass its handle to `eglCreateWind
 ```c
 /* after Wimp_Initialise, Wimp_CreateWindow and Wimp_OpenWindow: */
 surf = eglCreateWindowSurface(dpy, cfg, window_handle, NULL);
+eglBindAPI(EGL_OPENGL_API);                /* desktop GL (the initial API is ES) */
 ctx  = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
 eglMakeCurrent(dpy, surf, surf, ctx);
 
@@ -303,7 +304,7 @@ Ask only for what you need; `eglChooseConfig` sorts the matches as the EGL spec 
 
 All configs are RGBA 8888, with no multisampling and no caveat.
 
-**Contexts.** `eglCreateContext(dpy, cfg, share, attrs)` makes an OpenGL 2.1 compatibility context. With `EGL_KHR_create_context` you can ask for a version or profile:
+**Contexts.** After `eglBindAPI(EGL_OPENGL_API)`, `eglCreateContext(dpy, cfg, share, attrs)` makes an OpenGL 2.1 compatibility context. (The initial API is OpenGL ES, as the EGL spec says: without the bind you get an ES 1.1 context.) With `EGL_KHR_create_context` you can ask for a version or profile:
 
 ```c
 static const EGLint want_21[] = {
@@ -384,6 +385,12 @@ Link with `-lbcm_host -lEGL -lOSMesa -lstdc++ -lz -lm`. Empty `libGLESv2`, `libG
 
 `tests/dmxtest.c` is a complete example; the `dmx-*` Obey files in the tests zip run it.
 
+**Programs already built for the Pi's Khronos module** (for example the GCCSDK autobuilder's `!HelloTriangle`) can't use riscos-mesa as they are: they call that module's SWIs through stub libraries linked into them. Rebuild them from source against the riscos-mesa devkit instead. `ports/hello_pi` does exactly that for `hello_triangle` (ES 1.1) and `hello_triangle2` (ES 2.0 shaders and a framebuffer object), and its README is a step-by-step porting template. The two applications are in the tests zip's `hello_pi` folder.
+
+- **Initial API:** the initial EGL API is OpenGL ES, as the EGL spec says and Pi code expects, so it doesn't need `eglBindAPI`.
+- **Precision:** fragment shaders with no default float precision compile, using mediump with a warning, as they did on the Pi.
+- **Speed:** shaders run on the CPU, so render a shader-heavy program at a reduced size and let the DispmanX source rectangle scale it up.
+
 ## Reference: RISC OS additions
 
 All of these are in `EGL/eglext_riscos.h`, under the extension name `EGL_RISCOS_wimp_window` (listed in `EGL_EXTENSIONS`). The values are provisional: they aren't registered with Khronos and may change.
@@ -428,7 +435,7 @@ Both are also available through `eglGetProcAddress` (`PFNEGLREDRAWWINDOWRISCOSPR
 | `eglSwapInterval` | 0 to 4; applies to the current surface |
 | `eglWaitClient`, `eglWaitGL` | `glFinish` |
 | `eglWaitNative` | Nothing to do (RISC OS drawing is synchronous) |
-| `eglBindAPI` | Only `EGL_OPENGL_API` succeeds |
+| `eglBindAPI` | `EGL_OPENGL_API` or `EGL_OPENGL_ES_API`. The initial API is OpenGL ES, as the EGL spec says, so desktop GL programs must call `eglBindAPI(EGL_OPENGL_API)` before creating a context |
 | `eglBindTexImage`, `eglCreatePbufferFromClientBuffer` | Not supported |
 
 ## Standard extensions
