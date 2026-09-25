@@ -16,6 +16,7 @@ spinning cube runs at about 150 fps in a desktop window.
 - SDL2 with `SDL_WINDOW_OPENGL` / `SDL_GL_CreateContext` working on RISC OS.
 
 ## Download
+Releases are numbered `<Mesa version>-riscos<n>` (first: `v20.3.5-riscos1`).
 Prebuilt test programs and a devkit (static libraries + headers) are on the
 [Releases](../../releases) page. The programs are ELF (&E1F) and need
 SharedLibs (SOManager), SharedUnixLibrary and ARMEABISupport from PackMan.
