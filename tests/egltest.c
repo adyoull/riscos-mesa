@@ -296,6 +296,9 @@ static void wimp_end(void)
 }
 
 static int plot_method;
+static int fx_x = 32, fx_y = -32, fx_w = 160, fx_h = 120;  /* -F x,y,w,h */
+static int fx_appcopy, fx_first;                             /* -A, -O */
+static int *fx_area, *fx_spr;
 static int fx_errors;
 static EGLint fx_last_error;
 static EGLContext fx_ctx;
@@ -310,16 +313,16 @@ static void fx_check(EGLSurface fx)
     GLint vp[4] = { 0, 0, 0, 0 };
     int *area, *spr;
     glFinish();
-    glReadPixels(80, 60, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+    glReadPixels(fx_w / 2, fx_h / 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
     glGetIntegerv(GL_VIEWPORT, vp);
     say("second surface check: GL error 0x%x, viewport %d,%d %dx%d, GL reads R%02x G%02x B%02x",
         glGetError(), vp[0], vp[1], vp[2], vp[3], px[0], px[1], px[2]);
-    area = make_sprite_area(160, 120, &spr);
+    area = make_sprite_area(fx_w, fx_h, &spr);
     if (area) {
         _kernel_swi_regs r;
         unsigned int *pix = (unsigned int *) ((char *) spr + spr[8]);
         if (eglCopyBuffers(dpy, fx, spr))
-            say(", surface memory %08x (0x00BBGGRR)\n", pix[59 * 160 + 80]);
+            say(", surface memory %08x (0x00BBGGRR)\n", pix[(fx_h - 1 - fx_h / 2) * fx_w + fx_w / 2]);
         else
             say(", eglCopyBuffers failed 0x%04x\n", eglGetError());
         r.r[0] = 256 + 12;
@@ -358,6 +361,35 @@ static void wheel_zoom(int handle, int second)
     if (zoom > 20) zoom = 20;
 }
 
+/* -A: copy the second surface into the test program's own sprite and plot
+   that over the same place, bypassing the library's plot. */
+static void app_plot_copy(int handle, EGLSurface fx)
+{
+    int b[16], more;
+    _kernel_swi_regs r;
+    if (!eglCopyBuffers(dpy, fx, fx_spr))
+        return;
+    b[0] = handle;
+    b[1] = fx_x; b[2] = fx_y - fx_h * 2; b[3] = fx_x + fx_w * 2; b[4] = fx_y;
+    r.r[1] = (int) b;
+    if (_kernel_swi(Wimp_UpdateWindow, &r, &r) != NULL)
+        return;
+    more = r.r[0];
+    while (more) {
+        r.r[0] = 512 + 34;
+        r.r[1] = (int) fx_area;
+        r.r[2] = (int) fx_spr;
+        r.r[3] = b[1] - b[5] + fx_x;
+        r.r[4] = b[4] - b[6] + fx_y - fx_h * 2;
+        r.r[5] = 0;
+        _kernel_swi(OS_SpriteOp, &r, &r);
+        r.r[1] = (int) b;
+        if (_kernel_swi(Wimp_GetRectangle, &r, &r) != NULL)
+            break;
+        more = r.r[0];
+    }
+}
+
 static int run_window(int second, double limit)
 {
     static char title[96] = "egltest";
@@ -365,7 +397,7 @@ static int run_window(int second, double limit)
     _kernel_swi_regs r;
     EGLConfig cfg;
     EGLContext ctx;
-    EGLSurface ws, fx = EGL_NO_SURFACE;
+    EGLSurface ws = EGL_NO_SURFACE, fx = EGL_NO_SURFACE;
     EGLint w = 0, h = 0;
     double t0, t1, t2, tstart, last_title, render = 0, present = 0;
     long frames = 0, title_frames = 0;
@@ -403,7 +435,7 @@ static int run_window(int second, double limit)
 
     cfg = pick_config(EGL_WINDOW_BIT, 16);
     ctx = cfg ? eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL) : EGL_NO_CONTEXT;
-    {
+    if (!fx_first) {
         EGLint pa[] = { EGL_PLOT_METHOD_RISCOS, plot_method, EGL_NONE };
         ws = cfg ? eglCreateWindowSurface(dpy, cfg, handle, pa) : EGL_NO_SURFACE;
     }
@@ -411,11 +443,19 @@ static int run_window(int second, double limit)
     if (second == 2 && ctx != EGL_NO_CONTEXT)
         fx_ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);   /* -R: its own context */
     if (second && cfg) {
-        EGLint fa[] = { EGL_WORK_AREA_X_RISCOS, 32, EGL_WORK_AREA_Y_RISCOS, -32,
-                        EGL_WORK_AREA_WIDTH_RISCOS, 160, EGL_WORK_AREA_HEIGHT_RISCOS, 120,
+        EGLint fa[] = { EGL_WORK_AREA_X_RISCOS, fx_x, EGL_WORK_AREA_Y_RISCOS, fx_y,
+                        EGL_WORK_AREA_WIDTH_RISCOS, fx_w, EGL_WORK_AREA_HEIGHT_RISCOS, fx_h,
                         EGL_PLOT_METHOD_RISCOS, plot_method, EGL_NONE };
         fx = eglCreateWindowSurface(dpy, cfg, handle, fa);
         if (fx == EGL_NO_SURFACE) say("work area surface failed (0x%04x)\n", eglGetError());
+        say("second surface at work area %d,%d, %dx%d%s%s\n", fx_x, fx_y, fx_w, fx_h,
+            fx_first ? ", created first" : "", fx_appcopy ? ", test program plots its own copy" : "");
+        if (fx_appcopy)
+            fx_area = make_sprite_area(fx_w, fx_h, &fx_spr);
+    }
+    if (fx_first) {
+        EGLint pa[] = { EGL_PLOT_METHOD_RISCOS, plot_method, EGL_NONE };
+        ws = cfg ? eglCreateWindowSurface(dpy, cfg, handle, pa) : EGL_NO_SURFACE;
     }
     if (ctx == EGL_NO_CONTEXT || ws == EGL_NO_SURFACE || !eglMakeCurrent(dpy, ws, ws, ctx)) {
         say("EGL window setup failed (0x%04x)\n", eglGetError());
@@ -448,13 +488,15 @@ static int run_window(int second, double limit)
                     fx_errors++;
                     fx_last_error = eglGetError();
                 } else {
-                    scene(160, 120, -2 * a, 0.3f, 0.1f, 0.1f);
+                    scene(fx_w, fx_h, -2 * a, 0.3f, 0.1f, 0.1f);
                     if (frames == 5)
                         fx_check(fx);
                     if (!eglSwapBuffers(dpy, fx)) {
                         fx_errors++;
                         fx_last_error = eglGetError();
                     }
+                    if (fx_area)
+                        app_plot_copy(handle, fx);
                 }
                 zoom = z;
                 eglMakeCurrent(dpy, ws, ws, ctx);
@@ -622,6 +664,10 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-r")) second = 1;
         else if (!strcmp(argv[i], "-R")) second = 2;
         else if (!strcmp(argv[i], "-c") && i + 1 < argc) plot_method = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "-A")) fx_appcopy = 1;
+        else if (!strcmp(argv[i], "-O")) fx_first = 1;
+        else if (!strcmp(argv[i], "-F") && i + 1 < argc)
+            sscanf(argv[++i], "%d,%d,%d,%d", &fx_x, &fx_y, &fx_w, &fx_h);
         else if (!strcmp(argv[i], "-d")) direct = 1;
         else if (!strcmp(argv[i], "-p")) pattern = 1;
         else if (!strcmp(argv[i], "-b") && i + 1 < argc) want_banks = atoi(argv[++i]);

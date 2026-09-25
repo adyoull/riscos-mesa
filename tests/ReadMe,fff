@@ -79,10 +79,14 @@ Run in this order and note the output:
       in their results and a Sprite file "eglfx" (the small view's
       memory): please send those.
 
-   e) egl-window2-c1, -c2, -c3: the small view plotted three different
-      ways (1: CPU cache range cleaned before the plot, 2: SpriteOp 52
-      instead of 34, 3: whole cache synchronised first). Which, if any,
-      shows the small cube?
+   e) The small view in egl-window2 draws correctly into its memory but
+      shows black on the Pi. These narrow it down (does the small cube
+      appear in each?):
+      egl-fx-copy    the test program copies the small view into its own
+                     sprite and plots that on top (may flicker)
+      egl-fx-first   the small view's surface is created before the main one
+      egl-fx-big     the small view 400x300 instead of 160x120
+      egl-fx-corner  the small view at the work area's top left corner
 
 Please report: the fps figures, anything that crashes (with the error
 text), the fps in the window title, whether the scroll wheel zooms (in a window
