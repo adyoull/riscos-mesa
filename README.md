@@ -1,4 +1,4 @@
-# riscos-osmesa
+# riscos-mesa
 
 Software OpenGL 2.1 for RISC OS 5: Mesa 20.3.5's classic OSMesa, GLU 9.0.1,
 and an OpenGL context for SDL 2.26's RISC OS video driver, so SDL2 + GL
