@@ -84,6 +84,14 @@ Run in this order and note the output:
       small spinning cube. (On the Pi 4 small sprites are cached between
       plots, so the library pads small surfaces' sprites to 1 MB.)
 
+   f) egl-damage: the extensions in 20.3.5-4. After the first frame only
+      the middle half of the window is redrawn and shown (buffer age and
+      swap with damage). The middle's background slowly changes colour
+      while the edges keep the first frame's blue. Compare the present
+      time in the title with egl-window. egl-check now also checks the
+      new extensions (sync objects, surfaceless contexts, surface
+      locking, the debug callback).
+
 Please report: the fps figures, anything that crashes (with the error
 text), the fps in the window title, whether the scroll wheel zooms (in a window
 and in full screen), whether the cube redraws after you drag

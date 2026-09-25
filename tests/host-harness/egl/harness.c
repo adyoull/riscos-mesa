@@ -10,9 +10,9 @@
 #include <pthread.h>
 #include <sys/mman.h>
 
+#define EGL_EGLEXT_PROTOTYPES 1
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#define EGL_EGLEXT_PROTOTYPES 1
 #include <EGL/eglext_riscos.h>
 #include <GL/gl.h>
 
@@ -130,8 +130,6 @@ static void test_pbuffer(void)
           eglGetError() == EGL_BAD_MATCH, "GL 3.3 core refused");
     ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
     CHECK(ctx != EGL_NO_CONTEXT, "context");
-    CHECK(!eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx) && eglGetError() == EGL_BAD_MATCH,
-          "surfaceless refused");
     CHECK(eglMakeCurrent(dpy, pb, pb, ctx), "make current pbuffer");
     ver = (const char *) glGetString(GL_VERSION);
     CHECK(ver && strncmp(ver, "2.1", 3) == 0, "GL 2.1 (%s)", ver ? ver : "null");
@@ -508,6 +506,423 @@ static void test_trgb_screen(void)
     CHECK(!eglMakeCurrent(dpy, ws, ws, ctx) && eglGetError() == EGL_NOT_INITIALIZED, "gone after terminate");
 }
 
+/* ------------------------------------------------------------------ */
+/* Extensions                                                          */
+
+static int dbg_calls;
+static EGLenum dbg_error;
+static const char *dbg_command;
+static EGLint dbg_type;
+static EGLLabelKHR dbg_thread, dbg_object;
+
+static void EGLAPIENTRY dbg_cb(EGLenum error, const char *command, EGLint messageType,
+                               EGLLabelKHR threadLabel, EGLLabelKHR objectLabel,
+                               const char *message)
+{
+    (void) message;
+    dbg_calls++;
+    dbg_error = error;
+    dbg_command = command;
+    dbg_type = messageType;
+    dbg_thread = threadLabel;
+    dbg_object = objectLabel;
+}
+
+static void wipe(void)
+{
+    memset(fake_screen.mem, 0, fake_screen.w * fake_screen.h * 4);
+}
+
+static void test_client_and_platform(void)
+{
+    const char *s;
+    int handle = 0x1000;
+    EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 0, EGL_WINDOW_BIT);
+    EGLSurface ws, ps;
+    EGLint w = 0;
+    int *spr = make_sprite(8, 8, 0);
+
+    s = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
+    CHECK(s && strstr(s, "EGL_EXT_platform_base") && strstr(s, "EGL_KHR_debug") &&
+          strstr(s, "EGL_RISCOS_platform_wimp") && eglGetError() == EGL_SUCCESS, "client extensions");
+    CHECK(eglQueryString(EGL_NO_DISPLAY, EGL_VENDOR) == NULL && eglGetError() == EGL_BAD_DISPLAY,
+          "other strings need a display");
+    s = eglQueryString(dpy, EGL_EXTENSIONS);
+    CHECK(s && strstr(s, "EGL_KHR_fence_sync") && strstr(s, "EGL_KHR_surfaceless_context") &&
+          !strstr(s, "EGL_EXT_platform_base"), "display extensions, without the client ones");
+
+    CHECK(eglGetPlatformDisplayEXT(EGL_PLATFORM_RISCOS, NULL, NULL) == dpy, "platform display");
+    CHECK(eglGetPlatformDisplayEXT(EGL_PLATFORM_X11_KHR, NULL, NULL) == EGL_NO_DISPLAY &&
+          eglGetError() == EGL_BAD_PARAMETER, "other platform refused");
+    CHECK(eglGetPlatformDisplayEXT(EGL_PLATFORM_RISCOS, &handle, NULL) == EGL_NO_DISPLAY &&
+          eglGetError() == EGL_BAD_PARAMETER, "non-default native display refused");
+
+    fake_open_window(0x1000, 200, 300, 400, 460, 0, 0);
+    ws = eglCreatePlatformWindowSurfaceEXT(dpy, cfg, &handle, NULL);
+    eglQuerySurface(dpy, ws, EGL_WIDTH, &w);
+    CHECK(ws != EGL_NO_SURFACE && w == 100, "platform window surface (width %d)", w);
+    CHECK(eglCreatePlatformWindowSurfaceEXT(dpy, cfg, NULL, NULL) == EGL_NO_SURFACE &&
+          eglGetError() == EGL_BAD_NATIVE_WINDOW, "NULL native window refused");
+    ps = eglCreatePlatformPixmapSurfaceEXT(dpy, cfg, spr, NULL);
+    CHECK(ps != EGL_NO_SURFACE, "platform pixmap surface");
+    eglDestroySurface(dpy, ws);
+    eglDestroySurface(dpy, ps);
+    free(spr - 4);
+
+    CHECK(eglGetProcAddress("eglCreateSyncKHR") == (__eglMustCastToProperFunctionPointerType) eglCreateSyncKHR &&
+          eglGetProcAddress("eglSwapBuffersWithDamageKHR") != NULL &&
+          eglGetProcAddress("eglLockSurfaceKHR") != NULL &&
+          eglGetProcAddress("eglDebugMessageControlKHR") != NULL &&
+          eglGetProcAddress("eglGetPlatformDisplayEXT") != NULL, "extension functions by name");
+}
+
+static void test_surfaceless_and_sync(void)
+{
+    EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 24, EGL_PBUFFER_BIT);
+    EGLint pa[] = { EGL_WIDTH, 64, EGL_HEIGHT, 32, EGL_NONE };
+    EGLint none_attr[] = { EGL_CONTEXT_RELEASE_BEHAVIOR_KHR, EGL_CONTEXT_RELEASE_BEHAVIOR_NONE_KHR, EGL_NONE };
+    EGLint bad_rel[] = { EGL_CONTEXT_RELEASE_BEHAVIOR_KHR, 7, EGL_NONE };
+    EGLContext ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL), ctx2;
+    EGLSurface pb = eglCreatePbufferSurface(dpy, cfg, pa);
+    EGLSyncKHR f, r;
+    EGLint v;
+    GLint vp[4];
+
+    /* surfaceless */
+    CHECK(eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx), "surfaceless make current");
+    CHECK(eglGetCurrentContext() == ctx && eglGetCurrentSurface(EGL_DRAW) == EGL_NO_SURFACE,
+          "context current, no surface");
+    CHECK(glGetString(GL_VERSION) != NULL, "GL usable without a surface");
+    CHECK(!eglMakeCurrent(dpy, pb, EGL_NO_SURFACE, ctx) && eglGetError() == EGL_BAD_MATCH,
+          "only one surface: BAD_MATCH");
+    CHECK(eglMakeCurrent(dpy, pb, pb, ctx), "then with a surface");
+    glGetIntegerv(GL_VIEWPORT, vp);
+    CHECK(vp[2] == 64 && vp[3] == 32, "viewport = surface after surfaceless start (%dx%d)", vp[2], vp[3]);
+
+    /* flush control */
+    ctx2 = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, none_attr);
+    CHECK(ctx2 != EGL_NO_CONTEXT, "release behaviour NONE accepted");
+    CHECK(eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, bad_rel) == EGL_NO_CONTEXT &&
+          eglGetError() == EGL_BAD_ATTRIBUTE, "bad release behaviour refused");
+    CHECK(eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx2) &&
+          eglMakeCurrent(dpy, pb, pb, ctx), "switch between them");
+
+    /* fence */
+    f = eglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, NULL);
+    CHECK(f != EGL_NO_SYNC_KHR, "fence");
+    CHECK(eglGetSyncAttribKHR(dpy, f, EGL_SYNC_STATUS_KHR, &v) && v == EGL_SIGNALED_KHR, "fence signalled");
+    CHECK(eglGetSyncAttribKHR(dpy, f, EGL_SYNC_TYPE_KHR, &v) && v == EGL_SYNC_FENCE_KHR, "fence type");
+    CHECK(eglGetSyncAttribKHR(dpy, f, EGL_SYNC_CONDITION_KHR, &v) &&
+          v == EGL_SYNC_PRIOR_COMMANDS_COMPLETE_KHR, "fence condition");
+    CHECK(eglClientWaitSyncKHR(dpy, f, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR, EGL_FOREVER_KHR) ==
+          EGL_CONDITION_SATISFIED_KHR, "wait on fence");
+    CHECK(!eglSignalSyncKHR(dpy, f, EGL_UNSIGNALED_KHR) && eglGetError() == EGL_BAD_MATCH,
+          "can't signal a fence");
+    CHECK(eglWaitSyncKHR(dpy, f, 0) == EGL_TRUE, "server wait");
+    CHECK(eglWaitSyncKHR(dpy, f, 1) == EGL_FALSE && eglGetError() == EGL_BAD_PARAMETER, "server wait flags");
+    CHECK(eglDestroySyncKHR(dpy, f), "destroy fence");
+    CHECK(!eglGetSyncAttribKHR(dpy, f, EGL_SYNC_STATUS_KHR, &v) && eglGetError() == EGL_BAD_PARAMETER,
+          "destroyed sync");
+    {
+        EGLint a[] = { EGL_SYNC_STATUS_KHR, EGL_SIGNALED_KHR, EGL_NONE };
+        CHECK(eglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, a) == EGL_NO_SYNC_KHR &&
+              eglGetError() == EGL_BAD_ATTRIBUTE, "fence attributes refused");
+    }
+    CHECK(eglCreateSyncKHR(dpy, 0x1234, NULL) == EGL_NO_SYNC_KHR && eglGetError() == EGL_BAD_ATTRIBUTE,
+          "unknown sync type");
+
+    /* reusable */
+    r = eglCreateSyncKHR(dpy, EGL_SYNC_REUSABLE_KHR, NULL);
+    CHECK(r != EGL_NO_SYNC_KHR && eglGetSyncAttribKHR(dpy, r, EGL_SYNC_STATUS_KHR, &v) &&
+          v == EGL_UNSIGNALED_KHR, "reusable starts unsignalled");
+    CHECK(eglClientWaitSyncKHR(dpy, r, 0, 1000000) == EGL_TIMEOUT_EXPIRED_KHR, "wait times out");
+    CHECK(!eglGetSyncAttribKHR(dpy, r, EGL_SYNC_CONDITION_KHR, &v) && eglGetError() == EGL_BAD_ATTRIBUTE,
+          "no condition on a reusable sync");
+    CHECK(!eglSignalSyncKHR(dpy, r, 0x1234) && eglGetError() == EGL_BAD_PARAMETER, "bad signal mode");
+    CHECK(eglSignalSyncKHR(dpy, r, EGL_SIGNALED_KHR) &&
+          eglClientWaitSyncKHR(dpy, r, 0, 0) == EGL_CONDITION_SATISFIED_KHR, "signalled: satisfied");
+
+    /* fences need a current context */
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    CHECK(eglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, NULL) == EGL_NO_SYNC_KHR &&
+          eglGetError() == EGL_BAD_MATCH, "fence without context");
+    CHECK(eglWaitSyncKHR(dpy, r, 0) == EGL_FALSE && eglGetError() == EGL_BAD_MATCH,
+          "server wait without context");
+    /* r left for eglTerminate to free */
+    eglDestroySurface(dpy, pb);
+    eglDestroyContext(dpy, ctx);
+    eglDestroyContext(dpy, ctx2);
+}
+
+static void test_damage(void)
+{
+    EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 0, EGL_WINDOW_BIT);
+    EGLContext ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+    EGLSurface ws, other, fs;
+    EGLint age = -1, calls;
+    EGLint r1[] = { 10, 10, 20, 20 };
+    EGLint r2[] = { 0, 0, 5, 5, 95, 75, 5, 5 };
+    EGLint big[4 * 20];
+    int i;
+
+    fake_open_window(0x1000, 200, 300, 400, 460, 0, 0);    /* 100x80 at pixel (100, 250) */
+    ws = eglCreateWindowSurface(dpy, cfg, 0x1000, NULL);
+    other = eglCreateWindowSurface(dpy, cfg, 0x1000, NULL);
+    eglMakeCurrent(dpy, ws, ws, ctx);
+    CHECK(!eglQuerySurface(dpy, other, EGL_BUFFER_AGE_EXT, &age) && eglGetError() == EGL_BAD_SURFACE,
+          "age only of the current surface");
+    CHECK(!eglSetDamageRegionKHR(dpy, ws, r1, 1) && eglGetError() == EGL_BAD_ACCESS,
+          "damage region needs the age asked for first");
+    CHECK(eglQuerySurface(dpy, ws, EGL_BUFFER_AGE_EXT, &age) && age == 0, "new buffer: age 0 (%d)", age);
+    clear(0, 0, 1);
+    eglSwapBuffers(dpy, ws);
+    CHECK(eglQuerySurface(dpy, ws, EGL_BUFFER_AGE_EXT, &age) && age == 1, "after a swap: age 1 (%d)", age);
+
+    /* one damaged rectangle, 10,10 20x20 from the bottom left: screen
+       pixels x 110..129, rows 250+80-30 = 300..319 */
+    wipe();
+    clear(1, 0, 0);
+    calls = fake_update_calls;
+    CHECK(eglSwapBuffersWithDamageKHR(dpy, ws, r1, 1), "swap with damage");
+    CHECK(box_is(110, 300, 20, 20, RED_TBGR), "damaged part shown");
+    CHECK(RGB(fake_screen_pixel(109, 300)) == 0 && RGB(fake_screen_pixel(110, 299)) == 0 &&
+          RGB(fake_screen_pixel(130, 319)) == 0 && RGB(fake_screen_pixel(110, 320)) == 0 &&
+          RGB(fake_screen_pixel(100, 250)) == 0, "nothing else");
+    CHECK(fake_update_calls == calls + 1, "one UpdateWindow");
+
+    /* two rectangles in opposite corners, one clipped by the surface edge */
+    wipe();
+    clear(0, 1, 0);
+    calls = fake_update_calls;
+    CHECK(eglSwapBuffersWithDamageEXT(dpy, ws, r2, 2), "EXT swap with damage");
+    CHECK(box_is(100, 325, 5, 5, GREEN) && box_is(195, 250, 5, 5, GREEN) &&
+          RGB(fake_screen_pixel(150, 290)) == 0 && fake_update_calls == calls + 2, "two corners, two updates");
+    CHECK(!eglSwapBuffersWithDamageKHR(dpy, ws, r1, -1) && eglGetError() == EGL_BAD_PARAMETER,
+          "negative count refused");
+
+    /* more than 16: their bounding box */
+    for (i = 0; i < 20; i++) {
+        big[i * 4] = 10 + i; big[i * 4 + 1] = 10; big[i * 4 + 2] = 1; big[i * 4 + 3] = 1;
+    }
+    wipe();
+    calls = fake_update_calls;
+    eglSwapBuffersWithDamageKHR(dpy, ws, big, 20);
+    CHECK(fake_update_calls == calls + 1 && box_is(110, 319, 20, 1, GREEN), "many rectangles: one box");
+
+    /* n = 0: all of it */
+    wipe();
+    eglSwapBuffersWithDamageKHR(dpy, ws, NULL, 0);
+    CHECK(box_is(100, 250, 100, 80, GREEN), "no rectangles = whole surface");
+
+    /* partial update: the damage region set for the frame is what's shown */
+    eglQuerySurface(dpy, ws, EGL_BUFFER_AGE_EXT, &age);
+    CHECK(eglSetDamageRegionKHR(dpy, ws, r1, 1), "set damage region");
+    CHECK(!eglSetDamageRegionKHR(dpy, ws, r1, 1) && eglGetError() == EGL_BAD_ACCESS, "only once a frame");
+    CHECK(!eglSetDamageRegionKHR(dpy, other, r1, 1) && eglGetError() == EGL_BAD_MATCH,
+          "only on the current surface");
+    wipe();
+    clear(1, 1, 1);
+    eglSwapBuffers(dpy, ws);
+    CHECK(box_is(110, 300, 20, 20, 0xFFFFFF) && RGB(fake_screen_pixel(100, 250)) == 0,
+          "plain swap shows the damage region");
+    CHECK(!eglSetDamageRegionKHR(dpy, ws, r1, 1) && eglGetError() == EGL_BAD_ACCESS,
+          "age must be asked again each frame");
+    wipe();
+    eglSwapBuffers(dpy, ws);
+    CHECK(box_is(100, 250, 100, 80, 0xFFFFFF), "next frame: whole surface again");
+
+    /* resize: new buffer, age 0 */
+    fake_open_window(0x1000, 200, 300, 500, 420, 0, 0);
+    eglSwapBuffers(dpy, ws);
+    CHECK(eglQuerySurface(dpy, ws, EGL_BUFFER_AGE_EXT, &age) && age == 0, "resized: age 0 (%d)", age);
+    fake_open_window(0x1000, 200, 300, 400, 460, 0, 0);
+
+    /* full screen sprite: the damaged part only, after the vsync wait */
+    fs = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, NULL);
+    eglMakeCurrent(dpy, fs, fs, ctx);
+    glViewport(0, 0, 640, 480);
+    clear(0, 1, 0);
+    eglSwapBuffers(dpy, fs);
+    wipe();
+    clear(1, 0, 0);
+    fake_vsyncs = 0;
+    {
+        EGLint r[] = { 0, 0, 10, 10 };
+        eglSwapBuffersWithDamageKHR(dpy, fs, r, 1);
+    }
+    CHECK(box_is(0, 470, 10, 10, RED_TBGR) && RGB(fake_screen_pixel(0, 469)) == 0 &&
+          RGB(fake_screen_pixel(10, 479)) == 0 && fake_vsyncs == 1, "full screen: bottom left corner only");
+    eglSwapBuffers(dpy, fs);
+    CHECK(box_is(0, 0, 640, 480, RED_TBGR), "graphics window restored afterwards");
+
+    /* screen banks: age = banks once each has been drawn */
+    eglMakeCurrent(dpy, ws, ws, ctx);
+    eglDestroySurface(dpy, fs);
+    {
+        EGLint b3[] = { EGL_SCREEN_BANKS_RISCOS, 3, EGL_NONE };
+        EGLint ages[4];
+        fake_screen.da_max = 3 * 640 * 480 * 4;
+        fs = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, b3);
+        eglMakeCurrent(dpy, fs, fs, ctx);
+        for (i = 0; i < 4; i++) {
+            eglQuerySurface(dpy, fs, EGL_BUFFER_AGE_EXT, &ages[i]);
+            eglSwapBuffers(dpy, fs);
+        }
+        CHECK(ages[0] == 0 && ages[1] == 0 && ages[2] == 0 && ages[3] == 3,
+              "3 banks: ages 0 0 0 3 (%d %d %d %d)", ages[0], ages[1], ages[2], ages[3]);
+        eglMakeCurrent(dpy, ws, ws, ctx);
+        eglDestroySurface(dpy, fs);
+        fake_screen.da_size = fake_screen.da_max = 640 * 480 * 4;
+    }
+
+    /* pbuffers have no history */
+    {
+        EGLint pa[] = { EGL_WIDTH, 8, EGL_HEIGHT, 8, EGL_NONE };
+        EGLSurface pb = eglCreatePbufferSurface(dpy, cfg, pa);
+        eglMakeCurrent(dpy, pb, pb, ctx);
+        eglSwapBuffers(dpy, pb);
+        CHECK(eglQuerySurface(dpy, pb, EGL_BUFFER_AGE_EXT, &age) && age == 0, "pbuffer age 0");
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(dpy, pb);
+    }
+    eglDestroySurface(dpy, ws);
+    eglDestroySurface(dpy, other);
+    eglDestroyContext(dpy, ctx);
+}
+
+static void test_lock(void)
+{
+    EGLConfig cfgs[16], cfg = choose(EGL_RISCOS_VISUAL_TBGR, 0, EGL_WINDOW_BIT);
+    EGLConfig trgb = choose(EGL_RISCOS_VISUAL_TRGB, 0, EGL_WINDOW_BIT);
+    EGLContext ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+    EGLSurface ws, ls;
+    EGLint n, v, pitch = 0, ptr = 0;
+    EGLAttribKHR p64 = 0;
+    int x, y;
+
+    eglGetConfigAttrib(dpy, cfg, EGL_SURFACE_TYPE, &v);
+    CHECK(v & EGL_LOCK_SURFACE_BIT_KHR, "configs are lockable");
+    eglGetConfigAttrib(dpy, cfg, EGL_MATCH_FORMAT_KHR, &v);
+    CHECK(v == EGL_FORMAT_RGBA_8888_KHR, "TBGR format RGBA_8888");
+    eglGetConfigAttrib(dpy, trgb, EGL_MATCH_FORMAT_KHR, &v);
+    CHECK(v == EGL_FORMAT_RGBA_8888_EXACT_KHR, "TRGB format RGBA_8888_EXACT (B,G,R,A bytes)");
+    {
+        EGLint a[] = { EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_MATCH_FORMAT_KHR, EGL_FORMAT_RGBA_8888_EXACT_KHR, EGL_NONE };
+        EGLint b[] = { EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_MATCH_FORMAT_KHR, EGL_FORMAT_RGBA_8888_KHR, EGL_NONE };
+        EGLint c[] = { EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_MATCH_FORMAT_KHR, EGL_NONE, EGL_NONE };
+        EGLint e = 0, f = 0, g = 0;
+        eglChooseConfig(dpy, a, cfgs, 16, &e);
+        eglChooseConfig(dpy, b, cfgs, 16, &f);
+        eglChooseConfig(dpy, c, cfgs, 16, &g);
+        CHECK(e == 4 && f == 8 && g == 0, "MATCH_FORMAT: exact 4, 8888 8, none 0 (%d %d %d)", e, f, g);
+    }
+
+    fake_open_window(0x1000, 200, 300, 400, 460, 0, 0);
+    ws = eglCreateWindowSurface(dpy, cfg, 0x1000, NULL);
+    eglMakeCurrent(dpy, ws, ws, ctx);
+    CHECK(!eglLockSurfaceKHR(dpy, ws, NULL) && eglGetError() == EGL_BAD_ACCESS, "current surface can't be locked");
+
+    ls = eglCreateWindowSurface(dpy, cfg, 0x1000, NULL);
+    CHECK(!eglQuerySurface(dpy, ls, EGL_BITMAP_POINTER_KHR, &v) && eglGetError() == EGL_BAD_ACCESS,
+          "bitmap only while locked");
+    {
+        EGLint bad[] = { EGL_WIDTH, 1, EGL_NONE };
+        CHECK(!eglLockSurfaceKHR(dpy, ls, bad) && eglGetError() == EGL_BAD_ATTRIBUTE, "lock attribute checked");
+    }
+    {
+        EGLint a[] = { EGL_MAP_PRESERVE_PIXELS_KHR, EGL_TRUE, EGL_LOCK_USAGE_HINT_KHR, EGL_WRITE_SURFACE_BIT_KHR, EGL_NONE };
+        CHECK(eglLockSurfaceKHR(dpy, ls, a), "lock");
+    }
+    CHECK(!eglLockSurfaceKHR(dpy, ls, NULL) && eglGetError() == EGL_BAD_ACCESS, "already locked");
+    eglQuerySurface(dpy, ls, EGL_BITMAP_POINTER_KHR, &ptr);
+    eglQuerySurface(dpy, ls, EGL_BITMAP_PITCH_KHR, &pitch);
+    eglQuerySurface64KHR(dpy, ls, EGL_BITMAP_POINTER_KHR, &p64);
+    CHECK(ptr != 0 && (EGLAttribKHR) ptr == p64 && pitch == 400, "pointer and pitch (%d)", pitch);
+    eglQuerySurface(dpy, ls, EGL_BITMAP_ORIGIN_KHR, &v);
+    CHECK(v == EGL_UPPER_LEFT_KHR, "origin top left");
+    eglQuerySurface(dpy, ls, EGL_BITMAP_PIXEL_RED_OFFSET_KHR, &v);
+    CHECK(v == 0, "TBGR red at bit 0");
+    eglQuerySurface(dpy, ls, EGL_BITMAP_PIXEL_BLUE_OFFSET_KHR, &v);
+    CHECK(v == 16, "TBGR blue at bit 16");
+    eglQuerySurface(dpy, ls, EGL_BITMAP_PIXEL_SIZE_KHR, &v);
+    CHECK(v == 32, "32 bits a pixel");
+    CHECK(!eglMakeCurrent(dpy, ls, ls, ctx) && eglGetError() == EGL_BAD_ACCESS, "locked can't be current");
+    CHECK(!eglSwapBuffers(dpy, ls) && eglGetError() == EGL_BAD_ACCESS, "locked can't be swapped");
+    for (y = 0; y < 80; y++)
+        for (x = 0; x < 100; x++)
+            ((unsigned int *) ((char *) (long) ptr + y * pitch))[x] = y < 40 ? RED_TBGR : GREEN;
+    CHECK(eglUnlockSurfaceKHR(dpy, ls), "unlock");
+    CHECK(!eglUnlockSurfaceKHR(dpy, ls) && eglGetError() == EGL_BAD_ACCESS, "not locked");
+    wipe();
+    CHECK(eglSwapBuffers(dpy, ls), "swap a written lockable surface without a context");
+    CHECK(box_is(100, 250, 100, 40, RED_TBGR) && box_is(100, 290, 100, 40, GREEN), "what was written is shown");
+    {
+        EGLint l[] = { EGL_NONE };
+        EGLSurface t2;
+        eglLockSurfaceKHR(dpy, ls, l);
+        eglUnlockSurfaceKHR(dpy, ls);
+        t2 = eglCreateWindowSurface(dpy, cfg, 0x1000, NULL);
+        CHECK(!eglSwapBuffers(dpy, t2) && eglGetError() == EGL_BAD_SURFACE,
+              "never-locked, non-current surface still can't be swapped");
+        eglDestroySurface(dpy, t2);
+    }
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, ws);
+    eglDestroySurface(dpy, ls);
+    eglDestroyContext(dpy, ctx);
+}
+
+static void test_debug(void)
+{
+    EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 0, EGL_PBUFFER_BIT);
+    EGLint pa[] = { EGL_WIDTH, 8, EGL_HEIGHT, 8, EGL_NONE };
+    EGLSurface pb = eglCreatePbufferSurface(dpy, cfg, pa);
+    EGLAttrib on[] = { EGL_DEBUG_MSG_WARN_KHR, EGL_TRUE, EGL_NONE };
+    EGLAttrib off[] = { EGL_DEBUG_MSG_ERROR_KHR, EGL_FALSE, EGL_NONE };
+    EGLAttrib bad[] = { EGL_WIDTH, EGL_TRUE, EGL_NONE };
+    EGLAttrib a;
+    EGLint v;
+    static int thread_tag, dpy_tag, surf_tag;
+
+    CHECK(eglQueryDebugKHR(EGL_DEBUG_MSG_ERROR_KHR, &a) && a == EGL_TRUE, "errors reported by default");
+    CHECK(eglQueryDebugKHR(EGL_DEBUG_MSG_INFO_KHR, &a) && a == EGL_FALSE, "info not by default");
+    CHECK(eglDebugMessageControlKHR(dbg_cb, on) == EGL_SUCCESS, "set callback");
+    CHECK(eglQueryDebugKHR(EGL_DEBUG_MSG_WARN_KHR, &a) && a == EGL_TRUE &&
+          eglQueryDebugKHR(EGL_DEBUG_MSG_ERROR_KHR, &a) && a == EGL_TRUE, "warn on, error unchanged");
+    CHECK(eglQueryDebugKHR(EGL_DEBUG_CALLBACK_KHR, &a) && a == (EGLAttrib) dbg_cb, "callback queried");
+    CHECK(eglDebugMessageControlKHR(dbg_cb, bad) == EGL_BAD_ATTRIBUTE, "bad message type");
+
+    CHECK(eglLabelObjectKHR(NULL, EGL_OBJECT_THREAD_KHR, NULL, &thread_tag) == EGL_SUCCESS, "label thread");
+    CHECK(eglLabelObjectKHR(dpy, EGL_OBJECT_DISPLAY_KHR, dpy, &dpy_tag) == EGL_SUCCESS, "label display");
+    CHECK(eglLabelObjectKHR(dpy, EGL_OBJECT_SURFACE_KHR, pb, &surf_tag) == EGL_SUCCESS, "label surface");
+    CHECK(eglLabelObjectKHR(dpy, EGL_OBJECT_SURFACE_KHR, (EGLObjectKHR) 0x1234, &surf_tag) == EGL_BAD_PARAMETER,
+          "label a bad surface");
+    CHECK(eglLabelObjectKHR(dpy, EGL_OBJECT_DISPLAY_KHR, (EGLObjectKHR) 0x1234, &dpy_tag) == EGL_BAD_PARAMETER,
+          "display label object must be the display");
+
+    dbg_calls = 0;
+    eglQuerySurface(dpy, pb, 0x1234, &v);
+    CHECK(dbg_calls == 1 && dbg_error == EGL_BAD_ATTRIBUTE && dbg_type == EGL_DEBUG_MSG_ERROR_KHR &&
+          dbg_command && strcmp(dbg_command, "eglQuerySurface") == 0 &&
+          dbg_thread == &thread_tag && dbg_object == &surf_tag, "error reported with command and labels (%s)",
+          dbg_command ? dbg_command : "null");
+    eglInitialize((EGLDisplay) 0x42, NULL, NULL);
+    CHECK(dbg_calls == 2 && dbg_error == EGL_BAD_DISPLAY && dbg_object == NULL &&
+          strcmp(dbg_command, "eglInitialize") == 0, "bad display reported");
+    eglGetConfigs(dpy, NULL, 0, NULL);
+    CHECK(dbg_calls == 3 && dbg_object == &dpy_tag, "display label");
+    CHECK(eglDebugMessageControlKHR(dbg_cb, off) == EGL_SUCCESS, "errors off");
+    eglQuerySurface(dpy, pb, 0x1234, &v);
+    CHECK(dbg_calls == 3 && eglGetError() == EGL_BAD_ATTRIBUTE, "not reported, still an error");
+    eglDebugMessageControlKHR(NULL, NULL);
+    {
+        EGLAttrib reset[] = { EGL_DEBUG_MSG_ERROR_KHR, EGL_TRUE, EGL_DEBUG_MSG_WARN_KHR, EGL_FALSE, EGL_NONE };
+        eglDebugMessageControlKHR(NULL, reset);
+    }
+    eglLabelObjectKHR(NULL, EGL_OBJECT_THREAD_KHR, NULL, NULL);
+    eglDestroySurface(dpy, pb);
+}
+
 static void *run(void *arg)
 {
     (void) arg;
@@ -517,6 +932,11 @@ static void *run(void *arg)
     test_pbuffer();
     test_pixmap();
     test_window();
+    test_client_and_platform();
+    test_surfaceless_and_sync();
+    test_damage();
+    test_lock();
+    test_debug();
     test_trgb_screen();
     return NULL;
 }

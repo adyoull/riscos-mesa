@@ -18,7 +18,9 @@ multitask properly (vsync, SDL_Delay and SDL_WaitEvent yield to the desktop).
 - `libEGL.a`: EGL 1.4 over OSMesa, so programs can set up GL the standard
   Khronos way: Wimp windows, full screen (optionally straight into screen
   memory), pbuffers and sprites as pixmaps. Link with
-  `-lEGL -lOSMesa -lstdc++ -lz -lm`. See the [programming guide](docs/EGL-GUIDE.md)
+  `-lEGL -lOSMesa -lstdc++ -lz -lm`. Common extensions too: sync objects,
+  surfaceless contexts, buffer age, swap with damage, partial update,
+  surface locking, debug callbacks, platform displays. See the [programming guide](docs/EGL-GUIDE.md)
   and [egl/README.md](egl/README.md).
 
 ## Download
@@ -71,9 +73,9 @@ bison, flex, autoconf, automake, libtool.
 | `prof` | which GL versions/profiles are granted |
 | `glutest` | GLU links and draws |
 | `sdlgltest [w h] [-f]` | SDL2 GL desktop window, spinning cube, fps in title; F full screen, Space vsync |
-| `egltest [-w [-r] \| -f [-d]]` | EGL: checks (pbuffer, sprite pixmap, errors), desktop window (+ work area surface), full screen (+ direct) |
+| `egltest [-w [-r] [-D] \| -f [-d]]` | EGL: checks (pbuffer, sprite pixmap, extensions, errors), desktop window (+ work area surface, + damage demo), full screen (+ direct) |
 | `tests/host-harness` | runs the SDL GL glue on Linux with emulated SWIs |
-| `tests/host-harness/egl` | runs the EGL library on Linux against a fake Wimp and screen (108 checks) |
+| `tests/host-harness/egl` | runs the EGL library on Linux against a fake Wimp and screen (206 checks) |
 
 ## Licences
 This project (EGL library, SDL overlay changes, patches, scripts, tests,

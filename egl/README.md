@@ -5,7 +5,9 @@ OpenGL through the standard Khronos window-system API instead of calling
 OSMesa directly. The code that creates the context and surfaces is then the
 same code a future hardware driver (or a shared module) would serve.
 
+    #define EGL_EGLEXT_PROTOTYPES 1        /* to call extension functions directly */
     #include <EGL/egl.h>
+    #include <EGL/eglext.h>
     #include <EGL/eglext_riscos.h>   /* RISC OS additions */
     #include <GL/gl.h>
     link: -lEGL -lOSMesa -lstdc++ -lz -lm      (compile with -fstack-clash-protection)
@@ -16,7 +18,7 @@ full screen program, and pbuffer and pixmap use.
 ## What it provides
 | | |
 |---|---|
-| Version | EGL 1.4, with `EGL_KHR_create_context`, `EGL_KHR_get_all_proc_addresses` and `EGL_RISCOS_wimp_window` |
+| Version | EGL 1.4, with the extensions listed under [Extensions](#extensions) (sync objects, surfaceless contexts, buffer age, swap with damage, surface locking, debug callbacks, platform displays) and `EGL_RISCOS_wimp_window` |
 | Client API | `EGL_OPENGL_API` only: OpenGL 2.1 compatibility profile, GLSL 1.20 (Mesa 20.3 classic swrast). A request for GL 3.x or core gives `EGL_BAD_MATCH`. `eglBindAPI(EGL_OPENGL_ES_API)` fails for now. |
 | Configs | 8: RGBA 8888 with depth/stencil 0/0, 16/0, 24/0, 24/8, in each of the two RISC OS 32bpp colour orders. The configs matching the current screen mode have the lowest IDs. Caveat `EGL_NONE`, no multisampling. |
 | Surfaces | window, pbuffer (up to 4096x4096), pixmap. All preserve their contents across swaps. |
@@ -100,12 +102,38 @@ If a window surface's order matches the screen, the plot is a straight copy.
 Otherwise SpriteExtend converts it. Screen modes below 16M colours work
 through SpriteExtend too, but haven't been tested.
 
+## Extensions
+
+`eglQueryString(dpy, EGL_EXTENSIONS)` lists the display extensions below;
+`eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS)` lists the client ones.
+Every function is also returned by `eglGetProcAddress`. To call them
+directly, `#define EGL_EGLEXT_PROTOTYPES 1` before including `EGL/egl.h`
+and include `EGL/eglext.h`.
+
+| Extension | What it does here |
+| --- | --- |
+| `EGL_KHR_create_context` | GL version, profile and flags when creating a context (2.1 compatibility is what you get) |
+| `EGL_KHR_get_all_proc_addresses`, `EGL_KHR_client_get_all_proc_addresses` | `eglGetProcAddress` returns core functions as well |
+| `EGL_KHR_surfaceless_context` | `eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx)` works: for loading textures or rendering to framebuffer objects without a window. Giving just one of draw and read is `EGL_BAD_MATCH` |
+| `EGL_KHR_fence_sync`, `EGL_KHR_reusable_sync`, `EGL_KHR_wait_sync` | Sync objects. GL runs on the CPU, in order, so a fence is signalled as soon as it's created (the library calls `glFinish`). With one thread nothing can signal a reusable sync while `eglClientWaitSyncKHR` waits, so an unsignalled one returns `EGL_TIMEOUT_EXPIRED_KHR` at once, whatever the timeout |
+| `EGL_EXT_buffer_age` | `eglQuerySurface(..., EGL_BUFFER_AGE_EXT, ...)` on the current surface: 0 = contents unknown (first frame, or the surface was just resized or the mode changed), 1 = the buffer still holds the previous frame (window sprites, full screen sprite, direct rendering), N = the frame from N swaps ago (N screen banks). Pbuffers and pixmaps: 0 |
+| `EGL_KHR_swap_buffers_with_damage`, `EGL_EXT_swap_buffers_with_damage` | `eglSwapBuffersWithDamageKHR(dpy, surf, rects, n)`, rectangles x, y, w, h in pixels from the bottom left. In a window only those parts are updated (one `Wimp_UpdateWindow` each; more than 16 become their bounding box); full screen only those parts are plotted after the vsync wait. Screen banks and direct rendering show the whole frame. `n` = 0 is a normal swap |
+| `EGL_KHR_partial_update` | After querying the buffer age, `eglSetDamageRegionKHR` says which parts of the surface this frame will change; the next `eglSwapBuffers` then shows only those |
+| `EGL_KHR_lock_surface`, `2`, `3` | `eglLockSurfaceKHR` gives direct access to a surface's pixels (a surface that isn't current): query `EGL_BITMAP_POINTER_KHR`, `EGL_BITMAP_PITCH_KHR` (bytes), origin (always `EGL_UPPER_LEFT_KHR`) and the pixel offsets (red at 0, blue at 16 for 0x00BBGGRR configs; the other way round for 0x00RRGGBB), `eglQuerySurface64KHR` for the pointer as an `EGLAttribKHR`. A locked surface can't be made current or swapped. After `eglUnlockSurfaceKHR`, `eglSwapBuffers` shows a window surface written this way even though no context is current to it. `EGL_MATCH_FORMAT_KHR`: 0x00RRGGBB configs are `EGL_FORMAT_RGBA_8888_EXACT_KHR` (B, G, R, A bytes), 0x00BBGGRR ones `EGL_FORMAT_RGBA_8888_KHR` |
+| `EGL_KHR_context_flush_control` | `EGL_CONTEXT_RELEASE_BEHAVIOR_KHR` = `EGL_CONTEXT_RELEASE_BEHAVIOR_NONE_KHR` skips the flush when a context stops being current |
+| `EGL_KHR_debug` | `eglDebugMessageControlKHR` sets a callback that gets every EGL error with the function name and object labels (`eglLabelObjectKHR`); `eglQueryDebugKHR` reads the settings. Errors and critical messages are on by default |
+| `EGL_EXT_client_extensions`, `EGL_EXT_platform_base`, `EGL_RISCOS_platform_wimp` | `eglGetPlatformDisplayEXT(EGL_PLATFORM_RISCOS, NULL, NULL)`. For `eglCreatePlatformWindowSurfaceEXT` the native window is a *pointer to* an int holding the Wimp handle (or -1); for `eglCreatePlatformPixmapSurfaceEXT` it's the sprite pointer. `EGL_PLATFORM_RISCOS` is provisional |
+| `EGL_RISCOS_wimp_window` | The RISC OS native types, work area surfaces, full screen options and redraw helpers (above) |
+
+`egltest -w -D` (Obey file `egl-damage`) is a small example of buffer age
+with swap with damage.
+
 ## Limits
 - Not thread safe: make all EGL and GL calls from one thread.
 - OSMesa can't un-bind a context. After releasing with `eglMakeCurrent(dpy,
   EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT)`, don't make GL calls.
-- The draw and read surfaces must be the same. No surfaceless contexts, no
-  bind-to-texture, no OpenVG, no EGL 1.5 sync objects.
+- The draw and read surfaces must be the same. No bind-to-texture, no
+  OpenVG, no EGL 1.5 entry points (the KHR sync extensions are there).
 - The enum values and function names of `EGL_RISCOS_wimp_window` are
   provisional: they aren't registered with Khronos.
 

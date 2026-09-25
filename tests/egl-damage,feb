@@ -1,0 +1,5 @@
+| riscos-mesa EGL test: double-click to run. Results are also saved in this directory.
+| Damage demo: only the middle of the window is redrawn after the first frame, so
+| its background changes colour while the edges keep the first colour.
+Dir <Obey$Dir>
+Run egltest -w -D -o egldamage

@@ -21,6 +21,11 @@
  *                                (makes tearing easy to see).
  *   egltest -w -R                 as -r, but the second surface has its own
  *                                GL context.
+ *   egltest -w -D                 damage demo: after the first frame only the
+ *                                middle of the window is redrawn and shown
+ *                                (EGL_EXT_buffer_age and
+ *                                eglSwapBuffersWithDamageKHR). Its background
+ *                                changes colour; the edges keep the first one.
  * The desktop modes print a summary when they finish (printing while a Wimp
  * task pops up a command window); -o also writes it to a file.
  */
@@ -31,9 +36,9 @@
 #include <kernel.h>
 #include <swis.h>
 
+#define EGL_EGLEXT_PROTOTYPES 1
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#define EGL_EGLEXT_PROTOTYPES 1
 #include <EGL/eglext_riscos.h>
 #include <GL/gl.h>
 
@@ -170,6 +175,18 @@ static int *make_sprite_area(int w, int h, int **sprite)
     return area;
 }
 
+static int debug_hits;
+static const char *debug_cmd;
+
+static void EGLAPIENTRY debug_cb(EGLenum error, const char *command, EGLint type,
+                                 EGLLabelKHR thread, EGLLabelKHR object, const char *message)
+{
+    (void) error; (void) type; (void) thread; (void) object;
+    debug_hits++;
+    debug_cmd = command;
+    say("  (debug callback: %s: %s)\n", command, message);
+}
+
 static int run_checks(void)
 {
     EGLConfig cfgs[16], cfg;
@@ -244,6 +261,49 @@ static int run_checks(void)
         CHECK(eglDestroySurface(dpy, ps), "destroy pixmap surface");
     }
 
+    /* extensions */
+    s = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
+    say("client extensions %s\n", s ? s : "(null)");
+    CHECK(s && strstr(s, "EGL_EXT_platform_base"), "client extensions");
+    CHECK(eglGetPlatformDisplayEXT(EGL_PLATFORM_RISCOS, NULL, NULL) == dpy, "platform display");
+    CHECK(eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx) &&
+          eglGetCurrentSurface(EGL_DRAW) == EGL_NO_SURFACE, "surfaceless context");
+    CHECK(eglMakeCurrent(dpy, pb, pb, ctx), "back to the pbuffer");
+    {
+        EGLSyncKHR f = eglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, NULL);
+        EGLSyncKHR y = eglCreateSyncKHR(dpy, EGL_SYNC_REUSABLE_KHR, NULL);
+        CHECK(f != EGL_NO_SYNC_KHR && eglClientWaitSyncKHR(dpy, f, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR,
+              EGL_FOREVER_KHR) == EGL_CONDITION_SATISFIED_KHR, "fence sync");
+        CHECK(y != EGL_NO_SYNC_KHR && eglClientWaitSyncKHR(dpy, y, 0, 0) == EGL_TIMEOUT_EXPIRED_KHR &&
+              eglSignalSyncKHR(dpy, y, EGL_SIGNALED_KHR) &&
+              eglClientWaitSyncKHR(dpy, y, 0, 0) == EGL_CONDITION_SATISFIED_KHR, "reusable sync");
+        eglDestroySyncKHR(dpy, f);
+        eglDestroySyncKHR(dpy, y);
+    }
+    {
+        EGLint age = -1;
+        CHECK(eglQuerySurface(dpy, pb, EGL_BUFFER_AGE_EXT, &age) && age == 0, "buffer age of a pbuffer = 0");
+    }
+    if (area) {
+        EGLSurface ls = eglCreatePixmapSurface(dpy, cfg, spr, NULL);
+        EGLint ptr = 0, pitch = 0;
+        CHECK(ls != EGL_NO_SURFACE && eglLockSurfaceKHR(dpy, ls, NULL), "lock a pixmap surface");
+        eglQuerySurface(dpy, ls, EGL_BITMAP_POINTER_KHR, &ptr);
+        eglQuerySurface(dpy, ls, EGL_BITMAP_PITCH_KHR, &pitch);
+        CHECK(ptr == (EGLint) ((char *) spr + spr[8]) && pitch == 96 * 4, "bitmap = the sprite's pixels");
+        CHECK(eglUnlockSurfaceKHR(dpy, ls) && eglDestroySurface(dpy, ls), "unlock");
+    }
+    {
+        EGLAttrib on[] = { EGL_DEBUG_MSG_ERROR_KHR, EGL_TRUE, EGL_NONE };
+        EGLint v1;
+        debug_hits = 0;
+        CHECK(eglDebugMessageControlKHR(debug_cb, on) == EGL_SUCCESS, "debug callback set");
+        eglQuerySurface(dpy, pb, 0x1234, &v1);
+        CHECK(debug_hits == 1 && debug_cmd && !strcmp(debug_cmd, "eglQuerySurface"), "debug callback called");
+        eglDebugMessageControlKHR(NULL, NULL);
+        eglGetError();
+    }
+
     /* error cases */
     CHECK(!eglBindAPI(EGL_OPENGL_ES_API) && eglGetError() == EGL_BAD_PARAMETER, "GLES refused (not yet)");
     {
@@ -297,6 +357,7 @@ static void wimp_end(void)
 
 static int fx_x = 32, fx_y = -32, fx_w = 160, fx_h = 120;  /* -F x,y,w,h */
 static int fx_appcopy, fx_first;                             /* -A, -O */
+static int damage_demo;                                       /* -D */
 static int *fx_area, *fx_spr;
 static int fx_errors;
 static EGLint fx_last_error;
@@ -473,10 +534,31 @@ static int run_window(int second, double limit)
             eglQuerySurface(dpy, ws, EGL_WIDTH, &w);
             eglQuerySurface(dpy, ws, EGL_HEIGHT, &h);
             t0 = hr_seconds();
-            scene(w, h, a, 0.1f, 0.1f, 0.25f);
-            glFinish();
-            t1 = hr_seconds();
-            eglSwapBuffers(dpy, ws);
+            if (damage_demo) {
+                /* Buffer age 1 = the buffer still holds the last frame:
+                   redraw and show only the middle. */
+                EGLint age = 0, rect[4];
+                float c = (frames % 120) / 120.0f;
+                eglQuerySurface(dpy, ws, EGL_BUFFER_AGE_EXT, &age);
+                rect[0] = w / 4; rect[1] = h / 4; rect[2] = w / 2; rect[3] = h / 2;
+                if (age == 1) {
+                    glEnable(GL_SCISSOR_TEST);
+                    glScissor(rect[0], rect[1], rect[2], rect[3]);
+                }
+                scene(w, h, a, 0.1f + 0.4f * c, 0.1f, 0.45f - 0.4f * c);
+                glDisable(GL_SCISSOR_TEST);
+                glFinish();
+                t1 = hr_seconds();
+                if (age == 1)
+                    eglSwapBuffersWithDamageKHR(dpy, ws, rect, 1);
+                else
+                    eglSwapBuffers(dpy, ws);
+            } else {
+                scene(w, h, a, 0.1f, 0.1f, 0.25f);
+                glFinish();
+                t1 = hr_seconds();
+                eglSwapBuffers(dpy, ws);
+            }
             if (fx != EGL_NO_SURFACE) {
                 float z = zoom;
                 zoom = 6;
@@ -661,6 +743,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-R")) second = 2;
         else if (!strcmp(argv[i], "-A")) fx_appcopy = 1;
         else if (!strcmp(argv[i], "-O")) fx_first = 1;
+        else if (!strcmp(argv[i], "-D")) damage_demo = 1;
         else if (!strcmp(argv[i], "-F") && i + 1 < argc)
             sscanf(argv[++i], "%d,%d,%d,%d", &fx_x, &fx_y, &fx_w, &fx_h);
         else if (!strcmp(argv[i], "-d")) direct = 1;
@@ -673,7 +756,7 @@ int main(int argc, char **argv)
             outf = fopen(argv[++i], "w");
             if (!outf) printf("can't write %s\n", argv[i]);
         } else {
-            printf("usage: egltest [-o file] | -w [-r] [-t secs] [-o file] | "
+            printf("usage: egltest [-o file] | -w [-r|-R] [-D] [-t secs] [-o file] | "
                    "-f [-d] [-b n] [-v n] [-s fv] [-p] [-t secs] [-o file]\n");
             return 1;
         }

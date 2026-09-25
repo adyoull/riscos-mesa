@@ -6,7 +6,9 @@ mode/VDU variables and OS_Byte 19. It checks configs and their sort order,
 pbuffer and pixmap (sprite) rendering, where window surfaces land on the
 screen (scrolling, resizing, work area surfaces, the redraw helper), full
 screen double-buffered and direct, both colour orders, errors and deferred
-destruction.
+destruction, and the extensions: client and platform display calls,
+surfaceless contexts, sync objects, buffer age, swap with damage (window
+and full screen), partial update, surface locking and the debug callback.
 
 Pointers pass through 32-bit SWI registers as on RISC OS, so everything
 must stay below 2 GB. That's why it's built with -no-pie, malloc is kept on the brk
@@ -21,4 +23,4 @@ heap in one arena, and the tests run on a thread whose stack is at 1.5 GB.
       harness.c fake_riscos.c ../../../egl/egl_riscos.c -o harness \
       -L$O -lOSMesa -lpthread -Wl,-rpath,$O && ./harness
 
-Expected: `108 checks, 0 failures: ALL PASS`.
+Expected: `206 checks, 0 failures: ALL PASS`.

@@ -84,6 +84,20 @@ EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS (EGLDisplay dpy, EGLSurface s
 
 #endif /* EGL_RISCOS_wimp_window */
 
+/*
+ * EGL_RISCOS_platform_wimp (client extension, needs EGL_EXT_platform_base)
+ *   eglGetPlatformDisplayEXT(EGL_PLATFORM_RISCOS, NULL, NULL) gives the same
+ *   display as eglGetDisplay(EGL_DEFAULT_DISPLAY); native_display must be
+ *   NULL. For eglCreatePlatformWindowSurfaceEXT native_window points to an
+ *   int holding the Wimp window handle (or -1 for the whole screen). For
+ *   eglCreatePlatformPixmapSurfaceEXT native_pixmap is the sprite pointer,
+ *   as for eglCreatePixmapSurface.
+ */
+#ifndef EGL_RISCOS_platform_wimp
+#define EGL_RISCOS_platform_wimp 1
+#define EGL_PLATFORM_RISCOS             0x3FF5
+#endif /* EGL_RISCOS_platform_wimp */
+
 #ifdef __cplusplus
 }
 #endif
