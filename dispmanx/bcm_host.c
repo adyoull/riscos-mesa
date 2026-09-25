@@ -8,6 +8,16 @@
  * there on each eglSwapBuffers, scaled from the source rectangle to the
  * destination. Removing an element (or exiting) redraws the desktop under
  * it. Layers, opacity, transforms and resources aren't supported.
+ *
+ * Window mode (the default in the desktop): the "display" is a desktop
+ * window rather than the screen. graphics_get_display_size reports the
+ * window's size (640 pixels wide unless set otherwise), so the program
+ * renders that many pixels, and libEGL plots its elements into the window.
+ * The library is a Wimp task: it polls the Wimp after each eglSwapBuffers,
+ * so the program multitasks, and closing the window ends the program.
+ * <App>$Display (App: the program's application directory, e.g.
+ * HelloTeapot) or DispmanX$Display chooses: "full" = the whole screen as on
+ * the Pi; "WxH" or "W" = a window of that size.
  */
 #include <stdlib.h>
 #include <string.h>
@@ -19,12 +29,19 @@
 #include <EGL/egl.h>
 #include "EGL/eglext_brcm.h"
 #include "riscos_dispmanx.h"
+#define EGL_EGLEXT_PROTOTYPES 1
+#include <EGL/eglext_riscos.h>
+#include <stdio.h>
+#include <unixlib/local.h>
 
 #ifndef OS_ValidateAddress
 #define OS_ValidateAddress 0x3A
 #endif
 #ifndef Wimp_ForceRedraw
 #define Wimp_ForceRedraw 0x400D1
+#endif
+#ifndef Wimp_ReadSysInfo
+#define Wimp_ReadSysInfo 0x400F2
 #endif
 
 #define MAX_ELEMENTS 16
@@ -43,6 +60,17 @@ typedef struct {
 static element elements[MAX_ELEMENTS];
 static uint32_t next_update = 1;
 static int atexit_done;
+
+/* Window mode (see the top of the file). */
+#define DEFAULT_WINDOW_WIDTH 640
+static int mode_chosen;
+static int wimp_task, wimp_window;   /* 0 = full screen mode */
+static int disp_w, disp_h;           /* the display (the window), pixels */
+static int wscale = 1;               /* 2 in EX0 EY0 modes, as a 90 dpi mode shows it */
+static int closing;
+static char app_name[64];
+static char win_title[80];
+static void finish_window(void);
 
 static void screen_size(int *w, int *h, int *xeig, int *yeig)
 {
@@ -67,6 +95,15 @@ static void uncover(const element *e)
     if (e->dst.width <= 0 || e->dst.height <= 0)
         return;
     screen_size(&sw, &sh, &xe, &ye);
+    if (wimp_window) {                  /* window mode: clear that part of the window */
+        r.r[0] = wimp_window;
+        r.r[1] = (e->dst.x * wscale) << xe;
+        r.r[2] = -(((e->dst.y + e->dst.height) * wscale) << ye);
+        r.r[3] = ((e->dst.x + e->dst.width) * wscale) << xe;
+        r.r[4] = -((e->dst.y * wscale) << ye);
+        _kernel_swi(Wimp_ForceRedraw, &r, &r);
+        return;
+    }
     r.r[0] = -1;
     r.r[1] = e->dst.x << xe;
     r.r[2] = (sh - e->dst.y - e->dst.height) << ye;
@@ -78,11 +115,13 @@ static void uncover(const element *e)
 static void remove_all(void)
 {
     int i;
+    closing = 1;
     for (i = 0; i < MAX_ELEMENTS; i++)
         if (elements[i].used) {
             uncover(&elements[i]);
             elements[i].used = 0;
         }
+    finish_window();
 }
 
 static void setup_atexit(void)
@@ -90,6 +129,130 @@ static void setup_atexit(void)
     if (!atexit_done) {
         atexit(remove_all);         /* never leave the desktop painted over */
         atexit_done = 1;
+    }
+}
+
+/* The program's name, from its application directory (...!HelloTeapot.x). */
+extern char *program_invocation_name;
+static void find_app_name(void)
+{
+    char ro[256], canon[256], *leaf, *end;
+    const char *path = program_invocation_name;
+    _kernel_swi_regs r;
+
+    strcpy(app_name, "DispmanX");
+    if (!path || !*path)
+        return;
+    if (strchr(path, '/') && __riscosify_std(path, 0, ro, sizeof ro, NULL))
+        path = ro;
+    r.r[0] = 37; r.r[1] = (int) path; r.r[2] = (int) canon;
+    r.r[3] = 0; r.r[4] = 0; r.r[5] = sizeof canon;
+    if (_kernel_swi(OS_FSControl, &r, &r) != NULL)
+        return;
+    if (!(end = strrchr(canon, '.')))
+        return;
+    *end = 0;
+    leaf = strrchr(canon, '.');
+    leaf = leaf ? leaf + 1 : canon;
+    if (leaf[0] == '!' && leaf[1])
+        snprintf(app_name, sizeof app_name, "%s", leaf + 1);
+}
+
+static void finish_window(void)
+{
+    _kernel_swi_regs r;
+    int block[1];
+    if (wimp_window) {
+        block[0] = wimp_window;
+        r.r[1] = (int) block;
+        _kernel_swi(Wimp_DeleteWindow, &r, &r);
+        wimp_window = 0;
+    }
+    if (wimp_task) {
+        r.r[0] = wimp_task;
+        r.r[1] = 0x4B534154;                     /* "TASK" */
+        _kernel_swi(Wimp_CloseDown, &r, &r);
+        wimp_task = 0;
+    }
+}
+
+/* Decide between window mode and full screen, once. */
+static void choose_mode(void)
+{
+    static const int messages[] = { 0 };
+    char var[80], val[32];
+    const char *v;
+    int sw, sh, xe, ye, w = DEFAULT_WINDOW_WIDTH, h = 0, wb[23], block[8];
+    _kernel_swi_regs r;
+
+    if (mode_chosen)
+        return;
+    mode_chosen = 1;
+    find_app_name();
+    snprintf(var, sizeof var, "%s$Display", app_name);
+    v = getenv(var);
+    if (!v || !*v)
+        v = getenv("DispmanX$Display");
+    if (v && *v) {
+        snprintf(val, sizeof val, "%s", v);
+        if (strncmp(val, "full", 4) == 0 || strncmp(val, "Full", 4) == 0)
+            return;                                  /* the whole screen, as on the Pi */
+        w = atoi(val);
+        if (strchr(val, 'x')) h = atoi(strchr(val, 'x') + 1);
+        if (w < 16) w = DEFAULT_WINDOW_WIDTH;
+    }
+    /* Only in the desktop: outside it, the whole screen. */
+    r.r[0] = 0;
+    if (_kernel_swi(Wimp_ReadSysInfo, &r, &r) != NULL || r.r[0] == 0)
+        return;
+    screen_size(&sw, &sh, &xe, &ye);
+    if (w > sw) w = sw;
+    if (h <= 0) h = w * sh / sw;                     /* the screen's shape */
+    if (h > sh - 64) h = sh - 64;
+    wscale = (xe == 0 && ye == 0 && 2 * w <= sw && 2 * h <= sh - 64) ? 2 : 1;
+    r.r[0] = 380; r.r[1] = 0x4B534154; r.r[2] = (int) app_name; r.r[3] = (int) messages;
+    if (_kernel_swi(Wimp_Initialise, &r, &r) != NULL)
+        return;
+    wimp_task = r.r[1];
+
+    snprintf(win_title, sizeof win_title, "%s", app_name);
+    memset(wb, 0, sizeof wb);
+    {
+        int ow = (w * wscale) << xe, oh = (h * wscale) << ye;
+        int x0 = ((sw << xe) - ow) / 2, y0 = ((sh << ye) - oh) / 2;
+        wb[0] = x0; wb[1] = y0; wb[2] = x0 + ow; wb[3] = y0 + oh;
+        wb[10] = 0; wb[11] = -oh; wb[12] = ow; wb[13] = 0;   /* work area = the display */
+    }
+    wb[6] = -1;
+    wb[7] = (int) 0x87000002u;                   /* moveable; back, close, title */
+    wb[8] = 7 | (2 << 8) | (7 << 16) | (0 << 24);  /* work area background black */
+    wb[9] = 3 | (1 << 8) | (12 << 16);
+    wb[14] = 0x07000119;                         /* indirected text title */
+    wb[16] = 1;
+    wb[18] = (int) win_title; wb[19] = -1; wb[20] = sizeof win_title;
+    r.r[1] = (int) wb;
+    if (_kernel_swi(Wimp_CreateWindow, &r, &r) != NULL) {
+        finish_window();
+        return;
+    }
+    wimp_window = r.r[0];
+    block[0] = wimp_window;
+    memcpy(&block[1], wb, 7 * sizeof(int));
+    r.r[1] = (int) block;
+    _kernel_swi(Wimp_OpenWindow, &r, &r);
+    disp_w = w;
+    disp_h = h;
+}
+
+/* The display's size: the window in window mode, else the screen. */
+static void display_size(int *w, int *h)
+{
+    choose_mode();
+    if (wimp_window) {
+        *w = disp_w;
+        *h = disp_h;
+    } else {
+        screen_size(w, h, NULL, NULL);
     }
 }
 
@@ -104,6 +267,7 @@ static element *find(DISPMANX_ELEMENT_HANDLE_T h)
 void bcm_host_init(void)
 {
     setup_atexit();
+    choose_mode();
 }
 
 void bcm_host_deinit(void)
@@ -115,7 +279,7 @@ int32_t graphics_get_display_size(const uint16_t display_number,
 {
     int w, h;
     (void) display_number;
-    screen_size(&w, &h, NULL, NULL);
+    display_size(&w, &h);
     if (width) *width = w;
     if (height) *height = h;
     return 0;
@@ -160,7 +324,7 @@ int vc_dispmanx_display_get_info(DISPMANX_DISPLAY_HANDLE_T display,
     int w, h;
     if (!pinfo)
         return -1;
-    screen_size(&w, &h, NULL, NULL);
+    display_size(&w, &h);
     pinfo->width = w;
     pinfo->height = h;
     pinfo->transform = DISPMANX_NO_ROTATE;
@@ -221,7 +385,7 @@ DISPMANX_ELEMENT_HANDLE_T vc_dispmanx_element_add(DISPMANX_UPDATE_HANDLE_T updat
     e->display = display;
     e->layer = layer;
     e->resource = src;
-    screen_size(&w, &h, NULL, NULL);
+    display_size(&w, &h);
     if (dest_rect) {
         e->dst = *dest_rect;
     } else {
@@ -317,15 +481,65 @@ int __riscos_dispmanx_placement(int id, riscos_dmx_placement *p)
     if (!e)
         return 0;
     p->visible = e->visible && e->resource == 0;
-    p->x = e->dst.x;
-    p->y = e->dst.y;
-    p->w = e->dst.width;
-    p->h = e->dst.height;
+    p->window = wimp_window;            /* 0: the screen */
+    p->x = e->dst.x * wscale;
+    p->y = e->dst.y * wscale;
+    p->w = e->dst.width * wscale;
+    p->h = e->dst.height * wscale;
     p->src_x = e->src.x >> 16;
     p->src_y = e->src.y >> 16;
     p->src_w = e->src.width >> 16;
     p->src_h = e->src.height >> 16;
     return 1;
+}
+
+/* Window mode: after each frame, handle the Wimp's events until there are
+   none left, so the program multitasks. Closing the window (or the desktop
+   quitting) ends the program: Pi programs have no other way to be told. */
+void __riscos_dispmanx_swapped(void)
+{
+    int block[64];
+    _kernel_swi_regs r;
+
+    if (!wimp_task || closing)
+        return;
+    for (;;) {
+        r.r[0] = 0;                              /* null events on: return at once */
+        r.r[1] = (int) block;
+        if (_kernel_swi(Wimp_Poll, &r, &r) != NULL)
+            return;
+        switch (r.r[0]) {
+        case 0:                                  /* nothing else to do */
+            return;
+        case 1:                                  /* Redraw_Window_Request */
+            if (!eglRedrawWindowRISCOS(eglGetDisplay(EGL_DEFAULT_DISPLAY), block)) {
+                r.r[1] = (int) block;            /* nothing to show: background only */
+                if (_kernel_swi(Wimp_RedrawWindow, &r, &r) == NULL)
+                    while (r.r[0]) { r.r[1] = (int) block; _kernel_swi(Wimp_GetRectangle, &r, &r); }
+            }
+            break;
+        case 2:                                  /* Open_Window_Request */
+            r.r[1] = (int) block;
+            _kernel_swi(Wimp_OpenWindow, &r, &r);
+            break;
+        case 3:                                  /* Close_Window_Request */
+            if (block[0] == wimp_window) {
+                closing = 1;
+                exit(0);
+            }
+            break;
+        case 8:                                  /* Key_Pressed: the program reads the keyboard itself */
+            r.r[0] = block[6];
+            _kernel_swi(Wimp_ProcessKey, &r, &r);
+            break;
+        case 17: case 18:                        /* Message_Quit */
+            if (block[4] == 0) {
+                closing = 1;
+                exit(0);
+            }
+            break;
+        }
+    }
 }
 
 /* Broadcom's closest-match config choice (see EGL/eglext_brcm.h). */

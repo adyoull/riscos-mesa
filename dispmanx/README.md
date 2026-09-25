@@ -51,11 +51,44 @@ redrawn.
 include it before the EGL headers, as the Pi examples do, or compile with
 `-DEGL_RISCOS_DISPMANX`. It stops with an error if the order is wrong.
 
+## Window mode and full screen
+
+In the desktop, the library shows the program's "display" in a desktop
+window (window mode, the default). The program multitasks, and it renders
+fewer pixels, because it sizes everything from `graphics_get_display_size`.
+
+- **The display is the window.** `graphics_get_display_size` and
+  `vc_dispmanx_display_get_info` report the window's size: 640 pixels wide
+  by default, with the screen's shape. Elements are placed in it as on a
+  screen of that size.
+- **libEGL plots each frame into the window** (`Wimp_UpdateWindow`, no
+  vsync wait) and redraws it when asked (`eglRedrawWindowRISCOS`).
+- **The library is a Wimp task.**
+  - It polls the Wimp at the end of every `eglSwapBuffers`, so the program
+    multitasks without knowing it.
+  - Closing the window (or the desktop quitting) ends the program with
+    `exit(0)`: Pi programs have no other way of being told.
+  - The task and window are named after the program's application
+    directory (`!HelloTeapot` gives "HelloTeapot").
+- **In EX0 EY0 (180 dpi) modes,** the window shows each pixel as 2x2 when
+  it fits, as a 90 dpi mode would.
+- **Choosing:** `<App>$Display` (e.g. `HelloTeapot$Display`), or
+  `DispmanX$Display` for every program:
+  - `full` is the whole screen, as on the Pi: plotted after the vsync
+    wait, over the desktop, without multitasking.
+  - `800x450` or `800` is a window of that size (the height follows the
+    screen's shape if left out).
+
+  Outside the desktop it's always full screen.
+- **Input:** Pi programs usually read the keyboard and mouse directly
+  (`OS_Byte 121/122`, `OS_Mouse`). That still works in a window, but it
+  sees the whole machine: a key pressed for another program is seen too.
+
 ## Differences from the Pi
 
-- Output is plotted into the screen, not composited by a GPU: the program
-  doesn't multitask (neither did it on the Pi), and in the desktop it
-  paints over whatever is underneath until it exits.
+- Output is plotted by the CPU, not composited by a GPU. In window mode
+  the program multitasks. Full screen, it doesn't (neither did it on the
+  Pi): it paints over whatever is underneath until it exits.
 - Layers, alpha blending between elements, transforms (rotation, flips),
   clamping and DispmanX resources (2D images, `vc_dispmanx_resource_*`)
   aren't supported. An element whose source is a resource shows nothing.

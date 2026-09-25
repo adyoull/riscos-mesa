@@ -1,12 +1,18 @@
 | !HelloTriangle2: the Raspberry Pi hello_triangle2 example (OpenGL ES 2.0
 | shaders through DispmanX), rebuilt from source against riscos-mesa.
 | Move the mouse to change the Julia set; click Menu (the middle button)
-| to exit. It draws over the whole screen and does not multitask.
+| to exit, or close the window. It runs in a desktop window and multitasks.
 |
 | The shaders run on the CPU, so by default it renders about 320 pixels wide
-| and scales that up to the screen. To render at 1/N of the screen size
+| and scales that up to its window. To render at 1/N of the display size
 | instead, set HelloTriangle2$Scale to N (1 = full size, very slow).
 Set HelloTriangle2$Dir <Obey$Dir>
+| riscos-mesa's DispmanX library shows the program's "display" in a desktop
+| window, 640 pixels wide. To change that, set HelloTriangle2$Display below to a
+| size (e.g. 800x450) or to full for the whole screen, as on the Pi (then it
+| doesn't multitask, and a Menu click quits).
+Unset HelloTriangle2$Display
+| Set HelloTriangle2$Display full
 RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
 RMEnsure SharedUnixLibrary 1.16 Error !HelloTriangle2 needs SharedUnixLibrary 1.16 or later
 RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport

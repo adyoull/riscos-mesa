@@ -1,8 +1,12 @@
 diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents.c
-index fcca470..0fd928f 100644
+index fcca470..cbbeb02 100644
 --- src/video/riscos/SDL_riscosevents.c
 +++ src/video/riscos/SDL_riscosevents.c
-@@ -30,6 +30,7 @@
+@@ -27,9 +27,11 @@
+ #include "SDL_log.h"
+ #include "SDL_riscosvideo.h"
+ #include "SDL_riscosevents_c.h"
++#include "SDL_riscoswindow.h"
  #include "scancodes_riscos.h"
  
  #include <kernel.h>
@@ -10,7 +14,7 @@ index fcca470..0fd928f 100644
  #include <swis.h>
  
  static SDL_Scancode
-@@ -50,6 +51,44 @@ SDL_RISCOS_translate_keycode(int keycode)
+@@ -50,6 +52,44 @@ SDL_RISCOS_translate_keycode(int keycode)
      return scancode;
  }
  
@@ -55,7 +59,7 @@ index fcca470..0fd928f 100644
  void
  RISCOS_PollKeyboard(_THIS)
  {
-@@ -57,6 +96,17 @@ RISCOS_PollKeyboard(_THIS)
+@@ -57,6 +97,17 @@ RISCOS_PollKeyboard(_THIS)
      Uint8 key = 2;
      int i;
  
@@ -73,7 +77,7 @@ index fcca470..0fd928f 100644
      /* Check for key releases */
      for (i = 0; i < RISCOS_MAX_KEYS_PRESSED; i++) {
          if (driverdata->key_pressed[i] != 255) {
-@@ -67,6 +117,10 @@ RISCOS_PollKeyboard(_THIS)
+@@ -67,6 +118,10 @@ RISCOS_PollKeyboard(_THIS)
          }
      }
  
@@ -84,7 +88,7 @@ index fcca470..0fd928f 100644
      /* Check for key presses */
      while (key < 0xff) {
          key = _kernel_osbyte(121, key + 1, 0) & 0xff;
-@@ -111,36 +165,135 @@ static const Uint8 mouse_button_map[] = {
+@@ -111,36 +166,135 @@ static const Uint8 mouse_button_map[] = {
      SDL_BUTTON_X2 + 3
  };
  
@@ -227,7 +231,7 @@ index fcca470..0fd928f 100644
  int
  RISCOS_InitEvents(_THIS)
  {
-@@ -165,10 +318,292 @@ RISCOS_InitEvents(_THIS)
+@@ -165,10 +319,298 @@ RISCOS_InitEvents(_THIS)
      return 0;
  }
  
@@ -243,9 +247,15 @@ index fcca470..0fd928f 100644
 +RISCOS_IconbarMenu(int x)
 +{
 +    _kernel_swi_regs regs;
-+    const char *name = SDL_getenv("SDL$IconSprite");
-+    if (name && *name == '!') name++;
-+    SDL_strlcpy((char *)&riscos_iconbar_menu[0], (name && *name) ? name : "SDL", 12);
++    /* Title: the program's name (indirected, so it may be longer than 11
++       characters; flag bit 8 of the first item says so). */
++    static char title[64];
++    SDL_strlcpy(title, RISCOS_AppName(), sizeof(title));
++    riscos_iconbar_menu[0] = (int)title;
++    riscos_iconbar_menu[1] = -1;
++    riscos_iconbar_menu[2] = (int)SDL_strlen(title) + 1;
++    riscos_iconbar_menu[4] = SDL_max(160, 16 * (int)SDL_strlen(title) + 32);
++    riscos_iconbar_menu[7] = 0x80 | 0x100;      /* last item, title indirected */
 +    SDL_strlcpy((char *)&riscos_iconbar_menu[10], "Quit", 12);
 +    regs.r[1] = (int)riscos_iconbar_menu;
 +    regs.r[2] = x - 64;

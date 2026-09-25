@@ -1,9 +1,15 @@
 | !HelloTeapot: the Raspberry Pi hello_teapot example (OpenGL ES 1.1 through
 | DispmanX), rebuilt from source against riscos-mesa. On the Pi it showed a
 | video on the teapot; there is no video decoder here, so it wears a still
-| picture. Like the original it draws over the whole screen and does not
-| multitask. Press any key to exit; the desktop is then redrawn.
+| picture. It runs in a desktop window and multitasks; close the window
+| (or press any key) to quit.
 Set HelloTeapot$Dir <Obey$Dir>
+| riscos-mesa's DispmanX library shows the program's "display" in a desktop
+| window, 640 pixels wide. To change that, set HelloTeapot$Display below to a
+| size (e.g. 800x450) or to full for the whole screen, as on the Pi (then it
+| doesn't multitask, and any key quits).
+Unset HelloTeapot$Display
+| Set HelloTeapot$Display full
 RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
 RMEnsure SharedUnixLibrary 1.16 Error !HelloTeapot needs SharedUnixLibrary 1.16 or later
 RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport

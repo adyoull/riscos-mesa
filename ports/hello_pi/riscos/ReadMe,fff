@@ -9,23 +9,28 @@ They run on any RISC OS 5 machine, the Pi 4 included.
 Needs SharedUnixLibrary and ARMEABISupport (the !Run files load them from
 System:Modules if they aren't loaded already).
 
-Like the originals they draw over the whole screen and don't multitask.
-The desktop is redrawn when they exit.
+On the Pi these programs take over the whole screen. Here riscos-mesa's
+DispmanX library shows each one's "display" in a desktop window instead,
+640 pixels wide, so they multitask. Close the window to quit. Each !Run
+file has a line to choose another size, or full screen as on the Pi (then
+they don't multitask, and a key or Menu click quits).
 
 !HelloTriangle   spinning cube with three photo textures (OpenGL ES 1.1).
-                 Press any key to exit.
+                 Close the window (or press any key) to quit.
 !HelloTriangle2  Julia set over a Mandelbrot set (OpenGL ES 2.0 shaders).
-                 Move the mouse to change it; click Menu to exit.
+                 Move the mouse to change it; close the window or click
+                 Menu to quit.
                  The shaders run on the CPU, so it renders about 320
-                 pixels wide and scales that up to the screen.
+                 pixels wide and scales that up to its window.
                  *Set HelloTriangle2$Scale N renders at 1/N of the screen
                  size instead (lower N: sharper and slower).
 !HelloTeapot     a lit, textured teapot model (OpenGL ES 1.1). On the Pi
                  it played a video on the teapot through the GPU's video
                  decoder; there is none here, so it wears a still picture.
-                 Press any key to exit.
+                 Close the window (or press any key) to quit.
 
-Please report: whether the textures show on the cube, whether the fractals
+Please report: whether they multitask in their windows, whether the
+textures show on the cube, whether the fractals
 follow the mouse, whether the teapot looks right, and roughly how many
 frames a second each manages.
 

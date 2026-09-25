@@ -1,0 +1,8 @@
+| riscos-mesa DispmanX compatibility test, window mode: double-click to run. The
+| same Raspberry Pi style program (ES 2.0) as dmx-es1/dmx-es2, but libbcm_host shows
+| its "display" in a 640-pixel-wide desktop window, so it multitasks. It runs
+| for 5 seconds, then saves its results in this directory (closing the
+| window sooner ends it without them).
+Dir <Obey$Dir>
+Unset DispmanX$Display
+Run dmxtest -2 -o dmx-window2

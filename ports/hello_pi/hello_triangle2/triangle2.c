@@ -491,8 +491,16 @@ static int get_mouse(CUBE_STATE_T *state, int *outx, int *outy)
     int b;
 
     b = mouse(&x, &y);
-    x /= (int)state->render_scale;
-    y /= (int)state->render_scale;
+    {
+      /* The mouse position over the whole screen, mapped onto the render
+         size: the same sweep whether DispmanX shows the display full
+         screen or in a desktop window (libbcm_host's window mode). */
+      static const int vars[] = { 11, 12, 4, 5, -1 };
+      int v[4] = { 1919, 1079, 1, 1 };
+      _swix(OS_ReadVduVariables, _INR(0,1), vars, v);
+      x = (int)((long long)(x << 1 >> v[2]) * width / (v[0] + 1));
+      y = (int)((long long)(y << 1 >> v[3]) * height / (v[1] + 1));
+    }
     if (b & 2)
       return 1;
     if (b & 1)
@@ -583,8 +591,9 @@ int main ()
    cy = state->screen_height/2;
 
 #ifdef __riscos__
-   // Same picture as at full size: each pixel covers render_scale times more.
-   const GLfloat fscale = 0.003f * state->render_scale;
+   // The picture the Pi showed on a 1920-pixel-wide screen, whatever size
+   // is rendered (a 1/N reduced size, or libbcm_host's window).
+   const GLfloat fscale = 0.003f * 1920.0f / state->screen_width;
 #else
    const GLfloat fscale = 0.003f;
 #endif

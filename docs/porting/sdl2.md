@@ -62,7 +62,13 @@ its window and context from SDL has no window code to change.
    Run <TestGL2$Dir>.!RunImage
    ```
 
-4. **Data files:** open them from the application directory
+4. **Name and icon:** the task name, the icon bar sprite and the icon
+   bar menu title come from the application directory: `!MyGame` gives
+   "MyGame" and the `!MyGame` sprite, or the generic application sprite if
+   there's none. For your own icon, supply `!Sprites` and add
+   `IconSprites <MyGame$Dir>.!Sprites` to `!Run`. `SDL_HINT_APP_NAME`
+   changes the name.
+5. **Data files:** open them from the application directory
    (`/<App$Dir>/...`), or use `SDL_GetBasePath()`.
 
 ## Things to check in the program

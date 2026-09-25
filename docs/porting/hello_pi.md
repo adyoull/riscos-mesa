@@ -33,9 +33,10 @@ runs anywhere.
 - **Elements:** `vc_dispmanx_display_open` / `close` / `get_info`,
   `update_start` / `submit` / `submit_sync`, `element_add` / `remove` /
   `change_attributes` and `vc_dispmanx_rect_set`.
-  - An element is a rectangle of the screen. Each `eglSwapBuffers` waits
-    for the vsync and plots the surface there, scaled from the source
-    rectangle to the destination.
+  - An element is a rectangle of the display: the window in window mode,
+    the screen in full screen mode. Each `eglSwapBuffers` plots the surface
+    there, scaled from the source rectangle to the destination (full
+    screen, after the vsync wait).
   - When the element goes, or the program exits, the desktop underneath
     is redrawn.
 - **The native window:** `EGL_DISPMANX_WINDOW_T` passed to
@@ -43,6 +44,14 @@ runs anywhere.
 - **`eglSaneChooseConfigBRCM`:** Broadcom's closest-match config choice.
   Here it drops the multisample attributes (riscos-mesa has no
   multisampling) and otherwise is `eglChooseConfig`.
+- **Window mode (the default in the desktop):** the display is a desktop
+  window, 640 pixels wide unless `<App>$Display` or `DispmanX$Display`
+  says otherwise (`800x450`, or `full` for the whole screen as on the Pi).
+  - `graphics_get_display_size` reports the window's size, so the program
+    renders fewer pixels.
+  - libEGL plots each frame into the window.
+  - The library polls the Wimp after every `eglSwapBuffers`, so an
+    unchanged Pi program multitasks. Closing the window ends it.
 - **`vcos.h`:** the small part of VideoCore OS that examples use
   (`vc_assert`, `vcos_assert`, `countof`, `vcos_sleep`…), included the
   way the Pi's headers include it.
@@ -68,8 +77,9 @@ runs anywhere.
    - terminal keys → `OS_Byte 121/122` (keyboard scan) or `OS_ReadC`;
    - `SIGINT` to quit → a key check in the loop.
 
-   Like the Pi originals, these programs draw over the desktop and don't
-   multitask, so reading the hardware directly is fine.
+   Reading the hardware directly works both full screen and in window
+   mode. In a window it sees the whole machine, so a key pressed for
+   another program is seen too.
 4. **Paths:** `/opt/vc/src/hello_pi/...` and `./` become the application
    directory: `"/<HelloTeapot$Dir>/teapot.obj.dat"`, with `!Run` setting
    `HelloTeapot$Dir`. UnixLib turns dots in leaf names into `/`, so that
@@ -87,7 +97,7 @@ runs anywhere.
 | Program | Change | Why |
 | --- | --- | --- |
 | all | exit on a key (`OS_Byte 122`) or Menu (`OS_Mouse`); paths via `<App$Dir>` | no terminal or `/dev/input`; files live in the application |
-| hello_triangle2 | render at 1/N size (default: about 320 wide) | shaders run on the CPU |
+| hello_triangle2 | render at 1/N size (default: about 320 wide); the fractal scale and mouse follow the render size | shaders run on the CPU; the same picture in a window or full screen |
 | hello_teapot | a still picture instead of the video texture | the video came from OpenMAX through an `EGLImage`; neither exists here |
 
 Four things in riscos-mesa made the rest of the code work unchanged:
@@ -144,8 +154,9 @@ surface = eglCreateWindowSurface(dpy, cfg,       /* in the desktop:             
 
 ## Results
 
-- **Host rig:** all three ports ran on the fake RISC OS, and their
-  pictures were checked: the textured cube, the Julia and Mandelbrot
-  fractals, and the textured teapot.
+- **Host rig:** all three ports ran on the fake RISC OS, full screen and
+  in window mode (on a fake desktop, closed with the close icon), and
+  their pictures were checked: the textured cube, the Julia and
+  Mandelbrot fractals, and the textured teapot.
 - **Pi 4:** `!HelloTriangle` and `!HelloTriangle2` are in the 20.3.5-5
   tests; hardware results are pending.

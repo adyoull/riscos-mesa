@@ -104,15 +104,20 @@ Run in this order and note the output:
    h) Code written for the Raspberry Pi (DispmanX compatibility).
       dmxtest is written the way Raspberry Pi Khronos programs are
       (bcm_host, a DispmanX element, then EGL and OpenGL ES) and uses the
-      DispmanX compatibility library. Like Pi programs it doesn't
-      multitask: it runs over the desktop for 5 seconds, then the desktop
-      is redrawn. Results are saved as dmx-es1 etc.
+      DispmanX compatibility library. Results are saved as dmx-es1 etc.
+      Full screen, as on the Pi: it runs over the desktop for 5 seconds
+      without multitasking, then the desktop is redrawn.
       dmx-es1     ES 1.1 lit cube, half resolution scaled to full screen
       dmx-es2     the same with ES 2.0 shaders (slower: they run on the CPU)
       dmx-small   320x240 shown 640x480 in the middle of the screen
       dmx-native  ES 1.1 at the screen's full resolution
+      Window mode (new, the default in the desktop): the same program's
+      "display" is a 640-pixel-wide desktop window, and it multitasks.
+      dmx-window  ES 1.1, as dmx-es1
+      dmx-window2 ES 2.0, as dmx-es2
       Please check: the cube spins, the colours look right, the small one
-      sits in the middle, and the desktop comes back afterwards.
+      sits in the middle, the desktop comes back afterwards, and the
+      window tests multitask (drag other windows over them).
 
    i) High resolution desktops (EX0 EY0, 180 dpi). In such a mode:
       sdlgltest     the window should now be the size it is in a 90 dpi

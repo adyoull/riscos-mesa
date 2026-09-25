@@ -8,6 +8,8 @@
  * programs); KEYS = comma-separated RISC OS key codes to deliver after
  * them, where "r<w>x<h>" resizes the window instead (OS units); PPM =
  * where to save the fake 1280x720 screen when the close request comes.
+ * The fake reports a running desktop (Wimp_ReadSysInfo), so DispmanX
+ * programs use libbcm_host's window mode unless <App>$Display says "full".
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,6 +37,7 @@ static void *run(void *x) {
   char *k = getenv("KEYS");
   fake_set_screen(1280, 720, 0, 5); fake_reset_clip();
   fake_wimp_nulls = atoi(getenv("FRAMES")); fake_wimp_hook = hook;
+  fake_wimp_desktop = 1;             /* Wimp_ReadSysInfo reports a desktop */
   /* KEYS: comma-separated key codes; an entry "r<w>x<h>" resizes the window (OS units) */
   while (k && *k) { if (*k == 'r') { int w = strtol(k + 1, &k, 0), h = strtol(k + 1, &k, 0);
       fake_wimp_script[fake_wimp_script_len][0] = 2; fake_wimp_script[fake_wimp_script_len++][1] = w | (h << 16); }

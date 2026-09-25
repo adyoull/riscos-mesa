@@ -23,6 +23,7 @@ int fake_wimp_nulls, fake_wimp_script[16][2], fake_wimp_script_len;
 int fake_wimp_polls, fake_wimp_keys_passed, fake_wimp_tasks;
 void (*fake_wimp_hook)(int reason);
 const char *fake_wimp_title;
+int fake_wimp_desktop;
 static int wimp_next_handle = 0x7000, wimp_last_window, wimp_stage, wimp_step;
 
 static _kernel_oserror err = { 1, "fake error" };
@@ -333,6 +334,14 @@ _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out
         r.r[0] = reason;
         break;
     }
+    case 0x400F2:   /* Wimp_ReadSysInfo 0: active tasks (0 = no desktop) */
+        if (r.r[0] != 0) { e = error("ReadSysInfo reason not faked"); break; }
+        r.r[0] = fake_wimp_desktop ? 1 + fake_wimp_tasks : 0;
+        break;
+    case 0x29:      /* OS_FSControl 37: canonicalise path (returned as given) */
+        if (r.r[0] != 37) { e = error("FSControl reason not faked"); break; }
+        snprintf((char *) (long) r.r[2], r.r[5], "%s", (const char *) (long) r.r[1]);
+        break;
     case 0x42:      /* OS_ReadMonotonicTime: centiseconds */
         r.r[0] = fake_wimp_polls * 2;
         break;

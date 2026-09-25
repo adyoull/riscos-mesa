@@ -37,6 +37,7 @@
 #include "riscos_dispmanx.h"
 #pragma weak __riscos_dispmanx_window
 #pragma weak __riscos_dispmanx_placement
+#pragma weak __riscos_dispmanx_swapped
 
 #ifndef OSMESA_ES1_PROFILE                  /* riscos-mesa's Mesa patch */
 #define OSMESA_ES1_PROFILE 0x1001
@@ -557,48 +558,43 @@ static int damage_rects(const egl_surface *surf, const EGLint *rects, int n,
     return m;
 }
 
-/* DispmanX compatibility: after the vsync wait, plot the surface (its
-   source rectangle) scaled to the element's destination rectangle. */
-static void present_dmx(egl_surface *surf, const screen_info *s)
+/* DispmanX compatibility: plot the surface (its source rectangle) scaled to
+   the element's destination rectangle. base_x/top: where the element's
+   coordinate space starts (its top left, OS units on screen: the screen's
+   top left, or a window's work area origin); clip: the part of the screen
+   that may be drawn (OS units, x1/y1 exclusive). */
+static void dmx_plot(const egl_surface *surf, const screen_info *s,
+                     const riscos_dmx_placement *pl, int base_x, int top_os,
+                     os_rect clip)
 {
-    riscos_dmx_placement pl;
     _kernel_swi_regs r;
-    int factors[4], i, sw, sh, sxe, sye;
+    int factors[4], sw, sh, sxe, sye;
     long long top, y;
-    os_rect clip, all;
+    os_rect e;
 
-    if (!__riscos_dispmanx_placement || !__riscos_dispmanx_placement(surf->dmx, &pl))
-        return;                         /* element gone */
-    for (i = 0; i < surf->swap_interval; i++)
-        _kernel_osbyte(19, 0, 0);
-    if (!pl.visible || !surf->sprite || pl.w <= 0 || pl.h <= 0)
-        return;
-    sw = pl.src_w > 0 ? pl.src_w : surf->w;
-    sh = pl.src_h > 0 ? pl.src_h : surf->h;
+    sw = pl->src_w > 0 ? pl->src_w : surf->w;
+    sh = pl->src_h > 0 ? pl->src_h : surf->h;
     sxe = s->xeig;                      /* the sprite is at the screen's resolution */
     sye = s->yeig;
-    factors[0] = pl.w << s->xeig;       /* x: multiply, then divide */
-    factors[1] = pl.h << s->yeig;
+    factors[0] = pl->w << s->xeig;      /* x: multiply, then divide */
+    factors[1] = pl->h << s->yeig;
     factors[2] = sw << sxe;
     factors[3] = sh << sye;
 
-    all.x0 = 0; all.y0 = 0;
-    all.x1 = s->width << s->xeig; all.y1 = s->height << s->yeig;
-    clip.x0 = pl.x << s->xeig;
-    clip.x1 = (pl.x + pl.w) << s->xeig;
-    clip.y1 = (s->height - pl.y) << s->yeig;
-    clip.y0 = (s->height - pl.y - pl.h) << s->yeig;
-    if (clip.x0 < 0) clip.x0 = 0;
-    if (clip.y0 < 0) clip.y0 = 0;
-    if (clip.x1 > all.x1) clip.x1 = all.x1;
-    if (clip.y1 > all.y1) clip.y1 = all.y1;
+    e.x0 = base_x + (pl->x << s->xeig);
+    e.x1 = base_x + ((pl->x + pl->w) << s->xeig);
+    e.y1 = top_os - (pl->y << s->yeig);
+    e.y0 = top_os - ((pl->y + pl->h) << s->yeig);
+    if (clip.x0 < e.x0) clip.x0 = e.x0;
+    if (clip.y0 < e.y0) clip.y0 = e.y0;
+    if (clip.x1 > e.x1) clip.x1 = e.x1;
+    if (clip.y1 > e.y1) clip.y1 = e.y1;
     if (clip.x0 >= clip.x1 || clip.y0 >= clip.y1)
         return;
 
     /* The source rectangle's top left lands on the destination's top left;
        the sprite's padding rows (see MIN_SPRITE_BYTES) fall outside. */
-    top = ((long long) (s->height - pl.y) << s->yeig) +
-          ((long long) (pl.src_y << sye) * factors[1]) / factors[3];
+    top = (long long) e.y1 + ((long long) (pl->src_y << sye) * factors[1]) / factors[3];
     /* whole screen pixels, so the top row lands on the destination's top */
     y = top - (((((long long) (surf->sprite_h << sye) * factors[1]) / factors[3])
                 >> s->yeig) << s->yeig);
@@ -606,14 +602,70 @@ static void present_dmx(egl_surface *surf, const screen_info *s)
     r.r[0] = 512 + 52;                  /* PutSpriteScaled */
     r.r[1] = (int) surf->area;
     r.r[2] = (int) surf->sprite;
-    r.r[3] = (int) ((pl.x << s->xeig) -
-                    ((long long) (pl.src_x << sxe) * factors[0]) / factors[2]);
+    r.r[3] = (int) (e.x0 - ((long long) (pl->src_x << sxe) * factors[0]) / factors[2]);
     r.r[4] = (int) y;
     r.r[5] = 0;
     r.r[6] = (int) factors;
     r.r[7] = 0;
     _kernel_swi(OS_SpriteOp, &r, &r);
-    set_graphics_window(&all);
+}
+
+/* Plot a DispmanX surface shown in a window over each rectangle of a
+   Wimp_RedrawWindow / Wimp_UpdateWindow loop. */
+static void dmx_window_loop(const egl_surface *surf, const screen_info *s,
+                            const riscos_dmx_placement *pl, int *block, int more)
+{
+    _kernel_swi_regs r;
+    while (more) {
+        os_rect clip;
+        clip.x0 = block[7]; clip.y0 = block[8]; clip.x1 = block[9]; clip.y1 = block[10];
+        dmx_plot(surf, s, pl, block[1] - block[5], block[4] - block[6], clip);
+        set_graphics_window(&clip);
+        r.r[1] = (int) block;
+        if (_kernel_swi(Wimp_GetRectangle, &r, &r) != NULL)
+            break;
+        more = r.r[0];
+    }
+}
+
+/* DispmanX compatibility: show a frame of an element. Full screen: after
+   the vsync wait, plot it on the screen. Window mode (libbcm_host shows its
+   display in a desktop window): update the window with no vsync wait (it
+   would stop the desktop); swap() then lets libbcm_host poll the Wimp. */
+static void present_dmx(egl_surface *surf, const screen_info *s)
+{
+    riscos_dmx_placement pl;
+    int i;
+
+    memset(&pl, 0, sizeof pl);
+    if (!__riscos_dispmanx_placement || !__riscos_dispmanx_placement(surf->dmx, &pl))
+        return;                         /* element gone */
+    if (pl.window) {
+        if (pl.visible && surf->sprite && pl.w > 0 && pl.h > 0) {
+            _kernel_swi_regs r;
+            int block[11];
+            block[0] = pl.window;
+            block[1] = pl.x << s->xeig;
+            block[2] = -((pl.y + pl.h) << s->yeig);
+            block[3] = (pl.x + pl.w) << s->xeig;
+            block[4] = -(pl.y << s->yeig);
+            r.r[1] = (int) block;
+            if (_kernel_swi(Wimp_UpdateWindow, &r, &r) == NULL)
+                dmx_window_loop(surf, s, &pl, block, r.r[0]);
+        }
+        return;
+    }
+    for (i = 0; i < surf->swap_interval; i++)
+        _kernel_osbyte(19, 0, 0);
+    if (!pl.visible || !surf->sprite || pl.w <= 0 || pl.h <= 0)
+        return;
+    {
+        os_rect all;
+        all.x0 = 0; all.y0 = 0;
+        all.x1 = s->width << s->xeig; all.y1 = s->height << s->yeig;
+        dmx_plot(surf, s, &pl, 0, all.y1, all);
+        set_graphics_window(&all);
+    }
 }
 
 /* Show a finished frame of a window surface: all of it, or only the damaged
@@ -2152,6 +2204,11 @@ static EGLBoolean swap(EGLDisplay dpy, EGLSurface surface, const EGLint *rects, 
         changed = 1;                    /* now drawing into another bank */
     if (changed && is_current && !bind(cur_ctx, s))
         return fail(EGL_BAD_ALLOC);
+    /* DispmanX compatibility in window mode: libbcm_host polls the Wimp
+       here, last, so the program multitasks (and may exit if its window is
+       closed, with EGL's state complete). */
+    if (s->dmx && __riscos_dispmanx_swapped)
+        __riscos_dispmanx_swapped();
     return ok();
 }
 
@@ -2589,8 +2646,29 @@ EGLAPI EGLBoolean EGLAPIENTRY eglRedrawWindowRISCOS(EGLDisplay dpy, int *block)
     for (s = d->surfaces; s; s = s->next)
         if (s->kind == SURF_WINDOW && s->handle == block[0] && !s->destroy_pending)
             break;
-    if (!s)
-        return fail(EGL_BAD_NATIVE_WINDOW);
+    if (!s) {
+        /* DispmanX compatibility in window mode: the window shows elements. */
+        riscos_dmx_placement pl;
+        screen_info scr;
+        for (s = d->surfaces; s; s = s->next) {
+            memset(&pl, 0, sizeof pl);
+            if (s->kind == SURF_WINDOW && s->dmx && !s->destroy_pending &&
+                __riscos_dispmanx_placement && __riscos_dispmanx_placement(s->dmx, &pl) &&
+                pl.window == block[0])
+                break;
+        }
+        if (!s)
+            return fail(EGL_BAD_NATIVE_WINDOW);
+        r.r[1] = (int) block;
+        if (_kernel_swi(Wimp_RedrawWindow, &r, &r) != NULL)
+            return fail(EGL_BAD_NATIVE_WINDOW);
+        read_screen(&scr);
+        if (pl.visible && s->sprite)
+            dmx_window_loop(s, &scr, &pl, block, r.r[0]);
+        else
+            while (r.r[0]) { r.r[1] = (int) block; _kernel_swi(Wimp_GetRectangle, &r, &r); }
+        return ok();
+    }
     r.r[1] = (int) block;
     if (_kernel_swi(Wimp_RedrawWindow, &r, &r) != NULL)
         return fail(EGL_BAD_NATIVE_WINDOW);

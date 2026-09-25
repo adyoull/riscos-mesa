@@ -43,6 +43,20 @@ order), used by BOTH projects:
   a 90 dpi sprite (non-16M-colour screens) isn't doubled twice. Full screen
   is unaffected. GL windows are scaled the same way (GL renders at the
   window's SDL size).
+- The program's own name and icon (2026-09-25): the task name, icon bar
+  sprite and icon bar menu title come from the program's application
+  directory. A program run as `...!TestGL2.!RunImage` is "TestGL2" in the
+  Task Manager and the menu, and its icon is the `!TestGL2` sprite if the
+  Wimp sprite pool has it (the Filer or `IconSprites` in `!Run` loads it),
+  otherwise the generic `application` sprite. `SDL_HINT_APP_NAME` (or the
+  `SDL_APP_NAME` variable) overrides the name. Every desktop program now
+  gets an icon bar icon with a Quit menu.
+  - This replaces the global `SDL$IconSprite` variable, which isn't read
+    any more. Once OpenTTD had set it, every SDL program run afterwards
+    showed OpenTTD's sprite and name. OpenTTD's own icon is found the new
+    way (`!OpenTTD`), so its `Set SDL$IconSprite` line is now unnecessary.
+  - Before, the task name was always "SDL", because Wimp_Initialise
+    happened before any window title was set.
 - `sdl2-configure.ac.host.p`: OpenTTD's triplet fix (arm-riscos-gnueabihf
   is not Linux). `sdl2-configure.ac.osmesa.p`: the OSMesa option.
 

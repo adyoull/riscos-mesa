@@ -381,7 +381,9 @@ Link with `-lbcm_host -lEGL -lOSMesa -lstdc++ -lz -lm`. Empty `libGLESv2`, `libG
 - **Supported:** `bcm_host_init`, `graphics_get_display_size`, opening and closing the display and `vc_dispmanx_display_get_info`, updates (they take effect at once), adding, moving (`vc_dispmanx_element_change_attributes`: destination, source, opacity 0 to hide) and removing elements.
 - **When the element is removed or the program exits,** the desktop underneath is redrawn.
 - **Not supported:** layers and alpha blending between elements, rotation and flips, DispmanX resources (`vc_dispmanx_resource_*`, 2D images), `vc_dispmanx_vsync_callback`, and other VideoCore services (OpenMAX, MMAL).
-- **It doesn't multitask,** just as it didn't on the Pi: the program paints over the desktop until it exits. For a desktop program, use a Wimp window as the native window instead.
+- **Window mode (the default in the desktop):** the program's "display" is a desktop window, 640 pixels wide unless `<App>$Display` or `DispmanX$Display` says otherwise. `graphics_get_display_size` reports the window's size, so the program renders that many pixels. libEGL plots into the window, and libbcm_host polls the Wimp after every `eglSwapBuffers`, so the unchanged program multitasks. Closing the window ends it.
+- **Full screen** (`<App>$Display` set to `full`, or outside the desktop): as on the Pi, the program paints over the desktop without multitasking until it exits.
+- For a new desktop program, use a Wimp window as the native window instead: see the sections above.
 
 `tests/dmxtest.c` is a complete example; the `dmx-*` Obey files in the tests zip run it.
 

@@ -43,6 +43,7 @@ extern int fake_watch[4], fake_watch_value, fake_watch_hits;
 extern int fake_wimp_nulls, fake_wimp_script[16][2], fake_wimp_script_len;
 extern int fake_wimp_polls, fake_wimp_keys_passed, fake_wimp_tasks;
 extern void (*fake_wimp_hook)(int reason);
-extern const char *fake_wimp_title;   /* the newest window's indirected title */
+extern const char *fake_wimp_title;
+extern int fake_wimp_desktop;           /* Wimp_ReadSysInfo 0 reports a desktop */   /* the newest window's indirected title */
 
 #endif

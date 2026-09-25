@@ -1,8 +1,15 @@
 diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow.c
-index f47d33a..ddb709d 100644
+index f47d33a..ac221c7 100644
 --- src/video/riscos/SDL_riscoswindow.c
 +++ src/video/riscos/SDL_riscoswindow.c
-@@ -30,10 +30,221 @@
+@@ -24,16 +24,301 @@
+ 
+ #include "SDL_version.h"
+ #include "SDL_syswm.h"
++#include "SDL_hints.h"
+ #include "../SDL_sysvideo.h"
+ #include "../../events/SDL_mouse_c.h"
+ 
  
  #include "SDL_riscosvideo.h"
  #include "SDL_riscoswindow.h"
@@ -17,6 +24,78 @@ index f47d33a..ddb709d 100644
 +
 +static char riscos_window_title[128] = "SDL";
 +static int riscos_wimp_messages[] = { 0 };
++
++/* 2026: the program's own name (task name, icon bar menu title) and icon
++   bar sprite, found from its application directory: a program run as
++   ...!TestGL2.!RunImage is "TestGL2" with the sprite "!TestGL2" if the
++   Wimp sprite pool has it (IconSprites / the Filer loads it), otherwise
++   the generic "application" sprite. SDL_HINT_APP_NAME overrides the name.
++   (This replaces the old global SDL$IconSprite variable, which leaked from
++   one program to the next: OpenTTD's setting showed up in other programs.) */
++#include <unixlib/local.h>
++extern char *program_invocation_name, *program_invocation_short_name;
++static char riscos_app_name[64];
++static char riscos_app_sprite[13];
++
++static int
++RISCOS_WimpSpriteExists(const char *name)
++{
++    _kernel_swi_regs regs;
++    regs.r[0] = 40;                   /* read sprite information */
++    regs.r[2] = (int)name;
++    return _kernel_swi(Wimp_SpriteOp, &regs, &regs) == NULL;
++}
++
++static void
++RISCOS_FindAppIdentity(void)
++{
++    char ro[256], canon[256];
++    const char *hint = SDL_GetHint(SDL_HINT_APP_NAME);
++    const char *path = program_invocation_name;
++    char *leaf = NULL, *end;
++    _kernel_swi_regs regs;
++
++    if (riscos_app_name[0])
++        return;
++    riscos_app_sprite[0] = 0;
++    if (path && *path) {
++        /* argv[0] can be a Unix or a RISC OS path; make it a full RISC OS one. */
++        if (SDL_strchr(path, '/') && __riscosify_std(path, 0, ro, sizeof(ro), NULL))
++            path = ro;
++        regs.r[0] = 37;               /* OS_FSControl 37: canonicalise path */
++        regs.r[1] = (int)path; regs.r[2] = (int)canon;
++        regs.r[3] = 0; regs.r[4] = 0; regs.r[5] = sizeof(canon);
++        if (_kernel_swi(OS_FSControl, &regs, &regs) == NULL) {
++            end = SDL_strrchr(canon, '.');        /* ...!App.!RunImage */
++            if (end) {
++                *end = 0;
++                leaf = SDL_strrchr(canon, '.');
++                leaf = leaf ? leaf + 1 : canon;
++                if (*leaf != '!')
++                    leaf = NULL;
++            }
++        }
++    }
++    if (leaf && leaf[1]) {
++        SDL_strlcpy(riscos_app_sprite, leaf, sizeof(riscos_app_sprite));
++        SDL_strlcpy(riscos_app_name, leaf + 1, sizeof(riscos_app_name));
++    } else if (program_invocation_short_name && *program_invocation_short_name) {
++        SDL_strlcpy(riscos_app_name, program_invocation_short_name, sizeof(riscos_app_name));
++    }
++    if (hint && *hint)
++        SDL_strlcpy(riscos_app_name, hint, sizeof(riscos_app_name));
++    if (!riscos_app_name[0])
++        SDL_strlcpy(riscos_app_name, "SDL", sizeof(riscos_app_name));
++    if (!riscos_app_sprite[0] || !RISCOS_WimpSpriteExists(riscos_app_sprite))
++        SDL_strlcpy(riscos_app_sprite, "application", sizeof(riscos_app_sprite));
++}
++
++const char *
++RISCOS_AppName(void)
++{
++    RISCOS_FindAppIdentity();
++    return riscos_app_name;
++}
 +
 +int
 +RISCOS_WimpReadEig(int var)
@@ -87,20 +166,21 @@ index f47d33a..ddb709d 100644
 +    if (vdata->wimp_task != 0)
 +        return 0;
 +
++    RISCOS_FindAppIdentity();
 +    regs.r[0] = 380;
 +    regs.r[1] = 0x4B534154; /* "TASK" */
-+    regs.r[2] = (int)riscos_window_title;
++    regs.r[2] = (int)riscos_app_name;      /* the name in the Task Manager */
 +    regs.r[3] = (int)riscos_wimp_messages;
 +    err = _kernel_swi(Wimp_Initialise, &regs, &regs);
 +    if (err != NULL)
 +        return SDL_SetError("Wimp_Initialise failed: %s", err->errmess);
 +    vdata->wimp_task = regs.r[1];
 +
-+    /* Put an icon on the icon bar if the application told us which sprite
-+       to use (e.g. "Set SDL$IconSprite !myapp" in !Run, after IconSprites). */
++    /* Put the program's icon on the icon bar: its own sprite (!App, loaded
++       by the Filer or IconSprites in !Run) or the generic "application". */
 +    vdata->iconbar_icon = -1;
 +    {
-+        const char *sprite = SDL_getenv("SDL$IconSprite");
++        const char *sprite = riscos_app_sprite;
 +        if (sprite && *sprite) {
 +            int block[9];
 +            SDL_memset(block, 0, sizeof(block));
@@ -224,7 +304,7 @@ index f47d33a..ddb709d 100644
      SDL_WindowData *driverdata;
  
      driverdata = (SDL_WindowData *) SDL_calloc(1, sizeof(*driverdata));
-@@ -42,27 +253,164 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
+@@ -42,27 +327,164 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
      }
      driverdata->window = window;
  
