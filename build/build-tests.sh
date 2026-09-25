@@ -12,10 +12,12 @@ $CC $RO_CFLAGS $GL -static "$T/glbench.c" "$T/hrtime.c" -o "$STAGE/tests/glbench
 $CC $RO_CFLAGS $GL -static "$T/orient.c"     -o "$STAGE/tests/orient,e1f"     $LIBS
 $CC $RO_CFLAGS $GL -static "$T/prof.c"       -o "$STAGE/tests/prof,e1f"       $LIBS
 [ -f "$STAGE/lib/libGLU.a" ] && $CC $RO_CFLAGS $GL -static "$T/glutest.c" -o "$STAGE/tests/glutest,e1f" -lGLU $LIBS
+[ -f "$STAGE/lib/libEGL.a" ] && $CC $RO_CFLAGS $GL -static "$T/egltest.c" "$T/hrtime.c" \
+    -o "$STAGE/tests/egltest,e1f" -lEGL $LIBS
 [ -f "$STAGE/lib/libSDL2.a" ] && $CC $RO_CFLAGS $GL -I"$STAGE/include/SDL2" -static "$T/sdlgltest.c" "$T/hrtime.c" \
     -o "$STAGE/tests/sdlgltest,e1f" -lSDL2 $LIBS
 for f in "$STAGE"/tests/*,e1f; do $STRIP "$f"; done
-cp "$T/ReadMe,fff" "$STAGE/tests/"
+cp "$T/ReadMe,fff" "$T"/egl-*,feb "$STAGE/tests/"
 # Left as ELF (&E1F), same as the OpenTTD build: needs SharedUnixLibrary
 # and ARMEABISupport loaded on the Pi.
 ls -la "$STAGE/tests"

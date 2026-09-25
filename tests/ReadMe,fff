@@ -1,4 +1,4 @@
-riscos-mesa 20.3.5-2 test programs (static ELF, GCCSDK GCC 10.2.0)
+riscos-mesa 20.3.5-3 test programs (static ELF, GCCSDK GCC 10.2.0)
 ===========================================================
 
 Needs: RISC OS 5, ARMv7 with VFP (Pi 2/3/4), SharedUnixLibrary and
@@ -44,6 +44,28 @@ Run in this order and note the output:
    names: clear cube tex blend tris glsl. Use -o file to save the results
    (rather than "> file"). Reports the address and RISC OS error if
    anything crashes.
+
+7. egltest  (the new EGL library)
+   The egl-* Obey files run each case with a double-click and save the
+   results next to them (eglcheck, eglwindow, eglfull, ...).
+   a) egltest -o eglcheck
+      No desktop needed: EGL strings, the config list, a pbuffer and a
+      pixmap (GL drawing straight into a sprite), error cases. Ends with
+      PASS or FAIL. Also saves the Sprite file "eglpixmap": open it in
+      Paint (a lit cube on dark red with 4 green pixels top left).
+   b) egltest -w  (from the desktop, e.g. double-click or TaskWindow)
+      Desktop window with a spinning cube, fps and render/present ms in
+      the title. Resize it, scroll it, drag other windows over it, and
+      close it to finish. Add -r for a second, small GL view inside the
+      window at a fixed work area position: it should scroll with the
+      window's contents. Add -t N to stop after N seconds and -o file to
+      save the summary.
+   c) egltest -f  (full screen over the current mode for 5 s, -t N)
+      Double buffered, waits for vsync. Also try  egltest -f -v 0
+      (no vsync, shows the maximum speed) and  egltest -f -d -v 0
+      (renders straight into screen memory: expect tearing but a lower
+      "present" time). The desktop is frozen while it runs and redrawn
+      afterwards.
 
 Please report: the fps figures, anything that crashes (with the error
 text), the fps in the window title, whether the scroll wheel zooms (in a window

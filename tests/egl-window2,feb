@@ -1,0 +1,3 @@
+| riscos-mesa EGL test: double-click to run. Results are also saved in this directory.
+Dir <Obey$Dir>
+Run egltest -w -r -o eglwindow2
