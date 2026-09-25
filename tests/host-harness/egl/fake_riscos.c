@@ -1,0 +1,282 @@
+/*
+ * fake_riscos.c - just enough RISC OS for egl_riscos.c on a Linux host:
+ * a 32bpp screen in memory, a few Wimp windows (one redraw rectangle each:
+ * the visible area), OS_SpriteOp create/plot, mode and VDU variables.
+ * Pointers go through 32-bit registers as on RISC OS, so everything that
+ * reaches a SWI must live below 2 GB (the harness builds -no-pie, keeps
+ * malloc on brk and runs its tests on a low stack).
+ */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <kernel.h>
+#include <swis.h>
+#include "fake_riscos.h"
+
+fake_screen_t fake_screen;
+fake_window_t fake_windows[FAKE_MAX_WINDOWS];
+int fake_vsyncs, fake_update_calls, fake_redraw_calls, fake_plots;
+
+static _kernel_oserror err = { 1, "fake error" };
+static int clip[4];                  /* graphics window, OS units x0,y0,x1,y1 (excl.) */
+
+/* A 32bpp mode selector like OS_ScreenMode 1 would return. */
+static int screen_selector[16];
+
+static _kernel_oserror *error(const char *msg)
+{
+    snprintf(err.errmess, sizeof err.errmess, "%s", msg);
+    return &err;
+}
+
+void fake_set_screen(int w, int h, int trgb, int log2bpp)
+{
+    free(fake_screen.mem);
+    fake_screen.w = w;
+    fake_screen.h = h;
+    fake_screen.xeig = fake_screen.yeig = 1;
+    fake_screen.log2bpp = log2bpp;
+    fake_screen.flags = trgb ? 0x4000 : 0;
+    fake_screen.line_length = w * 4;
+    fake_screen.mem = calloc((size_t) w * h, 4);
+}
+
+fake_window_t *fake_open_window(int handle, int x0, int y0, int x1, int y1, int sx, int sy)
+{
+    int i;
+    for (i = 0; i < FAKE_MAX_WINDOWS; i++) {
+        if (fake_windows[i].handle == 0 || fake_windows[i].handle == handle) {
+            fake_windows[i].handle = handle;
+            fake_windows[i].x0 = x0; fake_windows[i].y0 = y0;
+            fake_windows[i].x1 = x1; fake_windows[i].y1 = y1;
+            fake_windows[i].sx = sx; fake_windows[i].sy = sy;
+            return &fake_windows[i];
+        }
+    }
+    return NULL;
+}
+
+static fake_window_t *find_window(int handle)
+{
+    int i;
+    for (i = 0; i < FAKE_MAX_WINDOWS; i++)
+        if (fake_windows[i].handle == handle && handle != 0)
+            return &fake_windows[i];
+    return NULL;
+}
+
+unsigned int fake_screen_pixel(int x, int y_from_top)
+{
+    return fake_screen.mem[(size_t) y_from_top * (fake_screen.line_length / 4) + x];
+}
+
+/* Colour order of a sprite mode word or mode selector: 1 = TRGB. -1 if not 32bpp. */
+static int mode_info(int mode, int *log2bpp, int *flags)
+{
+    if (mode == -1) {
+        *log2bpp = fake_screen.log2bpp;
+        *flags = fake_screen.flags;
+        return 1;
+    }
+    if (mode & 1) {                                 /* sprite mode word */
+        int type = (mode >> 27) & 15;
+        if (type == 6) { *log2bpp = 5; *flags = 0; return 1; }
+        if (type == 5) { *log2bpp = 4; *flags = 0; return 1; }
+        return 0;
+    }
+    if (mode >= 256) {                              /* mode selector */
+        const int *sel = (const int *) (long) mode;
+        int i;
+        if ((sel[0] & 0xFF) != 1) return 0;
+        *log2bpp = sel[3];
+        *flags = 0;
+        for (i = 5; sel[i] != -1; i += 2)
+            if (sel[i] == 0) *flags = sel[i + 1];
+        return 1;
+    }
+    *log2bpp = 3;                                   /* old numbered mode: 8bpp */
+    *flags = 0;
+    return 1;
+}
+
+static _kernel_oserror *sprite_op(_kernel_swi_regs *r)
+{
+    int reason = r->r[0] & 255;
+
+    if (reason == 15) {                             /* create sprite */
+        int *area = (int *) (long) r->r[1];
+        int w = r->r[4], h = r->r[5], mode = r->r[6], log2bpp, flags, size;
+        int *spr;
+        if ((r->r[0] & 0xF00) != 0x100) return error("create: user area only");
+        if (!mode_info(mode, &log2bpp, &flags) || log2bpp != 5)
+            return error("create: 32bpp only in the fake");
+        size = 44 + w * h * 4;
+        if (area[3] + size > area[0]) return error("Not enough room in sprite area");
+        spr = (int *) ((char *) area + area[3]);
+        memset(spr, 0, size);
+        spr[0] = size;
+        strncpy((char *) &spr[1], (const char *) (long) r->r[2], 12);
+        spr[4] = w - 1;
+        spr[5] = h - 1;
+        spr[6] = 0;
+        spr[7] = 31;
+        spr[8] = 44;
+        spr[9] = 44;
+        spr[10] = mode;
+        area[1]++;
+        area[3] += size;
+        return NULL;
+    }
+    if (reason == 34) {                             /* put sprite at user coords */
+        const int *spr = (const int *) (long) r->r[2];
+        int w = spr[4] + 1, h = spr[5] + 1, log2bpp, flags, sx, sy;
+        int px0 = r->r[3] >> fake_screen.xeig, py0 = r->r[4] >> fake_screen.yeig;
+        const unsigned int *pix = (const unsigned int *) ((const char *) spr + spr[8]);
+        int swap;
+        if ((r->r[0] & 0xF00) != 0x200) return error("plot: pointer form only");
+        mode_info(spr[10], &log2bpp, &flags);
+        swap = ((flags ^ fake_screen.flags) & 0x4000) != 0;
+        fake_plots++;
+        for (sy = 0; sy < h; sy++) {
+            int y_up = py0 + (h - 1 - sy);          /* pixels from the bottom */
+            int oy = y_up << fake_screen.yeig;
+            if (y_up < 0 || y_up >= fake_screen.h) continue;
+            if (oy < clip[1] || oy >= clip[3]) continue;
+            for (sx = 0; sx < w; sx++) {
+                int x = px0 + sx, ox = x << fake_screen.xeig;
+                unsigned int p = pix[(size_t) sy * w + sx];
+                if (x < 0 || x >= fake_screen.w || ox < clip[0] || ox >= clip[2]) continue;
+                if (swap) p = (p & 0xFF00FF00u) | ((p >> 16) & 0xFF) | ((p & 0xFF) << 16);
+                fake_screen.mem[(size_t) (fake_screen.h - 1 - y_up) * (fake_screen.line_length / 4) + x] = p;
+            }
+        }
+        return NULL;
+    }
+    return error("SpriteOp reason not faked");
+}
+
+static void full_clip(void)
+{
+    clip[0] = 0;
+    clip[1] = 0;
+    clip[2] = fake_screen.w << fake_screen.xeig;
+    clip[3] = fake_screen.h << fake_screen.yeig;
+}
+
+/* Fill in a redraw block for window w with one rectangle: the visible area
+   clipped to the work area rectangle wa (NULL = everything). */
+static int start_redraw(int *block, fake_window_t *w, const int *wa)
+{
+    int ox = w->x0 - w->sx, oy = w->y1 - w->sy;     /* work area origin on screen */
+    int r0 = w->x0, r1 = w->y0, r2 = w->x1, r3 = w->y1;
+    if (wa) {
+        if (wa[0] + ox > r0) r0 = wa[0] + ox;
+        if (wa[1] + oy > r1) r1 = wa[1] + oy;
+        if (wa[2] + ox < r2) r2 = wa[2] + ox;
+        if (wa[3] + oy < r3) r3 = wa[3] + oy;
+    }
+    block[1] = w->x0; block[2] = w->y0; block[3] = w->x1; block[4] = w->y1;
+    block[5] = w->sx; block[6] = w->sy;
+    block[7] = r0; block[8] = r1; block[9] = r2; block[10] = r3;
+    if (r0 >= r2 || r1 >= r3)
+        return 0;
+    clip[0] = r0; clip[1] = r1; clip[2] = r2; clip[3] = r3;
+    return 1;
+}
+
+_kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
+{
+    _kernel_swi_regs r = *in;
+    _kernel_oserror *e = NULL;
+    fake_window_t *w;
+    int *block;
+
+    switch (no) {
+    case OS_SpriteOp:
+        e = sprite_op(&r);
+        break;
+    case OS_ReadVduVariables: {
+        const int *vars = (const int *) (long) r.r[0];
+        int *vals = (int *) (long) r.r[1];
+        for (; *vars != -1; vars++, vals++) {
+            switch (*vars) {
+            case 0:   *vals = fake_screen.flags; break;
+            case 4:   *vals = fake_screen.xeig; break;
+            case 5:   *vals = fake_screen.yeig; break;
+            case 6:   *vals = fake_screen.line_length; break;
+            case 9:   *vals = fake_screen.log2bpp; break;
+            case 11:  *vals = fake_screen.w - 1; break;
+            case 12:  *vals = fake_screen.h - 1; break;
+            case 148: *vals = (int) (long) fake_screen.mem; break;
+            default:  *vals = 0;
+            }
+        }
+        break;
+    }
+    case OS_ReadModeVariable: {
+        int log2bpp, flags;
+        if (!mode_info(r.r[0], &log2bpp, &flags)) { e = error("bad mode"); break; }
+        r.r[2] = (r.r[1] == 9) ? log2bpp : (r.r[1] == 0) ? flags : 0;
+        break;
+    }
+    case OS_ScreenMode:
+        if (r.r[0] != 1) { e = error("ScreenMode reason not faked"); break; }
+        screen_selector[0] = 1;
+        screen_selector[1] = fake_screen.w;
+        screen_selector[2] = fake_screen.h;
+        screen_selector[3] = fake_screen.log2bpp;
+        screen_selector[4] = 60;
+        screen_selector[5] = 0;
+        screen_selector[6] = fake_screen.flags;
+        screen_selector[7] = -1;
+        r.r[1] = (int) (long) screen_selector;
+        break;
+    case 0x400CB:   /* Wimp_GetWindowState */
+        block = (int *) (long) r.r[1];
+        if (!(w = find_window(block[0]))) { e = error("Illegal window handle"); break; }
+        block[1] = w->x0; block[2] = w->y0; block[3] = w->x1; block[4] = w->y1;
+        block[5] = w->sx; block[6] = w->sy; block[7] = -1; block[8] = 1 << 16;
+        break;
+    case 0x400C8:   /* Wimp_RedrawWindow */
+        block = (int *) (long) r.r[1];
+        if (!(w = find_window(block[0]))) { e = error("Illegal window handle"); break; }
+        fake_redraw_calls++;
+        r.r[0] = start_redraw(block, w, NULL);
+        break;
+    case 0x400C9: { /* Wimp_UpdateWindow */
+        int wa[4];
+        block = (int *) (long) r.r[1];
+        if (!(w = find_window(block[0]))) { e = error("Illegal window handle"); break; }
+        fake_update_calls++;
+        memcpy(wa, &block[1], sizeof wa);
+        r.r[0] = start_redraw(block, w, wa);
+        break;
+    }
+    case 0x400CA:   /* Wimp_GetRectangle: only ever one rectangle */
+        r.r[0] = 0;
+        full_clip();
+        break;
+    default:
+        e = error("SWI not faked");
+    }
+    if (out) *out = r;
+    return e;
+}
+
+int _kernel_osbyte(int op, int x, int y)
+{
+    (void) x; (void) y;
+    if (op == 19) fake_vsyncs++;
+    return 0;
+}
+
+int _kernel_oswrch(int c)
+{
+    (void) c;
+    return 0;
+}
+
+void fake_reset_clip(void)
+{
+    full_clip();
+}
