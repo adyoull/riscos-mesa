@@ -68,7 +68,8 @@ you get no configs.
   when creating the surface. In a 32bpp mode with the config's colour
   order, GL then renders into a screen bank that isn't being shown, and the
   swap switches the display to it (`OS_Byte 113`), with no copy. On the
-  Pi 4 this still tears (under investigation), so it's off by default.
+  Pi 4 this tears badly: the display switch isn't applied in step with the
+  vsync. So it's off by default; the sprite method gives clean frames there.
   `eglQuerySurface(EGL_SCREEN_BANKS_RISCOS)` says how many banks are in use (0
   if screen memory was too small). Bank contents aren't preserved across
   swaps (`EGL_SWAP_BEHAVIOR` is `EGL_BUFFER_DESTROYED`); setting
