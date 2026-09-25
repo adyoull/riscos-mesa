@@ -16,6 +16,8 @@
 
 #include "bcm_host.h"
 #include <EGL/eglplatform.h>
+#include <EGL/egl.h>
+#include "EGL/eglext_brcm.h"
 #include "riscos_dispmanx.h"
 
 #ifndef OS_ValidateAddress
@@ -324,4 +326,21 @@ int __riscos_dispmanx_placement(int id, riscos_dmx_placement *p)
     p->src_w = e->src.width >> 16;
     p->src_h = e->src.height >> 16;
     return 1;
+}
+
+/* Broadcom's closest-match config choice (see EGL/eglext_brcm.h). */
+EGLBoolean eglSaneChooseConfigBRCM(EGLDisplay dpy, const EGLint *attrib_list,
+                                   EGLConfig *configs, EGLint config_size,
+                                   EGLint *num_config)
+{
+    EGLint a[128];
+    int i, n = 0;
+    for (i = 0; attrib_list && attrib_list[i] != EGL_NONE && n < 126; i += 2) {
+        if (attrib_list[i] == EGL_SAMPLES || attrib_list[i] == EGL_SAMPLE_BUFFERS)
+            continue;
+        a[n++] = attrib_list[i];
+        a[n++] = attrib_list[i + 1];
+    }
+    a[n] = EGL_NONE;
+    return eglChooseConfig(dpy, a, configs, config_size, num_config);
 }

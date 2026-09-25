@@ -1,0 +1,12 @@
+| !ES2Gears: mesa-demos' es2gears (the gears in OpenGL ES 2.0 shaders), unchanged, through
+| eglut and riscos-mesa's native EGL in a desktop window.
+| Cursor keys rotate the view. Escape or the close icon quits.
+| The demo's text output (EGL version, FPS reports) goes to the file
+| Output in this application; the newest line is shown in the title bar.
+Set ES2Gears$Dir <Obey$Dir>
+Set EGLUT$Output /|<ES2Gears$Dir>/Output
+RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
+RMEnsure SharedUnixLibrary 1.16 Error !ES2Gears needs SharedUnixLibrary 1.16 or later
+RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
+RMEnsure ARMEABISupport 0.00 Error !ES2Gears needs ARMEABISupport
+Run <ES2Gears$Dir>.!RunImage

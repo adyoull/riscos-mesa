@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include "interface/vctypes/vc_image_types.h"
+#include "interface/vcos/vcos.h"      /* as on the Pi: Pi code relies on it */
 
 #ifdef __cplusplus
 extern "C" {

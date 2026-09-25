@@ -1,0 +1,32 @@
+riscos-mesa: Mesa's EGL demos in desktop windows
+================================================
+
+Five of the EGL demos from mesa-demos 9.0.0, built from their unchanged
+source. mesa-demos' small window library (eglut) was given a RISC OS back
+end, so each demo gets a Wimp window through riscos-mesa's native EGL (the
+window handle is the EGL native window). They multitask like any other
+desktop program.
+
+Needs SharedUnixLibrary and ARMEABISupport (the !Run files load them from
+System:Modules if they aren't loaded already).
+
+!EGLGears   the classic gears, desktop OpenGL 1.x
+!ES1Gears   the same gears in OpenGL ES 1.1
+!ES2Gears   the gears drawn with OpenGL ES 2.0 shaders
+!ES1Torus   a textured torus in OpenGL ES 1.1 (Space pauses, T changes
+            the texture format)
+!EGLTri     a shaded triangle, desktop OpenGL; it only redraws when you
+            press a key (as on Linux)
+
+Cursor keys rotate the view. Escape or the close icon quits. Click in the
+window first so it has the input focus. The window can be resized.
+
+The demos print their frame rate every 5 seconds (the gears) or other
+information. It goes to the file Output inside each application, and the
+newest line is shown in the window's title bar.
+
+Please report the frame rates in the title bars, and anything that looks
+wrong.
+
+Sources and the porting guide: docs/porting/mesa-demos.md in the
+riscos-mesa repository. Licence: MIT (see each application's Licence file).

@@ -1,0 +1,23 @@
+riscos-mesa: SDL 2's own OpenGL test programs
+=============================================
+
+testgl2, testgles and testgles2 from SDL 2.26.0, built from their unchanged
+source against riscos-mesa's SDL2 (which has OpenGL, OpenGL ES 1.1 and 2.0
+through its RISC OS video driver). Each opens a 640x480 desktop window with
+a spinning cube.
+
+Needs SharedUnixLibrary and ARMEABISupport.
+
+!TestGL2    desktop OpenGL
+!TestGLES   OpenGL ES 1.1
+!TestGLES2  OpenGL ES 2.0 shaders (slower: shaders run on the CPU)
+
+Escape or the close icon quits. SDL's test options work too if you run the
+!RunImage from a command line, for example --fullscreen, --vsync or
+--info all.
+
+The programs' log (the GL version, and the frame rate when they quit) goes
+to the file Output inside each application. Please report those figures.
+
+Sources and the porting guide: docs/porting/sdl2.md in the riscos-mesa
+repository. Licence: zlib (see each application's Licence file).

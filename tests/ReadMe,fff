@@ -121,8 +121,11 @@ Run in this order and note the output:
                     *Unset SDL$WindowScale turns it back on.
       egl-window    the cube should fill the window, sharp, not doubled.
 
-   j) The Raspberry Pi's own hello_triangle examples, rebuilt from
-      source, are in a separate zip (riscos-mesa-hello_pi); see its ReadMe.
+   j) More programs, in separate zips, each with its own ReadMe:
+      riscos-mesa-hello_pi   the Raspberry Pi's hello_triangle,
+                             hello_triangle2 and hello_teapot, rebuilt
+      riscos-mesa-ports      Mesa's EGL demos (gears etc.) and SDL 2's
+                             OpenGL test programs, in desktop windows
 
 Please report: the fps figures, anything that crashes (with the error
 text), the fps in the window title, whether the scroll wheel zooms (in a window

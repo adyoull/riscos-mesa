@@ -4,6 +4,7 @@
 # real types and plain names; NAME,xxx files in stage/ become NAME + type.
 #   build/package.sh VERSION    -> dist/riscos-mesa-tests-VERSION.zip
 #                                  dist/riscos-mesa-hello_pi-VERSION.zip
+#                                  dist/riscos-mesa-ports-VERSION.zip
 #                                  dist/riscos-mesa-devkit-VERSION.tgz
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
@@ -23,6 +24,18 @@ if [ -d "$STAGE/hello_pi" ]; then
   cp -r "$STAGE/hello_pi" "$TMP/riscos-mesa-hello_pi"
   rm -f "$HERE/dist/riscos-mesa-hello_pi-$V.zip"
   ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-hello_pi-$V.zip" riscos-mesa-hello_pi )
+  rm -rf "$TMP"
+fi
+# Ported example programs (build-ports.sh): Mesa's EGL demos and SDL's GL
+# tests. The ES 2.0 book samples have no licence, so they stay out.
+if [ -d "$STAGE/ports" ]; then
+  TMP=$(mktemp -d)
+  mkdir -p "$TMP/riscos-mesa-ports"
+  for d in mesa-demos sdl2-tests; do
+    [ -d "$STAGE/ports/$d" ] && cp -r "$STAGE/ports/$d" "$TMP/riscos-mesa-ports/$d"
+  done
+  rm -f "$HERE/dist/riscos-mesa-ports-$V.zip"
+  ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-ports-$V.zip" riscos-mesa-ports )
   rm -rf "$TMP"
 fi
 ( cd "$STAGE/.." && tar czf "$HERE/dist/riscos-mesa-devkit-$V.tgz" \

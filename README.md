@@ -51,7 +51,8 @@ SharedLibs (SOManager), SharedUnixLibrary and ARMEABISupport from PackMan.
     build/build-sdl2.sh      # SDL 2.26 + patches/sdl2 (the RISC OS overlay)
     build/build-egl.sh       # libEGL.a + EGL headers
     build/build-tests.sh     # -> stage/tests/*,e1f
-    build/build-hello-pi.sh  # Pi hello_triangle/2 rebuilt -> stage/hello_pi
+    build/build-hello-pi.sh  # Pi hello_triangle/2, hello_teapot -> stage/hello_pi
+    build/build-ports.sh     # ported examples (docs/porting) -> stage/ports
 Everything installs into `stage/`. No GCCSDK GCC 10 yet? See build/TOOLCHAIN.md. Host needs meson, ninja, python3-mako,
 bison, flex, autoconf, automake, libtool.
 
@@ -62,8 +63,10 @@ bison, flex, autoconf, automake, libtool.
 - Plain OSMesa: see `tests/osmesatest.c` (renders straight into a 32bpp sprite).
 - EGL: see `egl/README.md` and `tests/egltest.c` (a Wimp task with a GL
   window, full screen, pbuffer and pixmap use).
-- Existing Raspberry Pi 1-3 Khronos code: rebuild it from source, as
-  `ports/hello_pi` does (its README is the porting template).
+- Porting existing programs (Mesa's EGL demos, the OpenGL ES 2.0
+  Programming Guide samples, SDL 2 GL programs, Raspberry Pi 1-3 Khronos
+  code): see `docs/porting/`, with a worked, host-tested port for each in
+  `ports/`.
 - SDL2: `patches/sdl2/*.p` is a complete RISC OS driver overlay (desktop
   windows, full screen, typing, OpenGL) in GCCSDK autobuilder form; configure
   SDL with `--enable-video-riscos-osmesa` for OpenGL. Do NOT let SDL's

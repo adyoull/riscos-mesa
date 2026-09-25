@@ -19,6 +19,11 @@ fake_screen_t fake_screen;
 fake_window_t fake_windows[FAKE_MAX_WINDOWS];
 int fake_vsyncs, fake_update_calls, fake_redraw_calls, fake_plots;
 int fake_force_redraws, fake_force_rect[5], fake_scaled_plots;
+int fake_wimp_nulls, fake_wimp_script[16][2], fake_wimp_script_len;
+int fake_wimp_polls, fake_wimp_keys_passed, fake_wimp_tasks;
+void (*fake_wimp_hook)(int reason);
+const char *fake_wimp_title;
+static int wimp_next_handle = 0x7000, wimp_last_window, wimp_stage, wimp_step;
 
 static _kernel_oserror err = { 1, "fake error" };
 static int clip[4];                  /* graphics window, OS units x0,y0,x1,y1 (excl.) */
@@ -266,6 +271,70 @@ _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out
         screen_selector[6] = fake_screen.flags;
         screen_selector[7] = -1;
         r.r[1] = (int) (long) screen_selector;
+        break;
+    case 0x400C0:   /* Wimp_Initialise */
+        fake_wimp_tasks++;
+        wimp_stage = wimp_step = 0;
+        r.r[0] = 380; r.r[1] = 0x4A00;
+        break;
+    case 0x400DD:   /* Wimp_CloseDown */
+        fake_wimp_tasks--;
+        break;
+    case 0x400C1:   /* Wimp_CreateWindow: opened by Wimp_OpenWindow */
+        block = (int *) (long) r.r[1];
+        if (block[14] & 0x100) fake_wimp_title = (const char *) (long) block[18];   /* indirected */
+        r.r[0] = wimp_last_window = wimp_next_handle++;
+        break;
+    case 0x400C5:   /* Wimp_OpenWindow */
+        block = (int *) (long) r.r[1];
+        if (!fake_open_window(block[0], block[1], block[2], block[3], block[4], block[5], block[6]))
+            e = error("too many windows");
+        break;
+    case 0x400C6:   /* Wimp_CloseWindow */
+    case 0x400C3: { /* Wimp_DeleteWindow */
+        fake_window_t *cw = find_window(*(int *) (long) r.r[1]);
+        if (cw) cw->handle = 0;
+        break;
+    }
+    case 0x400D2:   /* Wimp_SetCaretPosition */
+        break;
+    case 0x400DC:   /* Wimp_ProcessKey: a key the task didn't use */
+        fake_wimp_keys_passed++;
+        break;
+    case 0x400C7:   /* Wimp_Poll */
+    case 0x400E1: { /* Wimp_PollIdle */
+        int reason;
+        block = (int *) (long) r.r[1];
+        memset(block, 0, 64);
+        fake_wimp_polls++;
+        if (wimp_stage == 0) { reason = 1; block[0] = wimp_last_window; wimp_stage = 1; }
+        else if (wimp_stage == 1 && wimp_step < fake_wimp_nulls && !(r.r[0] & 1)) {
+            reason = 0; wimp_step++;
+        } else {
+            if (wimp_stage == 1) { wimp_stage = 2; wimp_step = 0; }
+            if (wimp_step < fake_wimp_script_len) {
+                reason = fake_wimp_script[wimp_step][0];
+                block[0] = wimp_last_window;
+                if (reason == 8) block[6] = fake_wimp_script[wimp_step][1];
+                if (reason == 2) {           /* Open_Window_Request: new width and height, OS units */
+                    fake_window_t *ow = find_window(wimp_last_window);
+                    int v = fake_wimp_script[wimp_step][1];
+                    if (ow) {
+                        block[1] = ow->x0; block[4] = ow->y1;
+                        block[3] = ow->x0 + (v & 0xFFFF); block[2] = ow->y1 - (v >> 16);
+                        block[5] = ow->sx; block[6] = ow->sy; block[7] = -1;
+                    }
+                }
+                if (reason == 6) block[2] = 4, block[3] = wimp_last_window;
+                wimp_step++;
+            } else { reason = 3; block[0] = wimp_last_window; }
+        }
+        if (fake_wimp_hook) fake_wimp_hook(reason);
+        r.r[0] = reason;
+        break;
+    }
+    case 0x42:      /* OS_ReadMonotonicTime: centiseconds */
+        r.r[0] = fake_wimp_polls * 2;
         break;
     case 0x400CB:   /* Wimp_GetWindowState */
         block = (int *) (long) r.r[1];

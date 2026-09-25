@@ -36,6 +36,8 @@ empty, so an existing Pi link line such as
 | `vc_dispmanx_element_remove` | Redraws the desktop under it |
 | `vc_dispmanx_rect_set` | As on the Pi |
 | `vc_dispmanx_vsync_callback` | Not available: returns -1 |
+| `eglSaneChooseConfigBRCM` (`EGL/eglext_brcm.h`) | Broadcom's closest-match `eglChooseConfig`: drops `EGL_SAMPLES` / `EGL_SAMPLE_BUFFERS` (no multisampling here), the rest as `eglChooseConfig` |
+| `interface/vcos/vcos.h` | Only the assertion and helper macros examples use (`vc_assert`, `vcos_assert`, `countof`, `vcos_sleep`…); no vcos threads, events or logging |
 
 `eglCreateWindowSurface` accepts a pointer to an `EGL_DISPMANX_WINDOW_T`
 (element, width, height). The surface is `width` x `height` pixels; on each

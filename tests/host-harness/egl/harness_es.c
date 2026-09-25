@@ -204,6 +204,19 @@ void test_dispmanx(EGLDisplay dpy)
     int plots, forced;
 
     bcm_host_init();
+    {
+        /* hello_teapot asks for 4x multisampling through Broadcom's
+           closest-match call: plain eglChooseConfig finds nothing,
+           eglSaneChooseConfigBRCM drops the sample attributes. */
+        static const EGLint ms[] = { EGL_RED_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLES, 4,
+                                     EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_NONE };
+        EGLConfig c;
+        EGLint n = -1, n2 = -1, d = 0;
+        CHECK(eglChooseConfig(dpy, ms, &c, 1, &n) && n == 0, "no multisample configs (%d)", n);
+        CHECK(eglSaneChooseConfigBRCM(dpy, ms, &c, 1, &n2) && n2 == 1 &&
+              eglGetConfigAttrib(dpy, c, EGL_DEPTH_SIZE, &d) && d >= 16,
+              "eglSaneChooseConfigBRCM: closest match without multisampling (%d, depth %d)", n2, d);
+    }
     CHECK(graphics_get_display_size(0, &w, &h) >= 0 && w == 640 && h == 480, "display size %ux%u", w, h);
     disp = vc_dispmanx_display_open(0);
     CHECK(disp != DISPMANX_NO_HANDLE, "display open");

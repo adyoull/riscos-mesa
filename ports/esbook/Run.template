@@ -1,0 +1,11 @@
+| !@APP@: a sample from the OpenGL ES 2.0 Programming Guide, built unchanged
+| against riscos-mesa with its esUtil_RISCOS.c (a desktop window through
+| native EGL). Escape or the close icon quits. Text output (the FPS report)
+| goes to the file Output here; its newest line is shown in the title bar.
+Set ESUtil$Dir <Obey$Dir>
+Set ESUtil$Output /|<ESUtil$Dir>/Output
+RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
+RMEnsure SharedUnixLibrary 1.16 Error !@APP@ needs SharedUnixLibrary 1.16 or later
+RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
+RMEnsure ARMEABISupport 0.00 Error !@APP@ needs ARMEABISupport
+Run <ESUtil$Dir>.!RunImage

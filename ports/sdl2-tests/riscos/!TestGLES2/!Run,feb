@@ -1,0 +1,12 @@
+| !TestGLES2: SDL 2.26's own test program testgles2 (OpenGL ES 2.0 shaders (a spinning cube)), unchanged,
+| built against riscos-mesa's SDL2. It opens a 640x480 desktop window;
+| close it (or press Escape) to quit. Its log, including the frame rate
+| when it quits, goes to the file Output in this application.
+| Options: testgles2 --help lists them, e.g. --fullscreen, --vsync, --info all.
+Set TestGLES2$Dir <Obey$Dir>
+Set TestGLES2$Output /|<TestGLES2$Dir>/Output
+RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
+RMEnsure SharedUnixLibrary 1.16 Error !TestGLES2 needs SharedUnixLibrary 1.16 or later
+RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
+RMEnsure ARMEABISupport 0.00 Error !TestGLES2 needs ARMEABISupport
+Run <TestGLES2$Dir>.!RunImage

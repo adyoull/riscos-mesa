@@ -32,4 +32,17 @@ void fake_reset_clip(void);
    fake_watch = {x0, y0 (from top), x1, y1} (exclusive). */
 extern int fake_watch[4], fake_watch_value, fake_watch_hits;
 
+/* A scripted Wimp task (Wimp_Initialise/CreateWindow/OpenWindow/Poll...).
+   Wimp_Poll first returns one Redraw_Window_Request for the newest window,
+   then fake_wimp_nulls Null_Reason_Codes (when nulls are unmasked), then
+   each fake_wimp_script entry: {reason, value} with reason 8 = key
+   (value = RISC OS key code), 6 = click or 2 = Open_Window_Request
+   (value = width | height << 16, OS units, same top left), then
+   Close_Window_Request.
+   fake_wimp_hook, if set, is called before each Poll returns (a frame). */
+extern int fake_wimp_nulls, fake_wimp_script[16][2], fake_wimp_script_len;
+extern int fake_wimp_polls, fake_wimp_keys_passed, fake_wimp_tasks;
+extern void (*fake_wimp_hook)(int reason);
+extern const char *fake_wimp_title;   /* the newest window's indirected title */
+
 #endif

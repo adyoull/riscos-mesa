@@ -23,9 +23,12 @@ for l in GLESv2 GLESv1_CM vcos vchiq_arm; do
   $AR rcs "$STAGE/lib/lib$l.a" "$B/empty.o"
 done
 rm -rf "$B"
-mkdir -p "$STAGE/include/EGL" "$STAGE/include/interface/vmcs_host" "$STAGE/include/interface/vctypes"
+mkdir -p "$STAGE/include/EGL" "$STAGE/include/interface/vmcs_host" "$STAGE/include/interface/vctypes" \
+  "$STAGE/include/interface/vcos"
 cp "$E"/include/EGL/*.h "$STAGE/include/EGL/"
 cp "$X/include/bcm_host.h" "$STAGE/include/"
+cp "$X/include/EGL/eglext_brcm.h" "$STAGE/include/EGL/"
 cp "$X"/include/interface/vmcs_host/*.h "$STAGE/include/interface/vmcs_host/"
 cp "$X"/include/interface/vctypes/*.h "$STAGE/include/interface/vctypes/"
+cp "$X"/include/interface/vcos/*.h "$STAGE/include/interface/vcos/"
 ls -la "$STAGE/lib/libEGL.a" "$STAGE/lib/libbcm_host.a"

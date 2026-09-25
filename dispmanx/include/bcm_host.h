@@ -39,4 +39,8 @@ int32_t graphics_get_display_size(const uint16_t display_number,
 }
 #endif
 
+/* The Pi's EGL headers declare eglSaneChooseConfigBRCM; here it comes with
+   bcm_host.h (included before the EGL headers, so the types match). */
+#include "EGL/eglext_brcm.h"
+
 #endif

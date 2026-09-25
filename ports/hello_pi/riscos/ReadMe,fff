@@ -1,7 +1,7 @@
-riscos-mesa: the Raspberry Pi's hello_triangle examples, rebuilt
-=================================================================
+riscos-mesa: the Raspberry Pi's hello_pi examples, rebuilt
+==========================================================
 
-These are two of the Raspberry Pi's own hello_pi examples, rebuilt from
+These are three of the Raspberry Pi's own hello_pi examples, rebuilt from
 source against riscos-mesa (EGL, OpenGL ES and the DispmanX compatibility
 library). They show that existing Pi Khronos programs port to riscos-mesa.
 They run on any RISC OS 5 machine, the Pi 4 included.
@@ -20,10 +20,16 @@ The desktop is redrawn when they exit.
                  pixels wide and scales that up to the screen.
                  *Set HelloTriangle2$Scale N renders at 1/N of the screen
                  size instead (lower N: sharper and slower).
+!HelloTeapot     a lit, textured teapot model (OpenGL ES 1.1). On the Pi
+                 it played a video on the teapot through the GPU's video
+                 decoder; there is none here, so it wears a still picture.
+                 Press any key to exit.
 
 Please report: whether the textures show on the cube, whether the fractals
-follow the mouse, and roughly how many frames a second each manages.
+follow the mouse, whether the teapot looks right, and roughly how many
+frames a second each manages.
 
-The sources and the notes on porting other Pi programs are in
-ports/hello_pi in the riscos-mesa repository. Licence: BSD (the Raspberry
-Pi userland licence, in each application's Licence file).
+The sources are in ports/hello_pi in the riscos-mesa repository, and the
+guide to porting other Pi programs is docs/porting/hello_pi.md.
+Licence: BSD (the Raspberry Pi userland licence, in each application's
+Licence file).

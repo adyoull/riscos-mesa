@@ -1,0 +1,12 @@
+| !EGLGears: mesa-demos' eglgears (the classic gears in desktop OpenGL 1.x), unchanged, through
+| eglut and riscos-mesa's native EGL in a desktop window.
+| Cursor keys rotate the view. Escape or the close icon quits.
+| The demo's text output (EGL version, FPS reports) goes to the file
+| Output in this application; the newest line is shown in the title bar.
+Set EGLGears$Dir <Obey$Dir>
+Set EGLUT$Output /|<EGLGears$Dir>/Output
+RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
+RMEnsure SharedUnixLibrary 1.16 Error !EGLGears needs SharedUnixLibrary 1.16 or later
+RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
+RMEnsure ARMEABISupport 0.00 Error !EGLGears needs ARMEABISupport
+Run <EGLGears$Dir>.!RunImage

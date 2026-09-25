@@ -26,4 +26,28 @@ heap in one arena, and the tests run on a thread whose stack is at 1.5 GB.
     gcc $F harness.c fake_riscos.c ../../../egl/egl_riscos.c harness_es.o bcm_host.o \
       -o harness -L$O -lOSMesa -lpthread -Wl,-rpath,$O && ./harness
 
-Expected: `260 checks, 0 failures: ALL PASS`.
+Expected: `262 checks, 0 failures: ALL PASS`.
+
+## Running a port (docs/porting)
+
+`portrun.c` runs a whole ported program on the fake RISC OS:
+
+- The fake answers Wimp_Initialise, CreateWindow, OpenWindow and Poll
+  from a script. It sends a redraw, then FRAMES null events, then the
+  KEYS script (key presses, or window resizes), then a close request.
+- The screen is saved as a PPM file for checking.
+
+For example, mesa-demos' es2gears over `ports/mesa-demos/eglut_riscos.c`:
+
+    D=<mesa-demos-9.0.0>/src; P=../../../ports
+    F="$F -D__riscos__ -I$P/common -I$P/mesa-demos/upstream/eglut -I$P/mesa-demos/upstream/util"
+    gcc $F -c ../../../egl/egl_riscos.c $P/common/riscos_wimpwin.c
+    gcc $F -Dmain=app_main -c $P/mesa-demos/upstream/eglut/eglut.c \
+        $P/mesa-demos/eglut_riscos.c $P/mesa-demos/upstream/opengles2/es2gears.c \
+        $P/mesa-demos/upstream/util/matrix.c
+    gcc -no-pie -w -I. -Ifake -c fake_riscos.c portrun.c
+    gcc -no-pie *.o -o es2gears -L$O -lOSMesa -lpthread -lm -Wl,-rpath,$O
+    FRAMES=100 KEYS=0x18C,r1000x700,32 PPM=out.ppm ./es2gears
+
+(`fake_riscos.c` and `portrun.c` are built without `__riscos__`; the port
+and `egl_riscos.c` with it.)

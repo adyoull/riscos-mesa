@@ -1,0 +1,13 @@
+| !ES1Torus: mesa-demos' torus (a textured spinning torus in OpenGL ES 1.1), unchanged, through
+| eglut and riscos-mesa's native EGL in a desktop window.
+| Cursor keys rotate it, Space stops and starts it, T cycles through the
+| compressed (paletted) texture formats. Escape or the close icon quits.
+| The demo's text output (EGL version, FPS reports) goes to the file
+| Output in this application; the newest line is shown in the title bar.
+Set ES1Torus$Dir <Obey$Dir>
+Set EGLUT$Output /|<ES1Torus$Dir>/Output
+RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
+RMEnsure SharedUnixLibrary 1.16 Error !ES1Torus needs SharedUnixLibrary 1.16 or later
+RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
+RMEnsure ARMEABISupport 0.00 Error !ES1Torus needs ARMEABISupport
+Run <ES1Torus$Dir>.!RunImage
