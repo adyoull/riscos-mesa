@@ -29,9 +29,10 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
 
 - Use GCCSDK GCC 10 (`arm-riscos-gnueabihf-gcc`) with riscos-mesa's
   flags: `-O3 -mtune=cortex-a72 -mfpu=vfpv4 -mfloat-abi=hard
-  -fstack-clash-protection`. **`-fstack-clash-protection` is essential**
-  (see `CLAUDE.md`): without it, functions with big stack frames crash
-  seemingly at random.
+  -fstack-clash-protection`. **`-fstack-clash-protection` is essential:**
+  the ELF stack grows a page at a time behind a guard page, and without
+  probing, functions with big stack frames jump past it and crash
+  seemingly at random (`tools/check-stack-probes.py` checks a binary).
 - Link lines:
   - EGL: `-lEGL -lOSMesa -lstdc++ -lz -lm`.
   - SDL2: `-lSDL2 -lOSMesa -lstdc++ -lz -lm` (add `-lGLU` if used).

@@ -2,5 +2,6 @@ stage/
 src/
 *.part
 dist/
-# Working notes: kept locally and in the Claude project, never committed
+# Working notes and the assistant briefing: kept locally, never committed
 *START-HERE*.md
+CLAUDE.md
