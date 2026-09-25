@@ -67,7 +67,11 @@ Run in this order and note the output:
       screen memory can grow that far, else 2): should be tear free, at
       up to the display's refresh rate. The summary says how many banks.
       Also try  egltest -f -v 0  (no vsync wait: maximum speed, may tear)
-      and  egltest -f -d -v 0  (draws into the visible screen: tears). The desktop is frozen while it runs and redrawn
+      and  egltest -f -d -v 0  (draws into the visible screen: tears).
+      egl-full-fv: the same as egl-full but switching the screen bank
+      before the vsync wait. If egl-full tears and this doesn't (or the
+      other way round), that tells us when the Pi applies a bank switch.
+      Also note whether the tear line stays at one height or moves. The desktop is frozen while it runs and redrawn
       afterwards.
 
 Please report: the fps figures, anything that crashes (with the error

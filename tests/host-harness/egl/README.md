@@ -21,4 +21,4 @@ heap in one arena, and the tests run on a thread whose stack is at 1.5 GB.
       harness.c fake_riscos.c ../../../egl/egl_riscos.c -o harness \
       -L$O -lOSMesa -lpthread -Wl,-rpath,$O && ./harness
 
-Expected: `104 checks, 0 failures: ALL PASS`.
+Expected: `106 checks, 0 failures: ALL PASS`.

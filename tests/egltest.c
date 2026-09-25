@@ -11,10 +11,12 @@
  *                                the title. Resize, scroll and cover it.
  *                                -r adds a second, fixed-size EGL surface at a
  *                                work area position (EGL_RISCOS_wimp_window).
- *   egltest -f [-d] [-v n] [-t secs] [-o file]
+ *   egltest -f [-d] [-v n] [-s fv] [-t secs] [-o file]
  *                                full screen (native window -1) for 5 s or -t;
  *                                -d renders straight into screen memory
- *                                (EGL_SINGLE_BUFFER), -v swap interval (1).
+ *                                (EGL_SINGLE_BUFFER), -v swap interval (1),
+ *                                -s fv switches screen bank before waiting
+ *                                for vsync instead of after (experiment).
  * The desktop modes print a summary when they finish (printing while a Wimp
  * task pops up a command window); -o also writes it to a file.
  */
@@ -467,6 +469,8 @@ static int run_window(int second, double limit)
 /* ------------------------------------------------------------------ */
 /* Full screen mode                                                    */
 
+static int flip_first;
+
 static int run_fullscreen(int direct, int interval, double limit)
 {
     EGLConfig cfg;
@@ -474,7 +478,8 @@ static int run_fullscreen(int direct, int interval, double limit)
     EGLSurface fs;
     EGLint w, h, rb, banks = 0;
     char how[64];
-    EGLint attrs[] = { EGL_RENDER_BUFFER, direct ? EGL_SINGLE_BUFFER : EGL_BACK_BUFFER, EGL_NONE };
+    EGLint attrs[] = { EGL_RENDER_BUFFER, direct ? EGL_SINGLE_BUFFER : EGL_BACK_BUFFER,
+                       EGL_FLIP_FIRST_RISCOS, flip_first, EGL_NONE };
     double t0, t1, t2, tstart, render = 0, present = 0;
     long frames = 0;
     float a = 0;
@@ -516,7 +521,8 @@ static int run_fullscreen(int direct, int interval, double limit)
     if (rb == EGL_SINGLE_BUFFER)
         snprintf(how, sizeof how, "direct to screen memory");
     else if (banks > 0)
-        snprintf(how, sizeof how, "%d screen banks", banks);
+        snprintf(how, sizeof how, "%d screen banks, %s", banks,
+                 flip_first ? "switch then vsync" : "vsync then switch");
     else
         snprintf(how, sizeof how, "double buffered (sprite plot)");
     say("full screen %dx%d, %s, swap interval %d: %ld frames in %.1f s = %.1f fps; "
@@ -551,6 +557,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-f")) mode = 'f';
         else if (!strcmp(argv[i], "-r")) second = 1;
         else if (!strcmp(argv[i], "-d")) direct = 1;
+        else if (!strcmp(argv[i], "-s") && i + 1 < argc) flip_first = !strcmp(argv[++i], "fv");
         else if (!strcmp(argv[i], "-v") && i + 1 < argc) interval = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-t") && i + 1 < argc) limit = atof(argv[++i]);
         else if (!strcmp(argv[i], "-o") && i + 1 < argc) {

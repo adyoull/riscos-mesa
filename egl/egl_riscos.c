@@ -103,6 +103,7 @@ typedef struct egl_surface {
     int draw_bank;              /* bank being drawn (1..banks) */
     void *bank_addr[MAX_BANKS + 1];
     int no_banks;               /* don't try screen banks (failed, or preserved contents wanted) */
+    int flip_first;             /* experiment: switch bank before the vsync wait */
     int *area;                  /* malloc'd sprite area */
     int *sprite;                /* sprite in it */
     int sprite_mode;            /* mode word / selector used to make it */
@@ -291,27 +292,110 @@ static void plot_rectangle(const egl_surface *surf, const int *block, const scre
     _kernel_swi(OS_SpriteOp, &r, &r);
 }
 
+typedef struct { int x0, y0, x1, y1; } os_rect;    /* screen OS units, x1/y1 exclusive */
+
+#define MAX_PIECES 16
+
+/* Set the graphics window (VDU 24 takes inclusive coordinates). */
+static void set_graphics_window(const os_rect *c)
+{
+    int v[4], i;
+    v[0] = c->x0; v[1] = c->y0; v[2] = c->x1 - 1; v[3] = c->y1 - 1;
+    _kernel_oswrch(24);
+    for (i = 0; i < 4; i++) {
+        _kernel_oswrch(v[i] & 0xFF);
+        _kernel_oswrch((v[i] >> 8) & 0xFF);
+    }
+}
+
+/* Where a work area surface sits on screen during a redraw/update loop. */
+static os_rect fixed_rect(const egl_surface *surf, const int *block, const screen_info *s)
+{
+    os_rect r;
+    r.x0 = block[1] - block[5] + surf->wa_x;
+    r.y1 = block[4] - block[6] + surf->wa_y;
+    r.x1 = r.x0 + (surf->w << s->xeig);
+    r.y0 = r.y1 - (surf->h << s->yeig);
+    return r;
+}
+
+/* Remove hole from the list of rectangles (each splits into up to 4). */
+static int subtract_rect(os_rect *pieces, int n, const os_rect *hole)
+{
+    os_rect out[MAX_PIECES];
+    int i, m = 0;
+    for (i = 0; i < n; i++) {
+        os_rect a = pieces[i];
+        if (hole->x0 >= a.x1 || hole->x1 <= a.x0 || hole->y0 >= a.y1 || hole->y1 <= a.y0) {
+            if (m < MAX_PIECES) out[m++] = a;
+            continue;
+        }
+        if (hole->y1 < a.y1 && m < MAX_PIECES) {            /* band above */
+            out[m].x0 = a.x0; out[m].x1 = a.x1; out[m].y0 = hole->y1; out[m].y1 = a.y1; m++;
+        }
+        if (hole->y0 > a.y0 && m < MAX_PIECES) {            /* band below */
+            out[m].x0 = a.x0; out[m].x1 = a.x1; out[m].y0 = a.y0; out[m].y1 = hole->y0; m++;
+        }
+        {
+            int y0 = hole->y0 > a.y0 ? hole->y0 : a.y0;
+            int y1 = hole->y1 < a.y1 ? hole->y1 : a.y1;
+            if (hole->x0 > a.x0 && m < MAX_PIECES) {        /* left of it */
+                out[m].x0 = a.x0; out[m].x1 = hole->x0; out[m].y0 = y0; out[m].y1 = y1; m++;
+            }
+            if (hole->x1 < a.x1 && m < MAX_PIECES) {        /* right of it */
+                out[m].x0 = hole->x1; out[m].x1 = a.x1; out[m].y0 = y0; out[m].y1 = y1; m++;
+            }
+        }
+    }
+    memcpy(pieces, out, m * sizeof out[0]);
+    return m;
+}
+
 static void plot_loop(egl_display *d, int handle, egl_surface *only, int *block, int more)
 {
     screen_info s;
     _kernel_swi_regs r;
-    egl_surface *surf;
+    egl_surface *surf, *f;
+    os_rect clip, pieces[MAX_PIECES], hole;
+    int n, i;
 
-    int pass;
-
-    /* Visible area surfaces first, then work area ones on top of them.
-       Showing a visible area surface (only != NULL) also replots the work
-       area surfaces, since it just covered them. */
+    /* Visible area surfaces first, but never over the work area surfaces
+       (plotting them twice would flash the wrong image there while the
+       screen is being scanned out); then the work area surfaces. Showing a
+       visible area surface (only != NULL) replots the work area ones too. */
     read_screen(&s);
     while (more) {
-        for (pass = 0; pass < 2; pass++) {
-            for (surf = d->surfaces; surf; surf = surf->next) {
-                if (surf->kind != SURF_WINDOW || surf->handle != handle ||
-                    surf->destroy_pending || surf->fixed != pass)
-                    continue;
-                if (only == NULL || only == surf || (pass == 1 && !only->fixed))
-                    plot_rectangle(surf, block, &s);
+        clip.x0 = block[7]; clip.y0 = block[8]; clip.x1 = block[9]; clip.y1 = block[10];
+        for (surf = d->surfaces; surf; surf = surf->next) {
+            if (surf->kind != SURF_WINDOW || surf->handle != handle ||
+                surf->destroy_pending || surf->fixed || (only && only != surf))
+                continue;
+            pieces[0] = clip;
+            n = 1;
+            for (f = d->surfaces; f; f = f->next) {
+                if (f->kind == SURF_WINDOW && f->handle == handle && f->fixed &&
+                    !f->destroy_pending && f->sprite) {
+                    hole = fixed_rect(f, block, &s);
+                    n = subtract_rect(pieces, n, &hole);
+                }
             }
+            if (n == 1 && pieces[0].x0 == clip.x0 && pieces[0].x1 == clip.x1 &&
+                pieces[0].y0 == clip.y0 && pieces[0].y1 == clip.y1) {
+                plot_rectangle(surf, block, &s);
+            } else {
+                for (i = 0; i < n; i++) {
+                    set_graphics_window(&pieces[i]);
+                    plot_rectangle(surf, block, &s);
+                }
+                set_graphics_window(&clip);
+            }
+        }
+        for (surf = d->surfaces; surf; surf = surf->next) {
+            if (surf->kind != SURF_WINDOW || surf->handle != handle ||
+                surf->destroy_pending || !surf->fixed)
+                continue;
+            if (only == NULL || only == surf || !only->fixed)
+                plot_rectangle(surf, block, &s);
         }
         r.r[1] = (int) block;
         if (_kernel_swi(Wimp_GetRectangle, &r, &r) != NULL)
@@ -328,13 +412,16 @@ static void present(egl_display *d, egl_surface *surf, const screen_info *s)
     int i;
 
     if (surf->handle == -1) {
+        if (surf->banks && surf->flip_first)
+            _kernel_osbyte(113, surf->draw_bank, 0);
         for (i = 0; i < surf->swap_interval; i++)
             _kernel_osbyte(19, 0, 0);
         if (surf->banks) {
             /* Show the finished bank, then draw into the oldest one. With
                three banks that one isn't on screen even if the display
                only switches at the next vsync. */
-            _kernel_osbyte(113, surf->draw_bank, 0);
+            if (!surf->flip_first)
+                _kernel_osbyte(113, surf->draw_bank, 0);
             surf->draw_bank = surf->draw_bank % surf->banks + 1;
             surf->pixels = surf->bank_addr[surf->draw_bank];
             return;
@@ -1004,6 +1091,7 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreateWindowSurface(EGLDisplay dpy, EGLConfig c
         case EGL_VG_COLORSPACE:
         case EGL_VG_ALPHA_FORMAT:
             break;              /* OpenVG only, ignored */
+        case EGL_FLIP_FIRST_RISCOS:       s->flip_first = (v != 0); break;
         case EGL_WORK_AREA_X_RISCOS:      s->wa_x = v; break;
         case EGL_WORK_AREA_Y_RISCOS:      s->wa_y = v; break;
         case EGL_WORK_AREA_WIDTH_RISCOS:  s->w = v; have_w = 1; break;

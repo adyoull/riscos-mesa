@@ -155,6 +155,10 @@ static _kernel_oserror *sprite_op(_kernel_swi_regs *r)
                 unsigned int p = pix[(size_t) sy * w + sx];
                 if (x < 0 || x >= fake_screen.w || ox < clip[0] || ox >= clip[2]) continue;
                 if (swap) p = (p & 0xFF00FF00u) | ((p >> 16) & 0xFF) | ((p & 0xFF) << 16);
+                if (x >= fake_watch[0] && x < fake_watch[2] &&
+                    (fake_screen.h - 1 - y_up) >= fake_watch[1] && (fake_screen.h - 1 - y_up) < fake_watch[3] &&
+                    (p & 0xFFFFFF) == (unsigned) fake_watch_value)
+                    fake_watch_hits++;
                 fake_screen.mem[(size_t) (fake_screen.h - 1 - y_up) * (fake_screen.line_length / 4) + x] = p;
             }
         }
@@ -296,9 +300,24 @@ int _kernel_osbyte(int op, int x, int y)
     return 0;
 }
 
+/* VDU 24 (graphics window) only; four signed 16-bit inclusive coordinates. */
+int fake_watch[4], fake_watch_value, fake_watch_hits;   /* pixels written in a rect with a value */
+
 int _kernel_oswrch(int c)
 {
-    (void) c;
+    static int state = -1, bytes[8];
+    if (state < 0) {
+        if (c == 24) state = 0;
+        return 0;
+    }
+    bytes[state++] = c & 0xFF;
+    if (state == 8) {
+        int i, v[4];
+        for (i = 0; i < 4; i++)
+            v[i] = (short) (bytes[2 * i] | (bytes[2 * i + 1] << 8));
+        clip[0] = v[0]; clip[1] = v[1]; clip[2] = v[2] + 1; clip[3] = v[3] + 1;
+        state = -1;
+    }
     return 0;
 }
 

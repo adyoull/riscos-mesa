@@ -25,5 +25,8 @@ fake_window_t *fake_open_window(int handle, int x0, int y0, int x1, int y1, int 
 unsigned int fake_screen_pixel(int x, int y_from_top);
 unsigned int fake_bank_pixel(int bank, int x, int y_from_top);
 void fake_reset_clip(void);
+/* Count pixels of value fake_watch_value plotted inside pixel rect
+   fake_watch = {x0, y0 (from top), x1, y1} (exclusive). */
+extern int fake_watch[4], fake_watch_value, fake_watch_hits;
 
 #endif

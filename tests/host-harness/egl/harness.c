@@ -322,6 +322,20 @@ static void test_window(void)
         eglSwapBuffers(dpy, ws);
         CHECK(box_is(105, 273, 40, 20, 0xFFFFFF) && RGB(fake_screen_pixel(101, 271)) == BLUE_TBGR,
               "swap of the window surface keeps the work area surface on top");
+        /* ... without ever plotting the window surface over it (that
+           flashes the wrong image while the screen is scanned out) */
+        fake_watch[0] = 105; fake_watch[1] = 273; fake_watch[2] = 145; fake_watch[3] = 293;
+        fake_watch_value = BLUE_TBGR;
+        fake_watch_hits = 0;
+        clear(0, 0, 1);
+        eglSwapBuffers(dpy, ws);
+        CHECK(fake_watch_hits == 0, "window surface never drawn under the work area surface (%d px)", fake_watch_hits);
+        block[0] = 0x1000;
+        eglRedrawWindowRISCOS(dpy, block);
+        CHECK(fake_watch_hits == 0 && box_is(105, 273, 40, 20, 0xFFFFFF) &&
+              RGB(fake_screen_pixel(146, 273)) == BLUE_TBGR && RGB(fake_screen_pixel(105, 294)) == BLUE_TBGR,
+              "redraw: same, and the window surface still fills around it");
+        fake_watch[2] = fake_watch[0];      /* watch off */
         eglDestroySurface(dpy, fx);
     }
 

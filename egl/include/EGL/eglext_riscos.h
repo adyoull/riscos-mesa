@@ -65,6 +65,9 @@ extern "C" {
 #define EGL_WORK_AREA_HEIGHT_RISCOS     0x3FF3
 /* eglQuerySurface: screen banks a full screen surface flips between (0 = none) */
 #define EGL_SCREEN_BANKS_RISCOS         0x3FF4
+/* EXPERIMENTAL, may go: full screen banks switch before the vsync wait
+   instead of after (for finding out when the display applies a switch) */
+#define EGL_FLIP_FIRST_RISCOS           0x3FFF
 
 /* ModeFlags colour order bits reported as EGL_NATIVE_VISUAL_ID */
 #define EGL_RISCOS_VISUAL_TBGR          0x0000
