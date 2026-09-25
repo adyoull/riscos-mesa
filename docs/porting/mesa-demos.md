@@ -138,11 +138,13 @@ for (;;) {
 rest (work area views, full screen with `EGL_RISCOS_SCREEN_WINDOW`,
 sprites).
 
-## Results on the host test rig
+## Results
 
-On the fake RISC OS (`tests/host-harness/egl`, with the runner in
+**Raspberry Pi 4 (20.3.5-5):** the five demos in the ports zip work in
+multitasking desktop windows, with their frame rates in the title bar.
+
+**Host test rig:** on the fake RISC OS (`tests/host-harness/egl`, with the runner in
 `tests/host-harness/egl/portrun.c`), all five demos, plus `clear` and
 `tri`, drew correctly in a 300x300 window. The rig also checked redraw,
 key handling, a window resize (`egltri` redrawn at 500x350) and the FPS
-line in the title bar. `es2gears` ran at 357 fps there (x86). They
-haven't been run on RISC OS hardware yet.
+line in the title bar. `es2gears` ran at 357 fps there (x86).

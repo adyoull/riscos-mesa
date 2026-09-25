@@ -20,6 +20,11 @@ and paths, as in the GCCSDK autobuilder's Khronos ports, plus a reduced
 render size for triangle2 (`HelloTriangle2$Scale`) and the still texture
 for the teapot.
 
+In the desktop, riscos-mesa's DispmanX library shows each program's
+"display" in a desktop window (640 pixels wide), so they multitask. Each
+`!Run` file can choose another size, or `full` for the whole screen as on
+the Pi. All three work on a Raspberry Pi 4.
+
 `build/build-hello-pi.sh` builds `stage/hello_pi/!HelloTriangle`,
 `!HelloTriangle2` and `!HelloTeapot` with the Pi's own link line plus
 `-lOSMesa -lstdc++ -lz -lm`.

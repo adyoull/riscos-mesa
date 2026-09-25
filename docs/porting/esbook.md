@@ -96,5 +96,10 @@ described in [mesa-demos.md](mesa-demos.md#going-native) and
 All ten samples ran on the fake RISC OS (`tests/host-harness/egl`), and
 their pictures were checked against the book's descriptions: triangle,
 vertex shader cube, textures, mipmaps, cube map, wrap modes, the light-mapped
-multitexture, stencil test and point-sprite particles. They haven't been
-run on RISC OS hardware yet.
+multitexture, stencil test and point-sprite particles.
+
+The samples aren't in the release zips (no licence), so they haven't been
+through the Pi tests themselves. Everything they rely on has: `esUtil_RISCOS.c`
+uses the same `riscos_wimpwin.c` window code as the Mesa demos, and the same
+OpenGL ES 2.0 path as `glestest` and `!ES2Gears`, all of which work on the
+Pi 4.

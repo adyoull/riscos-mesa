@@ -158,5 +158,6 @@ surface = eglCreateWindowSurface(dpy, cfg,       /* in the desktop:             
   in window mode (on a fake desktop, closed with the close icon), and
   their pictures were checked: the textured cube, the Julia and
   Mandelbrot fractals, and the textured teapot.
-- **Pi 4:** `!HelloTriangle` and `!HelloTriangle2` are in the 20.3.5-5
-  tests; hardware results are pending.
+- **Raspberry Pi 4 (20.3.5-5):** `!HelloTriangle`, `!HelloTriangle2` and
+  `!HelloTeapot` all work: in multitasking desktop windows by default, and
+  full screen when `<App>$Display` is `full`.

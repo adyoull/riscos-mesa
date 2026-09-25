@@ -99,8 +99,11 @@ surfaces, see `docs/EGL-GUIDE.md`.
 
 ## Results
 
-The three SDL test programs cross-build unchanged with the steps above.
-The SDL host harness (`tests/host-harness`) covers the driver's GL
-context creation for desktop GL, ES 1.1 and ES 2.0, and `sdlgltest` (the
-same pattern) has run on a Raspberry Pi 4 at 153 fps in a 640x480 window.
-The test programs themselves haven't been run on RISC OS hardware yet.
+- **Raspberry Pi 4 (20.3.5-5):** SDL's three GL test programs (`!TestGL2`,
+  `!TestGLES`, `!TestGLES2` in the ports zip) work in desktop windows.
+  Each shows under its own name, with its own icon bar icon.
+- **Build:** they cross-build unchanged with the steps above.
+- **Host rig:** the SDL host harness (`tests/host-harness`) covers the
+  driver's GL context creation for desktop GL, ES 1.1 and ES 2.0.
+- **For comparison:** `sdlgltest`, the same pattern, runs at 153 fps in a
+  640x480 window on the Pi 4.

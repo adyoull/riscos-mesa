@@ -4,14 +4,15 @@ These guides show how to move existing OpenGL, OpenGL ES and EGL programs
 to RISC OS with riscos-mesa. Each guide comes with a worked port in
 `ports/`: real, unchanged (or nearly unchanged) upstream code, built by
 the scripts in `build/`, so every step in the guides has been done for
-real.
+real. The ports in the release zips (the Mesa demos, SDL's GL tests and the
+Pi's hello_pi examples) all work on a Raspberry Pi 4.
 
 | Where the program comes from | How it gets a window | Guide | Worked port |
 | --- | --- | --- | --- |
 | Mesa's demos, or anything using a small window library over EGL (eglut, esUtil, your own) | replace the library's window code with a Wimp window | [mesa-demos.md](mesa-demos.md) | `ports/mesa-demos`: eglgears, es1 gears, torus, es2gears, egltri |
 | The *OpenGL ES 2.0 Programming Guide* samples (esUtil) | the same, for esUtil | [esbook.md](esbook.md) | `ports/esbook`: all ten LinuxX11 samples |
 | SDL 2 programs using OpenGL or OpenGL ES | SDL does it; no window code to change | [sdl2.md](sdl2.md) | SDL's testgl2, testgles, testgles2 |
-| Raspberry Pi 1–3 Khronos programs (`bcm_host`, DispmanX) | the DispmanX compatibility library | [hello_pi.md](hello_pi.md) | `ports/hello_pi`: hello_triangle, hello_triangle2, hello_teapot |
+| Raspberry Pi 1–3 Khronos programs (`bcm_host`, DispmanX) | the DispmanX compatibility library (a desktop window by default, or full screen) | [hello_pi.md](hello_pi.md) | `ports/hello_pi`: hello_triangle, hello_triangle2, hello_teapot |
 
 New RISC OS programs should use riscos-mesa's native EGL directly: a Wimp
 window handle, `EGL_RISCOS_SCREEN_WINDOW` (-1) for the whole screen, or a
@@ -112,5 +113,5 @@ Everything runs on the CPU:
 `tests/host-harness/egl` has a fake RISC OS: screen memory, windows,
 sprites and a scripted Wimp task. It lets a port run against riscos-mesa's
 real EGL and a host build of Mesa before it goes near a RISC OS machine.
-Every worked port here was run that way, and the pictures checked. Its
-README shows how to build against it.
+Every worked port here was run that way, and the pictures checked, before
+it went near the Pi. Its README shows how to build against it.
