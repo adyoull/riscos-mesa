@@ -6,7 +6,8 @@ programs port without RISC OS-specific GL code. GL windows work as normal
 desktop windows (redraws, dragging) and full screen.
 
 **Tested on a Raspberry Pi 4 (RISC OS 5):** all tests pass; a 640x480 lit,
-spinning cube runs at about 150 fps in a desktop window.
+spinning cube runs at about 160 fps in a desktop window, and GL programs
+multitask properly (vsync, SDL_Delay and SDL_WaitEvent yield to the desktop).
 
 ## What you get
 - `libOSMesa.a`: one static library. OpenGL 2.1 compatibility profile,
@@ -41,6 +42,9 @@ Everything installs into `stage/`. No GCCSDK GCC 10 yet? See build/TOOLCHAIN.md.
 bison, flex, autoconf, automake, libtool.
 
 ## Using it from another port
+- Compile your own code with `-fstack-clash-protection` as well (see
+  `build/env.sh` for the full flags): large stack frames can otherwise crash
+  on RISC OS. `tools/check-stack-probes.py yourprog` checks a binary.
 - Plain OSMesa: see `tests/osmesatest.c` (renders straight into a 32bpp sprite).
 - SDL2: `patches/sdl2/*.p` is a complete RISC OS driver overlay (desktop
   windows, full screen, typing, OpenGL) in GCCSDK autobuilder form; configure
