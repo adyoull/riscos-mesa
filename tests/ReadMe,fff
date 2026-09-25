@@ -1,4 +1,4 @@
-riscos-mesa test programs (static ELF, GCCSDK GCC 10.2.0)
+riscos-mesa 20.3.5-2 test programs (static ELF, GCCSDK GCC 10.2.0)
 ===========================================================
 
 Needs: RISC OS 5, ARMv7 with VFP (Pi 2/3/4), SharedUnixLibrary and
@@ -26,15 +26,24 @@ Run in this order and note the output:
    GLU check. Prints GLU 1.3 and "centre px=ff".
 
 5. sdlgltest 640 480
-   SDL2 OpenGL with a spinning lit cube. Run from the desktop (double-click
-   or TaskWindow) it opens in a normal desktop WINDOW, with the frame rate
-   in the title bar. Keys (click in the window first):
+   SDL2 OpenGL with a spinning lit cube. Run from the desktop it opens in a
+   normal desktop window; the title bar shows fps and each frame's render
+   (Mesa) and present (plotting) time. Keys (click in the window first):
      F      toggle full screen and back
-     Space  toggle vsync
-     Wheel  zoom the cube in and out (window title shows the zoom)
+     Space  toggle vsync (in a window this yields to other tasks)
+     Wheel  zoom in and out
      Escape quit (closing the window also works)
-   "sdlgltest 640 480 -f" starts full screen. When it quits it prints the
-   GL version and the average fps.
+   Options: -f start full screen, -t N quit after N seconds,
+   -r N cap at N fps using SDL_Delay, -w only redraw when something happens
+   (idle = no CPU). It prints a summary (average fps, render/present ms)
+   when it quits.
+
+6. glbench [width height [seconds [scene]]] [-o file]
+   Software GL benchmark, no desktop involved: clear, lit cube, full-screen
+   texture, blending, 12288 triangles and GLSL, in ms per frame. Scene
+   names: clear cube tex blend tris glsl. Use -o file to save the results
+   (rather than "> file"). Reports the address and RISC OS error if
+   anything crashes.
 
 Please report: the fps figures, anything that crashes (with the error
 text), the fps in the window title, whether the scroll wheel zooms (in a window
