@@ -35,7 +35,12 @@ static int fake_selector[8];
 int SDL_GetCurrentDisplayMode(int i, SDL_DisplayMode *m) {
     (void)i; memset(m, 0, sizeof *m); m->format = screen_format; m->driverdata = fake_selector; return 0;
 }
-int _kernel_osbyte(int a, int x, int y) { (void)a; (void)x; (void)y; return 0; }
+static int osbyte19;
+int _kernel_osbyte(int a, int x, int y) { (void)x; (void)y; if (a == 19) osbyte19++; return 0; }
+static Uint32 fake_ticks = 1000; static int delays; static Uint32 delay_ms_total;
+Uint32 SDL_GetTicks(void) { return fake_ticks; }
+void SDL_Delay(Uint32 ms) { fake_ticks += ms; }
+SDL_bool RISCOS_WimpDelay(_THIS, Uint32 ms) { (void)_this; delays++; delay_ms_total += ms; fake_ticks += ms; return SDL_TRUE; }
 
 /* ---- OS_SpriteOp 15 ---- */
 static int last_mode_arg;
@@ -128,6 +133,26 @@ int main(void) {
     dev.gl_config.profile_mask = SDL_GL_CONTEXT_PROFILE_CORE; dev.gl_config.major_version = 3; dev.gl_config.minor_version = 2;
     CHECK(RISCOS_GL_CreateContext(&dev, &win) == NULL, "core 3.2 refused");
     printf("  (%s)\n", errbuf);
+
+    /* ---- cooperative pacing (swap interval 1) ---- */
+    dev.gl_config.profile_mask = 0; dev.gl_config.major_version = 2; dev.gl_config.minor_version = 1;
+    RISCOS_GL_MakeCurrent(&dev, &win, ctx);
+    RISCOS_GL_SetSwapInterval(&dev, 1);
+    vd.wimp_window = 7; vd.wimp_sdl_window = &win;       /* a desktop window */
+    { int k; osbyte19 = 0; delays = 0; delay_ms_total = 0;
+      for (k = 0; k < 10; k++) { frame(0,0,1); fake_ticks += 2; RISCOS_GL_SwapWindow(&dev, &win); }
+      printf("  window, vsync: 10 frames of 2 ms work -> %d cooperative waits, %u ms waited, OS_Byte 19 x%d\n",
+             delays, (unsigned)delay_ms_total, osbyte19);
+      CHECK(osbyte19 == 0, "window: never blocks the desktop with OS_Byte 19");
+      CHECK(delays >= 8 && delay_ms_total >= 8 * 12, "window: waits ~1 frame period each frame, via the Wimp");
+      /* a slow app (30 ms frames) must not be delayed further */
+      delays = 0; for (k = 0; k < 5; k++) { fake_ticks += 30; RISCOS_GL_SwapWindow(&dev, &win); }
+      CHECK(delays == 0, "window: no extra wait when frames are already slower than the display");
+      vd.wimp_window = 0; vd.wimp_sdl_window = NULL;   /* full screen */
+      osbyte19 = 0; delays = 0; RISCOS_GL_SwapWindow(&dev, &win);
+      CHECK(osbyte19 == 1 && delays == 0, "full screen: real vsync with OS_Byte 19");
+      RISCOS_GL_SetSwapInterval(&dev, 0); osbyte19 = 0; RISCOS_GL_SwapWindow(&dev, &win);
+      CHECK(osbyte19 == 0, "vsync off: no waiting at all"); }
 
     RISCOS_GL_DeleteContext(&dev, ctx);
     RISCOS_GL_DestroyWindowBuffer(&win);

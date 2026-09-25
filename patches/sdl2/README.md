@@ -19,6 +19,19 @@ order), used by BOTH projects:
   doesn't send Wimp `Scroll_Request` events. It's in
   `src.video.riscos.SDL_riscosevents.c.p`; `scroll-wheel-only.diff` is the
   same change on its own, against the previous events patch.
+- Cooperative multitasking (2026-09-25): nothing in the driver may stop
+  other tasks while the program has a desktop window.
+  - `SDL_Delay` yields with Wimp_PollIdle (whole centiseconds; the
+    sub-centisecond rest is a short busy-wait) instead of UnixLib's
+    busy-wait, which froze the desktop. Hook in
+    `src.timer.unix.SDL_systimer.c.p`; main thread only.
+  - `SDL_WaitEvent`/`SDL_WaitEventTimeout` block in Wimp_PollIdle with null
+    events off, so an idle program uses no CPU. While the pointer is over
+    the window it wakes every 2 cs to sample the mouse (the Wimp has no
+    motion events). `SDL_SendWakeupEvent` sets an RMA pollword.
+  - GL vsync in a window paces to the display rate with the same
+    cooperative wait; `OS_Byte 19` is only used full screen.
+  - Full screen stays single tasking by design (no Wimp_Poll).
 - `sdl2-configure.ac.host.p`: OpenTTD's triplet fix (arm-riscos-gnueabihf
   is not Linux). `sdl2-configure.ac.osmesa.p`: the OSMesa option.
 

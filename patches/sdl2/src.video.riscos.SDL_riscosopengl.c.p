@@ -1,9 +1,9 @@
 diff --git src/video/riscos/SDL_riscosopengl.c src/video/riscos/SDL_riscosopengl.c
 new file mode 100644
-index 0000000..9713cc2
+index 0000000..80eaba9
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.c
-@@ -0,0 +1,346 @@
+@@ -0,0 +1,382 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -46,10 +46,12 @@ index 0000000..9713cc2
 +
 +#if SDL_VIDEO_DRIVER_RISCOS && SDL_VIDEO_OPENGL_OSMESA
 +
++#include "SDL_timer.h"
 +#include "../SDL_sysvideo.h"
 +#include "SDL_riscosvideo.h"
 +#include "SDL_riscoswindow.h"
 +#include "SDL_riscosframebuffer_c.h"
++#include "SDL_riscosevents_c.h"
 +#include "SDL_riscosopengl.h"
 +
 +#include <kernel.h>
@@ -294,6 +296,40 @@ index 0000000..9713cc2
 +    return ((SDL_VideoData *) _this->driverdata)->gl_swap_interval;
 +}
 +
++/* Swap interval 1 or more. Full screen we own the machine (single tasking),
++   so wait for the real vertical sync with OS_Byte 19. In a desktop window
++   OS_Byte 19 would stop every task for up to a frame, so instead pace to the
++   display's frame rate and spend the wait in Wimp_PollIdle (RISCOS_WimpDelay):
++   the other tasks run while we wait. */
++static void
++RISCOS_GL_Pace(_THIS, SDL_Window *window)
++{
++    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
++    SDL_DisplayMode mode;
++    Uint32 period, now;
++
++    if (vdata->wimp_window == 0 || vdata->wimp_sdl_window != window) {
++        _kernel_osbyte(19, 0, 0);
++        return;
++    }
++    period = 1000 / 60;
++    if (SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(window), &mode) == 0 &&
++        mode.refresh_rate >= 24 && mode.refresh_rate <= 240) {
++        period = 1000 / mode.refresh_rate;
++    }
++    period *= (Uint32) vdata->gl_swap_interval;
++
++    now = SDL_GetTicks();
++    if (vdata->gl_next_frame == 0 || SDL_TICKS_PASSED(now, vdata->gl_next_frame + period)) {
++        vdata->gl_next_frame = now;             /* first frame, or fell behind: resync */
++    } else if (!SDL_TICKS_PASSED(now, vdata->gl_next_frame)) {
++        if (!RISCOS_WimpDelay(_this, vdata->gl_next_frame - now)) {
++            SDL_Delay(vdata->gl_next_frame - now);
++        }
++    }
++    vdata->gl_next_frame += period;
++}
++
 +int
 +RISCOS_GL_SwapWindow(_THIS, SDL_Window *window)
 +{
@@ -317,7 +353,7 @@ index 0000000..9713cc2
 +    }
 +
 +    if (vdata->gl_swap_interval > 0) {
-+        _kernel_osbyte(19, 0, 0);       /* wait for vertical sync */
++        RISCOS_GL_Pace(_this, window);
 +    }
 +    return RISCOS_UpdateWindowFramebuffer(_this, window, NULL, 0);
 +}

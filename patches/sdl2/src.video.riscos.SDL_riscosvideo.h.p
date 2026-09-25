@@ -1,8 +1,8 @@
 diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
-index db6c86e..14a5a76 100644
+index db6c86e..aa26685 100644
 --- src/video/riscos/SDL_riscosvideo.h
 +++ src/video/riscos/SDL_riscosvideo.h
-@@ -31,8 +31,25 @@ typedef struct SDL_VideoData
+@@ -31,8 +31,28 @@ typedef struct SDL_VideoData
  {
      int last_mouse_buttons;
      Uint8 key_pressed[RISCOS_MAX_KEYS_PRESSED];
@@ -18,6 +18,9 @@ index db6c86e..14a5a76 100644
 +    int xeig, yeig;             /* cached eigen factors of the current mode */
 +    int iconbar_icon;           /* icon bar icon handle, or -1 */
 +    int gl_swap_interval;       /* 2026: OpenGL swap interval (0 or 1) */
++    Uint32 gl_next_frame;       /* 2026: when the next paced GL frame is due (ms) */
++    SDL_threadID main_thread;   /* 2026: only this thread may call the Wimp */
++    volatile int *wakeup_pollword; /* 2026: Wimp pollword in the RMA (SDL_SendWakeupEvent) */
  } SDL_VideoData;
  
 +extern void RISCOS_ApplyPointerVisibility(_THIS);
