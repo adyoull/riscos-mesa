@@ -1,0 +1,658 @@
+diff -ruN a/src/mesa/drivers/osmesa/osmesa.c b/src/mesa/drivers/osmesa/osmesa.c
+--- a/src/mesa/drivers/osmesa/osmesa.c
++++ b/src/mesa/drivers/osmesa/osmesa.c
+@@ -249,11 +249,15 @@
+ 
+ 
+ /*
+- * Smooth-shaded, z-less triangle, RGBA color.
++ * Smooth- and flat-shaded depth-tested triangles, RGBA color.
++ * RISC OS speed-up: besides the original 16-bit GL_LESS versions there
++ * are GL_LEQUAL versions and versions for 24-bit depth buffers
++ * (MESA_FORMAT_Z24_UNORM_X8_UINT, Z in the low 24 bits; the top 8 bits
++ * are preserved as the pack code does).
+  */
+-#define NAME smooth_rgba_z_triangle
++#define NAME smooth_rgba_z16_less_triangle
+ #define INTERP_Z 1
+-#define DEPTH_TYPE DEFAULT_SOFTWARE_DEPTH_TYPE
++#define DEPTH_TYPE GLushort
+ #define INTERP_RGB 1
+ #define INTERP_ALPHA 1
+ #define SETUP_CODE \
+@@ -278,33 +282,173 @@
+ }
+ #include "swrast/s_tritemp.h"
+ 
++#define NAME flat_rgba_z16_less_triangle
++#define INTERP_Z 1
++#define DEPTH_TYPE GLushort
++#define SETUP_CODE						\
++   const OSMesaContext osmesa = OSMESA_CONTEXT(ctx);		\
++   GLuint pixel;						\
++   PACK_RGBA((GLchan *) &pixel, v2->color[0], v2->color[1],	\
++                                v2->color[2], v2->color[3]);
++#define RENDER_SPAN( span ) {				\
++   GLuint i;						\
++   GLuint *img = (GLuint *) PIXELADDR4(span.x, span.y);	\
++   for (i = 0; i < span.end; i++) {			\
++      const GLuint z = FixedToDepth(span.z);		\
++      if (z < zRow[i]) {				\
++         img[i] = pixel;				\
++         zRow[i] = z;					\
++      }							\
++      span.z += span.zStep;				\
++   }                                                    \
++}
++#include "swrast/s_tritemp.h"
+ 
++#define NAME smooth_rgba_z16_lequal_triangle
++#define INTERP_Z 1
++#define DEPTH_TYPE GLushort
++#define INTERP_RGB 1
++#define INTERP_ALPHA 1
++#define SETUP_CODE \
++   const OSMesaContext osmesa = OSMESA_CONTEXT(ctx);
++#define RENDER_SPAN( span ) {					\
++   GLuint i;							\
++   GLchan *img = PIXELADDR4(span.x, span.y); 			\
++   for (i = 0; i < span.end; i++, img += 4) {			\
++      const GLuint z = FixedToDepth(span.z);			\
++      if (z <= zRow[i]) {					\
++         PACK_RGBA(img, FixedToChan(span.red),			\
++            FixedToChan(span.green), FixedToChan(span.blue),	\
++            FixedToChan(span.alpha));				\
++         zRow[i] = z;						\
++      }								\
++      span.red += span.redStep;					\
++      span.green += span.greenStep;				\
++      span.blue += span.blueStep;				\
++      span.alpha += span.alphaStep;				\
++      span.z += span.zStep;					\
++   }                                                            \
++}
++#include "swrast/s_tritemp.h"
+ 
+-/*
+- * Flat-shaded, z-less triangle, RGBA color.
+- */
+-#define NAME flat_rgba_z_triangle
++#define NAME flat_rgba_z16_lequal_triangle
+ #define INTERP_Z 1
+-#define DEPTH_TYPE DEFAULT_SOFTWARE_DEPTH_TYPE
++#define DEPTH_TYPE GLushort
+ #define SETUP_CODE						\
+    const OSMesaContext osmesa = OSMESA_CONTEXT(ctx);		\
+    GLuint pixel;						\
+    PACK_RGBA((GLchan *) &pixel, v2->color[0], v2->color[1],	\
+                                 v2->color[2], v2->color[3]);
+-
+ #define RENDER_SPAN( span ) {				\
+    GLuint i;						\
+    GLuint *img = (GLuint *) PIXELADDR4(span.x, span.y);	\
+    for (i = 0; i < span.end; i++) {			\
+       const GLuint z = FixedToDepth(span.z);		\
+-      if (z < zRow[i]) {				\
++      if (z <= zRow[i]) {				\
+          img[i] = pixel;				\
+          zRow[i] = z;					\
+       }							\
+       span.z += span.zStep;				\
+    }                                                    \
+ }
++#include "swrast/s_tritemp.h"
+ 
++#define NAME smooth_rgba_z24_less_triangle
++#define INTERP_Z 1
++#define DEPTH_TYPE GLuint
++#define INTERP_RGB 1
++#define INTERP_ALPHA 1
++#define SETUP_CODE \
++   const OSMesaContext osmesa = OSMESA_CONTEXT(ctx);
++#define RENDER_SPAN( span ) {					\
++   GLuint i;							\
++   GLchan *img = PIXELADDR4(span.x, span.y); 			\
++   for (i = 0; i < span.end; i++, img += 4) {			\
++      const GLuint z = FixedToDepth(span.z);			\
++      if (z < (zRow[i] & 0xffffff)) {					\
++         PACK_RGBA(img, FixedToChan(span.red),			\
++            FixedToChan(span.green), FixedToChan(span.blue),	\
++            FixedToChan(span.alpha));				\
++         zRow[i] = (zRow[i] & 0xff000000) | z;						\
++      }								\
++      span.red += span.redStep;					\
++      span.green += span.greenStep;				\
++      span.blue += span.blueStep;				\
++      span.alpha += span.alphaStep;				\
++      span.z += span.zStep;					\
++   }                                                            \
++}
++#include "swrast/s_tritemp.h"
++
++#define NAME flat_rgba_z24_less_triangle
++#define INTERP_Z 1
++#define DEPTH_TYPE GLuint
++#define SETUP_CODE						\
++   const OSMesaContext osmesa = OSMESA_CONTEXT(ctx);		\
++   GLuint pixel;						\
++   PACK_RGBA((GLchan *) &pixel, v2->color[0], v2->color[1],	\
++                                v2->color[2], v2->color[3]);
++#define RENDER_SPAN( span ) {				\
++   GLuint i;						\
++   GLuint *img = (GLuint *) PIXELADDR4(span.x, span.y);	\
++   for (i = 0; i < span.end; i++) {			\
++      const GLuint z = FixedToDepth(span.z);		\
++      if (z < (zRow[i] & 0xffffff)) {				\
++         img[i] = pixel;				\
++         zRow[i] = (zRow[i] & 0xff000000) | z;					\
++      }							\
++      span.z += span.zStep;				\
++   }                                                    \
++}
++#include "swrast/s_tritemp.h"
++
++#define NAME smooth_rgba_z24_lequal_triangle
++#define INTERP_Z 1
++#define DEPTH_TYPE GLuint
++#define INTERP_RGB 1
++#define INTERP_ALPHA 1
++#define SETUP_CODE \
++   const OSMesaContext osmesa = OSMESA_CONTEXT(ctx);
++#define RENDER_SPAN( span ) {					\
++   GLuint i;							\
++   GLchan *img = PIXELADDR4(span.x, span.y); 			\
++   for (i = 0; i < span.end; i++, img += 4) {			\
++      const GLuint z = FixedToDepth(span.z);			\
++      if (z <= (zRow[i] & 0xffffff)) {					\
++         PACK_RGBA(img, FixedToChan(span.red),			\
++            FixedToChan(span.green), FixedToChan(span.blue),	\
++            FixedToChan(span.alpha));				\
++         zRow[i] = (zRow[i] & 0xff000000) | z;						\
++      }								\
++      span.red += span.redStep;					\
++      span.green += span.greenStep;				\
++      span.blue += span.blueStep;				\
++      span.alpha += span.alphaStep;				\
++      span.z += span.zStep;					\
++   }                                                            \
++}
++#include "swrast/s_tritemp.h"
++
++#define NAME flat_rgba_z24_lequal_triangle
++#define INTERP_Z 1
++#define DEPTH_TYPE GLuint
++#define SETUP_CODE						\
++   const OSMesaContext osmesa = OSMESA_CONTEXT(ctx);		\
++   GLuint pixel;						\
++   PACK_RGBA((GLchan *) &pixel, v2->color[0], v2->color[1],	\
++                                v2->color[2], v2->color[3]);
++#define RENDER_SPAN( span ) {				\
++   GLuint i;						\
++   GLuint *img = (GLuint *) PIXELADDR4(span.x, span.y);	\
++   for (i = 0; i < span.end; i++) {			\
++      const GLuint z = FixedToDepth(span.z);		\
++      if (z <= (zRow[i] & 0xffffff)) {				\
++         img[i] = pixel;				\
++         zRow[i] = (zRow[i] & 0xff000000) | z;					\
++      }							\
++      span.z += span.zStep;				\
++   }                                                    \
++}
+ #include "swrast/s_tritemp.h"
+ 
+ 
+@@ -345,14 +489,28 @@
+    }
+ 
+    if (swrast->_RasterMask == DEPTH_BIT &&
+-       ctx->Depth.Func == GL_LESS &&
++       (ctx->Depth.Func == GL_LESS || ctx->Depth.Func == GL_LEQUAL) &&
+        ctx->Depth.Mask == GL_TRUE &&
+-       ctx->Visual.depthBits == DEFAULT_SOFTWARE_DEPTH_BITS) {
+-      if (ctx->Light.ShadeModel == GL_SMOOTH) {
+-         return smooth_rgba_z_triangle;
++       ctx->DrawBuffer->Attachment[BUFFER_DEPTH].Renderbuffer) {
++      const mesa_format zfmt =
++         ctx->DrawBuffer->Attachment[BUFFER_DEPTH].Renderbuffer->Format;
++      const GLboolean smooth = ctx->Light.ShadeModel == GL_SMOOTH;
++      const GLboolean less = ctx->Depth.Func == GL_LESS;
++      if (zfmt == MESA_FORMAT_Z_UNORM16 &&
++          ctx->DrawBuffer->Visual.depthBits == 16) {
++         if (less)
++            return smooth ? smooth_rgba_z16_less_triangle
++                          : flat_rgba_z16_less_triangle;
++         return smooth ? smooth_rgba_z16_lequal_triangle
++                       : flat_rgba_z16_lequal_triangle;
+       }
+-      else {
+-         return flat_rgba_z_triangle;
++      if (zfmt == MESA_FORMAT_Z24_UNORM_X8_UINT &&
++          ctx->DrawBuffer->Visual.depthBits == 24) {
++         if (less)
++            return smooth ? smooth_rgba_z24_less_triangle
++                          : flat_rgba_z24_less_triangle;
++         return smooth ? smooth_rgba_z24_lequal_triangle
++                       : flat_rgba_z24_lequal_triangle;
+       }
+    }
+ 
+diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
+--- a/src/mesa/program/prog_execute.c
++++ b/src/mesa/program/prog_execute.c
+@@ -77,7 +77,7 @@
+  * Return a pointer to the 4-element float vector specified by the given
+  * source register.
+  */
+-static inline const GLfloat *
++static ALWAYS_INLINE const GLfloat *
+ get_src_register_pointer(const struct prog_src_register *source,
+                          const struct gl_program_machine *machine)
+ {
+@@ -143,7 +143,7 @@
+  * Return a pointer to the 4-element float vector specified by the given
+  * destination register.
+  */
+-static inline GLfloat *
++static ALWAYS_INLINE GLfloat *
+ get_dst_register_pointer(const struct prog_dst_register *dest,
+                          struct gl_program_machine *machine)
+ {
+@@ -183,7 +183,7 @@
+  * Fetch a 4-element float vector from the given source register.
+  * Apply swizzling and negating as needed.
+  */
+-static void
++static ALWAYS_INLINE void
+ fetch_vector4(const struct prog_src_register *source,
+               const struct gl_program_machine *machine, GLfloat result[4])
+ {
+@@ -272,7 +272,7 @@
+ /**
+  * As above, but only return result[0] element.
+  */
+-static void
++static ALWAYS_INLINE void
+ fetch_vector1(const struct prog_src_register *source,
+               const struct gl_program_machine *machine, GLfloat result[4])
+ {
+@@ -320,7 +320,7 @@
+  * Store 4 floats into a register.  Observe the instructions saturate and
+  * set-condition-code flags.
+  */
+-static void
++static ALWAYS_INLINE void
+ store_vector4(const struct prog_instruction *inst,
+               struct gl_program_machine *machine, const GLfloat value[4])
+ {
+diff -ruN a/src/mesa/swrast/s_depth.c b/src/mesa/swrast/s_depth.c
+--- a/src/mesa/swrast/s_depth.c
++++ b/src/mesa/swrast/s_depth.c
+@@ -155,6 +155,55 @@
+ 
+ 
+ /**
++ * RISC OS speed-up: depth test directly on a row of
++ * MESA_FORMAT_Z24_UNORM_X8_UINT values (Z in the low 24 bits), avoiding
++ * the malloc + unpack + shift + pack + free the generic path does for
++ * every span.  The top 8 bits are preserved, as the pack code does.
++ */
++#define Z24_TEST(COMPARE)                                     \
++   do {                                                       \
++      GLuint i;                                               \
++      for (i = 0; i < n; i++) {                               \
++         if (mask[i]) {                                       \
++            const GLuint zb = zbuffer[i] & 0xffffff;          \
++            if (COMPARE) {                                    \
++               if (write)                                     \
++                  zbuffer[i] = (zbuffer[i] & 0xff000000) | zfrag[i]; \
++               passed++;                                      \
++            }                                                 \
++            else {                                            \
++               mask[i] = 0;                                   \
++            }                                                 \
++         }                                                    \
++      }                                                       \
++   } while (0)
++
++static GLuint
++depth_test_span24x8(struct gl_context *ctx, GLuint n,
++                    GLuint zbuffer[], const GLuint zfrag[], GLubyte mask[])
++{
++   const GLboolean write = ctx->Depth.Mask;
++   GLuint passed = 0;
++
++   switch (ctx->Depth.Func) {
++   case GL_LESS:     Z24_TEST(zfrag[i] <  zb); break;
++   case GL_LEQUAL:   Z24_TEST(zfrag[i] <= zb); break;
++   case GL_GEQUAL:   Z24_TEST(zfrag[i] >= zb); break;
++   case GL_GREATER:  Z24_TEST(zfrag[i] >  zb); break;
++   case GL_NOTEQUAL: Z24_TEST(zfrag[i] != zb); break;
++   case GL_EQUAL:    Z24_TEST(zfrag[i] == zb); break;
++   case GL_ALWAYS:   Z24_TEST(((void) zb, 1)); break;
++   case GL_NEVER:
++      memset(mask, 0, n * sizeof(GLubyte));
++      break;
++   default:
++      _mesa_problem(ctx, "Bad depth func in depth_test_span24x8");
++   }
++   return passed;
++}
++
++
++/**
+  * Clamp fragment Z values to the depth near/far range (glDepthRange()).
+  * This is used when GL_ARB_depth_clamp/GL_DEPTH_CLAMP is turned on.
+  * In that case, vertexes are not clipped against the near/far planes
+@@ -300,6 +349,15 @@
+    else
+       zStart = _swrast_pixel_address(rb, span->x, span->y);
+ 
++   if (rb->Format == MESA_FORMAT_Z24_UNORM_X8_UINT && zBits == 24 &&
++       !(span->arrayMask & SPAN_XY)) {
++      /* RISC OS speed-up: test the 24-bit Z row in place */
++      passed = depth_test_span24x8(ctx, count, (GLuint *) zStart, fragZ, mask);
++      if (passed < count)
++         span->writeAll = GL_FALSE;
++      return passed;
++   }
++
+    if (rb->Format == MESA_FORMAT_Z_UNORM16 && !(span->arrayMask & SPAN_XY)) {
+       /* directly read/write row of 16-bit Z values */
+       zBufferVals = zStart;
+diff -ruN a/src/mesa/swrast/s_texfetch_tmp.h b/src/mesa/swrast/s_texfetch_tmp.h
+--- a/src/mesa/swrast/s_texfetch_tmp.h
++++ b/src/mesa/swrast/s_texfetch_tmp.h
+@@ -87,6 +87,39 @@
+             _mesa_unpack_rgba_row(MESA_FORMAT_##x, 1, src, (GLvoid *)texel); \
+    }
+ 
++
++/* RISC OS speed-up: direct fetches for the common 8-bit formats, instead
++ * of a call per texel into _mesa_unpack_rgba_row's big switch.  The
++ * results are the same bit for bit (x * (1.0f / 255.0f), as
++ * _mesa_unorm_to_float(x, 8) computes).
++ */
++#define U8F(x) ((GLfloat) (x) * (1.0f / 255.0f))
++
++#define FETCH_PACKED8888(x, RS, GS, BS, AS)                       \
++   static void \
++   FETCH(x) (const struct swrast_texture_image *texImage, \
++             GLint i, GLint j, GLint k, GLfloat *texel) \
++   { \
++      const GLuint p = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1); \
++      texel[0] = U8F((p >> (RS)) & 0xff); \
++      texel[1] = U8F((p >> (GS)) & 0xff); \
++      texel[2] = U8F((p >> (BS)) & 0xff); \
++      texel[3] = (AS) < 0 ? 1.0f : U8F((p >> ((AS) & 31)) & 0xff); \
++   }
++
++/* texel[] = { R, G, B, A } from byte offsets (-1: 0.0, -2: 1.0) */
++#define FETCH_BYTES(x, size, RO, GO, BO, AO)                       \
++   static void \
++   FETCH(x) (const struct swrast_texture_image *texImage, \
++             GLint i, GLint j, GLint k, GLfloat *texel) \
++   { \
++      const GLubyte *src = TEXEL_ADDR(GLubyte, texImage, i, j, k, size); \
++      texel[0] = (RO) >= 0 ? U8F(src[(RO) & 3]) : (RO) == -1 ? 0.0f : 1.0f; \
++      texel[1] = (GO) >= 0 ? U8F(src[(GO) & 3]) : (GO) == -1 ? 0.0f : 1.0f; \
++      texel[2] = (BO) >= 0 ? U8F(src[(BO) & 3]) : (BO) == -1 ? 0.0f : 1.0f; \
++      texel[3] = (AO) >= 0 ? U8F(src[(AO) & 3]) : (AO) == -1 ? 0.0f : 1.0f; \
++   }
++
+ FETCH_Z(Z_UNORM32, GLuint, 1)
+ FETCH_Z(Z_UNORM16, GLushort, 1)
+ FETCH_Z(S8_UINT_Z24_UNORM, GLuint, 1) /* only return Z, not stencil data */
+@@ -109,16 +142,16 @@
+ FETCH_RGBA(R_FLOAT16, GLhalfARB, 1)
+ FETCH_RGBA(RG_FLOAT32, GLfloat, 2)
+ FETCH_RGBA(RG_FLOAT16, GLhalfARB, 2)
+-FETCH_RGBA(A8B8G8R8_UNORM, GLuint, 1)
+-FETCH_RGBA(R8G8B8A8_UNORM, GLuint, 1)
+-FETCH_RGBA(B8G8R8A8_UNORM, GLuint, 1)
+-FETCH_RGBA(A8R8G8B8_UNORM, GLuint, 1)
+-FETCH_RGBA(X8B8G8R8_UNORM, GLuint, 1)
+-FETCH_RGBA(R8G8B8X8_UNORM, GLuint, 1)
+-FETCH_RGBA(B8G8R8X8_UNORM, GLuint, 1)
+-FETCH_RGBA(X8R8G8B8_UNORM, GLuint, 1)
+-FETCH_RGBA(BGR_UNORM8, GLubyte, 3)
+-FETCH_RGBA(RGB_UNORM8, GLubyte, 3)
++FETCH_PACKED8888(A8B8G8R8_UNORM, 24, 16, 8, 0)
++FETCH_PACKED8888(R8G8B8A8_UNORM, 0, 8, 16, 24)
++FETCH_PACKED8888(B8G8R8A8_UNORM, 16, 8, 0, 24)
++FETCH_PACKED8888(A8R8G8B8_UNORM, 8, 16, 24, 0)
++FETCH_PACKED8888(X8B8G8R8_UNORM, 24, 16, 8, -1)
++FETCH_PACKED8888(R8G8B8X8_UNORM, 0, 8, 16, -1)
++FETCH_PACKED8888(B8G8R8X8_UNORM, 16, 8, 0, -1)
++FETCH_PACKED8888(X8R8G8B8_UNORM, 8, 16, 24, -1)
++FETCH_BYTES(BGR_UNORM8, 3, 2, 1, 0, -2)
++FETCH_BYTES(RGB_UNORM8, 3, 0, 1, 2, -2)
+ FETCH_RGBA(B5G6R5_UNORM, GLushort, 1)
+ FETCH_RGBA(R5G6B5_UNORM, GLushort, 1)
+ FETCH_RGBA(B4G4R4A4_UNORM, GLushort, 1)
+@@ -128,19 +161,19 @@
+ FETCH_RGBA(A1R5G5B5_UNORM, GLushort, 1)
+ FETCH_RGBA(B10G10R10A2_UNORM, GLuint, 1)
+ FETCH_RGBA(R10G10B10A2_UNORM, GLuint, 1)
+-FETCH_RGBA(RG_UNORM8, GLubyte, 2)
++FETCH_BYTES(RG_UNORM8, 2, 0, 1, -1, -2)
+ FETCH_RGBA(L4A4_UNORM, GLubyte, 1)
+-FETCH_RGBA(R_UNORM8, GLubyte, 1)
++FETCH_BYTES(R_UNORM8, 1, 0, -1, -1, -2)
+ FETCH_RGBA(R_UNORM16, GLushort, 1)
+-FETCH_RGBA(LA_UNORM8, GLubyte, 2)
++FETCH_BYTES(LA_UNORM8, 2, 0, 0, 0, 1)
+ FETCH_RGBA(RG_UNORM16, GLushort, 2)
+ FETCH_RGBA(B2G3R3_UNORM, GLubyte, 1)
+-FETCH_RGBA(A_UNORM8, GLubyte, 1)
++FETCH_BYTES(A_UNORM8, 1, -1, -1, -1, 0)
+ FETCH_RGBA(A_UNORM16, GLushort, 1)
+-FETCH_RGBA(L_UNORM8, GLubyte, 1)
++FETCH_BYTES(L_UNORM8, 1, 0, 0, 0, -2)
+ FETCH_RGBA(L_UNORM16, GLushort, 1)
+ FETCH_RGBA(LA_UNORM16, GLushort, 2)
+-FETCH_RGBA(I_UNORM8, GLubyte, 1)
++FETCH_BYTES(I_UNORM8, 1, 0, 0, 0, 0)
+ FETCH_RGBA(I_UNORM16, GLushort, 1)
+ FETCH_RGBA(BGR_SRGB8, GLubyte, 3)
+ FETCH_RGBA(A8B8G8R8_SRGB, GLuint, 1)
+@@ -183,6 +216,9 @@
+ FETCH_RGBA(R9G9B9E5_FLOAT, GLuint, 1)
+ FETCH_RGBA(R11G11B10_FLOAT, GLuint, 1)
+ 
++#undef U8F
++#undef FETCH_PACKED8888
++#undef FETCH_BYTES
+ #undef TEXEL_ADDR
+ #undef DIM
+ #undef FETCH
+diff -ruN a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
+--- a/src/mesa/swrast/s_triangle.c
++++ b/src/mesa/swrast/s_triangle.c
+@@ -304,6 +304,28 @@
+    sample[BCOMP] = ilerp_2d(sf, tf, tex00[1], tex01[1], tex10[1], tex11[1]);\
+    sample[ACOMP] = ilerp_2d(sf, tf, tex00[0], tex01[0], tex10[0], tex11[0])
+ 
++/* RISC OS speed-up: MESA_FORMAT_R8G8B8A8_UNORM (bytes R, G, B, A in
++ * memory on little-endian machines), which GL_RGBA + GL_UNSIGNED_BYTE
++ * textures get.
++ */
++#define NEAREST_RGBA8  \
++   sample[RCOMP] = tex00[0];	\
++   sample[GCOMP] = tex00[1];	\
++   sample[BCOMP] = tex00[2];	\
++   sample[ACOMP] = tex00[3];
++
++#define LINEAR_RGBA8							\
++   sample[RCOMP] = ilerp_2d(sf, tf, tex00[0], tex01[0], tex10[0], tex11[0]);\
++   sample[GCOMP] = ilerp_2d(sf, tf, tex00[1], tex01[1], tex10[1], tex11[1]);\
++   sample[BCOMP] = ilerp_2d(sf, tf, tex00[2], tex01[2], tex10[2], tex11[2]);\
++   sample[ACOMP] = ilerp_2d(sf, tf, tex00[3], tex01[3], tex10[3], tex11[3])
++
++#define NEAREST_RGBA8_REPLACE  \
++   dest[RCOMP] = tex00[0]; \
++   dest[GCOMP] = tex00[1]; \
++   dest[BCOMP] = tex00[2]; \
++   dest[ACOMP] = tex00[3]
++
+ #define MODULATE							  \
+    dest[RCOMP] = span->red   * (sample[RCOMP] + 1u) >> (FIXED_SHIFT + 8); \
+    dest[GCOMP] = span->green * (sample[GCOMP] + 1u) >> (FIXED_SHIFT + 8); \
+@@ -460,6 +482,28 @@
+             return;
+          }
+          break;
++      case MESA_FORMAT_R8G8B8A8_UNORM:
++         switch(info->envmode) {
++         case GL_MODULATE:
++            SPAN_NEAREST(NEAREST_RGBA8;MODULATE,4);
++            break;
++         case GL_DECAL:
++            SPAN_NEAREST(NEAREST_RGBA8;DECAL,4);
++            break;
++         case GL_BLEND:
++            SPAN_NEAREST(NEAREST_RGBA8;BLEND,4);
++            break;
++         case GL_ADD:
++            SPAN_NEAREST(NEAREST_RGBA8;ADD,4);
++            break;
++         case GL_REPLACE:
++            SPAN_NEAREST(NEAREST_RGBA8_REPLACE,4);
++            break;
++         default:
++            _mesa_problem(ctx, "bad tex env mode (2) in SPAN_LINEAR");
++            return;
++         }
++         break;
+       }
+       break;
+ 
+@@ -509,6 +553,28 @@
+             return;
+          }
+          break;
++      case MESA_FORMAT_R8G8B8A8_UNORM:
++         switch (info->envmode) {
++         case GL_MODULATE:
++            SPAN_LINEAR(LINEAR_RGBA8;MODULATE,4);
++            break;
++         case GL_DECAL:
++            SPAN_LINEAR(LINEAR_RGBA8;DECAL,4);
++            break;
++         case GL_BLEND:
++            SPAN_LINEAR(LINEAR_RGBA8;BLEND,4);
++            break;
++         case GL_ADD:
++            SPAN_LINEAR(LINEAR_RGBA8;ADD,4);
++            break;
++         case GL_REPLACE:
++            SPAN_LINEAR(LINEAR_RGBA8;REPLACE,4);
++            break;
++         default:
++            _mesa_problem(ctx, "bad tex env mode (4) in SPAN_LINEAR");
++            return;
++         }
++         break;
+       }
+       break;
+    }
+@@ -577,6 +643,7 @@
+       info.tbytesline = texImg->Width * 3;				\
+       break;								\
+    case MESA_FORMAT_A8B8G8R8_UNORM:						\
++   case MESA_FORMAT_R8G8B8A8_UNORM:						\
+       info.tbytesline = texImg->Width * 4;				\
+       break;								\
+    default:								\
+@@ -732,6 +799,28 @@
+             return;
+          }
+          break;
++      case MESA_FORMAT_R8G8B8A8_UNORM:
++         switch(info->envmode) {
++         case GL_MODULATE:
++            SPAN_NEAREST(NEAREST_RGBA8;MODULATE,4);
++            break;
++         case GL_DECAL:
++            SPAN_NEAREST(NEAREST_RGBA8;DECAL,4);
++            break;
++         case GL_BLEND:
++            SPAN_NEAREST(NEAREST_RGBA8;BLEND,4);
++            break;
++         case GL_ADD:
++            SPAN_NEAREST(NEAREST_RGBA8;ADD,4);
++            break;
++         case GL_REPLACE:
++            SPAN_NEAREST(NEAREST_RGBA8_REPLACE,4);
++            break;
++         default:
++            _mesa_problem(ctx, "bad tex env mode (6) in SPAN_LINEAR");
++            return;
++         }
++         break;
+       }
+       break;
+ 
+@@ -779,6 +868,28 @@
+             return;
+          }
+          break;
++      case MESA_FORMAT_R8G8B8A8_UNORM:
++         switch (info->envmode) {
++         case GL_MODULATE:
++            SPAN_LINEAR(LINEAR_RGBA8;MODULATE,4);
++            break;
++         case GL_DECAL:
++            SPAN_LINEAR(LINEAR_RGBA8;DECAL,4);
++            break;
++         case GL_BLEND:
++            SPAN_LINEAR(LINEAR_RGBA8;BLEND,4);
++            break;
++         case GL_ADD:
++            SPAN_LINEAR(LINEAR_RGBA8;ADD,4);
++            break;
++         case GL_REPLACE:
++            SPAN_LINEAR(LINEAR_RGBA8;REPLACE,4);
++            break;
++         default:
++            _mesa_problem(ctx, "bad tex env mode (8) in SPAN_LINEAR");
++            return;
++         }
++         break;
+       }
+       break;
+    }
+@@ -843,6 +954,7 @@
+       info.tbytesline = texImg->Width * 3;				\
+       break;								\
+    case MESA_FORMAT_A8B8G8R8_UNORM:						\
++   case MESA_FORMAT_R8G8B8A8_UNORM:						\
+       info.tbytesline = texImg->Width * 4;				\
+       break;								\
+    default:								\
+@@ -1081,7 +1193,8 @@
+              && texImg->Border == 0
+              && (_mesa_format_row_stride(format, texImg->Width) ==
+                  swImg->RowStride)
+-             && (format == MESA_FORMAT_BGR_UNORM8 || format == MESA_FORMAT_A8B8G8R8_UNORM)
++             && (format == MESA_FORMAT_BGR_UNORM8 || format == MESA_FORMAT_A8B8G8R8_UNORM ||
++                 (format == MESA_FORMAT_R8G8B8A8_UNORM && UTIL_ARCH_LITTLE_ENDIAN))
+              && minFilter == magFilter
+              && ctx->Light.Model.ColorControl == GL_SINGLE_COLOR
+              && !swrast->_FogEnabled
+@@ -1108,7 +1221,15 @@
+ #if CHAN_BITS != 8
+                   USE(general_triangle);
+ #else
+-                  if (format == MESA_FORMAT_A8B8G8R8_UNORM && !UTIL_ARCH_LITTLE_ENDIAN) {
++                  if (format == MESA_FORMAT_R8G8B8A8_UNORM) {
++                     /* RISC OS: RGBA8 textures used to go through the
++                      * perspective-correct general path, so keep them
++                      * perspective-correct rather than start warping
++                      * them under GL_FASTEST.
++                      */
++                     USE(persp_textured_triangle);
++                  }
++                  else if (format == MESA_FORMAT_A8B8G8R8_UNORM && !UTIL_ARCH_LITTLE_ENDIAN) {
+                      /* We only handle RGBA8888 correctly on little endian
+                       * in the optimized code above.
+                       */

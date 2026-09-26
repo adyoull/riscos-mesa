@@ -12,9 +12,17 @@ if [ ! -d mesa-$V ]; then
     adabbe0161cd8db4f1935fca9e07b7ef86219951a2ac830586de149c1753b828 mesa-$V.tgz
   tar xzf mesa-$V.tgz
   mv mesa-mirror-mesa-$V mesa-$V
-  (cd mesa-$V && patch -p1 < "$HERE/patches/mesa/mesa-$V-riscos.patch")
 fi
 cd mesa-$V
+# The port, then the speed-ups, then a workaround for newer host GCCs
+# (see patches/mesa/README). Each is applied once: a tree extracted by an
+# earlier version of this script gets the ones it lacks.
+for p in riscos riscos-speed gcc13-vectorizer; do
+  f="$HERE/patches/mesa/mesa-$V-$p.patch"
+  if ! patch -p1 -R -s -f --dry-run < "$f" >/dev/null 2>&1; then
+    patch -p1 < "$f"
+  fi
+done
 sed "s#@GCCSDK_ENV@#$GCCSDK_ENV#g" "$HERE/build/meson-riscos.txt.in" > riscos-cross.txt
 [ -d build-ro ] || meson setup build-ro --cross-file riscos-cross.txt \
   --prefix="$STAGE" -Ddefault_library=static \
@@ -22,7 +30,12 @@ sed "s#@GCCSDK_ENV@#$GCCSDK_ENV#g" "$HERE/build/meson-riscos.txt.in" > riscos-cr
   -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dgles1=disabled -Dgles2=disabled \
   -Dllvm=disabled -Dshader-cache=disabled -Dzstd=disabled -Dlibunwind=disabled \
   -Dvalgrind=disabled -Ddri3=disabled -Dglvnd=false -Dbuild-tests=false \
-  -Dshared-glapi=disabled -Dselinux=false -Dosmesa-bits=8 -Dbuildtype=release
+  -Dshared-glapi=disabled -Dselinux=false -Dosmesa-bits=8 -Dbuildtype=release \
+  -Db_staticpic=false
+# Not position-independent: GCCSDK's -fPIC code reaches every global through
+# the RISC OS shared library tables (&8038), which a static library linked
+# into a program doesn't need. (Also sets it on build dirs made before this.)
+meson configure build-ro -Db_staticpic=false
 # The internal libraries Mesa's shared libOSMesa would link. A static
 # library doesn't pull its link_with deps into the build, so name them all.
 # (libglapi_static is link_whole, so meson already put it inside libOSMesa.a.)

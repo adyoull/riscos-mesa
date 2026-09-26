@@ -1,3 +1,39 @@
-Changes to Mesa 20.3.5 for RISC OS. They are under the licence of the files
-they change: MIT (Mesa), except the change to include/c11/threads_posix.h,
-which is under the Boost Software License 1.0. See LICENCES.txt.
+Changes to Mesa 20.3.5 for RISC OS, applied in this order by
+build/build-mesa.sh:
+
+mesa-20.3.5-riscos.patch
+    The port itself (OS detection, no ELF TLS, UnixLib gaps, a static
+    libOSMesa, the OSMesa ES 1.1/2.0 profiles).
+
+mesa-20.3.5-riscos-speed.patch
+    Speed-ups for the software renderer. Rendering is unchanged (checked
+    image by image against the unpatched library, on the host and on ARM),
+    except where noted:
+    - swrast/s_depth.c: 24-bit depth buffers (Z24_UNORM_X8_UINT, what EGL,
+      SDL and GLUT ask for) are tested in place, like 16- and 32-bit ones,
+      instead of copying each span to a malloc'd buffer and back.
+    - osmesa/osmesa.c: the fast depth-tested triangles work with 24-bit
+      depth buffers and GL_LEQUAL as well as 16-bit GL_LESS. Before this
+      they were only used with 16-bit depth.
+    - swrast/s_texfetch_tmp.h: texels of the common 8-bit formats (RGBA,
+      BGRA, RGB, L, A, LA, I, R, RG) are read directly instead of through
+      a call per texel into the general unpack code.
+    - swrast/s_triangle.c: Mesa's integer fast path for textured triangles
+      (one texture, no mipmaps, GL_REPEAT, power-of-two size) now also
+      takes GL_RGBA/GL_UNSIGNED_BYTE textures (R8G8B8A8), which it
+      previously skipped. It rounds slightly differently from the general
+      path (at most 2/255 per channel). RGBA textures stay
+      perspective-correct under GL_FASTEST.
+    - program/prog_execute.c: the GLSL/ARB program interpreter's operand
+      fetch and store are always inlined.
+
+mesa-20.3.5-gcc13-vectorizer.patch
+    GCC 13 at -O3 (on x86-64, and on ARM with NEON) miscompiles
+    interpolate_int_colors() in swrast/s_span.c: some pixels of smooth
+    shaded spans come out R,G,R,G. This turns off vectorisation for that
+    one function. GCCSDK GCC 10 isn't affected (the RISC OS build uses VFP
+    without NEON); it's here for host builds such as the test harness.
+
+They are under the licence of the files they change: MIT (Mesa), except
+the change to include/c11/threads_posix.h, which is under the Boost
+Software License 1.0. See LICENCES.txt.

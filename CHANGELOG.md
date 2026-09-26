@@ -6,6 +6,33 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## Unreleased (20.3.5-7)
 
+- **Faster rendering** (`patches/mesa/mesa-20.3.5-riscos-speed.patch`;
+  details in `patches/mesa/README`). On a Linux host, 640x480 with a
+  24-bit depth buffer: the lit cube and many-triangle scenes are 2.4 times
+  as fast, bilinear textured 1.9 times, GLSL 1.4 times. Not yet measured
+  on a Pi.
+  - 24-bit depth buffers (what EGL, SDL and GLUT ask for) are now as fast
+    as 16-bit ones. Every depth-tested span used to be copied to a
+    malloc'd buffer and back, and Mesa's fast shaded triangles were only
+    used with 16-bit depth; they now also take GL_LEQUAL.
+  - `GL_RGBA`/`GL_UNSIGNED_BYTE` textures now use Mesa's integer textured
+    triangle path (one texture, no mipmaps, `GL_REPEAT`, power-of-two
+    sizes), and texels of the common 8-bit formats are read directly
+    everywhere else.
+  - The GLSL/ARB program interpreter inlines its operand fetch and store.
+  - The picture is unchanged, checked image by image against the old
+    library on the host and on ARM (the real RISC OS build, run under
+    emulation), except that the integer texture path rounds by up to
+    2/255 differently.
+- **libOSMesa is no longer built position-independent** (meson's default
+  for static libraries). GCCSDK's `-fPIC` code goes through the shared
+  library tables at &8038 for every global; the library is only ever
+  linked into programs.
+- **Host builds with GCC 13:** `-O3` vectorisation miscompiles one loop in
+  Mesa's span code (smooth shaded pixels come out wrong), so it's turned
+  off there (`patches/mesa/mesa-20.3.5-gcc13-vectorizer.patch`). The RISC
+  OS build (GCC 10, no NEON) was never affected; the host test harness
+  was.
 - **SDL2 mouse clicks in a window are no longer lost:** the window's
   buttons are read once per `SDL_PumpEvents`, so a click pressed and
   released between two frames (easy at the 5-10 frames a second of a busy

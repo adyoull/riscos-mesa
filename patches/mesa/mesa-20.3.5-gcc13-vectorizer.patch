@@ -1,0 +1,17 @@
+--- a/src/mesa/swrast/s_span.c
++++ b/src/mesa/swrast/s_span.c
+@@ -219,6 +219,14 @@
+  * Interpolate primary colors to fill in the span->array->rgba8 (or rgb16)
+  * color array.
+  */
++/* riscos-mesa: GCC 13 at -O3 (x86-64, and ARM with NEON) vectorises the
++ * GL_UNSIGNED_BYTE loop below wrongly for short spans: pixels come out as
++ * R,G,R,G.  GCCSDK GCC 10 (VFP, no NEON) is not affected; this keeps host
++ * builds (the test harness) right.
++ */
++#if defined(__GNUC__) && !defined(__clang__)
++__attribute__((optimize("no-tree-vectorize")))
++#endif
+ static inline void
+ interpolate_int_colors(struct gl_context *ctx, SWspan *span)
+ {
