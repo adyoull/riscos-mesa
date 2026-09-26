@@ -22,36 +22,84 @@ frame, 20.3.5-6 and 20.3.5-7 run in the same session:
 | 4 blended full-screen quads | 28.29 | 27.53 | |
 | clear | 1.53 | 1.52 | |
 
+### GLSL: a rebuilt shader interpreter
+
+Mesa's software renderer runs GLSL (and ARB) programs in an interpreter.
+It has been reworked in two stages. With the other speed-ups below, the
+first took the GLSL scene on the Pi from 108.9 to 59.9 ms a frame; the
+second took it to 38.8 ms:
+
+- **Programs are decoded once**
+  (`patches/mesa/mesa-20.3.5-riscos-glsl-decode.patch`). The interpreter
+  used to work out every operand of every instruction again for every
+  pixel and every vertex: which register bank it's in, range checks, the
+  swizzle and negation. Each program is now decoded once into a compact
+  form with those answers ready, and the operand fetch and store are
+  inlined (in the speed patch). This speeds up vertex shaders as well
+  as fragment shaders. The decoded copy is checked against the program
+  at every span and vertex batch, so a shader that is changed, relinked
+  or replaced is always picked up.
+- **Fragment shaders run 32 pixels at a time**
+  (`patches/mesa/mesa-20.3.5-riscos-glsl-batch.patch`). Each instruction
+  is dispatched once and applied to up to 32 pixels, with branch-free
+  loops for the common case (no negation, indexing or saturation).
+  Branching is followed separately for every pixel with lane masks:
+  `if`/`else`, loops with `break` and `continue`, `discard`, and `return`
+  from `main`. Each pixel has its own address register for indexed
+  arrays. Shaders with subroutine calls, and any group that hits Mesa's
+  runaway-loop limit, run a pixel at a time as before, so that limit
+  still applies to each pixel exactly as it did. The per-pixel arithmetic
+  is generated from the interpreter's own code, so results are identical.
+
+### Other speed-ups
+
+In `patches/mesa/mesa-20.3.5-riscos-speed.patch`:
+
 - **Depth testing:** 24-bit depth buffers (what EGL, SDL and GLUT ask
-  for) are now as fast as 16-bit ones. Every depth-tested span used to
-  be copied to a malloc'd buffer and back, and Mesa's fast shaded
-  triangles were only used with 16-bit depth; they also take `GL_LEQUAL`
-  now.
-- **Textures:** `GL_RGBA`/`GL_UNSIGNED_BYTE` textures use Mesa's integer
-  textured-triangle path (one texture, no mipmaps, `GL_REPEAT`,
-  power-of-two sizes), which used to skip them, and texels of the common
-  8-bit formats are read directly everywhere else.
-- **GLSL and ARB programs:** decoded once instead of for every pixel and
-  vertex, and fragment shaders now run 32 pixels at a time, with `if`/
-  `else`, loops, `discard` and `return` followed per pixel.
-- **Same picture:** checked image by image against 20.3.5-6 on a Linux
-  host and on the RISC OS build itself under ARM emulation (thousands of
-  cases: every depth function, texture formats, filters and modes, GLSL
-  with branches, loops and discard). The only differences: the integer
-  texture path rounds by up to 2/255 differently, and a shader that reads
-  a variable it never wrote (undefined in GLSL) can see a different
-  leftover value.
+  for) are now as fast as 16-bit ones. Every depth-tested span used to be
+  copied to a malloc'd buffer, unpacked, tested, packed and copied back;
+  it's now tested in place. OSMesa's fast shaded and flat triangles,
+  which were only used with 16-bit depth and `GL_LESS`, now also work
+  with 24-bit depth and `GL_LEQUAL`. This is most of the gain for the lit
+  cube (1.8x) and the triangle scene (2.3x).
+- **Texturing:** `GL_RGBA`/`GL_UNSIGNED_BYTE` textures (the usual kind)
+  now use Mesa's integer textured-triangle path when they qualify (one
+  texture, no mipmaps, `GL_REPEAT`, power-of-two sizes); it used to skip
+  them because their bytes are in a different order from the formats it
+  knew. They stay perspective-correct. Everywhere else, texels of the
+  common 8-bit formats (RGBA, BGRA, RGB, L, A, LA, I, R, RG) are read
+  directly instead of through a call per texel into Mesa's general
+  unpacking code. Together: 1.7x for the bilinear texture scene.
+
+And in the build:
+
 - **libOSMesa is no longer position-independent** (meson's default for
   static libraries). GCCSDK's `-fPIC` code reaches every global through
   the shared library tables at &8038; the library is only ever linked
-  into programs. GLSL is about 5% faster for it.
+  into programs. GLSL is about 5% faster for it, the rest the same.
+
+### Checking
+
+- **Same picture:** every change was checked image by image against
+  20.3.5-6 on a Linux host and on the RISC OS build itself, run under ARM
+  emulation: thousands of cases covering every depth function, lighting,
+  flat and smooth shading, texture formats, filters, wrap and texture
+  environment modes, and GLSL and ARB programs with branches, nested
+  loops, per-pixel loop counts, `discard`, early `return`, derivatives,
+  `gl_FragDepth`, indexed arrays, and programs changed between draws. The
+  only differences: the integer texture path rounds by up to 2/255
+  differently, and a shader that reads a variable it never wrote
+  (undefined in GLSL) can see a different leftover value.
 - Blending is unchanged: its time moves by a couple of milliseconds
   between builds of the benchmark program itself (an A/B test on the Pi
   gave the same time with 20.3.5-6's library and this one).
-- The changes are four new patches in `patches/mesa/`, described in
+- The Mesa changes are four new patches in `patches/mesa/`, described in
   `patches/mesa/README`. `build/build-mesa.sh` applies them in order and
   records them in `.riscos-patches-applied`, so an existing Mesa tree
   gets only the ones it lacks.
+
+### Other changes
+
 - **SDL2 mouse clicks in a window are no longer lost:** the window's
   buttons were read once per `SDL_PumpEvents`, so a click pressed and
   released between two frames (easy at the 5-10 frames a second of a busy
