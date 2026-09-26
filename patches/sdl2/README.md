@@ -9,8 +9,16 @@ request (a handoff), not as an edit to its copy.
 `tools/sdl-overlay-check.sh DIR` reports whether a copy still matches.
 
 One set of per-file patches, GCCSDK autobuilder style (`patch -p0`, any
-order). Without `--enable-video-riscos-osmesa` the library has no GL code
-(OpenTTD's build); with it, GL/GLES through OSMesa. It contains:
+order). The GL code is in these files, and the configure option decides
+whether it is compiled:
+
+- **riscos-mesa** (`build/build-sdl2.sh`) configures with
+  `--enable-video-riscos-osmesa`: libSDL2 with OpenGL / OpenGL ES through
+  OSMesa.
+- **riscos-openttd** configures the same files without that option:
+  libSDL2 with no GL code at all (no OSMesa needed to link).
+
+It contains:
 
 - OpenTTD's Wimp driver: desktop windows, icon bar icon + Quit menu,
   full screen single tasking, typing, eig caching, direct-to-screen full
