@@ -1,0 +1,109 @@
+diff --git a/src/mesa/main/image.c b/src/mesa/main/image.c
+index 4358503..0162f2a 100644
+--- a/src/mesa/main/image.c
++++ b/src/mesa/main/image.c
+@@ -475,12 +475,18 @@ _mesa_convert_colors(GLenum srcType, const GLvoid *src,
+                      GLenum dstType, GLvoid *dst,
+                      GLuint count, const GLubyte mask[])
+ {
+-   GLuint *tempBuffer;
++   GLuint *tempBuffer = NULL;
+    const GLboolean useTemp = (src == dst);
+ 
+-   tempBuffer = malloc(count * MAX_PIXEL_BYTES);
+-   if (!tempBuffer)
+-      return;
++   /* riscos-mesa: only allocate the temporary buffer when converting in
++    * place. swrast calls this for every span of fragment program output
++    * (float to ubyte, src != dst), so it was a malloc and free per span.
++    */
++   if (useTemp) {
++      tempBuffer = malloc(count * MAX_PIXEL_BYTES);
++      if (!tempBuffer)
++         return;
++   }
+ 
+    assert(srcType != dstType);
+ 
+diff --git a/src/mesa/swrast/s_span.c b/src/mesa/swrast/s_span.c
+index c864929..418cb80 100644
+--- a/src/mesa/swrast/s_span.c
++++ b/src/mesa/swrast/s_span.c
+@@ -252,6 +252,23 @@ interpolate_int_colors(struct gl_context *ctx, SWspan *span)
+                COPY_4UBV(rgba[i], color);
+             }
+          }
++         else if (span->redStep == 0 && span->greenStep == 0 &&
++                  span->blueStep == 0 && span->alphaStep == 0) {
++            /* riscos-mesa: smooth shading, but the colour doesn't change
++             * along this span (a primitive drawn in one colour, e.g. UI,
++             * text, particles): every pixel gets the start colour, as the
++             * loop below would give it, without stepping four
++             * interpolants per pixel.
++             */
++            GLubyte color[4];
++            color[RCOMP] = FixedToChan(span->red);
++            color[GCOMP] = FixedToChan(span->green);
++            color[BCOMP] = FixedToChan(span->blue);
++            color[ACOMP] = FixedToChan(span->alpha);
++            for (i = 0; i < n; i++) {
++               COPY_4UBV(rgba[i], color);
++            }
++         }
+          else {
+             GLfixed r = span->red;
+             GLfixed g = span->green;
+diff --git a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
+index 7fd1fdf..ecfc329 100644
+--- a/src/mesa/swrast/s_triangle.c
++++ b/src/mesa/swrast/s_triangle.c
+@@ -682,10 +682,20 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+    * and complexity. Observe that an optimizing compiler kills
+    * unused variables (for instance tf,sf,ti,si in case of GL_NEAREST).
+    */
++/* riscos-mesa: 1/q for the current pixel. When q doesn't change along the
++ * span (tex_step[2] == 0, as in 2D, orthographic and screen-aligned
++ * drawing) it's the same for every pixel, so it's worked out once before
++ * the loop (inv_q_constant) instead of with a double divide per pixel.
++ * The value is identical: adding a zero step leaves tex_coord[2] as it
++ * was (a zero q gives 1.0 either way).
++ */
++#define PERSP_INV_Q							\
++   (q_constant ? inv_q_constant :					\
++                 (tex_coord[2] ? (1.0 / tex_coord[2]) : 1.0))
++
+ #define SPAN_NEAREST(DO_TEX,COMP)					\
+ 	for (i = 0; i < span->end; i++) {				\
+-           GLdouble invQ = tex_coord[2] ?				\
+-                                 (1.0 / tex_coord[2]) : 1.0;            \
++           const GLdouble invQ = PERSP_INV_Q;				\
+            GLfloat s_tmp = (GLfloat) (tex_coord[0] * invQ);		\
+            GLfloat t_tmp = (GLfloat) (tex_coord[1] * invQ);		\
+            GLint s = util_ifloor(s_tmp) & info->smask;	        	\
+@@ -705,8 +715,7 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+ 
+ #define SPAN_LINEAR(DO_TEX,COMP)					\
+ 	for (i = 0; i < span->end; i++) {				\
+-           GLdouble invQ = tex_coord[2] ?				\
+-                                 (1.0 / tex_coord[2]) : 1.0;            \
++           const GLdouble invQ = PERSP_INV_Q;				\
+            const GLfloat s_tmp = (GLfloat) (tex_coord[0] * invQ);	\
+            const GLfloat t_tmp = (GLfloat) (tex_coord[1] * invQ);	\
+            const GLfixed s_fix = FloatToFixed(s_tmp) - FIXED_HALF;	\
+@@ -753,6 +762,8 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+    /* span->attrStart[VARYING_SLOT_TEX0][2] only if 3D-texturing, here only 2D */
+    tex_coord[2] = span->attrStart[VARYING_SLOT_TEX0][3];
+    tex_step[2] = span->attrStepX[VARYING_SLOT_TEX0][3];
++   const GLboolean q_constant = (tex_step[2] == 0.0F);
++   const GLdouble inv_q_constant = tex_coord[2] ? (1.0 / tex_coord[2]) : 1.0;
+ 
+    switch (info->filter) {
+    case GL_NEAREST:
+@@ -899,6 +910,7 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+ 
+ #undef SPAN_NEAREST
+ #undef SPAN_LINEAR
++#undef PERSP_INV_Q
+ 
+    /* restore state */
+    ctx->Texture._EnabledCoordUnits = texEnableSave;

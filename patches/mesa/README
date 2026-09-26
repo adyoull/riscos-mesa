@@ -96,6 +96,24 @@ mesa-20.3.5-riscos-size-limit.patch
       exactly as wide as the buffers is valid, and is reachable now that
       the maximum is a real screen width.
 
+mesa-20.3.5-riscos-span-speed.patch
+    Per-span speed-ups found by profiling glbench's scenes. The output is
+    identical (the image checks in tests/host-harness/mesa fail if either
+    of the first two paths is broken, so they are covered):
+    - swrast/s_triangle.c (perspective-correct textured triangles): 1/q
+      was a double divide for every pixel, 20-30 cycles each on a
+      Cortex-A72. When q doesn't change along the span (2D, orthographic
+      and screen-aligned drawing: HUDs, sprites, text) it's the same for
+      every pixel, so it's worked out once per span (PERSP_INV_Q).
+    - swrast/s_span.c (interpolate_int_colors): a smooth-shaded span whose
+      colour steps are all zero (a primitive drawn in one colour) is
+      filled with that colour instead of stepping four interpolants per
+      pixel. glbench's blend scene: 12.6% fewer instructions.
+    - main/image.c (_mesa_convert_colors): the temporary buffer is only
+      allocated for an in-place conversion. swrast converts every span of
+      fragment program output (float to ubyte, never in place), so each
+      span did a malloc and free for nothing.
+
 They are under the licence of the files they change: MIT (Mesa), except
 the change to include/c11/threads_posix.h, which is under the Boost
 Software License 1.0. See LICENCES.txt.

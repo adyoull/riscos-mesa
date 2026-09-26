@@ -91,6 +91,20 @@ Starting up and memory (`mesa-20.3.5-riscos-startup.patch`,
   offered 16384. In a full screen mode wider or taller than 4096 pixels,
   `eglMakeCurrent` fails with `EGL_BAD_ALLOC`.
 
+Hot paths (`mesa-20.3.5-riscos-span-speed.patch`, same picture):
+
+- **Textured 2D and screen-aligned drawing:** the perspective texture
+  code divided by q (in double precision) for every pixel. When q is the
+  same across the triangle, as it is for HUDs, sprites, text and anything
+  drawn flat-on, it's now divided once per span. The Pi's divide takes
+  20-30 cycles, so this helps more there than the host's instruction
+  count (tex scene: 6.4% fewer) suggests.
+- **One-colour primitives** drawn with smooth shading (UI, particles,
+  glbench's blend quads) are filled with their colour instead of
+  stepping the colour per pixel: 12.6% fewer instructions for the blend
+  scene.
+- **No malloc per span** when converting shader output to 8-bit colour.
+
 And in the build:
 
 - **libOSMesa is no longer position-independent** (meson's default for
@@ -113,7 +127,7 @@ And in the build:
 - Blending is unchanged: its time moves by a couple of milliseconds
   between builds of the benchmark program itself (an A/B test on the Pi
   gave the same time with 20.3.5-6's library and this one).
-- The Mesa changes are six new patches in `patches/mesa/`, described in
+- The Mesa changes are seven new patches in `patches/mesa/`, described in
   `patches/mesa/README`. `build/build-mesa.sh` applies them in order and
   records them in `.riscos-patches-applied`, so an existing Mesa tree
   gets only the ones it lacks.
