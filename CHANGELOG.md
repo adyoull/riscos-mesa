@@ -4,68 +4,69 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## Unreleased (20.3.5-7)
+## 20.3.5-7: faster rendering, SDL clicks
 
-- **Faster rendering** (`patches/mesa/mesa-20.3.5-riscos-speed.patch`;
-  details in `patches/mesa/README`). glbench on a Raspberry Pi 4,
-  640x480, 24-bit depth + stencil, ms per frame, 20.3.5-6 and this
-  release run in the same session:
+Rendering is up to 2.8 times as fast as 20.3.5-6, with the same picture,
+and SDL programs no longer lose short mouse clicks. The speed figures
+were measured on a Raspberry Pi 4.
 
-  | Scene | 20.3.5-6 | Now | |
-  | --- | --- | --- | --- |
-  | lit cube | 5.38 | 3.02 | 1.8x |
-  | full-screen bilinear texture | 44.04 | 26.13 | 1.7x |
-  | 12288 lit triangles | 25.79 | 11.03 | 2.3x |
-  | GLSL per-pixel shaded cube | 108.91 | 38.83 | 2.8x |
-  | 4 blended full-screen quads | 28.29 | 27.53 | |
-  | clear | 1.53 | 1.52 | |
+glbench on the Pi 4, 640x480, 24-bit depth + stencil, milliseconds per
+frame, 20.3.5-6 and 20.3.5-7 run in the same session:
 
-  Blending didn't change; its time varies by a couple of milliseconds
-  between builds of the benchmark program (an A/B test on the Pi gave
-  the same 29.6-30.9 ms with 20.3.5-6's library and this one, with or
-  without `-fPIC`). Building without `-fPIC` made GLSL about 5% faster
-  and left the other scenes the same.
+| Scene | 20.3.5-6 | 20.3.5-7 | |
+| --- | --- | --- | --- |
+| lit cube | 5.38 | 3.02 | 1.8x |
+| full-screen bilinear texture | 44.04 | 26.13 | 1.7x |
+| 12288 lit triangles | 25.79 | 11.03 | 2.3x |
+| GLSL per-pixel shaded cube | 108.91 | 38.83 | 2.8x |
+| 4 blended full-screen quads | 28.29 | 27.53 | |
+| clear | 1.53 | 1.52 | |
 
-  - 24-bit depth buffers (what EGL, SDL and GLUT ask for) are now as fast
-    as 16-bit ones. Every depth-tested span used to be copied to a
-    malloc'd buffer and back, and Mesa's fast shaded triangles were only
-    used with 16-bit depth; they now also take GL_LEQUAL.
-  - `GL_RGBA`/`GL_UNSIGNED_BYTE` textures now use Mesa's integer textured
-    triangle path (one texture, no mipmaps, `GL_REPEAT`, power-of-two
-    sizes), and texels of the common 8-bit formats are read directly
-    everywhere else.
-  - GLSL and ARB programs are decoded once instead of for every pixel
-    and vertex (`mesa-20.3.5-riscos-glsl-decode.patch`), and the
-    interpreter inlines its operand fetch and store.
-  - Fragment shaders run for 32 pixels at a time, with `if`/`else`,
-    loops, `discard` and `return` followed per pixel
-    (`mesa-20.3.5-riscos-glsl-batch.patch`). On the Pi this took the
-    GLSL scene from 59.9 to 38.8 ms, with identical results.
-  - The picture is unchanged, checked image by image against the old
-    library on the host and on ARM (the real RISC OS build, run under
-    emulation), except that the integer texture path rounds by up to
-    2/255 differently.
-- **libOSMesa is no longer built position-independent** (meson's default
-  for static libraries). GCCSDK's `-fPIC` code goes through the shared
-  library tables at &8038 for every global; the library is only ever
-  linked into programs.
-- **Host builds with GCC 13:** `-O3` vectorisation miscompiles one loop in
-  Mesa's span code (smooth shaded pixels come out wrong), so it's turned
-  off there (`patches/mesa/mesa-20.3.5-gcc13-vectorizer.patch`). The RISC
-  OS build (GCC 10, no NEON) was never affected; the host test harness
-  was.
+- **Depth testing:** 24-bit depth buffers (what EGL, SDL and GLUT ask
+  for) are now as fast as 16-bit ones. Every depth-tested span used to
+  be copied to a malloc'd buffer and back, and Mesa's fast shaded
+  triangles were only used with 16-bit depth; they also take `GL_LEQUAL`
+  now.
+- **Textures:** `GL_RGBA`/`GL_UNSIGNED_BYTE` textures use Mesa's integer
+  textured-triangle path (one texture, no mipmaps, `GL_REPEAT`,
+  power-of-two sizes), which used to skip them, and texels of the common
+  8-bit formats are read directly everywhere else.
+- **GLSL and ARB programs:** decoded once instead of for every pixel and
+  vertex, and fragment shaders now run 32 pixels at a time, with `if`/
+  `else`, loops, `discard` and `return` followed per pixel.
+- **Same picture:** checked image by image against 20.3.5-6 on a Linux
+  host and on the RISC OS build itself under ARM emulation (thousands of
+  cases: every depth function, texture formats, filters and modes, GLSL
+  with branches, loops and discard). The only differences: the integer
+  texture path rounds by up to 2/255 differently, and a shader that reads
+  a variable it never wrote (undefined in GLSL) can see a different
+  leftover value.
+- **libOSMesa is no longer position-independent** (meson's default for
+  static libraries). GCCSDK's `-fPIC` code reaches every global through
+  the shared library tables at &8038; the library is only ever linked
+  into programs. GLSL is about 5% faster for it.
+- Blending is unchanged: its time moves by a couple of milliseconds
+  between builds of the benchmark program itself (an A/B test on the Pi
+  gave the same time with 20.3.5-6's library and this one).
+- The changes are four new patches in `patches/mesa/`, described in
+  `patches/mesa/README`. `build/build-mesa.sh` applies them in order and
+  records them in `.riscos-patches-applied`, so an existing Mesa tree
+  gets only the ones it lacks.
 - **SDL2 mouse clicks in a window are no longer lost:** the window's
-  buttons are read once per `SDL_PumpEvents`, so a click pressed and
+  buttons were read once per `SDL_PumpEvents`, so a click pressed and
   released between two frames (easy at the 5-10 frames a second of a busy
   OpenGL game) never reached the program. The Wimp's `Mouse_Click` event
-  is now remembered and reported as a press (at the place it was clicked),
+  is now remembered and reported as a press, at the place it was clicked,
   with the release on the next poll. Found with Warzone 2100, whose menus
-  ignored normal clicks. (Shared SDL overlay: riscos-openttd needs the same
-  change.)
+  ignored normal clicks.
+- **Host builds with GCC 13:** `-O3` vectorisation miscompiles one loop in
+  Mesa's span code (some smooth-shaded pixels come out wrong), so it's
+  turned off for that function. The RISC OS build (GCC 10, no NEON) was
+  never affected; the host test harness was.
 - **Docs:** `build/TOOLCHAIN.md` says to apply riscos-openttd's UnixLib
   patch (without it C++ programs that set up `std::locale` abort with
-  "wctype not implemented"); the porting guide warns against `popen()` and
-  `system()`.
+  "wctype not implemented"), and the porting guide warns against
+  `popen()` and `system()`.
 
 ## 20.3.5-6: freeglut, SDL sound
 
