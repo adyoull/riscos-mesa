@@ -65,6 +65,37 @@ mesa-20.3.5-gcc13-vectorizer.patch
     one function. GCCSDK GCC 10 isn't affected (the RISC OS build uses VFP
     without NEON); it's here for host builds such as the test harness.
 
+mesa-20.3.5-riscos-startup.patch
+    mapi/glapi/glapi_getproc.c: GL functions are found by name with a
+    binary search in an index sorted by name (built once, on first use),
+    instead of comparing the name with each of the 2339 built-in functions
+    in turn. Creating the first context looks up about 2500 names
+    (_mesa_init_remap_table), which cost ~87 million instructions, about
+    0.1 s on a Raspberry Pi 4, before a program drew anything; now ~3
+    million (creating a context: 93.5 -> 10.3 million, measured on the
+    host).
+    GetProcAddress lookups (eglGetProcAddress, SDL_GL_GetProcAddress) use
+    the same search. Where a name occurs twice the first entry in table
+    order is returned, as before.
+
+mesa-20.3.5-riscos-size-limit.patch
+    The largest surface, viewport, renderbuffer and texture is 4096 x 4096
+    (Mesa: 16384). swrast sizes each context's span buffers by the largest
+    width, and RISC OS commits all of it in the application slot. A
+    context allocates 9.6 MB instead of 22.5 MB (measured on the host). 4096 covers every Pi screen mode up to 4K
+    and is riscos-mesa's EGL pbuffer limit.
+    - swrast/swrast.h: SWRAST_MAX_WIDTH/HEIGHT 4096, and
+      program/prog_execute.h PROG_MAX_WIDTH to match (now a compile-time
+      check in swrast/s_context.c).
+    - osmesa/osmesa.c: set_size_limits() reports swrast's limits to GL
+      (GL_MAX_VIEWPORT_DIMS, GL_MAX_RENDERBUFFER_SIZE,
+      GL_MAX_TEXTURE_SIZE and the rectangle, 3D and cube map limits).
+      Before, GL offered 16384 although swrast couldn't handle it.
+    - swrast: four debug asserts (s_masking.c, s_logic.c, s_lines.c,
+      s_copypix.c) required a span to be shorter than the maximum; a span
+      exactly as wide as the buffers is valid, and is reachable now that
+      the maximum is a real screen width.
+
 They are under the licence of the files they change: MIT (Mesa), except
 the change to include/c11/threads_posix.h, which is under the Boost
 Software License 1.0. See LICENCES.txt.

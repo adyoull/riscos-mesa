@@ -15,6 +15,7 @@
 #include <EGL/eglext.h>
 #include <EGL/eglext_riscos.h>
 #include <GL/gl.h>
+#include <GL/osmesa.h>
 
 #include "fake_riscos.h"
 
@@ -155,6 +156,88 @@ static void test_pbuffer(void)
     CHECK(eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT), "release");
     CHECK(eglGetCurrentContext() == EGL_NO_CONTEXT, "released");
     CHECK(eglDestroyContext(dpy, ctx), "destroy context");
+}
+
+/* The largest surface: EGL's pbuffer limit must be OSMesa's (Mesa's
+   SWRAST_MAX_WIDTH, patches/mesa riscos-size-limit) and what GL reports,
+   and a surface exactly that wide must render (full-width spans through
+   colour masking and logic ops). */
+static void test_size_limit(void)
+{
+    EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 24, EGL_PBUFFER_BIT);
+    EGLint max_w = 0, max_h = 0, osm_w = 0, osm_h = 0, w;
+    GLint vp[2], tex, rb;
+    EGLSurface pb;
+    EGLContext ctx;
+    unsigned char *row;
+    int x, ok;
+
+    eglGetConfigAttrib(dpy, cfg, EGL_MAX_PBUFFER_WIDTH, &max_w);
+    eglGetConfigAttrib(dpy, cfg, EGL_MAX_PBUFFER_HEIGHT, &max_h);
+    {
+        EGLint pa[] = { EGL_WIDTH, max_w, EGL_HEIGHT, 8, EGL_NONE };
+        pb = eglCreatePbufferSurface(dpy, cfg, pa);
+    }
+    CHECK(pb != EGL_NO_SURFACE, "pbuffer %d wide", max_w);
+    ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+    CHECK(eglMakeCurrent(dpy, pb, pb, ctx), "make current full-width pbuffer");
+    OSMesaGetIntegerv(OSMESA_MAX_WIDTH, &osm_w);
+    OSMesaGetIntegerv(OSMESA_MAX_HEIGHT, &osm_h);
+    CHECK(max_w == osm_w && max_h == osm_h, "EGL max pbuffer %dx%d = OSMesa max %dx%d",
+          max_w, max_h, osm_w, osm_h);
+    glGetIntegerv(GL_MAX_VIEWPORT_DIMS, vp);
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &tex);
+    glGetIntegerv(0x84E8 /* GL_MAX_RENDERBUFFER_SIZE */, &rb);
+    CHECK(vp[0] == max_w && vp[1] == max_h && tex == max_w && rb == max_w,
+          "GL limits = %d (viewport %dx%d, texture %d, renderbuffer %d)",
+          max_w, vp[0], vp[1], tex, rb);
+    {
+        EGLint pa[] = { EGL_WIDTH, max_w + 1, EGL_HEIGHT, 8, EGL_NONE };
+        CHECK(eglCreatePbufferSurface(dpy, cfg, pa) == EGL_NO_SURFACE &&
+              eglGetError() == EGL_BAD_MATCH, "pbuffer wider than %d refused", max_w);
+    }
+
+    /* Spans exactly as wide as the surface (triangles never make one: each
+       row of a triangle is shorter). Rows 4-7: a full-width glDrawPixels
+       of yellow with red masked off, ORed onto blue -> cyan. Rows 1-3: a
+       3-pixel-wide horizontal line across the whole surface, in white. */
+    glViewport(0, 0, max_w, 8);
+    clear(0, 0, 1);
+    glMatrixMode(GL_PROJECTION); glLoadIdentity();
+    glMatrixMode(GL_MODELVIEW); glLoadIdentity();
+    row = malloc(max_w * 4 * 4);
+    for (x = 0; x < max_w * 4; x++) {
+        row[x * 4] = 255; row[x * 4 + 1] = 255; row[x * 4 + 2] = 0; row[x * 4 + 3] = 255;
+    }
+    glColorMask(GL_FALSE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glEnable(GL_COLOR_LOGIC_OP); glLogicOp(GL_OR);
+    glRasterPos2f(-1, 0);                        /* window row 4 */
+    glDrawPixels(max_w, 4, GL_RGBA, GL_UNSIGNED_BYTE, row);
+    glDisable(GL_COLOR_LOGIC_OP);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glLineWidth(3);
+    glColor3f(1, 1, 1);
+    glBegin(GL_LINES);
+    glVertex2f(-1, -0.5f + 1.0f / 8); glVertex2f(1, -0.5f + 1.0f / 8);   /* row 2 */
+    glEnd();
+    glLineWidth(1);
+    glReadPixels(0, 5, max_w, 1, GL_RGBA, GL_UNSIGNED_BYTE, row);
+    for (ok = 1, x = 0; x < max_w; x++)
+        if (row[x * 4] != 0 || row[x * 4 + 1] != 255 || row[x * 4 + 2] != 255) ok = 0;
+    CHECK(ok, "full-width glDrawPixels: masked red, OR'd green, blue kept (x=0: %d %d %d, last: %d %d %d)",
+          row[0], row[1], row[2], row[(max_w - 1) * 4], row[(max_w - 1) * 4 + 1],
+          row[(max_w - 1) * 4 + 2]);
+    glReadPixels(0, 2, max_w, 1, GL_RGBA, GL_UNSIGNED_BYTE, row);
+    for (ok = 1, x = 1; x < max_w - 1; x++)
+        if (row[x * 4] != 255 || row[x * 4 + 1] != 255 || row[x * 4 + 2] != 255) ok = 0;
+    CHECK(ok, "full-width wide line (x=1: %d %d %d, x=%d: %d %d %d)", row[4], row[5], row[6],
+          max_w - 2, row[(max_w - 2) * 4], row[(max_w - 2) * 4 + 1], row[(max_w - 2) * 4 + 2]);
+    free(row);
+    eglQuerySurface(dpy, pb, EGL_WIDTH, &w);
+    CHECK(w == max_w, "surface width %d", w);
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, pb);
+    eglDestroyContext(dpy, ctx);
 }
 
 static int *make_sprite(int w, int h, int trgb)
@@ -1003,6 +1086,7 @@ static void *run(void *arg)
     fake_reset_clip();
     test_basics();
     test_pbuffer();
+    test_size_limit();
     test_pixmap();
     test_window();
     test_client_and_platform();

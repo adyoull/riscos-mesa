@@ -6,7 +6,8 @@
  * percent shows up reliably.
  *
  * Usage: perf SCENE FRAMES
- *   SCENE: clear, cube, tex, blend, tris or glsl (as in glbench)
+ *   SCENE: clear, cube, tex, blend, tris or glsl (as in glbench), or
+ *   startup: create and bind the context, then stop (FRAMES ignored)
  *   Renders at 320x240 with 24-bit depth and 8-bit stencil, like
  *   glbench's defaults but smaller, so valgrind is quick.
  * Part of riscos-mesa, MIT licence.
@@ -38,6 +39,9 @@ int main(int argc, char **argv)
         return 1;
     }
     OSMesaPixelStore(OSMESA_Y_UP, 0);
+
+    if (!strcmp(scene, "startup"))
+        return 0;
 
     reset_state();
     if (!strcmp(scene, "clear"))       frame = s_clear;

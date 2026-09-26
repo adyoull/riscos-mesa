@@ -1,0 +1,154 @@
+diff --git a/src/mesa/drivers/osmesa/osmesa.c b/src/mesa/drivers/osmesa/osmesa.c
+index ada8a34..0993d2b 100644
+--- a/src/mesa/drivers/osmesa/osmesa.c
++++ b/src/mesa/drivers/osmesa/osmesa.c
+@@ -59,6 +59,7 @@
+ #include "drivers/common/driverfuncs.h"
+ #include "drivers/common/meta.h"
+ #include "vbo/vbo.h"
++#include "util/u_math.h"
+ #include "util/u_memory.h"
+ 
+ 
+@@ -780,6 +781,29 @@ osmesa_UnmapRenderbuffer(struct gl_context *ctx, struct gl_renderbuffer *rb)
+ }
+ 
+ 
++/**
++ * riscos-mesa: report swrast's size limits (SWRAST_MAX_WIDTH/HEIGHT,
++ * lowered to 4096 in swrast.h) as this context's largest viewport,
++ * renderbuffer and texture. Mesa's defaults are 16384, which would let a
++ * program ask for images wider than swrast's span buffers.
++ */
++static void
++set_size_limits(struct gl_context *ctx)
++{
++   const unsigned levels = util_logbase2(SWRAST_MAX_WIDTH) + 1;
++
++   ctx->Const.MaxViewportWidth = SWRAST_MAX_WIDTH;
++   ctx->Const.MaxViewportHeight = SWRAST_MAX_HEIGHT;
++   ctx->Const.MaxRenderbufferSize = MIN2(SWRAST_MAX_WIDTH, SWRAST_MAX_HEIGHT);
++   ctx->Const.MaxTextureSize = MIN2(ctx->Const.MaxTextureSize, SWRAST_MAX_WIDTH);
++   ctx->Const.MaxTextureRectSize = MIN2(ctx->Const.MaxTextureRectSize,
++                                        SWRAST_MAX_WIDTH);
++   ctx->Const.Max3DTextureLevels = MIN2(ctx->Const.Max3DTextureLevels, levels);
++   ctx->Const.MaxCubeTextureLevels = MIN2(ctx->Const.MaxCubeTextureLevels,
++                                          levels);
++}
++
++
+ /**********************************************************************/
+ /*****                    Public Functions                        *****/
+ /**********************************************************************/
+@@ -1014,6 +1038,7 @@ OSMesaCreateContextAttribs(const int *attribList, OSMesaContext sharelist)
+          return NULL;
+       }
+ 
++      set_size_limits(&osmesa->mesa);
+       _mesa_enable_sw_extensions(&(osmesa->mesa));
+ 
+       osmesa->gl_buffer = _mesa_create_framebuffer(osmesa->gl_visual);
+diff --git a/src/mesa/program/prog_execute.h b/src/mesa/program/prog_execute.h
+index 7b86860..0f7b6d0 100644
+--- a/src/mesa/program/prog_execute.h
++++ b/src/mesa/program/prog_execute.h
+@@ -41,8 +41,8 @@ typedef void (*FetchTexelDerivFunc)(struct gl_context *ctx, const GLfloat texcoo
+                                     GLuint unit, GLfloat color[4]);
+ 
+ 
+-/** NOTE: This must match SWRAST_MAX_WIDTH */
+-#define PROG_MAX_WIDTH 16384
++/** NOTE: This must match SWRAST_MAX_WIDTH (checked in swrast/s_context.c) */
++#define PROG_MAX_WIDTH 4096
+ 
+ 
+ /**
+diff --git a/src/mesa/swrast/s_context.c b/src/mesa/swrast/s_context.c
+index 820e5b2..9281dbb 100644
+--- a/src/mesa/swrast/s_context.c
++++ b/src/mesa/swrast/s_context.c
+@@ -732,7 +732,7 @@ _swrast_CreateContext( struct gl_context *ctx )
+    assert((1 << (ctx->Const.MaxCubeTextureLevels - 1)) <= SWRAST_MAX_WIDTH);
+    assert((1 << (ctx->Const.Max3DTextureLevels - 1)) <= SWRAST_MAX_WIDTH);
+ 
+-   assert(PROG_MAX_WIDTH == SWRAST_MAX_WIDTH);
++   STATIC_ASSERT(PROG_MAX_WIDTH == SWRAST_MAX_WIDTH);
+ 
+    if (SWRAST_DEBUG) {
+       _mesa_debug(ctx, "_swrast_CreateContext\n");
+diff --git a/src/mesa/swrast/s_copypix.c b/src/mesa/swrast/s_copypix.c
+index d6ba441..3bdc820 100644
+--- a/src/mesa/swrast/s_copypix.c
++++ b/src/mesa/swrast/s_copypix.c
+@@ -147,7 +147,7 @@ copy_rgba_pixels(struct gl_context *ctx, GLint srcx, GLint srcy,
+       p = NULL;
+    }
+ 
+-   assert(width < SWRAST_MAX_WIDTH);
++   assert(width <= SWRAST_MAX_WIDTH);
+ 
+    for (row = 0; row < height; row++, sy += stepy, dy += stepy) {
+       GLvoid *rgba = span.array->attribs[VARYING_SLOT_COL0];
+diff --git a/src/mesa/swrast/s_lines.c b/src/mesa/swrast/s_lines.c
+index ab8da7d..3af144b 100644
+--- a/src/mesa/swrast/s_lines.c
++++ b/src/mesa/swrast/s_lines.c
+@@ -66,7 +66,7 @@ draw_wide_line( struct gl_context *ctx, SWspan *span, GLboolean xMajor )
+                                      ctx->Const.MaxLineWidth);
+    GLint start;
+ 
+-   assert(span->end < SWRAST_MAX_WIDTH);
++   assert(span->end <= SWRAST_MAX_WIDTH);
+ 
+    if (width & 1)
+       start = width / 2;
+diff --git a/src/mesa/swrast/s_logic.c b/src/mesa/swrast/s_logic.c
+index 304e3d5..9fc063e 100644
+--- a/src/mesa/swrast/s_logic.c
++++ b/src/mesa/swrast/s_logic.c
+@@ -193,7 +193,7 @@ _swrast_logicop_rgba_span(struct gl_context *ctx, struct gl_renderbuffer *rb,
+ {
+    void *rbPixels;
+ 
+-   assert(span->end < SWRAST_MAX_WIDTH);
++   assert(span->end <= SWRAST_MAX_WIDTH);
+    assert(span->arrayMask & SPAN_RGBA);
+ 
+    rbPixels = _swrast_get_dest_rgba(ctx, rb, span);
+diff --git a/src/mesa/swrast/s_masking.c b/src/mesa/swrast/s_masking.c
+index 8941375..96fec61 100644
+--- a/src/mesa/swrast/s_masking.c
++++ b/src/mesa/swrast/s_masking.c
+@@ -46,7 +46,7 @@ _swrast_mask_rgba_span(struct gl_context *ctx, struct gl_renderbuffer *rb,
+    const GLuint n = span->end;
+    void *rbPixels;
+ 
+-   assert(n < SWRAST_MAX_WIDTH);
++   assert(n <= SWRAST_MAX_WIDTH);
+    assert(span->arrayMask & SPAN_RGBA);
+ 
+    rbPixels = _swrast_get_dest_rgba(ctx, rb, span);
+diff --git a/src/mesa/swrast/swrast.h b/src/mesa/swrast/swrast.h
+index a89dc6c..7a7bb81 100644
+--- a/src/mesa/swrast/swrast.h
++++ b/src/mesa/swrast/swrast.h
+@@ -58,9 +58,17 @@
+ 
+ /**
+  * Max image/surface/texture size.
++ *
++ * riscos-mesa: 4096 instead of 16384. Each context's span buffers are
++ * sized by the width (SWspanarrays alone is 64 x width x 16 bytes, 16 MB
++ * at 16384), and on RISC OS all of it is committed in the application
++ * slot. 4096 x 4096 covers every Raspberry Pi screen mode up to 4K and
++ * matches riscos-mesa's EGL pbuffer limit. The OSMesa driver reports it
++ * as the largest viewport, renderbuffer and texture (set_size_limits in
++ * osmesa.c). PROG_MAX_WIDTH in program/prog_execute.h must match.
+  */
+-#define SWRAST_MAX_WIDTH 16384
+-#define SWRAST_MAX_HEIGHT 16384
++#define SWRAST_MAX_WIDTH 4096
++#define SWRAST_MAX_HEIGHT 4096
+ 
+ 
+ /**

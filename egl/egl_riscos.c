@@ -82,6 +82,9 @@
 #define LAYOUT_TRGB 1              /* 0x00RRGGBB: B,G,R,X in memory = OSMESA_BGRA */
 #define MODEFLAG_TRGB 0x4000
 
+/* Largest pbuffer: OSMesa's largest buffer (Mesa's SWRAST_MAX_WIDTH/HEIGHT,
+   set by patches/mesa riscos-size-limit). The EGL host harness checks
+   they agree. */
 #define MAX_PBUFFER 4096
 #define MAX_SWAP_INTERVAL 4
 #define MAX_BANKS 3

@@ -2,7 +2,9 @@
 # Performance regression check for riscos-mesa's Mesa patches.
 #
 # Counts the instructions Mesa executes per frame for each of glbench's
-# scenes (perf.c, run under valgrind), and compares them with
+# scenes (perf.c, run under valgrind), and for starting a program (loading
+# it and creating and binding the first context: "startup", a total, not
+# per frame), and compares them with
 # expected/perf.txt or with another build. Instruction counts don't vary
 # from run to run the way timings do, so a slowdown of a couple of percent
 # is caught reliably, even on a busy machine. They do depend on the host
@@ -33,6 +35,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 command -v valgrind >/dev/null || { echo "needs valgrind" >&2; exit 1; }
 mkdir -p "$OUT"
 SCENES="clear cube tex blend tris glsl"
+ROWS="startup $SCENES"
 GCC=$(gcc -dumpfullversion)
 
 gcc -O2 -w -I"$M/include" -I"$HERE/../.." "$HERE/perf.c" "$HERE/../../hrtime.c" \
@@ -51,7 +54,9 @@ per_frame() {
     echo $(( (b - a) / FRAMES ))
 }
 measure() {   # measure <libdir> <file>
-    { echo "# instructions per frame, 320x240, gcc $GCC"
+    { echo "# instructions: startup = whole program up to the first context"
+      echo "# being current; scenes = per frame, 320x240; gcc $GCC"
+      echo "startup $(count "$1" startup 0)"
       for s in $SCENES; do echo "$s $(per_frame "$1" "$s")"; done; } > "$2"
 }
 
@@ -67,11 +72,11 @@ fi
 if [ -n "${REF:-}" ]; then
     measure "$REF" "$OUT/ref.txt"
     WANT=$OUT/ref.txt
-    echo "instructions per frame: $LIB against $REF"
+    echo "instructions: $LIB against $REF"
 else
     WANT=$HERE/expected/perf.txt
     base_gcc=$(sed -n 's/.*gcc //p' "$WANT" | head -1)
-    echo "instructions per frame: $LIB against expected/perf.txt"
+    echo "instructions: $LIB against expected/perf.txt"
     if [ "$base_gcc" != "$GCC" ]; then
         echo "note: the baseline was made with gcc $base_gcc, this is gcc $GCC;"
         echo "      counts differ between compilers, so compare two builds with REF"
@@ -79,8 +84,8 @@ else
 fi
 
 fail=0
-printf "%-6s %14s %14s %8s\n" scene expected this change
-for s in $SCENES; do
+printf "%-8s %14s %14s %8s\n" "" expected this change
+for s in $ROWS; do
     want=$(awk -v s=$s '$1 == s { print $2 }' "$WANT")
     got=$(awk -v s=$s '$1 == s { print $2 }' "$OUT/this.txt")
     pct=$(awk -v a="$want" -v b="$got" 'BEGIN { printf "%+.1f", (b - a) * 100.0 / a }')
@@ -88,11 +93,11 @@ for s in $SCENES; do
     if awk -v p="$pct" -v t="$TOL" 'BEGIN { exit !(p > t) }'; then verdict=SLOWER; fail=1
     elif awk -v p="$pct" -v t="$TOL" 'BEGIN { exit !(p < -t) }'; then verdict=faster
     fi
-    printf "%-6s %14s %14s %7s%%  %s\n" "$s" "$want" "$got" "$pct" "$verdict"
+    printf "%-8s %14s %14s %7s%%  %s\n" "$s" "$want" "$got" "$pct" "$verdict"
 done
 if [ $fail = 0 ]; then
     echo "no performance regression (tolerance ${TOL}%)"
 else
-    echo "PERFORMANCE REGRESSION: some scenes need more than ${TOL}% more work per frame"
+    echo "PERFORMANCE REGRESSION: more than ${TOL}% more work (see SLOWER above)"
 fi
 exit $fail

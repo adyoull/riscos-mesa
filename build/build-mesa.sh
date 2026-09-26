@@ -18,7 +18,7 @@ cd mesa-$V
 # (see patches/mesa/README), in this order. .riscos-patches-applied in the
 # tree records which are in, so each is applied once and a tree extracted
 # by an earlier version of this script gets only the ones it lacks.
-PATCHES="riscos riscos-speed riscos-glsl-decode riscos-glsl-batch gcc13-vectorizer"
+PATCHES="riscos riscos-speed riscos-glsl-decode riscos-glsl-batch gcc13-vectorizer riscos-startup riscos-size-limit"
 STAMP=.riscos-patches-applied
 if [ ! -f $STAMP ]; then
   # No record: a new tree, or one made by an earlier version of this

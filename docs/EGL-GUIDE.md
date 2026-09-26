@@ -256,7 +256,7 @@ eglQuerySurface(dpy, surf, EGL_RENDER_BUFFER, &rb);   /* what you actually got *
 
 For rendering that isn't shown straight away (thumbnails, textures, batch rendering, screenshots), use a pbuffer or render into a sprite.
 
-**Pbuffers** are plain memory, up to 4096x4096. Read the result with `glReadPixels`.
+**Pbuffers** are plain memory, up to 4096x4096 (the largest surface of any kind). Read the result with `glReadPixels`.
 
 ```c
 static const EGLint pb_attrs[] = { EGL_WIDTH, 256, EGL_HEIGHT, 256, EGL_NONE };

@@ -71,6 +71,26 @@ In `patches/mesa/mesa-20.3.5-riscos-speed.patch`:
   directly instead of through a call per texel into Mesa's general
   unpacking code. Together: 1.7x for the bilinear texture scene.
 
+Starting up and memory (`mesa-20.3.5-riscos-startup.patch`,
+`mesa-20.3.5-riscos-size-limit.patch`):
+
+- **Programs start faster:** creating the first GL context looked up
+  about 2500 function names by comparing each with every one of Mesa's
+  2339 built-in functions: about 87 million instructions, roughly 0.1 s
+  on a Pi 4, before anything was drawn. A sorted index cuts creating a
+  context from 93.5 to 10.3 million instructions (measured on a Linux
+  host). `eglGetProcAddress` and `SDL_GL_GetProcAddress` use the same
+  search.
+- **13 MB less memory per context:** the largest surface, viewport,
+  renderbuffer and texture is now 4096 x 4096 (was 16384), which covers
+  every Pi screen mode up to 4K and matches EGL's pbuffer limit. Mesa's
+  span buffers are sized by that width, and RISC OS commits all of it in
+  the application slot: a context now allocates 9.6 MB instead of
+  22.5 MB. GL reports the new limits (`GL_MAX_TEXTURE_SIZE`,
+  `GL_MAX_VIEWPORT_DIMS`, `GL_MAX_RENDERBUFFER_SIZE` = 4096); before, it
+  offered 16384. In a full screen mode wider or taller than 4096 pixels,
+  `eglMakeCurrent` fails with `EGL_BAD_ALLOC`.
+
 And in the build:
 
 - **libOSMesa is no longer position-independent** (meson's default for
@@ -93,7 +113,7 @@ And in the build:
 - Blending is unchanged: its time moves by a couple of milliseconds
   between builds of the benchmark program itself (an A/B test on the Pi
   gave the same time with 20.3.5-6's library and this one).
-- The Mesa changes are four new patches in `patches/mesa/`, described in
+- The Mesa changes are six new patches in `patches/mesa/`, described in
   `patches/mesa/README`. `build/build-mesa.sh` applies them in order and
   records them in `.riscos-patches-applied`, so an existing Mesa tree
   gets only the ones it lacks.
@@ -139,6 +159,9 @@ And in the build:
     riscos-openttd takes its copy from here with
     `tools/sdl-overlay-export.sh`, and `tools/sdl-overlay-check.sh`
     reports a copy that has drifted.
+  - The performance check (`tests/host-harness/mesa/perf.sh`) also
+    counts the instructions to start a program and create its first
+    context, so start-up slowdowns are caught as well.
 - **Docs:** `build/TOOLCHAIN.md` says to apply riscos-openttd's UnixLib
   patch (without it C++ programs that set up `std::locale` abort with
   "wctype not implemented"), and the porting guide warns against

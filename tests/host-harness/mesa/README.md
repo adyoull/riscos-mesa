@@ -36,8 +36,10 @@ the code GCCSDK compiled for the Pi is checked too. Needs `qemu-user` and
 ## Performance: `perf.sh`
 
 Counts the instructions Mesa executes per frame for each of glbench's
-scenes (`perf.c`, which includes `tests/glbench.c`, run under valgrind)
-and fails if any scene needs more than 2% more than `expected/perf.txt`.
+scenes (`perf.c`, which includes `tests/glbench.c`, run under valgrind),
+and for starting a program up to its first context being current
+(`startup`, a total), and fails if any of them needs more than 2% more
+than `expected/perf.txt`.
 Instruction counts are the same on every run, unlike timings, so small
 slowdowns are caught reliably. They depend on the host compiler: the
 baseline records the gcc version, and with a different compiler compare
