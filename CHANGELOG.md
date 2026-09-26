@@ -7,10 +7,17 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 ## Unreleased (20.3.5-7)
 
 - **Faster rendering** (`patches/mesa/mesa-20.3.5-riscos-speed.patch`;
-  details in `patches/mesa/README`). On a Linux host, 640x480 with a
-  24-bit depth buffer: the lit cube and many-triangle scenes are 2.4 times
-  as fast, bilinear textured 1.9 times, GLSL 1.9 times. Not yet measured
-  on a Pi (the RISC OS build under ARM emulation: GLSL 1.6 times).
+  details in `patches/mesa/README`). glbench on a Raspberry Pi 4,
+  640x480, 24-bit depth + stencil, ms per frame, 20.3.5-6 -> now:
+
+  | Scene | Before | After | |
+  | --- | --- | --- | --- |
+  | lit cube | 5.61 | 3.04 | 1.8x |
+  | full-screen bilinear texture | 44.75 | 26.16 | 1.7x |
+  | 12288 lit triangles | 26.79 | 11.19 | 2.4x |
+  | GLSL per-pixel shaded cube | 94.97 | 59.93 | 1.6x |
+  | 4 blended full-screen quads | 28.32 | 30.37 | (unchanged code) |
+
   - 24-bit depth buffers (what EGL, SDL and GLUT ask for) are now as fast
     as 16-bit ones. Every depth-tested span used to be copied to a
     malloc'd buffer and back, and Mesa's fast shaded triangles were only
