@@ -83,6 +83,14 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
   title bar. `ports/sdl2-tests/riscos_output.c` does the same with no
   change to the program at all.
 
+**Other programs**
+
+- **Avoid `popen()` and `system()`.** UnixLib runs the command as a `*`
+  command inside the program's own memory; a Unix command such as `which`
+  fails ("File 'which' not found"), and it can crash the program ("abort on
+  data transfer" in the ROM was seen with Warzone 2100). Take such calls
+  out, or start other programs with `Wimp_StartTask`.
+
 **Files**
 
 - Unix paths work through UnixLib: `textures/brick.tga` becomes

@@ -32,3 +32,16 @@ OpenTTD buildkit). It follows GCCSDK's autobuilder recipe
 On a 1-CPU container this took about 30 minutes after the source was ready.
 The ld-riscos dynamic linker and the native (runs-on-RISC-OS) compiler steps
 of the recipe were skipped; static linking doesn't need them.
+
+## UnixLib fixes for ported programs
+
+Apply riscos-openttd's UnixLib patch
+(`patches/unixlib/unixlib-riscos-openttd.diff` in
+github.com/adyoull/riscos-openttd) to the GCCSDK source before building
+UnixLib. Without it, any C++ program whose `std::locale` set-up runs (many
+games do) aborts at start with "wctype not implemented": UnixLib's
+`wctype()` is only a stub. The patch also fixes `nanosleep`/`clock_gettime`
+timing and some allocator details. riscos-mesa's own libraries don't need
+it, but programs you link with them may. To rebuild just UnixLib, apply the
+patch, run `make` in the cross-build tree's `arm-riscos-gnueabihf/libunixlib`
+and copy `.libs/libunixlib.a` into the installed toolchain.

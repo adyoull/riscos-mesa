@@ -10,8 +10,14 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   buttons are read once per `SDL_PumpEvents`, so a click pressed and
   released between two frames (easy at the 5-10 frames a second of a busy
   OpenGL game) never reached the program. The Wimp's `Mouse_Click` event
-  is now remembered and reported as a press, with the release on the next
-  poll. Found with Warzone 2100, whose menus ignored normal clicks.
+  is now remembered and reported as a press (at the place it was clicked),
+  with the release on the next poll. Found with Warzone 2100, whose menus
+  ignored normal clicks. (Shared SDL overlay: riscos-openttd needs the same
+  change.)
+- **Docs:** `build/TOOLCHAIN.md` says to apply riscos-openttd's UnixLib
+  patch (without it C++ programs that set up `std::locale` abort with
+  "wctype not implemented"); the porting guide warns against `popen()` and
+  `system()`.
 
 ## 20.3.5-6: freeglut, SDL sound
 
