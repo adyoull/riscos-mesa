@@ -1,5 +1,5 @@
 diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents.c
-index fcca470..cbbeb02 100644
+index fcca470..4e209d3 100644
 --- src/video/riscos/SDL_riscosevents.c
 +++ src/video/riscos/SDL_riscosevents.c
 @@ -27,9 +27,11 @@
@@ -88,7 +88,7 @@ index fcca470..cbbeb02 100644
      /* Check for key presses */
      while (key < 0xff) {
          key = _kernel_osbyte(121, key + 1, 0) & 0xff;
-@@ -111,36 +166,135 @@ static const Uint8 mouse_button_map[] = {
+@@ -111,36 +166,147 @@ static const Uint8 mouse_button_map[] = {
      SDL_BUTTON_X2 + 3
  };
  
@@ -97,9 +97,9 @@ index fcca470..cbbeb02 100644
 +/* 2026: mouse handling for a Wimp window. */
 +static void
 +RISCOS_PollMouseWindowed(_THIS)
- {
-     SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
-     SDL_Mouse *mouse = SDL_GetMouse();
++{
++    SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
++    SDL_Mouse *mouse = SDL_GetMouse();
 +    SDL_Window *window = driverdata->wimp_sdl_window;
 +    int xeig = driverdata->xeig, yeig = driverdata->yeig;
 +    int state[9], ptr[5], i, x, y, buttons;
@@ -116,6 +116,18 @@ index fcca470..cbbeb02 100644
 +
 +    buttons = ptr[2] & 7;
 +    inside = (ptr[3] == driverdata->wimp_window) ? SDL_TRUE : SDL_FALSE;
++    /* 2026: a click that was pressed and released between two polls (easy
++       when a frame takes 100 ms or more, as with software OpenGL) was never
++       seen. The Wimp's Mouse_Click event records it: report the press now
++       and the release on the next poll. */
++    if (driverdata->pending_clicks != 0) {
++        int missed = driverdata->pending_clicks & ~driverdata->last_mouse_buttons;
++        driverdata->pending_clicks = 0;
++        if (missed != 0) {
++            buttons |= missed;
++            inside = SDL_TRUE;
++        }
++    }
 +    /* Keep reporting while a button pressed inside the window is held (drags). */
 +    if (!inside && driverdata->buttons_inside != 0 && buttons != 0)
 +        inside = SDL_TRUE;
@@ -169,13 +181,13 @@ index fcca470..cbbeb02 100644
 +
 +static void
 +RISCOS_PollMouseFullscreen(_THIS)
-+{
+ {
 +    /* 2026: always report against our (full screen) window rather than
 +       mouse->focus, so that once the pointer has touched a screen edge and
 +       SDL has dropped the focus, it gets it back; convert OS units with the
 +       real eigen factors instead of assuming 2 OS units per pixel. */
-+    SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
-+    SDL_Mouse *mouse = SDL_GetMouse();
+     SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
+     SDL_Mouse *mouse = SDL_GetMouse();
 +    SDL_Window *window = _this->windows ? _this->windows : mouse->focus;
      SDL_Rect rect;
      _kernel_swi_regs regs;
@@ -231,7 +243,7 @@ index fcca470..cbbeb02 100644
  int
  RISCOS_InitEvents(_THIS)
  {
-@@ -165,10 +319,298 @@ RISCOS_InitEvents(_THIS)
+@@ -165,10 +331,301 @@ RISCOS_InitEvents(_THIS)
      return 0;
  }
  
@@ -288,8 +300,11 @@ index fcca470..cbbeb02 100644
 +        regs.r[1] = (int)block;
 +        _kernel_swi(Wimp_OpenWindow, &regs, &regs);
 +        break;
-+    case 6:  /* Mouse_Click: only the icon bar icon matters, the window is polled */
-+        if (block[3] == -2 && block[4] == driverdata->iconbar_icon) {
++    case 6:  /* Mouse_Click: the window's buttons are polled, but a short click
++                can come and go between two polls, so remember it */
++        if (block[3] == driverdata->wimp_window && driverdata->wimp_window != 0) {
++            driverdata->pending_clicks |= block[2] & 7;
++        } else if (block[3] == -2 && block[4] == driverdata->iconbar_icon) {
 +            if (block[2] & 2) {
 +                RISCOS_IconbarMenu(block[0]);
 +            } else if (driverdata->wimp_window != 0) {

@@ -1,8 +1,8 @@
 diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
-index db6c86e..b704e4d 100644
+index db6c86e..78b3057 100644
 --- src/video/riscos/SDL_riscosvideo.h
 +++ src/video/riscos/SDL_riscosvideo.h
-@@ -31,8 +31,30 @@ typedef struct SDL_VideoData
+@@ -31,8 +31,31 @@ typedef struct SDL_VideoData
  {
      int last_mouse_buttons;
      Uint8 key_pressed[RISCOS_MAX_KEYS_PRESSED];
@@ -15,6 +15,7 @@ index db6c86e..b704e4d 100644
 +    SDL_bool has_caret;         /* we have the input focus */
 +    SDL_bool cursor_hidden;     /* SDL asked for the pointer to be hidden */
 +    int buttons_inside;         /* buttons pressed while over our window */
++    int pending_clicks;         /* Mouse_Click buttons not yet reported (short clicks) */
 +    int xeig, yeig;             /* cached eigen factors of the current mode */
 +    int iconbar_icon;           /* icon bar icon handle, or -1 */
 +    int wscale_x, wscale_y;     /* screen pixels per SDL pixel in a desktop window */

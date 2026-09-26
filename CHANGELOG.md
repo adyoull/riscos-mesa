@@ -4,6 +4,15 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## Unreleased (20.3.5-7)
+
+- **SDL2 mouse clicks in a window are no longer lost:** the window's
+  buttons are read once per `SDL_PumpEvents`, so a click pressed and
+  released between two frames (easy at the 5-10 frames a second of a busy
+  OpenGL game) never reached the program. The Wimp's `Mouse_Click` event
+  is now remembered and reported as a press, with the release on the next
+  poll. Found with Warzone 2100, whose menus ignored normal clicks.
+
 ## 20.3.5-6: freeglut, SDL sound
 
 All the GLUT demos run on a Raspberry Pi. The SDL sound driver is tested
