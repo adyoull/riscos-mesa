@@ -111,6 +111,13 @@ And in the build:
   Mesa's span code (some smooth-shaded pixels come out wrong), so it's
   turned off for that function. The RISC OS build (GCC 10, no NEON) was
   never affected; the host test harness was.
+- **Tests for maintainers:** `tests/run-all.sh` runs every host test in
+  one go. New in `tests/host-harness/mesa`: the rendering checks used for
+  this release (a hash of every image, compared with `expected/`), the
+  same checks on the RISC OS build under qemu-arm, and a performance
+  regression check that counts the instructions Mesa executes per frame
+  for glbench's scenes. `tools/gen-glsl-batch.py` regenerates the batch
+  shader code from the interpreter (and checks it is up to date).
 - **Docs:** `build/TOOLCHAIN.md` says to apply riscos-openttd's UnixLib
   patch (without it C++ programs that set up `std::locale` abort with
   "wctype not implemented"), and the porting guide warns against

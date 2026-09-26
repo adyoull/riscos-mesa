@@ -1,0 +1,12 @@
+v0 f0 fr0 71966c50 err0
+v0 f0 fr1 a6faf322 err0
+v0 f0 fr2 3e4e46c4 err0
+v0 f1 fr0 330f443e err0
+v0 f1 fr1 d48099e3 err0
+v0 f1 fr2 0aa34e04 err0
+v1 f0 fr0 e003c86f err0
+v1 f0 fr1 58030235 err0
+v1 f0 fr2 740e7759 err0
+v1 f1 fr0 56e9156c err0
+v1 f1 fr1 61beece9 err0
+v1 f1 fr2 e4cfe01e err0

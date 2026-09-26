@@ -161,6 +161,10 @@ python3-mako, bison, flex, autoconf, automake and libtool.
 | `tests/host-harness` | the SDL GL glue on Linux with emulated SWIs |
 | `tests/host-harness/egl` | libEGL and libbcm_host on Linux against a fake screen, Wimp and SpriteOp (265 checks); `portrun.c` runs whole ported programs |
 | `tests/host-harness/glut` | freeglut's RISC OS back end on Linux: freeglut's demos driven by scripted keys, clicks, drags, menus, the wheel and resizing (23 checks) |
+| `tests/host-harness/mesa` | the Mesa patches: a hash of every image in a few thousand rendering cases, on the host and on the RISC OS build under qemu-arm; instructions per frame for glbench's scenes (performance regressions) |
+
+`tests/run-all.sh` runs all the host tests in one go (set `M` to a host
+Mesa build; see `tests/run-all.sh` for the rest).
 
 ## Licences
 

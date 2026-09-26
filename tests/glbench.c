@@ -285,6 +285,9 @@ static void run(const char *name, const char *what, void (*frame)(int))
     fflush(stdout);
 }
 
+/* tests/host-harness/mesa/perf.c includes this file for its scenes, with
+ * GLBENCH_NO_MAIN defined. */
+#ifndef GLBENCH_NO_MAIN
 int main(int argc, char **argv)
 {
     OSMesaContext ctx;
@@ -329,3 +332,4 @@ int main(int argc, char **argv)
     OSMesaDestroyContext(ctx);
     return 0;
 }
+#endif /* GLBENCH_NO_MAIN */

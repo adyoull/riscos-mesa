@@ -1,0 +1,7 @@
+glsl fr0 ebee7613 err0
+glsl fr1 928ec7b4 err0
+glsl fr2 20d4e241 err0
+glsl fr3 7a312e94 err0
+arb fr0 dfacc4fd err0
+arb fr1 ef193aca err0
+arb fr2 b87a64a0 err0

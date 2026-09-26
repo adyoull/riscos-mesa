@@ -1,0 +1,7 @@
+# instructions per frame, 320x240, gcc 13.3.0
+clear 926709
+cube 2097606
+tex 13737118
+blend 44212057
+tris 16950195
+glsl 20401968

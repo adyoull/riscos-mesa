@@ -50,7 +50,10 @@ mesa-20.3.5-riscos-glsl-batch.patch
     subroutines (CAL) run one fragment at a time as before, and so does a
     batch that hits the runaway-loop limit, so that limit applies to each
     fragment exactly as before. The per-fragment arithmetic is generated
-    from the interpreter's own code, so results are identical, except
+    from the interpreter's own code by tools/gen-glsl-batch.py (the part
+    between the BEGIN/END GENERATED comments in prog_execute.c: edit the
+    interpreter's cases, run the tool, never edit that part by hand), so
+    results are identical, except
     where a program reads a register it hasn't written (undefined in
     GLSL), which sees that fragment's own earlier value rather than the
     previous fragment's.
@@ -65,3 +68,7 @@ mesa-20.3.5-gcc13-vectorizer.patch
 They are under the licence of the files they change: MIT (Mesa), except
 the change to include/c11/threads_posix.h, which is under the Boost
 Software License 1.0. See LICENCES.txt.
+
+After changing any of these patches, apply them to a host Mesa tree,
+rebuild it and run tests/run-all.sh (rendering and performance checks in
+tests/host-harness/mesa).
