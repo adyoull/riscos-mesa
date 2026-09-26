@@ -6,8 +6,8 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-6: freeglut, SDL sound
 
-The freeglut back end and the SDL sound driver are tested on a Linux host
-(the fake Wimp harness); Raspberry Pi test reports are welcome.
+All the GLUT demos run on a Raspberry Pi. The SDL sound driver is tested
+on a Linux host; Pi reports on sound are welcome.
 
 - **freeglut 3.8.0 with a native RISC OS back end** (`glut/riscos`,
   `build/build-freeglut.sh`, `patches/freeglut`): `libglut.a` (OpenGL) and

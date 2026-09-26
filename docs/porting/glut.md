@@ -167,9 +167,10 @@ program, drag and drop, and saving. See [../EGL-GUIDE.md](../EGL-GUIDE.md).
 
 ## Results
 
-All of freeglut's demos that the renderer can support run on the host test
+**All eight demos in the `riscos-mesa-glut` zip run on a Raspberry Pi**
+(`!Shapes`, `!One`, `!Subwin`, `!Lorenz`, `!Fractals`, `!Resizer`,
+`!View3D`, `!Keyboard`). Before that they were checked on the host test
 harness, with the fake Wimp driving them (keys, clicks, drags, the wheel,
 resizing, menus and submenus): `tests/host-harness/glut/run.sh` checks 23
 behaviours. `smooth_opengl3` needs OpenGL 3.2 and `accum` the
-accumulation buffer, so those two can't work. Results on a Raspberry Pi
-are still to come.
+accumulation buffer, so those two can't work.
