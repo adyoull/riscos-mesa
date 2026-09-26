@@ -6,7 +6,7 @@
 #   tools/sdl-overlay-check.sh OTHER_DIR
 #
 # OTHER_DIR is the other project's overlay directory (the folder holding
-# its src.video.riscos.*.p files). Exit 0 when every .p/.diff file is the
+# its src.video.riscos.*.p files). Exit 0 when every .p file is the
 # same in both; otherwise it lists what differs and exits 1. README.md is
 # not compared (each project describes the overlay in its own words).
 set -euo pipefail
@@ -15,7 +15,7 @@ A=$R/patches/sdl2
 B=${1:?usage: tools/sdl-overlay-check.sh OTHER_DIR}
 [ -d "$B" ] || { echo "$B: not a directory" >&2; exit 2; }
 
-list() { (cd "$1" && ls -1 | grep -E '\.(p|diff)$' | sort); }
+list() { (cd "$1" && ls -1 | grep -E '\.p$' | sort); }
 bad=0
 while read -r f; do
     if [ ! -f "$A/$f" ]; then echo "only in $B: $f"; bad=1

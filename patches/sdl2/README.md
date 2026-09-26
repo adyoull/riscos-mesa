@@ -1,15 +1,24 @@
-# SDL 2.26.0 RISC OS overlay (shared with riscos-openttd)
+# SDL 2.26.0 RISC OS overlay (authoritative copy)
+
+**This directory is the master copy of the overlay.** riscos-openttd (and
+any other project) uses a copy of it made with
+`tools/sdl-overlay-export.sh DEST_DIR`, which also writes a `SOURCE` file
+naming the riscos-mesa commit. Changes are made here, in riscos-mesa, and
+then copied out; a change needed by another project comes here as a
+request (a handoff), not as an edit to its copy.
+`tools/sdl-overlay-check.sh DIR` reports whether a copy still matches.
 
 One set of per-file patches, GCCSDK autobuilder style (`patch -p0`, any
-order), used by BOTH projects:
+order). Without `--enable-video-riscos-osmesa` the library has no GL code
+(OpenTTD's build); with it, GL/GLES through OSMesa. It contains:
 
 - OpenTTD's Wimp driver: desktop windows, icon bar icon + Quit menu,
   full screen single tasking, typing, eig caching, direct-to-screen full
   screen framebuffer (from openttd-riscos-buildkit.tgz).
 - Fix 13: stay a Wimp task in full screen (no Wimp_CloseDown), become a
   task at VideoInit when the desktop is running, Wimp_SetMode instead of
-  OS_ScreenMode while a task. Re-applied here from the OpenTTD port's notes
-  (**compare with riscos-openttd commit 9d90de1 and keep one**).
+  OS_ScreenMode while a task. Re-applied here from the OpenTTD port's notes;
+  reconciled with riscos-openttd commit 9d90de1 (the same code).
 - OpenGL via OSMesa (`SDL_riscosopengl.[ch]` + small hooks), compiled only
   with `--enable-video-riscos-osmesa`. Desktop GL 2.1, and (2026-09-25)
   OpenGL ES 1.1 / 2.0 with `SDL_GL_CONTEXT_PROFILE_ES`, which needs
@@ -75,10 +84,6 @@ order), used by BOTH projects:
 
 The older `sdl2-riscos-framebuffer.p` from the buildkit is superseded by
 `src.video.riscos.SDL_riscosframebuffer.c.p` and must not be applied.
-
-`tools/sdl-overlay-check.sh OTHER_DIR` compares these files with another
-copy of the overlay (riscos-openttd's) and lists anything missing or
-different; run it before a release of either project.
 
 Regenerate after editing: in a git tree of pristine SDL + these patches,
 `git diff --no-prefix <pristine> HEAD -- <file> > src.video.riscos.<file>.p`.

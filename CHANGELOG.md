@@ -135,8 +135,10 @@ And in the build:
   - `egl/egl_riscos.c` is split into `egl/parts/` (screen, buffers,
     validation, configs, API, extensions), still built as one file; the
     compiled library is unchanged.
-  - `tools/sdl-overlay-check.sh` compares the SDL overlay with another
-    project's copy.
+  - The SDL overlay in `patches/sdl2` is now the master copy:
+    riscos-openttd takes its copy from here with
+    `tools/sdl-overlay-export.sh`, and `tools/sdl-overlay-check.sh`
+    reports a copy that has drifted.
 - **Docs:** `build/TOOLCHAIN.md` says to apply riscos-openttd's UnixLib
   patch (without it C++ programs that set up `std::locale` abort with
   "wctype not implemented"), and the porting guide warns against

@@ -1,6 +1,7 @@
 #!/bin/bash
-# SDL 2.26.0 + the shared RISC OS overlay (patches/sdl2/*.p: OpenTTD Wimp
-# driver, fix 13, OSMesa OpenGL). The same .p files drop into the GCCSDK
+# SDL 2.26.0 + the RISC OS overlay (patches/sdl2/*.p, the authoritative
+# copy; riscos-openttd takes its copy from here with
+# tools/sdl-overlay-export.sh). The same .p files drop into the GCCSDK
 # autobuilder libsdl2 recipe; add --enable-video-riscos-osmesa for GL.
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
