@@ -4,9 +4,10 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## Unreleased (20.3.5-6): freeglut, SDL sound
+## 20.3.5-6: freeglut, SDL sound
 
-Host-tested; not yet tested on a Raspberry Pi.
+The freeglut back end and the SDL sound driver are tested on a Linux host
+(the fake Wimp harness); Raspberry Pi test reports are welcome.
 
 - **freeglut 3.8.0 with a native RISC OS back end** (`glut/riscos`,
   `build/build-freeglut.sh`, `patches/freeglut`): `libglut.a` (OpenGL) and
