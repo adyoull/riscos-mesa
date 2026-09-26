@@ -132,6 +132,9 @@ python3-mako, bison, flex, autoconf, automake and libtool.
 - **GLUT programs:** link `-lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm`;
   see [docs/porting/glut.md](docs/porting/glut.md).
 - **Existing programs:** see [docs/porting/](docs/porting/README.md).
+- **MIDI music** for ported games: see
+  [riscos-midisynth](https://github.com/adyoull/riscos-midisynth), a
+  SoundFont-based General MIDI synthesiser library.
 - **SDL2:**
   - `patches/sdl2/*.p` is a complete RISC OS driver overlay in GCCSDK
     autobuilder form, shared with riscos-openttd.

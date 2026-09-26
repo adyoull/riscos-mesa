@@ -41,6 +41,10 @@ its window and context from SDL has no window code to change.
   Without them SDL falls back to its `dsp` driver (DigitalRenderer).
   `SDL_AUDIODRIVER=riscos` or `dsp` forces one. `!LoopWave`
   (SDL's loopwave test) is the worked example.
+- **MIDI music:** RISC OS has no General MIDI synthesiser of its own.
+  [riscos-midisynth](https://github.com/adyoull/riscos-midisynth) plays
+  `.mid` files through a SoundFont; its `midisynth_render` output can be
+  mixed into an SDL audio callback. OpenTTD's RISC OS port uses it.
 
 ## Step by step
 
