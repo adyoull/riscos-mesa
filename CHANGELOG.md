@@ -16,7 +16,14 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   | full-screen bilinear texture | 44.75 | 26.16 | 1.7x |
   | 12288 lit triangles | 26.79 | 11.19 | 2.4x |
   | GLSL per-pixel shaded cube | 94.97 | 59.93 | 1.6x |
-  | 4 blended full-screen quads | 28.32 | 30.37 | (unchanged code) |
+  | 4 blended full-screen quads | 28.3 | 30.1 | see below |
+
+  Blending itself didn't change: in one A/B session on the Pi, glbench
+  linked with 20.3.5-6's library blends in the same time (29.6-30.9 ms)
+  as with the new one, with or without `-fPIC`. The earlier 28.3 comes
+  from the 20.3.5-6 glbench executable, so it's down to how that program
+  was laid out, not to Mesa. Building without `-fPIC` made GLSL about 5%
+  faster (59.2 against 62.6 ms) and left the other scenes the same.
 
   - 24-bit depth buffers (what EGL, SDL and GLUT ask for) are now as fast
     as 16-bit ones. Every depth-tested span used to be copied to a
