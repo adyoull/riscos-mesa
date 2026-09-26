@@ -1,7 +1,8 @@
-diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
+diff --git a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
+index d00136c..10ccd81 100644
 --- a/src/mesa/program/prog_execute.c
 +++ b/src/mesa/program/prog_execute.c
-@@ -364,6 +364,358 @@
+@@ -364,6 +364,358 @@ store_vector4(const struct prog_instruction *inst,
  }
  
  
@@ -360,7 +361,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  /**
   * Execute the given vertex/fragment program.
   *
-@@ -394,8 +746,35 @@
+@@ -394,8 +746,35 @@ _mesa_execute_program(struct gl_context * ctx,
        machine->EnvParams = ctx->FragmentProgram.Parameters;
     }
  
@@ -396,7 +397,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  
        if (DEBUG_PROG) {
           _mesa_print_instruction(inst);
-@@ -405,24 +784,24 @@
+@@ -405,24 +784,24 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_ABS:
           {
              GLfloat a[4], result[4];
@@ -426,7 +427,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("ADD (%g %g %g %g) = (%g %g %g %g) + (%g %g %g %g)\n",
                        result[0], result[1], result[2], result[3],
-@@ -433,7 +812,7 @@
+@@ -433,7 +812,7 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_ARL:
           {
              GLfloat t[4];
@@ -435,7 +436,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              machine->AddressReg[0][0] = util_ifloor(t[0]);
              if (DEBUG_PROG) {
                 printf("ARL %d\n", machine->AddressReg[0][0]);
-@@ -481,14 +860,14 @@
+@@ -481,14 +860,14 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_CMP:
           {
              GLfloat a[4], b[4], c[4], result[4];
@@ -454,7 +455,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("CMP (%g %g %g %g) = (%g %g %g %g) < 0 ? (%g %g %g %g) : (%g %g %g %g)\n",
                        result[0], result[1], result[2], result[3],
-@@ -501,33 +880,33 @@
+@@ -501,33 +880,33 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_COS:
           {
              GLfloat a[4], result[4];
@@ -495,7 +496,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("DP2 %g = (%g %g) . (%g %g)\n",
                        result[0], a[0], a[1], b[0], b[1]);
-@@ -537,10 +916,10 @@
+@@ -537,10 +916,10 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_DP3:
           {
              GLfloat a[4], b[4], result[4];
@@ -509,7 +510,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("DP3 %g = (%g %g %g) . (%g %g %g)\n",
                        result[0], a[0], a[1], a[2], b[0], b[1], b[2]);
-@@ -550,10 +929,10 @@
+@@ -550,10 +929,10 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_DP4:
           {
              GLfloat a[4], b[4], result[4];
@@ -523,7 +524,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("DP4 %g = (%g, %g %g %g) . (%g, %g %g %g)\n",
                        result[0], a[0], a[1], a[2], a[3],
-@@ -564,28 +943,28 @@
+@@ -564,28 +943,28 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_DPH:
           {
              GLfloat a[4], b[4], result[4];
@@ -559,7 +560,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              floor_t0 = floorf(t[0]);
              if (floor_t0 > FLT_MAX_EXP) {
                 SET_POS_INFINITY(q[0]);
-@@ -605,42 +984,42 @@
+@@ -605,42 +984,42 @@ _mesa_execute_program(struct gl_context * ctx,
              }
              q[1] = t[0] - floor_t0;
              q[3] = 1.0F;
@@ -609,7 +610,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
           }
           break;
        case OPCODE_IF:
-@@ -652,7 +1031,7 @@
+@@ -652,7 +1031,7 @@ _mesa_execute_program(struct gl_context * ctx,
                     == OPCODE_ENDIF);
              /* eval condition */
              GLfloat a[4];
@@ -618,7 +619,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              cond = (a[0] != 0.0F);
              if (DEBUG_PROG) {
                 printf("IF: %d\n", cond);
-@@ -681,7 +1060,7 @@
+@@ -681,7 +1060,7 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_KIL:         /* ARB_f_p only */
           {
              GLfloat a[4];
@@ -627,7 +628,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("KIL if (%g %g %g %g) <= 0.0\n",
                        a[0], a[1], a[2], a[3]);
-@@ -695,7 +1074,7 @@
+@@ -695,7 +1074,7 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_LG2:         /* log base 2 */
           {
              GLfloat a[4], result[4], val;
@@ -636,7 +637,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  	    /* The fast LOG2 macro doesn't meet the precision requirements.
  	     */
              if (a[0] == 0.0F) {
-@@ -705,14 +1084,14 @@
+@@ -705,14 +1084,14 @@ _mesa_execute_program(struct gl_context * ctx,
                 val = logf(a[0]) * 1.442695F;
              }
              result[0] = result[1] = result[2] = result[3] = val;
@@ -653,7 +654,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              a[0] = MAX2(a[0], 0.0F);
              a[1] = MAX2(a[1], 0.0F);
              /* XXX ARB version clamps a[3], NV version doesn't */
-@@ -730,7 +1109,7 @@
+@@ -730,7 +1109,7 @@ _mesa_execute_program(struct gl_context * ctx,
                 result[2] = 0.0F;
              }
              result[3] = 1.0F;
@@ -662,7 +663,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("LIT (%g %g %g %g) : (%g %g %g %g)\n",
                        result[0], result[1], result[2], result[3],
-@@ -741,7 +1120,7 @@
+@@ -741,7 +1120,7 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_LOG:
           {
              GLfloat t[4], q[4], abs_t0;
@@ -671,7 +672,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              abs_t0 = fabsf(t[0]);
              if (abs_t0 != 0.0F) {
                 if (util_is_inf_or_nan(abs_t0))
-@@ -768,20 +1147,20 @@
+@@ -768,20 +1147,20 @@ _mesa_execute_program(struct gl_context * ctx,
                 SET_NEG_INFINITY(q[2]);
              }
              q[3] = 1.0;
@@ -697,7 +698,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("LRP (%g %g %g %g) = (%g %g %g %g), "
                        "(%g %g %g %g), (%g %g %g %g)\n",
-@@ -794,14 +1173,14 @@
+@@ -794,14 +1173,14 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_MAD:
           {
              GLfloat a[4], b[4], c[4], result[4];
@@ -716,7 +717,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("MAD (%g %g %g %g) = (%g %g %g %g) * "
                        "(%g %g %g %g) + (%g %g %g %g)\n",
-@@ -814,13 +1193,13 @@
+@@ -814,13 +1193,13 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_MAX:
           {
              GLfloat a[4], b[4], result[4];
@@ -733,7 +734,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("MAX (%g %g %g %g) = (%g %g %g %g), (%g %g %g %g)\n",
                        result[0], result[1], result[2], result[3],
-@@ -831,20 +1210,20 @@
+@@ -831,20 +1210,20 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_MIN:
           {
              GLfloat a[4], b[4], result[4];
@@ -759,7 +760,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("MOV (%g %g %g %g)\n",
                        result[0], result[1], result[2], result[3]);
-@@ -854,13 +1233,13 @@
+@@ -854,13 +1233,13 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_MUL:
           {
              GLfloat a[4], b[4], result[4];
@@ -776,7 +777,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("MUL (%g %g %g %g) = (%g %g %g %g) * (%g %g %g %g)\n",
                        result[0], result[1], result[2], result[3],
-@@ -871,44 +1250,44 @@
+@@ -871,44 +1250,44 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_NOISE1:
           {
              GLfloat a[4], result[4];
@@ -829,7 +830,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
           }
           break;
        case OPCODE_NOP:
-@@ -916,18 +1295,18 @@
+@@ -916,18 +1295,18 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_POW:
           {
              GLfloat a[4], b[4], result[4];
@@ -852,7 +853,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 if (a[0] == 0)
                    printf("RCP(0)\n");
-@@ -935,7 +1314,7 @@
+@@ -935,7 +1314,7 @@ _mesa_execute_program(struct gl_context * ctx,
                    printf("RCP(inf)\n");
              }
              result[0] = result[1] = result[2] = result[3] = 1.0F / a[0];
@@ -861,7 +862,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
           }
           break;
        case OPCODE_RET:         /* return from subroutine (conditional) */
-@@ -948,10 +1327,10 @@
+@@ -948,10 +1327,10 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_RSQ:         /* 1 / sqrt() */
           {
              GLfloat a[4], result[4];
@@ -874,7 +875,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("RSQ %g = 1/sqrt(|%g|)\n", result[0], a[0]);
              }
-@@ -960,24 +1339,24 @@
+@@ -960,24 +1339,24 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_SCS:         /* sine and cos */
           {
              GLfloat a[4], result[4];
@@ -904,7 +905,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("SGE (%g %g %g %g) = (%g %g %g %g) >= (%g %g %g %g)\n",
                        result[0], result[1], result[2], result[3],
-@@ -989,22 +1368,22 @@
+@@ -989,22 +1368,22 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_SIN:
           {
              GLfloat a[4], result[4];
@@ -932,7 +933,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("SLT (%g %g %g %g) = (%g %g %g %g) < (%g %g %g %g)\n",
                        result[0], result[1], result[2], result[3],
-@@ -1016,24 +1395,24 @@
+@@ -1016,24 +1395,24 @@ _mesa_execute_program(struct gl_context * ctx,
        case OPCODE_SSG:         /* set sign (-1, 0 or +1) */
           {
              GLfloat a[4], result[4];
@@ -962,7 +963,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("SUB (%g %g %g %g) = (%g %g %g %g) - (%g %g %g %g)\n",
                        result[0], result[1], result[2], result[3],
-@@ -1060,14 +1439,14 @@
+@@ -1060,14 +1439,14 @@ _mesa_execute_program(struct gl_context * ctx,
                 if (source->Negate & (1 << i))
                    result[i] = -result[i];
              }
@@ -979,7 +980,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  
              /* For TEX, texcoord.Q should not be used and its value should not
               * matter (at most, we pass coord.xyz to texture3D() in GLSL).
-@@ -1085,7 +1464,7 @@
+@@ -1085,7 +1464,7 @@ _mesa_execute_program(struct gl_context * ctx,
                        inst->TexSrcUnit,
                        texcoord[0], texcoord[1], texcoord[2], texcoord[3]);
              }
@@ -988,7 +989,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
           }
           break;
        case OPCODE_TXB:         /* GL_ARB_fragment_program only */
-@@ -1093,7 +1472,7 @@
+@@ -1093,7 +1472,7 @@ _mesa_execute_program(struct gl_context * ctx,
           {
              GLfloat texcoord[4], color[4], lodBias;
  
@@ -997,7 +998,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  
              /* texcoord[3] is the bias to add to lambda */
              lodBias = texcoord[3];
-@@ -1112,20 +1491,20 @@
+@@ -1112,20 +1491,20 @@ _mesa_execute_program(struct gl_context * ctx,
                        lodBias);
              }
  
@@ -1023,7 +1024,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
           }
           break;
        case OPCODE_TXL:
-@@ -1133,7 +1512,7 @@
+@@ -1133,7 +1512,7 @@ _mesa_execute_program(struct gl_context * ctx,
           {
              GLfloat texcoord[4], color[4], lod;
  
@@ -1032,7 +1033,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  
              /* texcoord[3] is the LOD */
              lod = texcoord[3];
-@@ -1141,7 +1520,7 @@
+@@ -1141,7 +1520,7 @@ _mesa_execute_program(struct gl_context * ctx,
  	    machine->FetchTexelLod(ctx, texcoord, lod,
  				   machine->Samplers[inst->TexSrcUnit], color);
  
@@ -1041,7 +1042,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
           }
           break;
        case OPCODE_TXP:         /* GL_ARB_fragment_program only */
-@@ -1149,7 +1528,7 @@
+@@ -1149,7 +1528,7 @@ _mesa_execute_program(struct gl_context * ctx,
           {
              GLfloat texcoord[4], color[4];
  
@@ -1050,7 +1051,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              /* Not so sure about this test - if texcoord[3] is
               * zero, we'd probably be fine except for an assert in
               * IROUND_POS() which gets triggered by the inf values created.
-@@ -1162,30 +1541,30 @@
+@@ -1162,30 +1541,30 @@ _mesa_execute_program(struct gl_context * ctx,
  
              fetch_texel(ctx, machine, inst, texcoord, 0.0, color);
  
@@ -1087,10 +1088,11 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
              if (DEBUG_PROG) {
                 printf("XPD (%g %g %g %g) = (%g %g %g) X (%g %g %g)\n",
                        result[0], result[1], result[2], result[3],
-diff -ruN a/src/mesa/program/prog_execute.h b/src/mesa/program/prog_execute.h
+diff --git a/src/mesa/program/prog_execute.h b/src/mesa/program/prog_execute.h
+index ef04087..fe8a40c 100644
 --- a/src/mesa/program/prog_execute.h
 +++ b/src/mesa/program/prog_execute.h
-@@ -76,6 +76,17 @@
+@@ -76,6 +76,17 @@ struct gl_program_machine
     /** Texture fetch functions */
     FetchTexelLodFunc FetchTexelLod;
     FetchTexelDerivFunc FetchTexelDeriv;
@@ -1108,7 +1110,7 @@ diff -ruN a/src/mesa/program/prog_execute.h b/src/mesa/program/prog_execute.h
  };
  
  
-@@ -84,5 +95,8 @@
+@@ -84,5 +95,8 @@ _mesa_execute_program(struct gl_context *ctx,
                        const struct gl_program *program,
                        struct gl_program_machine *machine);
  
@@ -1117,10 +1119,11 @@ diff -ruN a/src/mesa/program/prog_execute.h b/src/mesa/program/prog_execute.h
 +
  
  #endif /* PROG_EXECUTE_H */
-diff -ruN a/src/mesa/swrast/s_context.c b/src/mesa/swrast/s_context.c
+diff --git a/src/mesa/swrast/s_context.c b/src/mesa/swrast/s_context.c
+index b06e815..820e5b2 100644
 --- a/src/mesa/swrast/s_context.c
 +++ b/src/mesa/swrast/s_context.c
-@@ -823,6 +823,7 @@
+@@ -823,6 +823,7 @@ _swrast_DestroyContext( struct gl_context *ctx )
        _mesa_debug(ctx, "_swrast_DestroyContext\n");
     }
  
@@ -1128,10 +1131,11 @@ diff -ruN a/src/mesa/swrast/s_context.c b/src/mesa/swrast/s_context.c
     free( swrast->SpanArrays );
     free( swrast->ZoomedArrays );
     free( swrast->TexelBuffer );
-diff -ruN a/src/mesa/swrast/s_fragprog.c b/src/mesa/swrast/s_fragprog.c
+diff --git a/src/mesa/swrast/s_fragprog.c b/src/mesa/swrast/s_fragprog.c
+index 6fb793f..ea566a5 100644
 --- a/src/mesa/swrast/s_fragprog.c
 +++ b/src/mesa/swrast/s_fragprog.c
-@@ -208,6 +208,9 @@
+@@ -208,6 +208,9 @@ run_program(struct gl_context *ctx, SWspan *span, GLuint start, GLuint end)
     struct gl_program_machine *machine = &swrast->FragProgMachine;
     GLuint i;
  
@@ -1141,10 +1145,11 @@ diff -ruN a/src/mesa/swrast/s_fragprog.c b/src/mesa/swrast/s_fragprog.c
     for (i = start; i < end; i++) {
        if (span->array->mask[i]) {
           init_machine(ctx, machine, program, span, i);
-diff -ruN a/src/mesa/tnl/t_vb_program.c b/src/mesa/tnl/t_vb_program.c
+diff --git a/src/mesa/tnl/t_vb_program.c b/src/mesa/tnl/t_vb_program.c
+index f240e98..42afaee 100644
 --- a/src/mesa/tnl/t_vb_program.c
 +++ b/src/mesa/tnl/t_vb_program.c
-@@ -326,6 +326,9 @@
+@@ -326,6 +326,9 @@ run_vp( struct gl_context *ctx, struct tnl_pipeline_stage *stage )
  
     map_textures(ctx, program);
  
@@ -1154,7 +1159,7 @@ diff -ruN a/src/mesa/tnl/t_vb_program.c b/src/mesa/tnl/t_vb_program.c
     for (i = 0; i < VB->Count; i++) {
        GLuint attr;
  
-@@ -502,6 +505,8 @@
+@@ -502,6 +505,8 @@ dtr(struct tnl_pipeline_stage *stage)
        for (i = 0; i < VARYING_SLOT_MAX; i++)
           _mesa_vector4f_free( &store->results[i] );
  

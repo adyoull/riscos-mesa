@@ -106,6 +106,13 @@ filetypes. Releases are numbered after the Mesa version they contain
 ## Build (Linux, GCCSDK GCC 10 installed)
 
     export GCCSDK_ENV=/path/to/gccsdk/env   # has bin/arm-riscos-gnueabihf-gcc
+    build/build-all.sh [VERSION]            # everything below, in order
+
+`build-all.sh` logs each step to `stage/logs/` and stops at the first
+failure; with a VERSION it also runs `package.sh`. `SKIP_ZLIB=1` leaves out
+zlib. The steps it runs, which can also be run one at a time (after
+changing only `egl/`, say, run `build-egl.sh` and the steps after it):
+
     build/build-zlib.sh      # skip if your env already has libz
     build/build-mesa.sh
     build/build-glu.sh

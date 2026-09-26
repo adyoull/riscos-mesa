@@ -410,7 +410,6 @@ All of these are in `EGL/eglext_riscos.h`, under the extension name `EGL_RISCOS_
 | `EGL_WORK_AREA_WIDTH_RISCOS` | 0x3FF2 | Window surface attribute: width in pixels |
 | `EGL_WORK_AREA_HEIGHT_RISCOS` | 0x3FF3 | Window surface attribute: height in pixels |
 | `EGL_SCREEN_BANKS_RISCOS` | 0x3FF4 | Full screen: banks wanted (0, 2, 3) at creation; banks in use when queried. Experimental |
-| `EGL_FLIP_FIRST_RISCOS` | 0x3FFF | Full screen banks: switch before the vsync wait. Diagnostic, may be removed |
 | `EGL_RISCOS_VISUAL_TBGR` | 0x0000 | `EGL_NATIVE_VISUAL_ID` of `0x00BBGGRR` configs |
 | `EGL_RISCOS_VISUAL_TRGB` | 0x4000 | `EGL_NATIVE_VISUAL_ID` of `0x00RRGGBB` configs |
 

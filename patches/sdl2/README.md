@@ -76,6 +76,10 @@ order), used by BOTH projects:
 The older `sdl2-riscos-framebuffer.p` from the buildkit is superseded by
 `src.video.riscos.SDL_riscosframebuffer.c.p` and must not be applied.
 
+`tools/sdl-overlay-check.sh OTHER_DIR` compares these files with another
+copy of the overlay (riscos-openttd's) and lists anything missing or
+different; run it before a release of either project.
+
 Regenerate after editing: in a git tree of pristine SDL + these patches,
 `git diff --no-prefix <pristine> HEAD -- <file> > src.video.riscos.<file>.p`.
 

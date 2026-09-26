@@ -1,7 +1,8 @@
-diff -ruN a/src/mesa/drivers/osmesa/osmesa.c b/src/mesa/drivers/osmesa/osmesa.c
+diff --git a/src/mesa/drivers/osmesa/osmesa.c b/src/mesa/drivers/osmesa/osmesa.c
+index f72c7c7..ada8a34 100644
 --- a/src/mesa/drivers/osmesa/osmesa.c
 +++ b/src/mesa/drivers/osmesa/osmesa.c
-@@ -249,11 +249,15 @@
+@@ -249,11 +249,15 @@ osmesa_choose_line_function( struct gl_context *ctx )
  
  
  /*
@@ -20,7 +21,7 @@ diff -ruN a/src/mesa/drivers/osmesa/osmesa.c b/src/mesa/drivers/osmesa/osmesa.c
  #define INTERP_RGB 1
  #define INTERP_ALPHA 1
  #define SETUP_CODE \
-@@ -278,33 +282,173 @@
+@@ -278,33 +282,173 @@ osmesa_choose_line_function( struct gl_context *ctx )
  }
  #include "swrast/s_tritemp.h"
  
@@ -101,7 +102,7 @@ diff -ruN a/src/mesa/drivers/osmesa/osmesa.c b/src/mesa/drivers/osmesa/osmesa.c
     }                                                    \
  }
 +#include "swrast/s_tritemp.h"
- 
++
 +#define NAME smooth_rgba_z24_less_triangle
 +#define INTERP_Z 1
 +#define DEPTH_TYPE GLuint
@@ -150,7 +151,7 @@ diff -ruN a/src/mesa/drivers/osmesa/osmesa.c b/src/mesa/drivers/osmesa/osmesa.c
 +   }                                                    \
 +}
 +#include "swrast/s_tritemp.h"
-+
+ 
 +#define NAME smooth_rgba_z24_lequal_triangle
 +#define INTERP_Z 1
 +#define DEPTH_TYPE GLuint
@@ -201,7 +202,7 @@ diff -ruN a/src/mesa/drivers/osmesa/osmesa.c b/src/mesa/drivers/osmesa/osmesa.c
  #include "swrast/s_tritemp.h"
  
  
-@@ -345,14 +489,28 @@
+@@ -345,14 +489,28 @@ osmesa_choose_triangle_function( struct gl_context *ctx )
     }
  
     if (swrast->_RasterMask == DEPTH_BIT &&
@@ -236,10 +237,11 @@ diff -ruN a/src/mesa/drivers/osmesa/osmesa.c b/src/mesa/drivers/osmesa/osmesa.c
        }
     }
  
-diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
+diff --git a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
+index 956b84a..d00136c 100644
 --- a/src/mesa/program/prog_execute.c
 +++ b/src/mesa/program/prog_execute.c
-@@ -77,7 +77,7 @@
+@@ -77,7 +77,7 @@ static const GLfloat ZeroVec[4] = { 0.0F, 0.0F, 0.0F, 0.0F };
   * Return a pointer to the 4-element float vector specified by the given
   * source register.
   */
@@ -248,7 +250,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  get_src_register_pointer(const struct prog_src_register *source,
                           const struct gl_program_machine *machine)
  {
-@@ -143,7 +143,7 @@
+@@ -143,7 +143,7 @@ get_src_register_pointer(const struct prog_src_register *source,
   * Return a pointer to the 4-element float vector specified by the given
   * destination register.
   */
@@ -257,7 +259,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  get_dst_register_pointer(const struct prog_dst_register *dest,
                           struct gl_program_machine *machine)
  {
-@@ -183,7 +183,7 @@
+@@ -183,7 +183,7 @@ get_dst_register_pointer(const struct prog_dst_register *dest,
   * Fetch a 4-element float vector from the given source register.
   * Apply swizzling and negating as needed.
   */
@@ -266,7 +268,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  fetch_vector4(const struct prog_src_register *source,
                const struct gl_program_machine *machine, GLfloat result[4])
  {
-@@ -272,7 +272,7 @@
+@@ -272,7 +272,7 @@ fetch_vector4_deriv(const struct prog_src_register *source,
  /**
   * As above, but only return result[0] element.
   */
@@ -275,7 +277,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  fetch_vector1(const struct prog_src_register *source,
                const struct gl_program_machine *machine, GLfloat result[4])
  {
-@@ -320,7 +320,7 @@
+@@ -320,7 +320,7 @@ fetch_texel(struct gl_context *ctx,
   * Store 4 floats into a register.  Observe the instructions saturate and
   * set-condition-code flags.
   */
@@ -284,13 +286,15 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  store_vector4(const struct prog_instruction *inst,
                struct gl_program_machine *machine, const GLfloat value[4])
  {
-diff -ruN a/src/mesa/swrast/s_depth.c b/src/mesa/swrast/s_depth.c
+diff --git a/src/mesa/swrast/s_depth.c b/src/mesa/swrast/s_depth.c
+index 7af764f..4ef7928 100644
 --- a/src/mesa/swrast/s_depth.c
 +++ b/src/mesa/swrast/s_depth.c
-@@ -155,6 +155,55 @@
+@@ -154,6 +154,55 @@ depth_test_span32( struct gl_context *ctx, GLuint n,
+ }
  
  
- /**
++/**
 + * RISC OS speed-up: depth test directly on a row of
 + * MESA_FORMAT_Z24_UNORM_X8_UINT values (Z in the low 24 bits), avoiding
 + * the malloc + unpack + shift + pack + free the generic path does for
@@ -339,11 +343,10 @@ diff -ruN a/src/mesa/swrast/s_depth.c b/src/mesa/swrast/s_depth.c
 +}
 +
 +
-+/**
+ /**
   * Clamp fragment Z values to the depth near/far range (glDepthRange()).
   * This is used when GL_ARB_depth_clamp/GL_DEPTH_CLAMP is turned on.
-  * In that case, vertexes are not clipped against the near/far planes
-@@ -300,6 +349,15 @@
+@@ -300,6 +349,15 @@ _swrast_depth_test_span(struct gl_context *ctx, SWspan *span)
     else
        zStart = _swrast_pixel_address(rb, span->x, span->y);
  
@@ -359,7 +362,8 @@ diff -ruN a/src/mesa/swrast/s_depth.c b/src/mesa/swrast/s_depth.c
     if (rb->Format == MESA_FORMAT_Z_UNORM16 && !(span->arrayMask & SPAN_XY)) {
        /* directly read/write row of 16-bit Z values */
        zBufferVals = zStart;
-diff -ruN a/src/mesa/swrast/s_texfetch_tmp.h b/src/mesa/swrast/s_texfetch_tmp.h
+diff --git a/src/mesa/swrast/s_texfetch_tmp.h b/src/mesa/swrast/s_texfetch_tmp.h
+index 06ff436..ad8b72d 100644
 --- a/src/mesa/swrast/s_texfetch_tmp.h
 +++ b/src/mesa/swrast/s_texfetch_tmp.h
 @@ -87,6 +87,39 @@
@@ -402,7 +406,7 @@ diff -ruN a/src/mesa/swrast/s_texfetch_tmp.h b/src/mesa/swrast/s_texfetch_tmp.h
  FETCH_Z(Z_UNORM32, GLuint, 1)
  FETCH_Z(Z_UNORM16, GLushort, 1)
  FETCH_Z(S8_UINT_Z24_UNORM, GLuint, 1) /* only return Z, not stencil data */
-@@ -109,16 +142,16 @@
+@@ -109,16 +142,16 @@ FETCH_RGBA(R_FLOAT32, GLfloat, 1)
  FETCH_RGBA(R_FLOAT16, GLhalfARB, 1)
  FETCH_RGBA(RG_FLOAT32, GLfloat, 2)
  FETCH_RGBA(RG_FLOAT16, GLhalfARB, 2)
@@ -429,7 +433,7 @@ diff -ruN a/src/mesa/swrast/s_texfetch_tmp.h b/src/mesa/swrast/s_texfetch_tmp.h
  FETCH_RGBA(B5G6R5_UNORM, GLushort, 1)
  FETCH_RGBA(R5G6B5_UNORM, GLushort, 1)
  FETCH_RGBA(B4G4R4A4_UNORM, GLushort, 1)
-@@ -128,19 +161,19 @@
+@@ -128,19 +161,19 @@ FETCH_RGBA(B5G5R5A1_UNORM, GLushort, 1)
  FETCH_RGBA(A1R5G5B5_UNORM, GLushort, 1)
  FETCH_RGBA(B10G10R10A2_UNORM, GLuint, 1)
  FETCH_RGBA(R10G10B10A2_UNORM, GLuint, 1)
@@ -455,7 +459,7 @@ diff -ruN a/src/mesa/swrast/s_texfetch_tmp.h b/src/mesa/swrast/s_texfetch_tmp.h
  FETCH_RGBA(I_UNORM16, GLushort, 1)
  FETCH_RGBA(BGR_SRGB8, GLubyte, 3)
  FETCH_RGBA(A8B8G8R8_SRGB, GLuint, 1)
-@@ -183,6 +216,9 @@
+@@ -183,6 +216,9 @@ FETCH_RGBA(YCBCR_REV, GLushort, 1) /* Fetch texel from 1D, 2D or 3D ycbcr textur
  FETCH_RGBA(R9G9B9E5_FLOAT, GLuint, 1)
  FETCH_RGBA(R11G11B10_FLOAT, GLuint, 1)
  
@@ -465,10 +469,11 @@ diff -ruN a/src/mesa/swrast/s_texfetch_tmp.h b/src/mesa/swrast/s_texfetch_tmp.h
  #undef TEXEL_ADDR
  #undef DIM
  #undef FETCH
-diff -ruN a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
+diff --git a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
+index 289fa12..7fd1fdf 100644
 --- a/src/mesa/swrast/s_triangle.c
 +++ b/src/mesa/swrast/s_triangle.c
-@@ -304,6 +304,28 @@
+@@ -304,6 +304,28 @@ affine_span(struct gl_context *ctx, SWspan *span,
     sample[BCOMP] = ilerp_2d(sf, tf, tex00[1], tex01[1], tex10[1], tex11[1]);\
     sample[ACOMP] = ilerp_2d(sf, tf, tex00[0], tex01[0], tex10[0], tex11[0])
  
@@ -497,7 +502,7 @@ diff -ruN a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
  #define MODULATE							  \
     dest[RCOMP] = span->red   * (sample[RCOMP] + 1u) >> (FIXED_SHIFT + 8); \
     dest[GCOMP] = span->green * (sample[GCOMP] + 1u) >> (FIXED_SHIFT + 8); \
-@@ -460,6 +482,28 @@
+@@ -460,6 +482,28 @@ affine_span(struct gl_context *ctx, SWspan *span,
              return;
           }
           break;
@@ -526,7 +531,7 @@ diff -ruN a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
        }
        break;
  
-@@ -509,6 +553,28 @@
+@@ -509,6 +553,28 @@ affine_span(struct gl_context *ctx, SWspan *span,
              return;
           }
           break;
@@ -555,7 +560,7 @@ diff -ruN a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
        }
        break;
     }
-@@ -577,6 +643,7 @@
+@@ -577,6 +643,7 @@ affine_span(struct gl_context *ctx, SWspan *span,
        info.tbytesline = texImg->Width * 3;				\
        break;								\
     case MESA_FORMAT_A8B8G8R8_UNORM:						\
@@ -563,7 +568,7 @@ diff -ruN a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
        info.tbytesline = texImg->Width * 4;				\
        break;								\
     default:								\
-@@ -732,6 +799,28 @@
+@@ -732,6 +799,28 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
              return;
           }
           break;
@@ -592,7 +597,7 @@ diff -ruN a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
        }
        break;
  
-@@ -779,6 +868,28 @@
+@@ -779,6 +868,28 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
              return;
           }
           break;
@@ -621,7 +626,7 @@ diff -ruN a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
        }
        break;
     }
-@@ -843,6 +954,7 @@
+@@ -843,6 +954,7 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
        info.tbytesline = texImg->Width * 3;				\
        break;								\
     case MESA_FORMAT_A8B8G8R8_UNORM:						\
@@ -629,7 +634,7 @@ diff -ruN a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
        info.tbytesline = texImg->Width * 4;				\
        break;								\
     default:								\
-@@ -1081,7 +1193,8 @@
+@@ -1081,7 +1193,8 @@ _swrast_choose_triangle( struct gl_context *ctx )
               && texImg->Border == 0
               && (_mesa_format_row_stride(format, texImg->Width) ==
                   swImg->RowStride)
@@ -639,7 +644,7 @@ diff -ruN a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
               && minFilter == magFilter
               && ctx->Light.Model.ColorControl == GL_SINGLE_COLOR
               && !swrast->_FogEnabled
-@@ -1108,7 +1221,15 @@
+@@ -1108,7 +1221,15 @@ _swrast_choose_triangle( struct gl_context *ctx )
  #if CHAN_BITS != 8
                    USE(general_triangle);
  #else

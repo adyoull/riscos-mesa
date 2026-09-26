@@ -1,6 +1,8 @@
+diff --git a/src/mesa/swrast/s_span.c b/src/mesa/swrast/s_span.c
+index dcb2db0..c864929 100644
 --- a/src/mesa/swrast/s_span.c
 +++ b/src/mesa/swrast/s_span.c
-@@ -219,6 +219,14 @@
+@@ -219,6 +219,14 @@ interpolate_active_attribs(struct gl_context *ctx, SWspan *span,
   * Interpolate primary colors to fill in the span->array->rgba8 (or rgb16)
   * color array.
   */

@@ -208,3 +208,24 @@ This library is one concrete answer to the parts that can be settled now:
 5. **Per-process state.** Each program has its own copy of the library, so
    GL state is per task by construction. A shared module version will need
    a context per client task.
+
+## Source layout
+
+`egl_riscos.c` is still compiled as one file (the build and the host
+harness are unchanged), but its body is in `egl/parts/`, which it
+`#include`s in this order:
+
+| File | What's in it |
+|---|---|
+| `egl_riscos.c` | Headers, limits, the display/config/context/surface types, globals |
+| `parts/screen.c` | Screen mode and window state, plotting a frame (window, full screen, damage rectangles, DispmanX) |
+| `parts/buffers.c` | Surface buffers, screen banks, pixmap sprites, binding a surface to OSMesa |
+| `parts/validation.c` | Looking up and checking display, config, surface and context handles |
+| `parts/configs.c` | Building the configs and matching/sorting them for `eglChooseConfig` |
+| `parts/api.c` | The EGL 1.4 functions |
+| `parts/extensions.c` | Extension functions (sync, locking, platform, debug, RISC OS) and `eglGetProcAddress` |
+
+The parts can't be compiled on their own: helpers stay `static`, and the
+object code is the same as when it was a single file. Add a new part to the
+list in `egl_riscos.c`, not to a makefile.
+

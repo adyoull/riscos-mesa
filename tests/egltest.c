@@ -11,12 +11,11 @@
  *                                the title. Resize, scroll and cover it.
  *                                -r adds a second, fixed-size EGL surface at a
  *                                work area position (EGL_RISCOS_wimp_window).
- *   egltest -f [-d] [-b n] [-v n] [-s fv] [-p] [-t secs] [-o file]
+ *   egltest -f [-d] [-b n] [-v n] [-p] [-t secs] [-o file]
  *                                full screen (native window -1) for 5 s or -t;
  *                                -d renders straight into screen memory
  *                                (EGL_SINGLE_BUFFER), -v swap interval (1),
- *                                -b 2|3 screen banks (experimental), -s fv
- *                                switches bank before the vsync wait,
+ *                                -b 2|3 screen banks (experimental),
  *                                -p a sweeping bar instead of the cube
  *                                (makes tearing easy to see).
  *   egltest -w -R                 as -r, but the second surface has its own
@@ -665,7 +664,7 @@ static int run_window(int second, double limit)
 /* ------------------------------------------------------------------ */
 /* Full screen mode                                                    */
 
-static int flip_first, want_banks, pattern;
+static int want_banks, pattern;
 
 static int run_fullscreen(int direct, int interval, double limit)
 {
@@ -675,7 +674,6 @@ static int run_fullscreen(int direct, int interval, double limit)
     EGLint w, h, rb, banks = 0;
     char how[64];
     EGLint attrs[] = { EGL_RENDER_BUFFER, direct ? EGL_SINGLE_BUFFER : EGL_BACK_BUFFER,
-                       EGL_FLIP_FIRST_RISCOS, flip_first,
                        EGL_SCREEN_BANKS_RISCOS, want_banks, EGL_NONE };
     int bar = 0;
     double t0, t1, t2, tstart, render = 0, present = 0;
@@ -734,8 +732,7 @@ static int run_fullscreen(int direct, int interval, double limit)
     if (rb == EGL_SINGLE_BUFFER)
         snprintf(how, sizeof how, "direct to screen memory");
     else if (banks > 0)
-        snprintf(how, sizeof how, "%d screen banks, %s", banks,
-                 flip_first ? "switch then vsync" : "vsync then switch");
+        snprintf(how, sizeof how, "%d screen banks", banks);
     else
         snprintf(how, sizeof how, "double buffered (sprite plot)");
     say("full screen %dx%d, %s, swap interval %d: %ld frames in %.1f s = %.1f fps; "
@@ -778,7 +775,6 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-d")) direct = 1;
         else if (!strcmp(argv[i], "-p")) pattern = 1;
         else if (!strcmp(argv[i], "-b") && i + 1 < argc) want_banks = atoi(argv[++i]);
-        else if (!strcmp(argv[i], "-s") && i + 1 < argc) flip_first = !strcmp(argv[++i], "fv");
         else if (!strcmp(argv[i], "-v") && i + 1 < argc) interval = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-t") && i + 1 < argc) limit = atof(argv[++i]);
         else if (!strcmp(argv[i], "-o") && i + 1 < argc) {
@@ -786,7 +782,7 @@ int main(int argc, char **argv)
             if (!outf) printf("can't write %s\n", argv[i]);
         } else {
             printf("usage: egltest [-o file] | -w [-r|-R] [-D] [-t secs] [-o file] | "
-                   "-f [-d] [-b n] [-v n] [-s fv] [-p] [-t secs] [-o file]\n");
+                   "-f [-d] [-b n] [-v n] [-p] [-t secs] [-o file]\n");
             return 1;
         }
     }

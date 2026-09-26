@@ -1,4 +1,5 @@
-diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
+diff --git a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
+index 10ccd81..a35b1b5 100644
 --- a/src/mesa/program/prog_execute.c
 +++ b/src/mesa/program/prog_execute.c
 @@ -45,6 +45,7 @@
@@ -9,7 +10,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  
  
  /* debug predicate */
-@@ -392,12 +393,15 @@
+@@ -392,12 +393,15 @@ enum {
     PB_COUNT
  };
  
@@ -25,7 +26,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
     GLubyte base;
     GLubyte flags;
     GLubyte swz[4];
-@@ -405,6 +409,7 @@
+@@ -405,6 +409,7 @@ struct dec_src {
  
  struct dec_dst {
     GLint off;
@@ -33,7 +34,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
     GLubyte base;
     GLubyte slow;
  };
-@@ -412,6 +417,7 @@
+@@ -412,6 +417,7 @@ struct dec_dst {
  struct dec_inst {
     struct dec_src src[3];
     struct dec_dst dst;
@@ -41,7 +42,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  };
  
  struct prog_decoded {
-@@ -423,14 +429,17 @@
+@@ -423,14 +429,17 @@ struct prog_decoded {
     GLuint numParams, capParams;
     unsigned *pvo;                          /* ParameterValueOffset copy */
     struct dec_inst *d;
@@ -63,7 +64,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  };
  
  
-@@ -581,6 +590,7 @@
+@@ -581,6 +590,7 @@ decode_program(struct gl_program_machine *machine,
        machine->Decoded = dec;
     }
     dec->prog = NULL;   /* invalid until complete */
@@ -71,7 +72,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
  
     if (num > dec->capInst) {
        free(dec->copy);
-@@ -617,9 +627,27 @@
+@@ -617,9 +627,27 @@ decode_program(struct gl_program_machine *machine,
     for (i = 0; i < num; i++) {
        const struct prog_instruction *inst = prog->arb.Instructions + i;
        GLuint k;
@@ -101,7 +102,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
     }
  
     dec->insts = prog->arb.Instructions;
-@@ -639,6 +667,8 @@
+@@ -639,6 +667,8 @@ _mesa_free_program_machine(struct gl_program_machine *machine)
        free(dec->copy);
        free(dec->d);
        free(dec->pvo);
@@ -110,7 +111,7 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
        free(dec);
        machine->Decoded = NULL;
     }
-@@ -1594,3 +1624,2197 @@
+@@ -1594,3 +1624,2197 @@ _mesa_execute_program(struct gl_context * ctx,
  
     return GL_TRUE;
  }
@@ -2308,10 +2309,11 @@ diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
 +
 +   return dead;
 +}
-diff -ruN a/src/mesa/program/prog_execute.h b/src/mesa/program/prog_execute.h
+diff --git a/src/mesa/program/prog_execute.h b/src/mesa/program/prog_execute.h
+index fe8a40c..7b86860 100644
 --- a/src/mesa/program/prog_execute.h
 +++ b/src/mesa/program/prog_execute.h
-@@ -98,5 +98,22 @@
+@@ -98,5 +98,22 @@ _mesa_execute_program(struct gl_context *ctx,
  extern void
  _mesa_free_program_machine(struct gl_program_machine *machine);
  
@@ -2334,13 +2336,15 @@ diff -ruN a/src/mesa/program/prog_execute.h b/src/mesa/program/prog_execute.h
 +
  
  #endif /* PROG_EXECUTE_H */
-diff -ruN a/src/mesa/swrast/s_fragprog.c b/src/mesa/swrast/s_fragprog.c
+diff --git a/src/mesa/swrast/s_fragprog.c b/src/mesa/swrast/s_fragprog.c
+index ea566a5..2e7eed2 100644
 --- a/src/mesa/swrast/s_fragprog.c
 +++ b/src/mesa/swrast/s_fragprog.c
-@@ -197,6 +197,88 @@
+@@ -196,6 +196,88 @@ init_machine(struct gl_context *ctx, struct gl_program_machine *machine,
+ }
  
  
- /**
++/**
 + * Store the results of the fragment program for fragment i.  Output
 + * register r is at outs + r * stride.
 + */
@@ -2422,11 +2426,10 @@ diff -ruN a/src/mesa/swrast/s_fragprog.c b/src/mesa/swrast/s_fragprog.c
 +}
 +
 +
-+/**
+ /**
   * Run fragment program on the pixels in span from 'start' to 'end' - 1.
   */
- static void
-@@ -204,49 +286,37 @@
+@@ -204,49 +286,37 @@ run_program(struct gl_context *ctx, SWspan *span, GLuint start, GLuint end)
  {
     SWcontext *swrast = SWRAST_CONTEXT(ctx);
     const struct gl_program *program = ctx->FragmentProgram._Current;

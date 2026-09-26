@@ -118,6 +118,25 @@ And in the build:
   regression check that counts the instructions Mesa executes per frame
   for glbench's scenes. `tools/gen-glsl-batch.py` regenerates the batch
   shader code from the interpreter (and checks it is up to date).
+- **Diagnostic EGL attribute removed:** `EGL_FLIP_FIRST_RISCOS` (0x3FFF),
+  added to find out whether switching screen banks before or after the
+  vsync wait stops tearing on the Pi 4, is gone: banks tear either way, so
+  the swap switches after the wait as before. Also gone: egltest's `-s fv`
+  option and `tests/egl-banks-fv`. `EGL_SCREEN_BANKS_RISCOS` is unchanged
+  (still experimental).
+- **For maintainers:**
+  - `build/build-all.sh [VERSION]` builds everything in order, logging
+    each step to `stage/logs/`.
+  - `tools/mesa-branch.sh` turns the Mesa patches into a git branch (one
+    commit per patch) and writes them back, so they're edited as source,
+    not as patch files. The patch files are now plain git diffs; the
+    patched tree is unchanged, and existing Mesa trees are still
+    recognised.
+  - `egl/egl_riscos.c` is split into `egl/parts/` (screen, buffers,
+    validation, configs, API, extensions), still built as one file; the
+    compiled library is unchanged.
+  - `tools/sdl-overlay-check.sh` compares the SDL overlay with another
+    project's copy.
 - **Docs:** `build/TOOLCHAIN.md` says to apply riscos-openttd's UnixLib
   patch (without it C++ programs that set up `std::locale` abort with
   "wctype not implemented"), and the porting guide warns against

@@ -68,7 +68,6 @@ Run in this order and note the output:
       egl-full-novsync  the same without waiting (maximum speed)
       egl-direct        draws straight into the visible screen (tears)
       egl-banks         EXPERIMENTAL: 3 screen banks, switched at vsync
-      egl-banks-fv      the same, switching before the vsync wait
       egl-tear          a white bar sweeping across black, plotted as
                         egl-full: tearing shows as the bar broken sideways
       egl-tear-banks    the same bar with 3 screen banks

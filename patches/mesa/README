@@ -69,6 +69,17 @@ They are under the licence of the files they change: MIT (Mesa), except
 the change to include/c11/threads_posix.h, which is under the Boost
 Software License 1.0. See LICENCES.txt.
 
+To change them, work on a git branch rather than on the patch files:
+
+    tools/mesa-branch.sh make ~/mesa-riscos    # pristine Mesa + one commit per patch
+    ...edit, commit (git commit --amend / rebase -i onto the patch's commit)...
+    tools/mesa-branch.sh export ~/mesa-riscos  # writes the patch files back
+
+Each commit's message ends with "Patch: <name>", which says which file it
+is exported to. A new patch is a new commit with a new "Patch:" line; add
+its name to PATCHES in build/build-mesa.sh and describe it here. The patch
+files are plain git diffs (patch -p1).
+
 After changing any of these patches, apply them to a host Mesa tree,
 rebuild it and run tests/run-all.sh (rendering and performance checks in
 tests/host-harness/mesa).
