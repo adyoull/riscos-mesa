@@ -27,6 +27,17 @@ mesa-20.3.5-riscos-speed.patch
     - program/prog_execute.c: the GLSL/ARB program interpreter's operand
       fetch and store are always inlined.
 
+mesa-20.3.5-riscos-glsl-decode.patch
+    program/prog_execute.c: GLSL and ARB programs (vertex and fragment)
+    are decoded once into a compact form, so the interpreter no longer
+    decodes every operand (register file, range checks, swizzle, negate)
+    again for each fragment and vertex. The arithmetic is unchanged, so
+    the results are identical. The decoded copy is kept in the
+    interpreter's machine state and checked against the program once per
+    span and per vertex batch (swrast/s_fragprog.c, tnl/t_vb_program.c),
+    so it's rebuilt whenever a program is changed or replaced; operands
+    with relative addressing use the original code.
+
 mesa-20.3.5-gcc13-vectorizer.patch
     GCC 13 at -O3 (on x86-64, and on ARM with NEON) miscompiles
     interpolate_int_colors() in swrast/s_span.c: some pixels of smooth

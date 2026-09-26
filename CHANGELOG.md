@@ -9,8 +9,8 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 - **Faster rendering** (`patches/mesa/mesa-20.3.5-riscos-speed.patch`;
   details in `patches/mesa/README`). On a Linux host, 640x480 with a
   24-bit depth buffer: the lit cube and many-triangle scenes are 2.4 times
-  as fast, bilinear textured 1.9 times, GLSL 1.4 times. Not yet measured
-  on a Pi.
+  as fast, bilinear textured 1.9 times, GLSL 1.9 times. Not yet measured
+  on a Pi (the RISC OS build under ARM emulation: GLSL 1.6 times).
   - 24-bit depth buffers (what EGL, SDL and GLUT ask for) are now as fast
     as 16-bit ones. Every depth-tested span used to be copied to a
     malloc'd buffer and back, and Mesa's fast shaded triangles were only
@@ -19,7 +19,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     triangle path (one texture, no mipmaps, `GL_REPEAT`, power-of-two
     sizes), and texels of the common 8-bit formats are read directly
     everywhere else.
-  - The GLSL/ARB program interpreter inlines its operand fetch and store.
+  - GLSL and ARB programs are decoded once instead of for every pixel
+    and vertex (`mesa-20.3.5-riscos-glsl-decode.patch`), and the
+    interpreter inlines its operand fetch and store.
   - The picture is unchanged, checked image by image against the old
     library on the host and on ARM (the real RISC OS build, run under
     emulation), except that the integer texture path rounds by up to

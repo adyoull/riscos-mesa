@@ -1,0 +1,1165 @@
+diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
+--- a/src/mesa/program/prog_execute.c
++++ b/src/mesa/program/prog_execute.c
+@@ -364,6 +364,358 @@
+ }
+ 
+ 
++
++/*
++ * riscos-mesa: pre-decoded programs.
++ *
++ * _mesa_execute_program runs the whole program once per fragment (or
++ * vertex), and every operand used to be decoded again each time: the
++ * register file switch, range checks, swizzle and negate bits.  Here each
++ * instruction's operands are decoded once into a base index (which of a
++ * few per-call base pointers) and an offset, with the swizzle unpacked.
++ * The arithmetic in _mesa_execute_program is unchanged, so results are
++ * the same bit for bit.  Operands with relative addressing, and anything
++ * unusual, take the original path.
++ *
++ * The decoded copy lives in the machine and is checked against the
++ * program (a saved copy of its instructions and parameter offsets) once
++ * per span or vertex batch, when the caller has cleared DecodedChecked.
++ */
++enum {
++   PB_ZERO,     /* ZeroVec: out-of-range source registers */
++   PB_TEMP,     /* machine->Temporaries */
++   PB_INPUT,    /* this fragment's Attribs, or VertAttribs */
++   PB_OUTPUT,   /* machine->Outputs */
++   PB_PARAM,    /* program->Parameters->ParameterValues */
++   PB_SYSVAL,   /* machine->SystemValues */
++   PB_DUMMY,    /* out-of-range destination registers */
++   PB_COUNT
++};
++
++#define PF_NOSWZ 1   /* swizzle is .xyzw */
++#define PF_NEG   2   /* negate */
++#define PF_SLOW  4   /* use the original code */
++
++struct dec_src {
++   GLint off;          /* in floats from the base */
++   GLubyte base;
++   GLubyte flags;
++   GLubyte swz[4];
++};
++
++struct dec_dst {
++   GLint off;
++   GLubyte base;
++   GLubyte slow;
++};
++
++struct dec_inst {
++   struct dec_src src[3];
++   struct dec_dst dst;
++};
++
++struct prog_decoded {
++   const struct gl_program *prog;
++   const struct prog_instruction *insts;   /* the program's array ... */
++   struct prog_instruction *copy;          /* ... and its contents */
++   GLuint num, capInst;
++   const struct gl_program_parameter_list *params;
++   GLuint numParams, capParams;
++   unsigned *pvo;                          /* ParameterValueOffset copy */
++   struct dec_inst *d;
++};
++
++/* For when there's no memory for the decoded copy: every operand slow. */
++static const struct dec_inst AllSlow = {
++   { { 0, PB_ZERO, PF_SLOW, { 0, 1, 2, 3 } },
++     { 0, PB_ZERO, PF_SLOW, { 0, 1, 2, 3 } },
++     { 0, PB_ZERO, PF_SLOW, { 0, 1, 2, 3 } } },
++   { 0, PB_DUMMY, 1 }
++};
++
++
++static void
++decode_src(const struct gl_program *prog, const struct prog_src_register *src,
++           struct dec_src *d)
++{
++   const GLint reg = src->Index;
++   GLuint i;
++
++   d->off = 0;
++   d->base = PB_ZERO;
++   d->flags = 0;
++   for (i = 0; i < 4; i++)
++      d->swz[i] = GET_SWZ(src->Swizzle, i);
++   if (src->Swizzle == SWIZZLE_NOOP)
++      d->flags |= PF_NOSWZ;
++   if (src->Negate)
++      d->flags |= PF_NEG;
++
++   if (src->RelAddr || reg < 0) {
++      d->flags |= PF_SLOW;
++      return;
++   }
++
++   switch (src->File) {
++   case PROGRAM_TEMPORARY:
++      if (reg < MAX_PROGRAM_TEMPS) {
++         d->base = PB_TEMP;
++         d->off = reg * 4;
++      }
++      break;
++   case PROGRAM_INPUT:
++      if (prog->Target == GL_VERTEX_PROGRAM_ARB) {
++         if (reg < VERT_ATTRIB_MAX) {
++            d->base = PB_INPUT;
++            d->off = reg * 4;
++         }
++      }
++      else if (reg < VARYING_SLOT_MAX) {
++         d->base = PB_INPUT;
++         d->off = reg * PROG_MAX_WIDTH * 4;
++      }
++      break;
++   case PROGRAM_OUTPUT:
++      if (reg < MAX_PROGRAM_OUTPUTS) {
++         d->base = PB_OUTPUT;
++         d->off = reg * 4;
++      }
++      break;
++   case PROGRAM_STATE_VAR:
++   case PROGRAM_CONSTANT:
++   case PROGRAM_UNIFORM:
++      if (reg < (GLint) prog->Parameters->NumParameters) {
++         d->base = PB_PARAM;
++         d->off = prog->Parameters->ParameterValueOffset[reg];
++      }
++      break;
++   case PROGRAM_SYSTEM_VALUE:
++      if (reg < SYSTEM_VALUE_MAX) {
++         d->base = PB_SYSVAL;
++         d->off = reg * 4;
++      }
++      else
++         d->flags |= PF_SLOW;
++      break;
++   default:
++      d->flags |= PF_SLOW;   /* the original reports the problem */
++      break;
++   }
++}
++
++
++static void
++decode_dst(const struct prog_dst_register *dst, struct dec_dst *d)
++{
++   const GLint reg = dst->Index;
++
++   d->off = 0;
++   d->base = PB_DUMMY;
++   d->slow = 0;
++
++   if (dst->RelAddr) {
++      d->slow = 1;
++      return;
++   }
++
++   switch (dst->File) {
++   case PROGRAM_TEMPORARY:
++      if (reg < MAX_PROGRAM_TEMPS) {
++         d->base = PB_TEMP;
++         d->off = reg * 4;
++      }
++      break;
++   case PROGRAM_OUTPUT:
++      if (reg < MAX_PROGRAM_OUTPUTS) {
++         d->base = PB_OUTPUT;
++         d->off = reg * 4;
++      }
++      break;
++   default:
++      d->slow = 1;   /* the original reports the problem */
++      break;
++   }
++}
++
++
++static GLboolean
++decoded_matches(const struct prog_decoded *dec, const struct gl_program *prog)
++{
++   const struct gl_program_parameter_list *params = prog->Parameters;
++   const GLuint numParams = params ? params->NumParameters : 0;
++
++   return dec->prog == prog &&
++          dec->insts == prog->arb.Instructions &&
++          dec->num == prog->arb.NumInstructions &&
++          dec->params == params &&
++          dec->numParams == numParams &&
++          memcmp(dec->copy, prog->arb.Instructions,
++                 dec->num * sizeof(struct prog_instruction)) == 0 &&
++          (numParams == 0 ||
++           memcmp(dec->pvo, params->ParameterValueOffset,
++                  numParams * sizeof(unsigned)) == 0);
++}
++
++
++/**
++ * Make machine->Decoded match the program.
++ * \return GL_FALSE if out of memory.
++ */
++static GLboolean
++decode_program(struct gl_program_machine *machine,
++               const struct gl_program *prog)
++{
++   struct prog_decoded *dec = machine->Decoded;
++   const GLuint num = prog->arb.NumInstructions;
++   const struct gl_program_parameter_list *params = prog->Parameters;
++   const GLuint numParams = params ? params->NumParameters : 0;
++   GLuint i;
++
++   if (dec && decoded_matches(dec, prog))
++      return GL_TRUE;
++
++   if (!dec) {
++      dec = calloc(1, sizeof(*dec));
++      if (!dec)
++         return GL_FALSE;
++      machine->Decoded = dec;
++   }
++   dec->prog = NULL;   /* invalid until complete */
++
++   if (num > dec->capInst) {
++      free(dec->copy);
++      free(dec->d);
++      dec->copy = malloc(num * sizeof(struct prog_instruction));
++      dec->d = malloc(num * sizeof(struct dec_inst));
++      if (!dec->copy || !dec->d) {
++         free(dec->copy);
++         free(dec->d);
++         dec->copy = NULL;
++         dec->d = NULL;
++         dec->capInst = 0;
++         return GL_FALSE;
++      }
++      dec->capInst = num;
++   }
++   if (numParams > dec->capParams) {
++      free(dec->pvo);
++      dec->pvo = malloc(numParams * sizeof(unsigned));
++      if (!dec->pvo) {
++         dec->capParams = 0;
++         return GL_FALSE;
++      }
++      dec->capParams = numParams;
++   }
++
++   if (num)
++      memcpy(dec->copy, prog->arb.Instructions,
++             num * sizeof(struct prog_instruction));
++   if (numParams)
++      memcpy(dec->pvo, params->ParameterValueOffset,
++             numParams * sizeof(unsigned));
++
++   for (i = 0; i < num; i++) {
++      const struct prog_instruction *inst = prog->arb.Instructions + i;
++      GLuint k;
++      for (k = 0; k < 3; k++)
++         decode_src(prog, &inst->SrcReg[k], &dec->d[i].src[k]);
++      decode_dst(&inst->DstReg, &dec->d[i].dst);
++   }
++
++   dec->insts = prog->arb.Instructions;
++   dec->num = num;
++   dec->params = params;
++   dec->numParams = numParams;
++   dec->prog = prog;
++   return GL_TRUE;
++}
++
++
++void
++_mesa_free_program_machine(struct gl_program_machine *machine)
++{
++   struct prog_decoded *dec = machine->Decoded;
++   if (dec) {
++      free(dec->copy);
++      free(dec->d);
++      free(dec->pvo);
++      free(dec);
++      machine->Decoded = NULL;
++   }
++}
++
++
++/* Operand access through the decoded instruction 'di'; 'bases' holds the
++ * base pointers for this call.  Same arithmetic as fetch_vector4(),
++ * fetch_vector1() and store_vector4().
++ */
++#define FETCH4(N, R)                                                  \
++   do {                                                               \
++      const struct dec_src *ds_ = &di->src[N];                        \
++      if (unlikely(ds_->flags & PF_SLOW)) {                           \
++         fetch_vector4(&inst->SrcReg[N], machine, R);                 \
++      }                                                               \
++      else {                                                          \
++         const GLfloat *s_ = bases[ds_->base] + ds_->off;             \
++         if (ds_->flags & PF_NOSWZ) {                                 \
++            COPY_4V(R, s_);                                           \
++         }                                                            \
++         else {                                                       \
++            (R)[0] = s_[ds_->swz[0]];                                 \
++            (R)[1] = s_[ds_->swz[1]];                                 \
++            (R)[2] = s_[ds_->swz[2]];                                 \
++            (R)[3] = s_[ds_->swz[3]];                                 \
++         }                                                            \
++         if (ds_->flags & PF_NEG) {                                   \
++            (R)[0] = -(R)[0];                                         \
++            (R)[1] = -(R)[1];                                         \
++            (R)[2] = -(R)[2];                                         \
++            (R)[3] = -(R)[3];                                         \
++         }                                                            \
++      }                                                               \
++   } while (0)
++
++#define FETCH1(N, R)                                                  \
++   do {                                                               \
++      const struct dec_src *ds_ = &di->src[N];                        \
++      if (unlikely(ds_->flags & PF_SLOW)) {                           \
++         fetch_vector1(&inst->SrcReg[N], machine, R);                 \
++      }                                                               \
++      else {                                                          \
++         (R)[0] = (bases[ds_->base] + ds_->off)[ds_->swz[0]];         \
++         if (ds_->flags & PF_NEG)                                     \
++            (R)[0] = -(R)[0];                                         \
++      }                                                               \
++   } while (0)
++
++#define STORE4(V)                                                     \
++   do {                                                               \
++      if (unlikely(di->dst.slow)) {                                   \
++         store_vector4(inst, machine, V);                             \
++      }                                                               \
++      else {                                                          \
++         GLfloat *d_ = bases[di->dst.base] + di->dst.off;             \
++         const GLuint wm_ = inst->DstReg.WriteMask;                   \
++         const GLfloat *v_ = (V);                                     \
++         GLfloat c_[4];                                               \
++         if (inst->Saturate) {                                        \
++            c_[0] = CLAMP(v_[0], 0.0F, 1.0F);                         \
++            c_[1] = CLAMP(v_[1], 0.0F, 1.0F);                         \
++            c_[2] = CLAMP(v_[2], 0.0F, 1.0F);                         \
++            c_[3] = CLAMP(v_[3], 0.0F, 1.0F);                         \
++            v_ = c_;                                                  \
++         }                                                            \
++         if (wm_ & WRITEMASK_X)                                       \
++            d_[0] = v_[0];                                            \
++         if (wm_ & WRITEMASK_Y)                                       \
++            d_[1] = v_[1];                                            \
++         if (wm_ & WRITEMASK_Z)                                       \
++            d_[2] = v_[2];                                            \
++         if (wm_ & WRITEMASK_W)                                       \
++            d_[3] = v_[3];                                            \
++      }                                                               \
++   } while (0)
++
+ /**
+  * Execute the given vertex/fragment program.
+  *
+@@ -394,8 +746,35 @@
+       machine->EnvParams = ctx->FragmentProgram.Parameters;
+    }
+ 
++   /* riscos-mesa: decoded operands (see above) */
++   const struct dec_inst *dtab = &AllSlow;
++   GLuint dstep = 0;
++   GLfloat *bases[PB_COUNT];
++   static GLfloat dummyDst[4];
++
++   if (!machine->DecodedChecked || !machine->Decoded ||
++       machine->Decoded->prog != program ||
++       machine->Decoded->insts != program->arb.Instructions ||
++       machine->Decoded->num != numInst) {
++      machine->DecodedChecked = decode_program(machine, program);
++   }
++   if (machine->DecodedChecked) {
++      dtab = machine->Decoded->d;
++      dstep = 1;
++   }
++   bases[PB_ZERO] = (GLfloat *) ZeroVec;   /* only ever read */
++   bases[PB_TEMP] = machine->Temporaries[0];
++   bases[PB_INPUT] = program->Target == GL_VERTEX_PROGRAM_ARB ?
++      machine->VertAttribs[0] : machine->Attribs[0][machine->CurElement];
++   bases[PB_OUTPUT] = machine->Outputs[0];
++   bases[PB_PARAM] = program->Parameters ?
++      (GLfloat *) program->Parameters->ParameterValues : NULL;
++   bases[PB_SYSVAL] = machine->SystemValues[0];
++   bases[PB_DUMMY] = dummyDst;
++
+    for (pc = 0; pc < numInst; pc++) {
+       const struct prog_instruction *inst = program->arb.Instructions + pc;
++      const struct dec_inst *di = dtab + pc * dstep;
+ 
+       if (DEBUG_PROG) {
+          _mesa_print_instruction(inst);
+@@ -405,24 +784,24 @@
+       case OPCODE_ABS:
+          {
+             GLfloat a[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
++            FETCH4(0, a);
+             result[0] = fabsf(a[0]);
+             result[1] = fabsf(a[1]);
+             result[2] = fabsf(a[2]);
+             result[3] = fabsf(a[3]);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_ADD:
+          {
+             GLfloat a[4], b[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
++            FETCH4(0, a);
++            FETCH4(1, b);
+             result[0] = a[0] + b[0];
+             result[1] = a[1] + b[1];
+             result[2] = a[2] + b[2];
+             result[3] = a[3] + b[3];
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("ADD (%g %g %g %g) = (%g %g %g %g) + (%g %g %g %g)\n",
+                       result[0], result[1], result[2], result[3],
+@@ -433,7 +812,7 @@
+       case OPCODE_ARL:
+          {
+             GLfloat t[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, t);
++            FETCH4(0, t);
+             machine->AddressReg[0][0] = util_ifloor(t[0]);
+             if (DEBUG_PROG) {
+                printf("ARL %d\n", machine->AddressReg[0][0]);
+@@ -481,14 +860,14 @@
+       case OPCODE_CMP:
+          {
+             GLfloat a[4], b[4], c[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
+-            fetch_vector4(&inst->SrcReg[2], machine, c);
++            FETCH4(0, a);
++            FETCH4(1, b);
++            FETCH4(2, c);
+             result[0] = a[0] < 0.0F ? b[0] : c[0];
+             result[1] = a[1] < 0.0F ? b[1] : c[1];
+             result[2] = a[2] < 0.0F ? b[2] : c[2];
+             result[3] = a[3] < 0.0F ? b[3] : c[3];
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("CMP (%g %g %g %g) = (%g %g %g %g) < 0 ? (%g %g %g %g) : (%g %g %g %g)\n",
+                       result[0], result[1], result[2], result[3],
+@@ -501,33 +880,33 @@
+       case OPCODE_COS:
+          {
+             GLfloat a[4], result[4];
+-            fetch_vector1(&inst->SrcReg[0], machine, a);
++            FETCH1(0, a);
+             result[0] = result[1] = result[2] = result[3]
+                = cosf(a[0]);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_DDX:         /* Partial derivative with respect to X */
+          {
+             GLfloat result[4];
+             fetch_vector4_deriv(&inst->SrcReg[0], machine, 'X', result);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_DDY:         /* Partial derivative with respect to Y */
+          {
+             GLfloat result[4];
+             fetch_vector4_deriv(&inst->SrcReg[0], machine, 'Y', result);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_DP2:
+          {
+             GLfloat a[4], b[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
++            FETCH4(0, a);
++            FETCH4(1, b);
+             result[0] = result[1] = result[2] = result[3] = DOT2(a, b);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("DP2 %g = (%g %g) . (%g %g)\n",
+                       result[0], a[0], a[1], b[0], b[1]);
+@@ -537,10 +916,10 @@
+       case OPCODE_DP3:
+          {
+             GLfloat a[4], b[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
++            FETCH4(0, a);
++            FETCH4(1, b);
+             result[0] = result[1] = result[2] = result[3] = DOT3(a, b);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("DP3 %g = (%g %g %g) . (%g %g %g)\n",
+                       result[0], a[0], a[1], a[2], b[0], b[1], b[2]);
+@@ -550,10 +929,10 @@
+       case OPCODE_DP4:
+          {
+             GLfloat a[4], b[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
++            FETCH4(0, a);
++            FETCH4(1, b);
+             result[0] = result[1] = result[2] = result[3] = DOT4(a, b);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("DP4 %g = (%g, %g %g %g) . (%g, %g %g %g)\n",
+                       result[0], a[0], a[1], a[2], a[3],
+@@ -564,28 +943,28 @@
+       case OPCODE_DPH:
+          {
+             GLfloat a[4], b[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
++            FETCH4(0, a);
++            FETCH4(1, b);
+             result[0] = result[1] = result[2] = result[3] = DOT3(a, b) + b[3];
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_DST:         /* Distance vector */
+          {
+             GLfloat a[4], b[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
++            FETCH4(0, a);
++            FETCH4(1, b);
+             result[0] = 1.0F;
+             result[1] = a[1] * b[1];
+             result[2] = a[2];
+             result[3] = b[3];
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_EXP:
+          {
+             GLfloat t[4], q[4], floor_t0;
+-            fetch_vector1(&inst->SrcReg[0], machine, t);
++            FETCH1(0, t);
+             floor_t0 = floorf(t[0]);
+             if (floor_t0 > FLT_MAX_EXP) {
+                SET_POS_INFINITY(q[0]);
+@@ -605,42 +984,42 @@
+             }
+             q[1] = t[0] - floor_t0;
+             q[3] = 1.0F;
+-            store_vector4( inst, machine, q );
++            STORE4(q);
+          }
+          break;
+       case OPCODE_EX2:         /* Exponential base 2 */
+          {
+             GLfloat a[4], result[4], val;
+-            fetch_vector1(&inst->SrcReg[0], machine, a);
++            FETCH1(0, a);
+             val = exp2f(a[0]);
+             /*
+             if (util_is_inf_or_nan(val))
+                val = 1.0e10;
+             */
+             result[0] = result[1] = result[2] = result[3] = val;
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_FLR:
+          {
+             GLfloat a[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
++            FETCH4(0, a);
+             result[0] = floorf(a[0]);
+             result[1] = floorf(a[1]);
+             result[2] = floorf(a[2]);
+             result[3] = floorf(a[3]);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_FRC:
+          {
+             GLfloat a[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
++            FETCH4(0, a);
+             result[0] = a[0] - floorf(a[0]);
+             result[1] = a[1] - floorf(a[1]);
+             result[2] = a[2] - floorf(a[2]);
+             result[3] = a[3] - floorf(a[3]);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_IF:
+@@ -652,7 +1031,7 @@
+                    == OPCODE_ENDIF);
+             /* eval condition */
+             GLfloat a[4];
+-            fetch_vector1(&inst->SrcReg[0], machine, a);
++            FETCH1(0, a);
+             cond = (a[0] != 0.0F);
+             if (DEBUG_PROG) {
+                printf("IF: %d\n", cond);
+@@ -681,7 +1060,7 @@
+       case OPCODE_KIL:         /* ARB_f_p only */
+          {
+             GLfloat a[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
++            FETCH4(0, a);
+             if (DEBUG_PROG) {
+                printf("KIL if (%g %g %g %g) <= 0.0\n",
+                       a[0], a[1], a[2], a[3]);
+@@ -695,7 +1074,7 @@
+       case OPCODE_LG2:         /* log base 2 */
+          {
+             GLfloat a[4], result[4], val;
+-            fetch_vector1(&inst->SrcReg[0], machine, a);
++            FETCH1(0, a);
+ 	    /* The fast LOG2 macro doesn't meet the precision requirements.
+ 	     */
+             if (a[0] == 0.0F) {
+@@ -705,14 +1084,14 @@
+                val = logf(a[0]) * 1.442695F;
+             }
+             result[0] = result[1] = result[2] = result[3] = val;
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_LIT:
+          {
+             const GLfloat epsilon = 1.0F / 256.0F;      /* from NV VP spec */
+             GLfloat a[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
++            FETCH4(0, a);
+             a[0] = MAX2(a[0], 0.0F);
+             a[1] = MAX2(a[1], 0.0F);
+             /* XXX ARB version clamps a[3], NV version doesn't */
+@@ -730,7 +1109,7 @@
+                result[2] = 0.0F;
+             }
+             result[3] = 1.0F;
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("LIT (%g %g %g %g) : (%g %g %g %g)\n",
+                       result[0], result[1], result[2], result[3],
+@@ -741,7 +1120,7 @@
+       case OPCODE_LOG:
+          {
+             GLfloat t[4], q[4], abs_t0;
+-            fetch_vector1(&inst->SrcReg[0], machine, t);
++            FETCH1(0, t);
+             abs_t0 = fabsf(t[0]);
+             if (abs_t0 != 0.0F) {
+                if (util_is_inf_or_nan(abs_t0))
+@@ -768,20 +1147,20 @@
+                SET_NEG_INFINITY(q[2]);
+             }
+             q[3] = 1.0;
+-            store_vector4(inst, machine, q);
++            STORE4(q);
+          }
+          break;
+       case OPCODE_LRP:
+          {
+             GLfloat a[4], b[4], c[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
+-            fetch_vector4(&inst->SrcReg[2], machine, c);
++            FETCH4(0, a);
++            FETCH4(1, b);
++            FETCH4(2, c);
+             result[0] = a[0] * b[0] + (1.0F - a[0]) * c[0];
+             result[1] = a[1] * b[1] + (1.0F - a[1]) * c[1];
+             result[2] = a[2] * b[2] + (1.0F - a[2]) * c[2];
+             result[3] = a[3] * b[3] + (1.0F - a[3]) * c[3];
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("LRP (%g %g %g %g) = (%g %g %g %g), "
+                       "(%g %g %g %g), (%g %g %g %g)\n",
+@@ -794,14 +1173,14 @@
+       case OPCODE_MAD:
+          {
+             GLfloat a[4], b[4], c[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
+-            fetch_vector4(&inst->SrcReg[2], machine, c);
++            FETCH4(0, a);
++            FETCH4(1, b);
++            FETCH4(2, c);
+             result[0] = a[0] * b[0] + c[0];
+             result[1] = a[1] * b[1] + c[1];
+             result[2] = a[2] * b[2] + c[2];
+             result[3] = a[3] * b[3] + c[3];
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("MAD (%g %g %g %g) = (%g %g %g %g) * "
+                       "(%g %g %g %g) + (%g %g %g %g)\n",
+@@ -814,13 +1193,13 @@
+       case OPCODE_MAX:
+          {
+             GLfloat a[4], b[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
++            FETCH4(0, a);
++            FETCH4(1, b);
+             result[0] = MAX2(a[0], b[0]);
+             result[1] = MAX2(a[1], b[1]);
+             result[2] = MAX2(a[2], b[2]);
+             result[3] = MAX2(a[3], b[3]);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("MAX (%g %g %g %g) = (%g %g %g %g), (%g %g %g %g)\n",
+                       result[0], result[1], result[2], result[3],
+@@ -831,20 +1210,20 @@
+       case OPCODE_MIN:
+          {
+             GLfloat a[4], b[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
++            FETCH4(0, a);
++            FETCH4(1, b);
+             result[0] = MIN2(a[0], b[0]);
+             result[1] = MIN2(a[1], b[1]);
+             result[2] = MIN2(a[2], b[2]);
+             result[3] = MIN2(a[3], b[3]);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_MOV:
+          {
+             GLfloat result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, result);
+-            store_vector4(inst, machine, result);
++            FETCH4(0, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("MOV (%g %g %g %g)\n",
+                       result[0], result[1], result[2], result[3]);
+@@ -854,13 +1233,13 @@
+       case OPCODE_MUL:
+          {
+             GLfloat a[4], b[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
++            FETCH4(0, a);
++            FETCH4(1, b);
+             result[0] = a[0] * b[0];
+             result[1] = a[1] * b[1];
+             result[2] = a[2] * b[2];
+             result[3] = a[3] * b[3];
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("MUL (%g %g %g %g) = (%g %g %g %g) * (%g %g %g %g)\n",
+                       result[0], result[1], result[2], result[3],
+@@ -871,44 +1250,44 @@
+       case OPCODE_NOISE1:
+          {
+             GLfloat a[4], result[4];
+-            fetch_vector1(&inst->SrcReg[0], machine, a);
++            FETCH1(0, a);
+             result[0] =
+                result[1] =
+                result[2] =
+                result[3] = _mesa_noise1(a[0]);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_NOISE2:
+          {
+             GLfloat a[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
++            FETCH4(0, a);
+             result[0] =
+                result[1] =
+                result[2] = result[3] = _mesa_noise2(a[0], a[1]);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_NOISE3:
+          {
+             GLfloat a[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
++            FETCH4(0, a);
+             result[0] =
+                result[1] =
+                result[2] =
+                result[3] = _mesa_noise3(a[0], a[1], a[2]);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_NOISE4:
+          {
+             GLfloat a[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
++            FETCH4(0, a);
+             result[0] =
+                result[1] =
+                result[2] =
+                result[3] = _mesa_noise4(a[0], a[1], a[2], a[3]);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_NOP:
+@@ -916,18 +1295,18 @@
+       case OPCODE_POW:
+          {
+             GLfloat a[4], b[4], result[4];
+-            fetch_vector1(&inst->SrcReg[0], machine, a);
+-            fetch_vector1(&inst->SrcReg[1], machine, b);
++            FETCH1(0, a);
++            FETCH1(1, b);
+             result[0] = result[1] = result[2] = result[3]
+                = powf(a[0], b[0]);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+ 
+       case OPCODE_RCP:
+          {
+             GLfloat a[4], result[4];
+-            fetch_vector1(&inst->SrcReg[0], machine, a);
++            FETCH1(0, a);
+             if (DEBUG_PROG) {
+                if (a[0] == 0)
+                   printf("RCP(0)\n");
+@@ -935,7 +1314,7 @@
+                   printf("RCP(inf)\n");
+             }
+             result[0] = result[1] = result[2] = result[3] = 1.0F / a[0];
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_RET:         /* return from subroutine (conditional) */
+@@ -948,10 +1327,10 @@
+       case OPCODE_RSQ:         /* 1 / sqrt() */
+          {
+             GLfloat a[4], result[4];
+-            fetch_vector1(&inst->SrcReg[0], machine, a);
++            FETCH1(0, a);
+             a[0] = fabsf(a[0]);
+             result[0] = result[1] = result[2] = result[3] = 1.0f / sqrtf(a[0]);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("RSQ %g = 1/sqrt(|%g|)\n", result[0], a[0]);
+             }
+@@ -960,24 +1339,24 @@
+       case OPCODE_SCS:         /* sine and cos */
+          {
+             GLfloat a[4], result[4];
+-            fetch_vector1(&inst->SrcReg[0], machine, a);
++            FETCH1(0, a);
+             result[0] = cosf(a[0]);
+             result[1] = sinf(a[0]);
+             result[2] = 0.0F;    /* undefined! */
+             result[3] = 0.0F;    /* undefined! */
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_SGE:         /* set on greater or equal */
+          {
+             GLfloat a[4], b[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
++            FETCH4(0, a);
++            FETCH4(1, b);
+             result[0] = (a[0] >= b[0]) ? 1.0F : 0.0F;
+             result[1] = (a[1] >= b[1]) ? 1.0F : 0.0F;
+             result[2] = (a[2] >= b[2]) ? 1.0F : 0.0F;
+             result[3] = (a[3] >= b[3]) ? 1.0F : 0.0F;
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("SGE (%g %g %g %g) = (%g %g %g %g) >= (%g %g %g %g)\n",
+                       result[0], result[1], result[2], result[3],
+@@ -989,22 +1368,22 @@
+       case OPCODE_SIN:
+          {
+             GLfloat a[4], result[4];
+-            fetch_vector1(&inst->SrcReg[0], machine, a);
++            FETCH1(0, a);
+             result[0] = result[1] = result[2] = result[3]
+                = sinf(a[0]);
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_SLT:         /* set on less */
+          {
+             GLfloat a[4], b[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
++            FETCH4(0, a);
++            FETCH4(1, b);
+             result[0] = (a[0] < b[0]) ? 1.0F : 0.0F;
+             result[1] = (a[1] < b[1]) ? 1.0F : 0.0F;
+             result[2] = (a[2] < b[2]) ? 1.0F : 0.0F;
+             result[3] = (a[3] < b[3]) ? 1.0F : 0.0F;
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("SLT (%g %g %g %g) = (%g %g %g %g) < (%g %g %g %g)\n",
+                       result[0], result[1], result[2], result[3],
+@@ -1016,24 +1395,24 @@
+       case OPCODE_SSG:         /* set sign (-1, 0 or +1) */
+          {
+             GLfloat a[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
++            FETCH4(0, a);
+             result[0] = (GLfloat) ((a[0] > 0.0F) - (a[0] < 0.0F));
+             result[1] = (GLfloat) ((a[1] > 0.0F) - (a[1] < 0.0F));
+             result[2] = (GLfloat) ((a[2] > 0.0F) - (a[2] < 0.0F));
+             result[3] = (GLfloat) ((a[3] > 0.0F) - (a[3] < 0.0F));
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_SUB:
+          {
+             GLfloat a[4], b[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
++            FETCH4(0, a);
++            FETCH4(1, b);
+             result[0] = a[0] - b[0];
+             result[1] = a[1] - b[1];
+             result[2] = a[2] - b[2];
+             result[3] = a[3] - b[3];
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("SUB (%g %g %g %g) = (%g %g %g %g) - (%g %g %g %g)\n",
+                       result[0], result[1], result[2], result[3],
+@@ -1060,14 +1439,14 @@
+                if (source->Negate & (1 << i))
+                   result[i] = -result[i];
+             }
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_TEX:         /* Both ARB and NV frag prog */
+          /* Simple texel lookup */
+          {
+             GLfloat texcoord[4], color[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, texcoord);
++            FETCH4(0, texcoord);
+ 
+             /* For TEX, texcoord.Q should not be used and its value should not
+              * matter (at most, we pass coord.xyz to texture3D() in GLSL).
+@@ -1085,7 +1464,7 @@
+                       inst->TexSrcUnit,
+                       texcoord[0], texcoord[1], texcoord[2], texcoord[3]);
+             }
+-            store_vector4(inst, machine, color);
++            STORE4(color);
+          }
+          break;
+       case OPCODE_TXB:         /* GL_ARB_fragment_program only */
+@@ -1093,7 +1472,7 @@
+          {
+             GLfloat texcoord[4], color[4], lodBias;
+ 
+-            fetch_vector4(&inst->SrcReg[0], machine, texcoord);
++            FETCH4(0, texcoord);
+ 
+             /* texcoord[3] is the bias to add to lambda */
+             lodBias = texcoord[3];
+@@ -1112,20 +1491,20 @@
+                       lodBias);
+             }
+ 
+-            store_vector4(inst, machine, color);
++            STORE4(color);
+          }
+          break;
+       case OPCODE_TXD:
+          /* Texture lookup w/ partial derivatives for LOD */
+          {
+             GLfloat texcoord[4], dtdx[4], dtdy[4], color[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, texcoord);
+-            fetch_vector4(&inst->SrcReg[1], machine, dtdx);
+-            fetch_vector4(&inst->SrcReg[2], machine, dtdy);
++            FETCH4(0, texcoord);
++            FETCH4(1, dtdx);
++            FETCH4(2, dtdy);
+             machine->FetchTexelDeriv(ctx, texcoord, dtdx, dtdy,
+                                      0.0, /* lodBias */
+                                      inst->TexSrcUnit, color);
+-            store_vector4(inst, machine, color);
++            STORE4(color);
+          }
+          break;
+       case OPCODE_TXL:
+@@ -1133,7 +1512,7 @@
+          {
+             GLfloat texcoord[4], color[4], lod;
+ 
+-            fetch_vector4(&inst->SrcReg[0], machine, texcoord);
++            FETCH4(0, texcoord);
+ 
+             /* texcoord[3] is the LOD */
+             lod = texcoord[3];
+@@ -1141,7 +1520,7 @@
+ 	    machine->FetchTexelLod(ctx, texcoord, lod,
+ 				   machine->Samplers[inst->TexSrcUnit], color);
+ 
+-            store_vector4(inst, machine, color);
++            STORE4(color);
+          }
+          break;
+       case OPCODE_TXP:         /* GL_ARB_fragment_program only */
+@@ -1149,7 +1528,7 @@
+          {
+             GLfloat texcoord[4], color[4];
+ 
+-            fetch_vector4(&inst->SrcReg[0], machine, texcoord);
++            FETCH4(0, texcoord);
+             /* Not so sure about this test - if texcoord[3] is
+              * zero, we'd probably be fine except for an assert in
+              * IROUND_POS() which gets triggered by the inf values created.
+@@ -1162,30 +1541,30 @@
+ 
+             fetch_texel(ctx, machine, inst, texcoord, 0.0, color);
+ 
+-            store_vector4(inst, machine, color);
++            STORE4(color);
+          }
+          break;
+       case OPCODE_TRUNC:       /* truncate toward zero */
+          {
+             GLfloat a[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
++            FETCH4(0, a);
+             result[0] = (GLfloat) (GLint) a[0];
+             result[1] = (GLfloat) (GLint) a[1];
+             result[2] = (GLfloat) (GLint) a[2];
+             result[3] = (GLfloat) (GLint) a[3];
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+          }
+          break;
+       case OPCODE_XPD:         /* cross product */
+          {
+             GLfloat a[4], b[4], result[4];
+-            fetch_vector4(&inst->SrcReg[0], machine, a);
+-            fetch_vector4(&inst->SrcReg[1], machine, b);
++            FETCH4(0, a);
++            FETCH4(1, b);
+             result[0] = a[1] * b[2] - a[2] * b[1];
+             result[1] = a[2] * b[0] - a[0] * b[2];
+             result[2] = a[0] * b[1] - a[1] * b[0];
+             result[3] = 1.0;
+-            store_vector4(inst, machine, result);
++            STORE4(result);
+             if (DEBUG_PROG) {
+                printf("XPD (%g %g %g %g) = (%g %g %g) X (%g %g %g)\n",
+                       result[0], result[1], result[2], result[3],
+diff -ruN a/src/mesa/program/prog_execute.h b/src/mesa/program/prog_execute.h
+--- a/src/mesa/program/prog_execute.h
++++ b/src/mesa/program/prog_execute.h
+@@ -76,6 +76,17 @@
+    /** Texture fetch functions */
+    FetchTexelLodFunc FetchTexelLod;
+    FetchTexelDerivFunc FetchTexelDeriv;
++
++   /**
++    * riscos-mesa: the program decoded into a compact form, so that
++    * operands aren't decoded again for every fragment or vertex.
++    * Callers set DecodedChecked to GL_FALSE at the start of each span or
++    * vertex batch; the decoded copy is then checked against the program
++    * once and rebuilt if the program has changed.  Free it with
++    * _mesa_free_program_machine().
++    */
++   struct prog_decoded *Decoded;
++   GLboolean DecodedChecked;
+ };
+ 
+ 
+@@ -84,5 +95,8 @@
+                       const struct gl_program *program,
+                       struct gl_program_machine *machine);
+ 
++extern void
++_mesa_free_program_machine(struct gl_program_machine *machine);
++
+ 
+ #endif /* PROG_EXECUTE_H */
+diff -ruN a/src/mesa/swrast/s_context.c b/src/mesa/swrast/s_context.c
+--- a/src/mesa/swrast/s_context.c
++++ b/src/mesa/swrast/s_context.c
+@@ -823,6 +823,7 @@
+       _mesa_debug(ctx, "_swrast_DestroyContext\n");
+    }
+ 
++   _mesa_free_program_machine(&swrast->FragProgMachine);   /* riscos-mesa */
+    free( swrast->SpanArrays );
+    free( swrast->ZoomedArrays );
+    free( swrast->TexelBuffer );
+diff -ruN a/src/mesa/swrast/s_fragprog.c b/src/mesa/swrast/s_fragprog.c
+--- a/src/mesa/swrast/s_fragprog.c
++++ b/src/mesa/swrast/s_fragprog.c
+@@ -208,6 +208,9 @@
+    struct gl_program_machine *machine = &swrast->FragProgMachine;
+    GLuint i;
+ 
++   /* riscos-mesa: check the decoded program once per span */
++   machine->DecodedChecked = GL_FALSE;
++
+    for (i = start; i < end; i++) {
+       if (span->array->mask[i]) {
+          init_machine(ctx, machine, program, span, i);
+diff -ruN a/src/mesa/tnl/t_vb_program.c b/src/mesa/tnl/t_vb_program.c
+--- a/src/mesa/tnl/t_vb_program.c
++++ b/src/mesa/tnl/t_vb_program.c
+@@ -326,6 +326,9 @@
+ 
+    map_textures(ctx, program);
+ 
++   /* riscos-mesa: check the decoded program once per vertex batch */
++   machine->DecodedChecked = GL_FALSE;
++
+    for (i = 0; i < VB->Count; i++) {
+       GLuint attr;
+ 
+@@ -502,6 +505,8 @@
+       for (i = 0; i < VARYING_SLOT_MAX; i++)
+          _mesa_vector4f_free( &store->results[i] );
+ 
++      _mesa_free_program_machine(&store->machine);   /* riscos-mesa */
++
+       /* free misc arrays */
+       _mesa_vector4f_free( &store->ndcCoords );
+       align_free( store->clipmask );

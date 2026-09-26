@@ -17,7 +17,7 @@ cd mesa-$V
 # The port, then the speed-ups, then a workaround for newer host GCCs
 # (see patches/mesa/README). Each is applied once: a tree extracted by an
 # earlier version of this script gets the ones it lacks.
-for p in riscos riscos-speed gcc13-vectorizer; do
+for p in riscos riscos-speed riscos-glsl-decode gcc13-vectorizer; do
   f="$HERE/patches/mesa/mesa-$V-$p.patch"
   if ! patch -p1 -R -s -f --dry-run < "$f" >/dev/null 2>&1; then
     patch -p1 < "$f"
