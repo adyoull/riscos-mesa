@@ -8,22 +8,23 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 - **Faster rendering** (`patches/mesa/mesa-20.3.5-riscos-speed.patch`;
   details in `patches/mesa/README`). glbench on a Raspberry Pi 4,
-  640x480, 24-bit depth + stencil, ms per frame, 20.3.5-6 -> now:
+  640x480, 24-bit depth + stencil, ms per frame, 20.3.5-6 and this
+  release run in the same session:
 
-  | Scene | Before | After | |
+  | Scene | 20.3.5-6 | Now | |
   | --- | --- | --- | --- |
-  | lit cube | 5.61 | 3.04 | 1.8x |
-  | full-screen bilinear texture | 44.75 | 26.16 | 1.7x |
-  | 12288 lit triangles | 26.79 | 11.19 | 2.4x |
-  | GLSL per-pixel shaded cube | 94.97 | 59.93 | 1.6x |
-  | 4 blended full-screen quads | 28.3 | 30.1 | see below |
+  | lit cube | 5.38 | 3.02 | 1.8x |
+  | full-screen bilinear texture | 44.04 | 26.13 | 1.7x |
+  | 12288 lit triangles | 25.79 | 11.03 | 2.3x |
+  | GLSL per-pixel shaded cube | 108.91 | 38.83 | 2.8x |
+  | 4 blended full-screen quads | 28.29 | 27.53 | |
+  | clear | 1.53 | 1.52 | |
 
-  Blending itself didn't change: in one A/B session on the Pi, glbench
-  linked with 20.3.5-6's library blends in the same time (29.6-30.9 ms)
-  as with the new one, with or without `-fPIC`. The earlier 28.3 comes
-  from the 20.3.5-6 glbench executable, so it's down to how that program
-  was laid out, not to Mesa. Building without `-fPIC` made GLSL about 5%
-  faster (59.2 against 62.6 ms) and left the other scenes the same.
+  Blending didn't change; its time varies by a couple of milliseconds
+  between builds of the benchmark program (an A/B test on the Pi gave
+  the same 29.6-30.9 ms with 20.3.5-6's library and this one, with or
+  without `-fPIC`). Building without `-fPIC` made GLSL about 5% faster
+  and left the other scenes the same.
 
   - 24-bit depth buffers (what EGL, SDL and GLUT ask for) are now as fast
     as 16-bit ones. Every depth-tested span used to be copied to a
@@ -38,9 +39,8 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     interpreter inlines its operand fetch and store.
   - Fragment shaders run for 32 pixels at a time, with `if`/`else`,
     loops, `discard` and `return` followed per pixel
-    (`mesa-20.3.5-riscos-glsl-batch.patch`). The GLSL scene is another
-    1.7 times as fast on the host and 1.85 times under ARM emulation
-    (not yet measured on a Pi), with identical results.
+    (`mesa-20.3.5-riscos-glsl-batch.patch`). On the Pi this took the
+    GLSL scene from 59.9 to 38.8 ms, with identical results.
   - The picture is unchanged, checked image by image against the old
     library on the host and on ARM (the real RISC OS build, run under
     emulation), except that the integer texture path rounds by up to
