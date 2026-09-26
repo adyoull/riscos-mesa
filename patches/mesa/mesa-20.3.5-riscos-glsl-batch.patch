@@ -1,0 +1,2494 @@
+diff -ruN a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
+--- a/src/mesa/program/prog_execute.c
++++ b/src/mesa/program/prog_execute.c
+@@ -45,6 +45,7 @@
+ #include "prog_parameter.h"
+ #include "prog_print.h"
+ #include "prog_noise.h"
++#include "util/bitscan.h"
+ 
+ 
+ /* debug predicate */
+@@ -392,12 +393,15 @@
+    PB_COUNT
+ };
+ 
++#define PB_LANES PROG_BATCH_LANES  /* fragments per batch (bits in a GLuint mask) */
++
+ #define PF_NOSWZ 1   /* swizzle is .xyzw */
+ #define PF_NEG   2   /* negate */
+ #define PF_SLOW  4   /* use the original code */
+ 
+ struct dec_src {
+    GLint off;          /* in floats from the base */
++   GLint boff;         /* the same for the batch executor's registers */
+    GLubyte base;
+    GLubyte flags;
+    GLubyte swz[4];
+@@ -405,6 +409,7 @@
+ 
+ struct dec_dst {
+    GLint off;
++   GLint boff;
+    GLubyte base;
+    GLubyte slow;
+ };
+@@ -412,6 +417,7 @@
+ struct dec_inst {
+    struct dec_src src[3];
+    struct dec_dst dst;
++   GLboolean fast;     /* batch: plain operands, see decode_program */
+ };
+ 
+ struct prog_decoded {
+@@ -423,14 +429,17 @@
+    GLuint numParams, capParams;
+    unsigned *pvo;                          /* ParameterValueOffset copy */
+    struct dec_inst *d;
++   GLboolean hasCall;                      /* CAL/BGNSUB: no batch mode */
++   GLfloat *btemps, *bouts;                /* batch registers, see below */
+ };
+ 
+ /* For when there's no memory for the decoded copy: every operand slow. */
+ static const struct dec_inst AllSlow = {
+-   { { 0, PB_ZERO, PF_SLOW, { 0, 1, 2, 3 } },
+-     { 0, PB_ZERO, PF_SLOW, { 0, 1, 2, 3 } },
+-     { 0, PB_ZERO, PF_SLOW, { 0, 1, 2, 3 } } },
+-   { 0, PB_DUMMY, 1 }
++   { { 0, 0, PB_ZERO, PF_SLOW, { 0, 1, 2, 3 } },
++     { 0, 0, PB_ZERO, PF_SLOW, { 0, 1, 2, 3 } },
++     { 0, 0, PB_ZERO, PF_SLOW, { 0, 1, 2, 3 } } },
++   { 0, 0, PB_DUMMY, 1 },
++   GL_FALSE
+ };
+ 
+ 
+@@ -581,6 +590,7 @@
+       machine->Decoded = dec;
+    }
+    dec->prog = NULL;   /* invalid until complete */
++   dec->hasCall = GL_FALSE;
+ 
+    if (num > dec->capInst) {
+       free(dec->copy);
+@@ -617,9 +627,27 @@
+    for (i = 0; i < num; i++) {
+       const struct prog_instruction *inst = prog->arb.Instructions + i;
+       GLuint k;
+-      for (k = 0; k < 3; k++)
+-         decode_src(prog, &inst->SrcReg[k], &dec->d[i].src[k]);
++      for (k = 0; k < 3; k++) {
++         struct dec_src *ds = &dec->d[i].src[k];
++         decode_src(prog, &inst->SrcReg[k], ds);
++         ds->boff = (ds->base == PB_TEMP || ds->base == PB_OUTPUT) ?
++            ds->off * PB_LANES : ds->off;
++      }
+       decode_dst(&inst->DstReg, &dec->d[i].dst);
++      dec->d[i].dst.boff = dec->d[i].dst.off * PB_LANES;
++      /* The batch executor's branch-free path: every source it reads
++       * without relative addressing or negation, a plain destination and
++       * no saturation. */
++      {
++         const GLuint nsrc = _mesa_num_inst_src_regs(inst->Opcode);
++         GLboolean fast = !dec->d[i].dst.slow && !inst->Saturate;
++         for (k = 0; k < nsrc && k < 3; k++)
++            if (dec->d[i].src[k].flags & (PF_SLOW | PF_NEG))
++               fast = GL_FALSE;
++         dec->d[i].fast = fast;
++      }
++      if (inst->Opcode == OPCODE_CAL || inst->Opcode == OPCODE_BGNSUB)
++         dec->hasCall = GL_TRUE;
+    }
+ 
+    dec->insts = prog->arb.Instructions;
+@@ -639,6 +667,8 @@
+       free(dec->copy);
+       free(dec->d);
+       free(dec->pvo);
++      free(dec->btemps);
++      free(dec->bouts);
+       free(dec);
+       machine->Decoded = NULL;
+    }
+@@ -1594,3 +1624,2193 @@
+ 
+    return GL_TRUE;
+ }
++
++
++/*
++ * riscos-mesa: batch execution of fragment programs (the "level 2" speed-up).
++ *
++ * _mesa_execute_program runs the whole program for one fragment at a
++ * time.  _mesa_execute_program_batch runs it for up to PB_LANES fragments
++ * together: each instruction is decoded and dispatched once and then
++ * applied to every active fragment ("lane").  The per-lane arithmetic is
++ * the code of _mesa_execute_program itself (generated from it), so the
++ * results are the same bit for bit.
++ *
++ * Control flow is followed with lane masks: IF/ELSE/ENDIF, loops with
++ * BRK and CONT, KIL and a RET from main.  Programs with subroutines
++ * (CAL) aren't run in batches.  Each lane has its own address register.
++ * Temporaries and outputs are kept per lane in dec->btemps and
++ * dec->bouts ([register][lane][4]).
++ */
++
++static const GLfloat *
++lane_src_pointer(const struct gl_program *prog, const struct prog_decoded *dec,
++                 const struct gl_program_machine *machine,
++                 const struct prog_src_register *source,
++                 const GLuint *cols, const GLint *laneAddr, GLuint k)
++{
++   GLint reg = source->Index;
++
++   if (source->RelAddr) {
++      reg += laneAddr[k];
++      if (reg < 0)
++         return ZeroVec;
++   }
++
++   switch (source->File) {
++   case PROGRAM_TEMPORARY:
++      if (reg >= MAX_PROGRAM_TEMPS)
++         return ZeroVec;
++      return dec->btemps + ((GLuint) reg * PB_LANES + k) * 4;
++   case PROGRAM_INPUT:
++      if (reg >= VARYING_SLOT_MAX)
++         return ZeroVec;
++      return machine->Attribs[reg][cols[k]];
++   case PROGRAM_OUTPUT:
++      if (reg >= MAX_PROGRAM_OUTPUTS)
++         return ZeroVec;
++      return dec->bouts + ((GLuint) reg * PB_LANES + k) * 4;
++   case PROGRAM_STATE_VAR:
++   case PROGRAM_CONSTANT:
++   case PROGRAM_UNIFORM: {
++      if (reg >= (GLint) prog->Parameters->NumParameters)
++         return ZeroVec;
++      unsigned pvo = prog->Parameters->ParameterValueOffset[reg];
++      return (GLfloat *) prog->Parameters->ParameterValues + pvo;
++   }
++   case PROGRAM_SYSTEM_VALUE:
++      assert(reg < (GLint) ARRAY_SIZE(machine->SystemValues));
++      return machine->SystemValues[reg];
++   default:
++      _mesa_problem(NULL,
++         "Invalid src register file %d in get_src_register_pointer()",
++         source->File);
++      return ZeroVec;
++   }
++}
++
++
++static GLfloat *
++lane_dst_pointer(const struct prog_decoded *dec,
++                 const struct prog_dst_register *dest,
++                 const GLint *laneAddr, GLuint k)
++{
++   static GLfloat dummyReg[4];
++   GLint reg = dest->Index;
++
++   if (dest->RelAddr) {
++      reg += laneAddr[k];
++      if (reg < 0)
++         return dummyReg;
++   }
++
++   switch (dest->File) {
++   case PROGRAM_TEMPORARY:
++      if (reg >= MAX_PROGRAM_TEMPS)
++         return dummyReg;
++      return dec->btemps + ((GLuint) reg * PB_LANES + k) * 4;
++   case PROGRAM_OUTPUT:
++      if (reg >= MAX_PROGRAM_OUTPUTS)
++         return dummyReg;
++      return dec->bouts + ((GLuint) reg * PB_LANES + k) * 4;
++   default:
++      _mesa_problem(NULL,
++         "Invalid dest register file %d in get_dst_register_pointer()",
++         dest->File);
++      return dummyReg;
++   }
++}
++
++
++#undef FETCH4
++#undef FETCH1
++#undef STORE4
++
++/* Operand details copied to locals once per instruction (see PREP_OPS),
++ * so they aren't reloaded for every lane: Mesa is built with
++ * -fno-strict-aliasing, so any float store could otherwise change them.
++ */
++#define PREP_SRC(N)                                                   \
++   GLfloat *const *lb##N = lb[di->src[N].base];                       \
++   const GLint bo##N = di->src[N].boff;                               \
++   const GLuint fl##N = di->src[N].flags;                             \
++   const GLuint sx##N = di->src[N].swz[0], sy##N = di->src[N].swz[1], \
++                sz##N = di->src[N].swz[2], sw##N = di->src[N].swz[3];
++#define PREP_OPS                                                      \
++   PREP_SRC(0) PREP_SRC(1) PREP_SRC(2)                                \
++   GLfloat *const *lbd = lb[di->dst.base];                            \
++   const GLint bod = di->dst.boff;                                    \
++   const GLuint dslow = di->dst.slow;                                 \
++   const GLuint wmask = inst->DstReg.WriteMask;                       \
++   const GLuint dsat = inst->Saturate;                                \
++   (void) lb0; (void) bo0; (void) fl0; (void) sx0; (void) sy0;        \
++   (void) sz0; (void) sw0; (void) lb1; (void) bo1; (void) fl1;        \
++   (void) sx1; (void) sy1; (void) sz1; (void) sw1; (void) lb2;        \
++   (void) bo2; (void) fl2; (void) sx2; (void) sy2; (void) sz2;        \
++   (void) sw2; (void) lbd; (void) bod; (void) dslow; (void) wmask;    \
++   (void) dsat;
++
++#define LSRC(N)                                                       \
++   (unlikely(fl##N & PF_SLOW) ?                                       \
++    lane_src_pointer(program, dec, machine, &inst->SrcReg[N], cols, laneAddr, k) : \
++    lb##N[k] + bo##N)
++
++#define FETCH4(N, R)                                                  \
++   do {                                                               \
++      const GLfloat *s_ = LSRC(N);                                    \
++      if (fl##N & PF_NOSWZ) {                                         \
++         COPY_4V(R, s_);                                              \
++      }                                                               \
++      else {                                                          \
++         (R)[0] = s_[sx##N];                                          \
++         (R)[1] = s_[sy##N];                                          \
++         (R)[2] = s_[sz##N];                                          \
++         (R)[3] = s_[sw##N];                                          \
++      }                                                               \
++      if (fl##N & PF_NEG) {                                           \
++         (R)[0] = -(R)[0];                                            \
++         (R)[1] = -(R)[1];                                            \
++         (R)[2] = -(R)[2];                                            \
++         (R)[3] = -(R)[3];                                            \
++      }                                                               \
++   } while (0)
++
++#define FETCH1(N, R)                                                  \
++   do {                                                               \
++      (R)[0] = LSRC(N)[sx##N];                                        \
++      if (fl##N & PF_NEG)                                             \
++         (R)[0] = -(R)[0];                                            \
++   } while (0)
++
++#define STORE4(V)                                                     \
++   do {                                                               \
++      GLfloat *d_ = unlikely(dslow) ?                                 \
++         lane_dst_pointer(dec, &inst->DstReg, laneAddr, k) :          \
++         lbd[k] + bod;                                                \
++      const GLfloat *v_ = (V);                                        \
++      GLfloat c_[4];                                                  \
++      if (dsat) {                                                     \
++         c_[0] = CLAMP(v_[0], 0.0F, 1.0F);                            \
++         c_[1] = CLAMP(v_[1], 0.0F, 1.0F);                            \
++         c_[2] = CLAMP(v_[2], 0.0F, 1.0F);                            \
++         c_[3] = CLAMP(v_[3], 0.0F, 1.0F);                            \
++         v_ = c_;                                                     \
++      }                                                               \
++      if (wmask & WRITEMASK_X)                                        \
++         d_[0] = v_[0];                                               \
++      if (wmask & WRITEMASK_Y)                                        \
++         d_[1] = v_[1];                                               \
++      if (wmask & WRITEMASK_Z)                                        \
++         d_[2] = v_[2];                                               \
++      if (wmask & WRITEMASK_W)                                        \
++         d_[3] = v_[3];                                               \
++   } while (0)
++
++
++#define FETCH4F(N, R)                                                 \
++   do {                                                               \
++      const GLfloat *s_ = lb##N[k] + bo##N;                           \
++      (R)[0] = s_[sx##N];                                             \
++      (R)[1] = s_[sy##N];                                             \
++      (R)[2] = s_[sz##N];                                             \
++      (R)[3] = s_[sw##N];                                             \
++   } while (0)
++
++#define FETCH1F(N, R)                                                 \
++   ((R)[0] = (lb##N[k] + bo##N)[sx##N])
++
++#define STORE4F(V)                                                    \
++   do {                                                               \
++      GLfloat *d_ = lbd[k] + bod;                                     \
++      const GLfloat *v_ = (V);                                        \
++      if (wmask == WRITEMASK_XYZW) {                                  \
++         d_[0] = v_[0];                                               \
++         d_[1] = v_[1];                                               \
++         d_[2] = v_[2];                                               \
++         d_[3] = v_[3];                                               \
++      }                                                               \
++      else {                                                          \
++         if (wmask & WRITEMASK_X)                                     \
++            d_[0] = v_[0];                                            \
++         if (wmask & WRITEMASK_Y)                                     \
++            d_[1] = v_[1];                                            \
++         if (wmask & WRITEMASK_Z)                                     \
++            d_[2] = v_[2];                                            \
++         if (wmask & WRITEMASK_W)                                     \
++            d_[3] = v_[3];                                            \
++      }                                                               \
++   } while (0)
++
++/* The active lanes, in order: act[0..nact-1]. */
++#define FOR_LANES                                                     \
++   {                                                                  \
++      GLuint j_;                                                      \
++      for (j_ = 0; j_ < nact; j_++) {                                 \
++         const GLuint k = act[j_];
++#define END_LANES                                                     \
++      }                                                               \
++   }
++
++#define SET_EXEC(m)                                                   \
++   do {                                                               \
++      GLuint m_ = (m), b_;                                            \
++      exec = m_;                                                      \
++      nact = 0;                                                       \
++      while (m_) {                                                    \
++         b_ = u_bit_scan(&m_);                                        \
++         act[nact++] = b_;                                            \
++      }                                                               \
++   } while (0)
++
++enum { BS_IF, BS_LOOP };
++
++struct batch_stack_entry {
++   GLuint type;
++   GLuint saved;      /* lanes active before the IF / BGNLOOP */
++   GLuint other;      /* IF: the ELSE lanes; LOOP: lanes that did CONT */
++   GLuint brk;        /* LOOP: lanes that did BRK */
++};
++
++#define MAX_BATCH_STACK 64
++
++
++/**
++ * Can this program be run with _mesa_execute_program_batch()?
++ * (Also decodes it, like _mesa_execute_program.)
++ */
++GLboolean
++_mesa_program_batch_ok(struct gl_program_machine *machine,
++                       const struct gl_program *program)
++{
++   struct prog_decoded *dec;
++
++   if (program->Target == GL_VERTEX_PROGRAM_ARB)
++      return GL_FALSE;
++   if (!machine->DecodedChecked || !machine->Decoded ||
++       machine->Decoded->prog != program ||
++       machine->Decoded->insts != program->arb.Instructions ||
++       machine->Decoded->num != program->arb.NumInstructions)
++      machine->DecodedChecked = decode_program(machine, program);
++   if (!machine->DecodedChecked)
++      return GL_FALSE;
++   dec = machine->Decoded;
++   if (dec->hasCall)
++      return GL_FALSE;
++   if (!dec->btemps) {
++      dec->btemps = malloc(MAX_PROGRAM_TEMPS * PB_LANES * 4 * sizeof(GLfloat));
++      dec->bouts = malloc(MAX_PROGRAM_OUTPUTS * PB_LANES * 4 * sizeof(GLfloat));
++      if (!dec->btemps || !dec->bouts) {
++         free(dec->btemps);
++         free(dec->bouts);
++         dec->btemps = dec->bouts = NULL;
++         return GL_FALSE;
++      }
++      memset(dec->btemps, 0, MAX_PROGRAM_TEMPS * PB_LANES * 4 * sizeof(GLfloat));
++      memset(dec->bouts, 0, MAX_PROGRAM_OUTPUTS * PB_LANES * 4 * sizeof(GLfloat));
++   }
++   return GL_TRUE;
++}
++
++
++/**
++ * Output register 'reg' of lane 'lane' after _mesa_execute_program_batch().
++ */
++const GLfloat *
++_mesa_program_batch_output(const struct gl_program_machine *machine,
++                           GLuint reg, GLuint lane)
++{
++   return machine->Decoded->bouts + (reg * PB_LANES + lane) * 4;
++}
++
++
++/**
++ * Run a fragment program for n (<= PROG_BATCH_LANES) fragments, the
++ * columns cols[0..n-1] of machine->Attribs.  Call
++ * _mesa_program_batch_ok() first.
++ * \\return  -1 if a runaway loop was detected (run the fragments one at a
++ *          time instead, which handles it as before); otherwise a mask
++ *          of the lanes that executed KIL.
++ */
++GLint64
++_mesa_execute_program_batch(struct gl_context *ctx,
++                            const struct gl_program *program,
++                            struct gl_program_machine *machine,
++                            const GLuint *cols, GLuint n)
++{
++   const struct prog_decoded *dec = machine->Decoded;
++   const GLuint numInst = program->arb.NumInstructions;
++   const GLuint maxExec = 65536;
++   GLuint pc, numExec = 0;
++   GLuint exec, dead = 0, fin = 0, nact;
++   GLuint act[PB_LANES];
++   GLint laneAddr[PB_LANES];
++   GLfloat *lb[PB_COUNT][PB_LANES];
++   struct batch_stack_entry stack[MAX_BATCH_STACK];
++   GLuint sp = 0, k0;
++   static GLfloat dummyDst[4];
++
++   assert(n > 0 && n <= PB_LANES);
++   machine->CurProgram = program;
++   machine->EnvParams = ctx->FragmentProgram.Parameters;
++
++   for (k0 = 0; k0 < n; k0++) {
++      lb[PB_ZERO][k0] = (GLfloat *) ZeroVec;   /* only ever read */
++      lb[PB_TEMP][k0] = dec->btemps + k0 * 4;
++      lb[PB_INPUT][k0] = machine->Attribs[0][cols[k0]];
++      lb[PB_OUTPUT][k0] = dec->bouts + k0 * 4;
++      lb[PB_PARAM][k0] = program->Parameters ?
++         (GLfloat *) program->Parameters->ParameterValues : NULL;
++      lb[PB_SYSVAL][k0] = machine->SystemValues[0];
++      lb[PB_DUMMY][k0] = dummyDst;
++      laneAddr[k0] = 0;
++   }
++
++   SET_EXEC(n == PB_LANES ? ~0u : (1u << n) - 1);
++
++   for (pc = 0; pc < numInst; pc++) {
++      const struct prog_instruction *inst = program->arb.Instructions + pc;
++      const struct dec_inst *di = dec->d + pc;
++      PREP_OPS
++
++      switch (inst->Opcode) {
++      case OPCODE_IF:
++         {
++            GLuint cond = 0;
++            if (sp >= MAX_BATCH_STACK)
++               return -1;
++            FOR_LANES {
++               GLfloat a[4];
++               FETCH1(0, a);
++               if (a[0] != 0.0F)
++                  cond |= 1u << k;
++            } END_LANES
++            stack[sp].type = BS_IF;
++            stack[sp].saved = exec;
++            stack[sp].other = exec & ~cond;
++            stack[sp].brk = 0;
++            sp++;
++            SET_EXEC(exec & cond);
++            if (!exec)
++               pc = inst->BranchTarget - 1;   /* to the ELSE or ENDIF */
++         }
++         break;
++      case OPCODE_ELSE:
++         assert(sp > 0 && stack[sp - 1].type == BS_IF);
++         SET_EXEC(stack[sp - 1].other);
++         if (!exec)
++            pc = inst->BranchTarget - 1;      /* to the ENDIF */
++         break;
++      case OPCODE_ENDIF:
++         {
++            GLuint m, i;
++            assert(sp > 0 && stack[sp - 1].type == BS_IF);
++            sp--;
++            m = stack[sp].saved & ~dead & ~fin;
++            /* lanes that left an enclosing loop inside the IF stay off */
++            for (i = sp; i > 0; i--) {
++               if (stack[i - 1].type == BS_LOOP) {
++                  m &= ~(stack[i - 1].brk | stack[i - 1].other);
++                  break;
++               }
++            }
++            SET_EXEC(m);
++         }
++         break;
++      case OPCODE_BGNLOOP:
++         if (sp >= MAX_BATCH_STACK)
++            return -1;
++         stack[sp].type = BS_LOOP;
++         stack[sp].saved = exec;
++         stack[sp].other = 0;
++         stack[sp].brk = 0;
++         sp++;
++         if (!exec)
++            pc = inst->BranchTarget - 1;      /* to the ENDLOOP */
++         break;
++      case OPCODE_BRK:
++      case OPCODE_CONT:
++         {
++            GLuint i;
++            for (i = sp; i > 0; i--) {
++               if (stack[i - 1].type == BS_LOOP) {
++                  if (inst->Opcode == OPCODE_BRK)
++                     stack[i - 1].brk |= exec;
++                  else
++                     stack[i - 1].other |= exec;
++                  break;
++               }
++            }
++            SET_EXEC(0);
++         }
++         break;
++      case OPCODE_ENDLOOP:
++         {
++            struct batch_stack_entry *e;
++            GLuint next;
++            assert(sp > 0 && stack[sp - 1].type == BS_LOOP);
++            e = &stack[sp - 1];
++            next = (exec | e->other) & ~e->brk & ~dead & ~fin;
++            if (next) {
++               e->other = 0;
++               SET_EXEC(next);
++               pc = inst->BranchTarget;       /* after the BGNLOOP */
++               numExec++;                     /* the original steps on it */
++            }
++            else {
++               sp--;
++               SET_EXEC(e->saved & ~dead & ~fin);
++            }
++         }
++         break;
++      case OPCODE_BGNSUB:
++      case OPCODE_ENDSUB:
++      case OPCODE_NOP:
++         break;
++      case OPCODE_CAL:
++         return -1;                           /* not batched */
++      case OPCODE_RET:                        /* return from main */
++         fin |= exec;
++         SET_EXEC(0);
++         break;
++      case OPCODE_END:
++         return dead;
++      case OPCODE_KIL:
++         {
++            GLuint killed = 0;
++            FOR_LANES {
++               GLfloat a[4];
++               FETCH4(0, a);
++               if (a[0] < 0.0F || a[1] < 0.0F || a[2] < 0.0F || a[3] < 0.0F)
++                  killed |= 1u << k;
++            } END_LANES
++            dead |= killed;
++            SET_EXEC(exec & ~killed);
++         }
++         break;
++      case OPCODE_ABS:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4F(0, a);
++            result[0] = fabsf(a[0]);
++            result[1] = fabsf(a[1]);
++            result[2] = fabsf(a[2]);
++            result[3] = fabsf(a[3]);
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4(0, a);
++            result[0] = fabsf(a[0]);
++            result[1] = fabsf(a[1]);
++            result[2] = fabsf(a[2]);
++            result[3] = fabsf(a[3]);
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_ADD:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            result[0] = a[0] + b[0];
++            result[1] = a[1] + b[1];
++            result[2] = a[2] + b[2];
++            result[3] = a[3] + b[3];
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("ADD (%g %g %g %g) = (%g %g %g %g) + (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            result[0] = a[0] + b[0];
++            result[1] = a[1] + b[1];
++            result[2] = a[2] + b[2];
++            result[3] = a[3] + b[3];
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("ADD (%g %g %g %g) = (%g %g %g %g) + (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_ARL:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat t[4];
++            FETCH4F(0, t);
++            laneAddr[k] = util_ifloor(t[0]);
++            if (DEBUG_PROG) {
++               printf("ARL %d\n", machine->AddressReg[0][0]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat t[4];
++            FETCH4(0, t);
++            laneAddr[k] = util_ifloor(t[0]);
++            if (DEBUG_PROG) {
++               printf("ARL %d\n", machine->AddressReg[0][0]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_CMP:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], c[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            FETCH4F(2, c);
++            result[0] = a[0] < 0.0F ? b[0] : c[0];
++            result[1] = a[1] < 0.0F ? b[1] : c[1];
++            result[2] = a[2] < 0.0F ? b[2] : c[2];
++            result[3] = a[3] < 0.0F ? b[3] : c[3];
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("CMP (%g %g %g %g) = (%g %g %g %g) < 0 ? (%g %g %g %g) : (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3],
++                      b[0], b[1], b[2], b[3],
++                      c[0], c[1], c[2], c[3]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], c[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            FETCH4(2, c);
++            result[0] = a[0] < 0.0F ? b[0] : c[0];
++            result[1] = a[1] < 0.0F ? b[1] : c[1];
++            result[2] = a[2] < 0.0F ? b[2] : c[2];
++            result[3] = a[3] < 0.0F ? b[3] : c[3];
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("CMP (%g %g %g %g) = (%g %g %g %g) < 0 ? (%g %g %g %g) : (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3],
++                      b[0], b[1], b[2], b[3],
++                      c[0], c[1], c[2], c[3]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_COS:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH1F(0, a);
++            result[0] = result[1] = result[2] = result[3]
++               = cosf(a[0]);
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH1(0, a);
++            result[0] = result[1] = result[2] = result[3]
++               = cosf(a[0]);
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_DDX:         /* Partial derivative with respect to X */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat result[4];
++            machine->CurElement = cols[k];
++            fetch_vector4_deriv(&inst->SrcReg[0], machine, 'X', result);
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat result[4];
++            machine->CurElement = cols[k];
++            fetch_vector4_deriv(&inst->SrcReg[0], machine, 'X', result);
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_DDY:         /* Partial derivative with respect to Y */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat result[4];
++            machine->CurElement = cols[k];
++            fetch_vector4_deriv(&inst->SrcReg[0], machine, 'Y', result);
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat result[4];
++            machine->CurElement = cols[k];
++            fetch_vector4_deriv(&inst->SrcReg[0], machine, 'Y', result);
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_DP2:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            result[0] = result[1] = result[2] = result[3] = DOT2(a, b);
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("DP2 %g = (%g %g) . (%g %g)\n",
++                      result[0], a[0], a[1], b[0], b[1]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            result[0] = result[1] = result[2] = result[3] = DOT2(a, b);
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("DP2 %g = (%g %g) . (%g %g)\n",
++                      result[0], a[0], a[1], b[0], b[1]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_DP3:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            result[0] = result[1] = result[2] = result[3] = DOT3(a, b);
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("DP3 %g = (%g %g %g) . (%g %g %g)\n",
++                      result[0], a[0], a[1], a[2], b[0], b[1], b[2]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            result[0] = result[1] = result[2] = result[3] = DOT3(a, b);
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("DP3 %g = (%g %g %g) . (%g %g %g)\n",
++                      result[0], a[0], a[1], a[2], b[0], b[1], b[2]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_DP4:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            result[0] = result[1] = result[2] = result[3] = DOT4(a, b);
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("DP4 %g = (%g, %g %g %g) . (%g, %g %g %g)\n",
++                      result[0], a[0], a[1], a[2], a[3],
++                      b[0], b[1], b[2], b[3]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            result[0] = result[1] = result[2] = result[3] = DOT4(a, b);
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("DP4 %g = (%g, %g %g %g) . (%g, %g %g %g)\n",
++                      result[0], a[0], a[1], a[2], a[3],
++                      b[0], b[1], b[2], b[3]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_DPH:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            result[0] = result[1] = result[2] = result[3] = DOT3(a, b) + b[3];
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            result[0] = result[1] = result[2] = result[3] = DOT3(a, b) + b[3];
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_DST:         /* Distance vector */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            result[0] = 1.0F;
++            result[1] = a[1] * b[1];
++            result[2] = a[2];
++            result[3] = b[3];
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            result[0] = 1.0F;
++            result[1] = a[1] * b[1];
++            result[2] = a[2];
++            result[3] = b[3];
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_EXP:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat t[4], q[4], floor_t0;
++            FETCH1F(0, t);
++            floor_t0 = floorf(t[0]);
++            if (floor_t0 > FLT_MAX_EXP) {
++               SET_POS_INFINITY(q[0]);
++               SET_POS_INFINITY(q[2]);
++            }
++            else if (floor_t0 < FLT_MIN_EXP) {
++               q[0] = 0.0F;
++               q[2] = 0.0F;
++            }
++            else {
++               q[0] = ldexpf(1.0, (int) floor_t0);
++               /* Note: GL_NV_vertex_program expects 
++                * result.z = result.x * APPX(result.y)
++                * We do what the ARB extension says.
++                */
++               q[2] = exp2f(t[0]);
++            }
++            q[1] = t[0] - floor_t0;
++            q[3] = 1.0F;
++            STORE4F(q);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat t[4], q[4], floor_t0;
++            FETCH1(0, t);
++            floor_t0 = floorf(t[0]);
++            if (floor_t0 > FLT_MAX_EXP) {
++               SET_POS_INFINITY(q[0]);
++               SET_POS_INFINITY(q[2]);
++            }
++            else if (floor_t0 < FLT_MIN_EXP) {
++               q[0] = 0.0F;
++               q[2] = 0.0F;
++            }
++            else {
++               q[0] = ldexpf(1.0, (int) floor_t0);
++               /* Note: GL_NV_vertex_program expects 
++                * result.z = result.x * APPX(result.y)
++                * We do what the ARB extension says.
++                */
++               q[2] = exp2f(t[0]);
++            }
++            q[1] = t[0] - floor_t0;
++            q[3] = 1.0F;
++            STORE4(q);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_EX2:         /* Exponential base 2 */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4], val;
++            FETCH1F(0, a);
++            val = exp2f(a[0]);
++            /*
++            if (util_is_inf_or_nan(val))
++               val = 1.0e10;
++            */
++            result[0] = result[1] = result[2] = result[3] = val;
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4], val;
++            FETCH1(0, a);
++            val = exp2f(a[0]);
++            /*
++            if (util_is_inf_or_nan(val))
++               val = 1.0e10;
++            */
++            result[0] = result[1] = result[2] = result[3] = val;
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_FLR:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4F(0, a);
++            result[0] = floorf(a[0]);
++            result[1] = floorf(a[1]);
++            result[2] = floorf(a[2]);
++            result[3] = floorf(a[3]);
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4(0, a);
++            result[0] = floorf(a[0]);
++            result[1] = floorf(a[1]);
++            result[2] = floorf(a[2]);
++            result[3] = floorf(a[3]);
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_FRC:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4F(0, a);
++            result[0] = a[0] - floorf(a[0]);
++            result[1] = a[1] - floorf(a[1]);
++            result[2] = a[2] - floorf(a[2]);
++            result[3] = a[3] - floorf(a[3]);
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4(0, a);
++            result[0] = a[0] - floorf(a[0]);
++            result[1] = a[1] - floorf(a[1]);
++            result[2] = a[2] - floorf(a[2]);
++            result[3] = a[3] - floorf(a[3]);
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_LG2:         /* log base 2 */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4], val;
++            FETCH1F(0, a);
++	    /* The fast LOG2 macro doesn't meet the precision requirements.
++	     */
++            if (a[0] == 0.0F) {
++               val = -FLT_MAX;
++            }
++            else {
++               val = logf(a[0]) * 1.442695F;
++            }
++            result[0] = result[1] = result[2] = result[3] = val;
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4], val;
++            FETCH1(0, a);
++	    /* The fast LOG2 macro doesn't meet the precision requirements.
++	     */
++            if (a[0] == 0.0F) {
++               val = -FLT_MAX;
++            }
++            else {
++               val = logf(a[0]) * 1.442695F;
++            }
++            result[0] = result[1] = result[2] = result[3] = val;
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_LIT:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            const GLfloat epsilon = 1.0F / 256.0F;      /* from NV VP spec */
++            GLfloat a[4], result[4];
++            FETCH4F(0, a);
++            a[0] = MAX2(a[0], 0.0F);
++            a[1] = MAX2(a[1], 0.0F);
++            /* XXX ARB version clamps a[3], NV version doesn't */
++            a[3] = CLAMP(a[3], -(128.0F - epsilon), (128.0F - epsilon));
++            result[0] = 1.0F;
++            result[1] = a[0];
++            /* XXX we could probably just use pow() here */
++            if (a[0] > 0.0F) {
++               if (a[1] == 0.0F && a[3] == 0.0F)
++                  result[2] = 1.0F;
++               else
++                  result[2] = powf(a[1], a[3]);
++            }
++            else {
++               result[2] = 0.0F;
++            }
++            result[3] = 1.0F;
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("LIT (%g %g %g %g) : (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            const GLfloat epsilon = 1.0F / 256.0F;      /* from NV VP spec */
++            GLfloat a[4], result[4];
++            FETCH4(0, a);
++            a[0] = MAX2(a[0], 0.0F);
++            a[1] = MAX2(a[1], 0.0F);
++            /* XXX ARB version clamps a[3], NV version doesn't */
++            a[3] = CLAMP(a[3], -(128.0F - epsilon), (128.0F - epsilon));
++            result[0] = 1.0F;
++            result[1] = a[0];
++            /* XXX we could probably just use pow() here */
++            if (a[0] > 0.0F) {
++               if (a[1] == 0.0F && a[3] == 0.0F)
++                  result[2] = 1.0F;
++               else
++                  result[2] = powf(a[1], a[3]);
++            }
++            else {
++               result[2] = 0.0F;
++            }
++            result[3] = 1.0F;
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("LIT (%g %g %g %g) : (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_LOG:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat t[4], q[4], abs_t0;
++            FETCH1F(0, t);
++            abs_t0 = fabsf(t[0]);
++            if (abs_t0 != 0.0F) {
++               if (util_is_inf_or_nan(abs_t0))
++               {
++                  SET_POS_INFINITY(q[0]);
++                  q[1] = 1.0F;
++                  SET_POS_INFINITY(q[2]);
++               }
++               else {
++                  int exponent;
++                  GLfloat mantissa = frexpf(t[0], &exponent);
++                  q[0] = (GLfloat) (exponent - 1);
++                  q[1] = 2.0F * mantissa; /* map [.5, 1) -> [1, 2) */
++
++		  /* The fast LOG2 macro doesn't meet the precision
++		   * requirements.
++		   */
++                  q[2] = logf(t[0]) * 1.442695F;
++               }
++            }
++            else {
++               SET_NEG_INFINITY(q[0]);
++               q[1] = 1.0F;
++               SET_NEG_INFINITY(q[2]);
++            }
++            q[3] = 1.0;
++            STORE4F(q);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat t[4], q[4], abs_t0;
++            FETCH1(0, t);
++            abs_t0 = fabsf(t[0]);
++            if (abs_t0 != 0.0F) {
++               if (util_is_inf_or_nan(abs_t0))
++               {
++                  SET_POS_INFINITY(q[0]);
++                  q[1] = 1.0F;
++                  SET_POS_INFINITY(q[2]);
++               }
++               else {
++                  int exponent;
++                  GLfloat mantissa = frexpf(t[0], &exponent);
++                  q[0] = (GLfloat) (exponent - 1);
++                  q[1] = 2.0F * mantissa; /* map [.5, 1) -> [1, 2) */
++
++		  /* The fast LOG2 macro doesn't meet the precision
++		   * requirements.
++		   */
++                  q[2] = logf(t[0]) * 1.442695F;
++               }
++            }
++            else {
++               SET_NEG_INFINITY(q[0]);
++               q[1] = 1.0F;
++               SET_NEG_INFINITY(q[2]);
++            }
++            q[3] = 1.0;
++            STORE4(q);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_LRP:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], c[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            FETCH4F(2, c);
++            result[0] = a[0] * b[0] + (1.0F - a[0]) * c[0];
++            result[1] = a[1] * b[1] + (1.0F - a[1]) * c[1];
++            result[2] = a[2] * b[2] + (1.0F - a[2]) * c[2];
++            result[3] = a[3] * b[3] + (1.0F - a[3]) * c[3];
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("LRP (%g %g %g %g) = (%g %g %g %g), "
++                      "(%g %g %g %g), (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3],
++                      b[0], b[1], b[2], b[3], c[0], c[1], c[2], c[3]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], c[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            FETCH4(2, c);
++            result[0] = a[0] * b[0] + (1.0F - a[0]) * c[0];
++            result[1] = a[1] * b[1] + (1.0F - a[1]) * c[1];
++            result[2] = a[2] * b[2] + (1.0F - a[2]) * c[2];
++            result[3] = a[3] * b[3] + (1.0F - a[3]) * c[3];
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("LRP (%g %g %g %g) = (%g %g %g %g), "
++                      "(%g %g %g %g), (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3],
++                      b[0], b[1], b[2], b[3], c[0], c[1], c[2], c[3]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_MAD:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], c[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            FETCH4F(2, c);
++            result[0] = a[0] * b[0] + c[0];
++            result[1] = a[1] * b[1] + c[1];
++            result[2] = a[2] * b[2] + c[2];
++            result[3] = a[3] * b[3] + c[3];
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("MAD (%g %g %g %g) = (%g %g %g %g) * "
++                      "(%g %g %g %g) + (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3],
++                      b[0], b[1], b[2], b[3], c[0], c[1], c[2], c[3]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], c[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            FETCH4(2, c);
++            result[0] = a[0] * b[0] + c[0];
++            result[1] = a[1] * b[1] + c[1];
++            result[2] = a[2] * b[2] + c[2];
++            result[3] = a[3] * b[3] + c[3];
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("MAD (%g %g %g %g) = (%g %g %g %g) * "
++                      "(%g %g %g %g) + (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3],
++                      b[0], b[1], b[2], b[3], c[0], c[1], c[2], c[3]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_MAX:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            result[0] = MAX2(a[0], b[0]);
++            result[1] = MAX2(a[1], b[1]);
++            result[2] = MAX2(a[2], b[2]);
++            result[3] = MAX2(a[3], b[3]);
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("MAX (%g %g %g %g) = (%g %g %g %g), (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            result[0] = MAX2(a[0], b[0]);
++            result[1] = MAX2(a[1], b[1]);
++            result[2] = MAX2(a[2], b[2]);
++            result[3] = MAX2(a[3], b[3]);
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("MAX (%g %g %g %g) = (%g %g %g %g), (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_MIN:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            result[0] = MIN2(a[0], b[0]);
++            result[1] = MIN2(a[1], b[1]);
++            result[2] = MIN2(a[2], b[2]);
++            result[3] = MIN2(a[3], b[3]);
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            result[0] = MIN2(a[0], b[0]);
++            result[1] = MIN2(a[1], b[1]);
++            result[2] = MIN2(a[2], b[2]);
++            result[3] = MIN2(a[3], b[3]);
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_MOV:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat result[4];
++            FETCH4F(0, result);
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("MOV (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat result[4];
++            FETCH4(0, result);
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("MOV (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_MUL:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            result[0] = a[0] * b[0];
++            result[1] = a[1] * b[1];
++            result[2] = a[2] * b[2];
++            result[3] = a[3] * b[3];
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("MUL (%g %g %g %g) = (%g %g %g %g) * (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            result[0] = a[0] * b[0];
++            result[1] = a[1] * b[1];
++            result[2] = a[2] * b[2];
++            result[3] = a[3] * b[3];
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("MUL (%g %g %g %g) = (%g %g %g %g) * (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_NOISE1:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH1F(0, a);
++            result[0] =
++               result[1] =
++               result[2] =
++               result[3] = _mesa_noise1(a[0]);
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH1(0, a);
++            result[0] =
++               result[1] =
++               result[2] =
++               result[3] = _mesa_noise1(a[0]);
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_NOISE2:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4F(0, a);
++            result[0] =
++               result[1] =
++               result[2] = result[3] = _mesa_noise2(a[0], a[1]);
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4(0, a);
++            result[0] =
++               result[1] =
++               result[2] = result[3] = _mesa_noise2(a[0], a[1]);
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_NOISE3:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4F(0, a);
++            result[0] =
++               result[1] =
++               result[2] =
++               result[3] = _mesa_noise3(a[0], a[1], a[2]);
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4(0, a);
++            result[0] =
++               result[1] =
++               result[2] =
++               result[3] = _mesa_noise3(a[0], a[1], a[2]);
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_NOISE4:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4F(0, a);
++            result[0] =
++               result[1] =
++               result[2] =
++               result[3] = _mesa_noise4(a[0], a[1], a[2], a[3]);
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4(0, a);
++            result[0] =
++               result[1] =
++               result[2] =
++               result[3] = _mesa_noise4(a[0], a[1], a[2], a[3]);
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_POW:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH1F(0, a);
++            FETCH1F(1, b);
++            result[0] = result[1] = result[2] = result[3]
++               = powf(a[0], b[0]);
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH1(0, a);
++            FETCH1(1, b);
++            result[0] = result[1] = result[2] = result[3]
++               = powf(a[0], b[0]);
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_RCP:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH1F(0, a);
++            if (DEBUG_PROG) {
++               if (a[0] == 0)
++                  printf("RCP(0)\n");
++               else if (util_is_inf_or_nan(a[0]))
++                  printf("RCP(inf)\n");
++            }
++            result[0] = result[1] = result[2] = result[3] = 1.0F / a[0];
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH1(0, a);
++            if (DEBUG_PROG) {
++               if (a[0] == 0)
++                  printf("RCP(0)\n");
++               else if (util_is_inf_or_nan(a[0]))
++                  printf("RCP(inf)\n");
++            }
++            result[0] = result[1] = result[2] = result[3] = 1.0F / a[0];
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_RSQ:         /* 1 / sqrt() */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH1F(0, a);
++            a[0] = fabsf(a[0]);
++            result[0] = result[1] = result[2] = result[3] = 1.0f / sqrtf(a[0]);
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("RSQ %g = 1/sqrt(|%g|)\n", result[0], a[0]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH1(0, a);
++            a[0] = fabsf(a[0]);
++            result[0] = result[1] = result[2] = result[3] = 1.0f / sqrtf(a[0]);
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("RSQ %g = 1/sqrt(|%g|)\n", result[0], a[0]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_SCS:         /* sine and cos */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH1F(0, a);
++            result[0] = cosf(a[0]);
++            result[1] = sinf(a[0]);
++            result[2] = 0.0F;    /* undefined! */
++            result[3] = 0.0F;    /* undefined! */
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH1(0, a);
++            result[0] = cosf(a[0]);
++            result[1] = sinf(a[0]);
++            result[2] = 0.0F;    /* undefined! */
++            result[3] = 0.0F;    /* undefined! */
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_SGE:         /* set on greater or equal */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            result[0] = (a[0] >= b[0]) ? 1.0F : 0.0F;
++            result[1] = (a[1] >= b[1]) ? 1.0F : 0.0F;
++            result[2] = (a[2] >= b[2]) ? 1.0F : 0.0F;
++            result[3] = (a[3] >= b[3]) ? 1.0F : 0.0F;
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("SGE (%g %g %g %g) = (%g %g %g %g) >= (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3],
++                      b[0], b[1], b[2], b[3]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            result[0] = (a[0] >= b[0]) ? 1.0F : 0.0F;
++            result[1] = (a[1] >= b[1]) ? 1.0F : 0.0F;
++            result[2] = (a[2] >= b[2]) ? 1.0F : 0.0F;
++            result[3] = (a[3] >= b[3]) ? 1.0F : 0.0F;
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("SGE (%g %g %g %g) = (%g %g %g %g) >= (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3],
++                      b[0], b[1], b[2], b[3]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_SIN:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH1F(0, a);
++            result[0] = result[1] = result[2] = result[3]
++               = sinf(a[0]);
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH1(0, a);
++            result[0] = result[1] = result[2] = result[3]
++               = sinf(a[0]);
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_SLT:         /* set on less */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            result[0] = (a[0] < b[0]) ? 1.0F : 0.0F;
++            result[1] = (a[1] < b[1]) ? 1.0F : 0.0F;
++            result[2] = (a[2] < b[2]) ? 1.0F : 0.0F;
++            result[3] = (a[3] < b[3]) ? 1.0F : 0.0F;
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("SLT (%g %g %g %g) = (%g %g %g %g) < (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3],
++                      b[0], b[1], b[2], b[3]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            result[0] = (a[0] < b[0]) ? 1.0F : 0.0F;
++            result[1] = (a[1] < b[1]) ? 1.0F : 0.0F;
++            result[2] = (a[2] < b[2]) ? 1.0F : 0.0F;
++            result[3] = (a[3] < b[3]) ? 1.0F : 0.0F;
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("SLT (%g %g %g %g) = (%g %g %g %g) < (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3],
++                      b[0], b[1], b[2], b[3]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_SSG:         /* set sign (-1, 0 or +1) */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4F(0, a);
++            result[0] = (GLfloat) ((a[0] > 0.0F) - (a[0] < 0.0F));
++            result[1] = (GLfloat) ((a[1] > 0.0F) - (a[1] < 0.0F));
++            result[2] = (GLfloat) ((a[2] > 0.0F) - (a[2] < 0.0F));
++            result[3] = (GLfloat) ((a[3] > 0.0F) - (a[3] < 0.0F));
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4(0, a);
++            result[0] = (GLfloat) ((a[0] > 0.0F) - (a[0] < 0.0F));
++            result[1] = (GLfloat) ((a[1] > 0.0F) - (a[1] < 0.0F));
++            result[2] = (GLfloat) ((a[2] > 0.0F) - (a[2] < 0.0F));
++            result[3] = (GLfloat) ((a[3] > 0.0F) - (a[3] < 0.0F));
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_SUB:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            result[0] = a[0] - b[0];
++            result[1] = a[1] - b[1];
++            result[2] = a[2] - b[2];
++            result[3] = a[3] - b[3];
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("SUB (%g %g %g %g) = (%g %g %g %g) - (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            result[0] = a[0] - b[0];
++            result[1] = a[1] - b[1];
++            result[2] = a[2] - b[2];
++            result[3] = a[3] - b[3];
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("SUB (%g %g %g %g) = (%g %g %g %g) - (%g %g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_SWZ:         /* extended swizzle */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            const struct prog_src_register *source = &inst->SrcReg[0];
++            const GLfloat *src = lane_src_pointer(program, dec, machine, source, cols, laneAddr, k);
++            GLfloat result[4];
++            GLuint i;
++            for (i = 0; i < 4; i++) {
++               const GLuint swz = GET_SWZ(source->Swizzle, i);
++               if (swz == SWIZZLE_ZERO)
++                  result[i] = 0.0;
++               else if (swz == SWIZZLE_ONE)
++                  result[i] = 1.0;
++               else {
++                  assert(swz <= 3);
++                  result[i] = src[swz];
++               }
++               if (source->Negate & (1 << i))
++                  result[i] = -result[i];
++            }
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            const struct prog_src_register *source = &inst->SrcReg[0];
++            const GLfloat *src = lane_src_pointer(program, dec, machine, source, cols, laneAddr, k);
++            GLfloat result[4];
++            GLuint i;
++            for (i = 0; i < 4; i++) {
++               const GLuint swz = GET_SWZ(source->Swizzle, i);
++               if (swz == SWIZZLE_ZERO)
++                  result[i] = 0.0;
++               else if (swz == SWIZZLE_ONE)
++                  result[i] = 1.0;
++               else {
++                  assert(swz <= 3);
++                  result[i] = src[swz];
++               }
++               if (source->Negate & (1 << i))
++                  result[i] = -result[i];
++            }
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_TEX:         /* Both ARB and NV frag prog */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         /* Simple texel lookup */
++         {
++            GLfloat texcoord[4], color[4];
++            FETCH4F(0, texcoord);
++
++            /* For TEX, texcoord.Q should not be used and its value should not
++             * matter (at most, we pass coord.xyz to texture3D() in GLSL).
++             * Set Q=1 so that FetchTexelDeriv() doesn't get a garbage value
++             * which is effectively what happens when the texcoord swizzle
++             * is .xyzz
++             */
++            texcoord[3] = 1.0f;
++
++            fetch_texel(ctx, machine, inst, texcoord, 0.0, color);
++
++            if (DEBUG_PROG) {
++               printf("TEX (%g, %g, %g, %g) = texture[%d][%g, %g, %g, %g]\n",
++                      color[0], color[1], color[2], color[3],
++                      inst->TexSrcUnit,
++                      texcoord[0], texcoord[1], texcoord[2], texcoord[3]);
++            }
++            STORE4F(color);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         /* Simple texel lookup */
++         {
++            GLfloat texcoord[4], color[4];
++            FETCH4(0, texcoord);
++
++            /* For TEX, texcoord.Q should not be used and its value should not
++             * matter (at most, we pass coord.xyz to texture3D() in GLSL).
++             * Set Q=1 so that FetchTexelDeriv() doesn't get a garbage value
++             * which is effectively what happens when the texcoord swizzle
++             * is .xyzz
++             */
++            texcoord[3] = 1.0f;
++
++            fetch_texel(ctx, machine, inst, texcoord, 0.0, color);
++
++            if (DEBUG_PROG) {
++               printf("TEX (%g, %g, %g, %g) = texture[%d][%g, %g, %g, %g]\n",
++                      color[0], color[1], color[2], color[3],
++                      inst->TexSrcUnit,
++                      texcoord[0], texcoord[1], texcoord[2], texcoord[3]);
++            }
++            STORE4(color);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_TXB:         /* GL_ARB_fragment_program only */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         /* Texel lookup with LOD bias */
++         {
++            GLfloat texcoord[4], color[4], lodBias;
++
++            FETCH4F(0, texcoord);
++
++            /* texcoord[3] is the bias to add to lambda */
++            lodBias = texcoord[3];
++
++            fetch_texel(ctx, machine, inst, texcoord, lodBias, color);
++
++            if (DEBUG_PROG) {
++               printf("TXB (%g, %g, %g, %g) = texture[%d][%g %g %g %g]"
++                      "  bias %g\n",
++                      color[0], color[1], color[2], color[3],
++                      inst->TexSrcUnit,
++                      texcoord[0],
++                      texcoord[1],
++                      texcoord[2],
++                      texcoord[3],
++                      lodBias);
++            }
++
++            STORE4F(color);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         /* Texel lookup with LOD bias */
++         {
++            GLfloat texcoord[4], color[4], lodBias;
++
++            FETCH4(0, texcoord);
++
++            /* texcoord[3] is the bias to add to lambda */
++            lodBias = texcoord[3];
++
++            fetch_texel(ctx, machine, inst, texcoord, lodBias, color);
++
++            if (DEBUG_PROG) {
++               printf("TXB (%g, %g, %g, %g) = texture[%d][%g %g %g %g]"
++                      "  bias %g\n",
++                      color[0], color[1], color[2], color[3],
++                      inst->TexSrcUnit,
++                      texcoord[0],
++                      texcoord[1],
++                      texcoord[2],
++                      texcoord[3],
++                      lodBias);
++            }
++
++            STORE4(color);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_TXD:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         /* Texture lookup w/ partial derivatives for LOD */
++         {
++            GLfloat texcoord[4], dtdx[4], dtdy[4], color[4];
++            FETCH4F(0, texcoord);
++            FETCH4F(1, dtdx);
++            FETCH4F(2, dtdy);
++            machine->FetchTexelDeriv(ctx, texcoord, dtdx, dtdy,
++                                     0.0, /* lodBias */
++                                     inst->TexSrcUnit, color);
++            STORE4F(color);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         /* Texture lookup w/ partial derivatives for LOD */
++         {
++            GLfloat texcoord[4], dtdx[4], dtdy[4], color[4];
++            FETCH4(0, texcoord);
++            FETCH4(1, dtdx);
++            FETCH4(2, dtdy);
++            machine->FetchTexelDeriv(ctx, texcoord, dtdx, dtdy,
++                                     0.0, /* lodBias */
++                                     inst->TexSrcUnit, color);
++            STORE4(color);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_TXL:
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         /* Texel lookup with explicit LOD */
++         {
++            GLfloat texcoord[4], color[4], lod;
++
++            FETCH4F(0, texcoord);
++
++            /* texcoord[3] is the LOD */
++            lod = texcoord[3];
++
++	    machine->FetchTexelLod(ctx, texcoord, lod,
++				   machine->Samplers[inst->TexSrcUnit], color);
++
++            STORE4F(color);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         /* Texel lookup with explicit LOD */
++         {
++            GLfloat texcoord[4], color[4], lod;
++
++            FETCH4(0, texcoord);
++
++            /* texcoord[3] is the LOD */
++            lod = texcoord[3];
++
++	    machine->FetchTexelLod(ctx, texcoord, lod,
++				   machine->Samplers[inst->TexSrcUnit], color);
++
++            STORE4(color);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_TXP:         /* GL_ARB_fragment_program only */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         /* Texture lookup w/ projective divide */
++         {
++            GLfloat texcoord[4], color[4];
++
++            FETCH4F(0, texcoord);
++            /* Not so sure about this test - if texcoord[3] is
++             * zero, we'd probably be fine except for an assert in
++             * IROUND_POS() which gets triggered by the inf values created.
++             */
++            if (texcoord[3] != 0.0F) {
++               texcoord[0] /= texcoord[3];
++               texcoord[1] /= texcoord[3];
++               texcoord[2] /= texcoord[3];
++            }
++
++            fetch_texel(ctx, machine, inst, texcoord, 0.0, color);
++
++            STORE4F(color);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         /* Texture lookup w/ projective divide */
++         {
++            GLfloat texcoord[4], color[4];
++
++            FETCH4(0, texcoord);
++            /* Not so sure about this test - if texcoord[3] is
++             * zero, we'd probably be fine except for an assert in
++             * IROUND_POS() which gets triggered by the inf values created.
++             */
++            if (texcoord[3] != 0.0F) {
++               texcoord[0] /= texcoord[3];
++               texcoord[1] /= texcoord[3];
++               texcoord[2] /= texcoord[3];
++            }
++
++            fetch_texel(ctx, machine, inst, texcoord, 0.0, color);
++
++            STORE4(color);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_TRUNC:       /* truncate toward zero */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4F(0, a);
++            result[0] = (GLfloat) (GLint) a[0];
++            result[1] = (GLfloat) (GLint) a[1];
++            result[2] = (GLfloat) (GLint) a[2];
++            result[3] = (GLfloat) (GLint) a[3];
++            STORE4F(result);
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], result[4];
++            FETCH4(0, a);
++            result[0] = (GLfloat) (GLint) a[0];
++            result[1] = (GLfloat) (GLint) a[1];
++            result[2] = (GLfloat) (GLint) a[2];
++            result[3] = (GLfloat) (GLint) a[3];
++            STORE4(result);
++         }
++         } END_LANES
++         }
++         break;
++      case OPCODE_XPD:         /* cross product */
++         if (!exec) break;
++         if (di->fast) {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4F(0, a);
++            FETCH4F(1, b);
++            result[0] = a[1] * b[2] - a[2] * b[1];
++            result[1] = a[2] * b[0] - a[0] * b[2];
++            result[2] = a[0] * b[1] - a[1] * b[0];
++            result[3] = 1.0;
++            STORE4F(result);
++            if (DEBUG_PROG) {
++               printf("XPD (%g %g %g %g) = (%g %g %g) X (%g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], b[0], b[1], b[2]);
++            }
++         }
++         } END_LANES
++         }
++         else {
++         FOR_LANES {
++         {
++            GLfloat a[4], b[4], result[4];
++            FETCH4(0, a);
++            FETCH4(1, b);
++            result[0] = a[1] * b[2] - a[2] * b[1];
++            result[1] = a[2] * b[0] - a[0] * b[2];
++            result[2] = a[0] * b[1] - a[1] * b[0];
++            result[3] = 1.0;
++            STORE4(result);
++            if (DEBUG_PROG) {
++               printf("XPD (%g %g %g %g) = (%g %g %g) X (%g %g %g)\n",
++                      result[0], result[1], result[2], result[3],
++                      a[0], a[1], a[2], b[0], b[1], b[2]);
++            }
++         }
++         } END_LANES
++         }
++         break;
++      default:
++         _mesa_problem(ctx, "Bad opcode %d in _mesa_execute_program",
++                       inst->Opcode);
++         return dead;
++      }
++
++      numExec++;
++      if (numExec > maxExec)
++         return -1;
++   }
++
++   return dead;
++}
+diff -ruN a/src/mesa/program/prog_execute.h b/src/mesa/program/prog_execute.h
+--- a/src/mesa/program/prog_execute.h
++++ b/src/mesa/program/prog_execute.h
+@@ -98,5 +98,22 @@
+ extern void
+ _mesa_free_program_machine(struct gl_program_machine *machine);
+ 
++/* riscos-mesa: batch execution of fragment programs (prog_execute.c) */
++#define PROG_BATCH_LANES 32
++
++extern GLboolean
++_mesa_program_batch_ok(struct gl_program_machine *machine,
++                       const struct gl_program *program);
++
++extern GLint64
++_mesa_execute_program_batch(struct gl_context *ctx,
++                            const struct gl_program *program,
++                            struct gl_program_machine *machine,
++                            const GLuint *cols, GLuint n);
++
++extern const GLfloat *
++_mesa_program_batch_output(const struct gl_program_machine *machine,
++                           GLuint reg, GLuint lane);
++
+ 
+ #endif /* PROG_EXECUTE_H */
+diff -ruN a/src/mesa/swrast/s_fragprog.c b/src/mesa/swrast/s_fragprog.c
+--- a/src/mesa/swrast/s_fragprog.c
++++ b/src/mesa/swrast/s_fragprog.c
+@@ -197,6 +197,88 @@
+ 
+ 
+ /**
++ * Store the results of the fragment program for fragment i.  Output
++ * register r is at outs + r * stride.
++ */
++static void
++store_outputs(struct gl_context *ctx, SWspan *span,
++              const struct gl_program *program, GLuint i,
++              const GLfloat *outs, GLuint stride)
++{
++   const GLbitfield64 outputsWritten = program->info.outputs_written;
++
++   /* Store result color */
++   if (outputsWritten & BITFIELD64_BIT(FRAG_RESULT_COLOR)) {
++      COPY_4V(span->array->attribs[VARYING_SLOT_COL0][i],
++              outs + FRAG_RESULT_COLOR * stride);
++   }
++   else {
++      /* Multiple drawbuffers / render targets
++       * Note that colors beyond 0 and 1 will overwrite other
++       * attributes, such as FOGC, TEX0, TEX1, etc.  That's OK.
++       */
++      GLuint buf;
++      for (buf = 0; buf < ctx->DrawBuffer->_NumColorDrawBuffers; buf++) {
++         if (outputsWritten & BITFIELD64_BIT(FRAG_RESULT_DATA0 + buf)) {
++            COPY_4V(span->array->attribs[VARYING_SLOT_COL0 + buf][i],
++                    outs + (FRAG_RESULT_DATA0 + buf) * stride);
++         }
++      }
++   }
++
++   /* Store result depth/z */
++   if (outputsWritten & BITFIELD64_BIT(FRAG_RESULT_DEPTH)) {
++      const GLfloat depth = outs[FRAG_RESULT_DEPTH * stride + 2];
++      if (depth <= 0.0F)
++         span->array->z[i] = 0;
++      else if (depth >= 1.0F)
++         span->array->z[i] = ctx->DrawBuffer->_DepthMax;
++      else
++         span->array->z[i] =
++            (GLuint) (depth * ctx->DrawBuffer->_DepthMaxF + 0.5F);
++   }
++}
++
++
++/**
++ * riscos-mesa: run the program for the fragments cols[0..n-1] together
++ * (their inputs already set up by init_machine).
++ */
++static void
++run_batch(struct gl_context *ctx, SWspan *span,
++          const struct gl_program *program,
++          struct gl_program_machine *machine, const GLuint *cols, GLuint n)
++{
++   const GLint64 killed =
++      _mesa_execute_program_batch(ctx, program, machine, cols, n);
++   GLuint j;
++
++   for (j = 0; j < n; j++) {
++      const GLuint i = cols[j];
++      if (killed < 0) {
++         /* a runaway loop: run them one at a time, which stops each
++          * fragment after the same number of instructions as always */
++         machine->CurElement = i;
++         machine->StackDepth = 0;
++         if (_mesa_execute_program(ctx, program, machine)) {
++            store_outputs(ctx, span, program, i, machine->Outputs[0], 4);
++            continue;
++         }
++      }
++      else if (!(killed & (1u << j))) {
++         store_outputs(ctx, span, program, i,
++                       _mesa_program_batch_output(machine, 0, j),
++                       PROG_BATCH_LANES * 4);
++         continue;
++      }
++      /* killed fragment */
++      span->array->mask[i] = GL_FALSE;
++      span->writeAll = GL_FALSE;
++   }
++}
++
++
++/**
+  * Run fragment program on the pixels in span from 'start' to 'end' - 1.
+  */
+ static void
+@@ -204,49 +286,37 @@
+ {
+    SWcontext *swrast = SWRAST_CONTEXT(ctx);
+    const struct gl_program *program = ctx->FragmentProgram._Current;
+-   const GLbitfield64 outputsWritten = program->info.outputs_written;
+    struct gl_program_machine *machine = &swrast->FragProgMachine;
+    GLuint i;
+ 
+    /* riscos-mesa: check the decoded program once per span */
+    machine->DecodedChecked = GL_FALSE;
+ 
++   /* riscos-mesa: run the program for up to PROG_BATCH_LANES fragments
++    * at a time where it can be */
++   if (_mesa_program_batch_ok(machine, program)) {
++      GLuint cols[PROG_BATCH_LANES], n = 0;
++      for (i = start; i < end; i++) {
++         if (span->array->mask[i]) {
++            init_machine(ctx, machine, program, span, i);
++            cols[n++] = i;
++            if (n == PROG_BATCH_LANES) {
++               run_batch(ctx, span, program, machine, cols, n);
++               n = 0;
++            }
++         }
++      }
++      if (n)
++         run_batch(ctx, span, program, machine, cols, n);
++      return;
++   }
++
+    for (i = start; i < end; i++) {
+       if (span->array->mask[i]) {
+          init_machine(ctx, machine, program, span, i);
+ 
+          if (_mesa_execute_program(ctx, program, machine)) {
+-
+-            /* Store result color */
+-	    if (outputsWritten & BITFIELD64_BIT(FRAG_RESULT_COLOR)) {
+-               COPY_4V(span->array->attribs[VARYING_SLOT_COL0][i],
+-                       machine->Outputs[FRAG_RESULT_COLOR]);
+-            }
+-            else {
+-               /* Multiple drawbuffers / render targets
+-                * Note that colors beyond 0 and 1 will overwrite other
+-                * attributes, such as FOGC, TEX0, TEX1, etc.  That's OK.
+-                */
+-               GLuint buf;
+-               for (buf = 0; buf < ctx->DrawBuffer->_NumColorDrawBuffers; buf++) {
+-                  if (outputsWritten & BITFIELD64_BIT(FRAG_RESULT_DATA0 + buf)) {
+-                     COPY_4V(span->array->attribs[VARYING_SLOT_COL0 + buf][i],
+-                             machine->Outputs[FRAG_RESULT_DATA0 + buf]);
+-                  }
+-               }
+-            }
+-
+-            /* Store result depth/z */
+-            if (outputsWritten & BITFIELD64_BIT(FRAG_RESULT_DEPTH)) {
+-               const GLfloat depth = machine->Outputs[FRAG_RESULT_DEPTH][2];
+-               if (depth <= 0.0F)
+-                  span->array->z[i] = 0;
+-               else if (depth >= 1.0F)
+-                  span->array->z[i] = ctx->DrawBuffer->_DepthMax;
+-               else
+-                  span->array->z[i] =
+-                     (GLuint) (depth * ctx->DrawBuffer->_DepthMaxF + 0.5F);
+-            }
++            store_outputs(ctx, span, program, i, machine->Outputs[0], 4);
+          }
+          else {
+             /* killed fragment */

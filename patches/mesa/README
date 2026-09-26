@@ -1,5 +1,6 @@
 Changes to Mesa 20.3.5 for RISC OS, applied in this order by
-build/build-mesa.sh:
+build/build-mesa.sh (which records them in .riscos-patches-applied in the
+Mesa tree):
 
 mesa-20.3.5-riscos.patch
     The port itself (OS detection, no ELF TLS, UnixLib gaps, a static
@@ -37,6 +38,22 @@ mesa-20.3.5-riscos-glsl-decode.patch
     span and per vertex batch (swrast/s_fragprog.c, tnl/t_vb_program.c),
     so it's rebuilt whenever a program is changed or replaced; operands
     with relative addressing use the original code.
+
+mesa-20.3.5-riscos-glsl-batch.patch
+    program/prog_execute.c, swrast/s_fragprog.c: fragment programs run
+    for up to 32 fragments at a time. Each instruction is dispatched once
+    and applied to every active fragment, with branch-free loops for the
+    common case (no negation, relative addressing or saturation). Control
+    flow is followed with per-fragment masks: IF/ELSE/ENDIF, loops with
+    BRK and CONT, KIL (discard) and RET from main; each fragment has its
+    own address register for relative addressing. Programs with
+    subroutines (CAL) run one fragment at a time as before, and so does a
+    batch that hits the runaway-loop limit, so that limit applies to each
+    fragment exactly as before. The per-fragment arithmetic is generated
+    from the interpreter's own code, so results are identical, except
+    where a program reads a register it hasn't written (undefined in
+    GLSL), which sees that fragment's own earlier value rather than the
+    previous fragment's.
 
 mesa-20.3.5-gcc13-vectorizer.patch
     GCC 13 at -O3 (on x86-64, and on ARM with NEON) miscompiles

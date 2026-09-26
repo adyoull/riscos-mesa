@@ -15,13 +15,39 @@ if [ ! -d mesa-$V ]; then
 fi
 cd mesa-$V
 # The port, then the speed-ups, then a workaround for newer host GCCs
-# (see patches/mesa/README). Each is applied once: a tree extracted by an
-# earlier version of this script gets the ones it lacks.
-for p in riscos riscos-speed riscos-glsl-decode gcc13-vectorizer; do
-  f="$HERE/patches/mesa/mesa-$V-$p.patch"
-  if ! patch -p1 -R -s -f --dry-run < "$f" >/dev/null 2>&1; then
-    patch -p1 < "$f"
-  fi
+# (see patches/mesa/README), in this order. .riscos-patches-applied in the
+# tree records which are in, so each is applied once and a tree extracted
+# by an earlier version of this script gets only the ones it lacks.
+PATCHES="riscos riscos-speed riscos-glsl-decode riscos-glsl-batch gcc13-vectorizer"
+STAMP=.riscos-patches-applied
+if [ ! -f $STAMP ]; then
+  # No record: a new tree, or one made by an earlier version of this
+  # script, which applied these sets (in this order). Find the largest set
+  # that reverses cleanly, trying it on a scratch copy of the files.
+  : > $STAMP
+  for set in "riscos riscos-speed riscos-glsl-decode gcc13-vectorizer" \
+             "riscos riscos-speed gcc13-vectorizer" "riscos"; do
+    T=$(mktemp -d)
+    for p in $set; do
+      grep '^+++ b/' "$HERE/patches/mesa/mesa-$V-$p.patch" | sed 's#^+++ b/##; s#[[:space:]].*##'
+    done | sort -u | while read -r f; do
+      [ -f "$f" ] && mkdir -p "$T/$(dirname "$f")" && cp "$f" "$T/$f"
+    done
+    ok=1
+    for p in $(echo $set | tr ' ' '\n' | tac); do
+      (cd "$T" && patch -p1 -R -s -f < "$HERE/patches/mesa/mesa-$V-$p.patch" >/dev/null 2>&1) || { ok=0; break; }
+    done
+    rm -rf "$T"
+    if [ $ok = 1 ]; then
+      echo $set | tr ' ' '\n' > $STAMP
+      break
+    fi
+  done
+fi
+for p in $PATCHES; do
+  grep -qx "$p" $STAMP && continue
+  patch -p1 < "$HERE/patches/mesa/mesa-$V-$p.patch"
+  echo $p >> $STAMP
 done
 sed "s#@GCCSDK_ENV@#$GCCSDK_ENV#g" "$HERE/build/meson-riscos.txt.in" > riscos-cross.txt
 [ -d build-ro ] || meson setup build-ro --cross-file riscos-cross.txt \

@@ -36,6 +36,11 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   - GLSL and ARB programs are decoded once instead of for every pixel
     and vertex (`mesa-20.3.5-riscos-glsl-decode.patch`), and the
     interpreter inlines its operand fetch and store.
+  - Fragment shaders run for 32 pixels at a time, with `if`/`else`,
+    loops, `discard` and `return` followed per pixel
+    (`mesa-20.3.5-riscos-glsl-batch.patch`). The GLSL scene is another
+    1.7 times as fast on the host and 1.85 times under ARM emulation
+    (not yet measured on a Pi), with identical results.
   - The picture is unchanged, checked image by image against the old
     library on the host and on ARM (the real RISC OS build, run under
     emulation), except that the integer texture path rounds by up to
