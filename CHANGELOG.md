@@ -4,17 +4,21 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## 20.3.5-7: faster rendering, SDL clicks
+## 20.3.5-7: faster rendering, OpenAL, video textures
 
 Rendering is up to 2.9 times as fast as 20.3.5-6, with the same picture,
-programs start faster and use less memory, and SDL programs no longer
-lose short mouse clicks. The speed figures were measured on a Raspberry
-Pi 4.
+programs start faster and use less memory, textures as games use them
+take the fast path, SDL programs quit properly from the desktop and no
+longer lose short mouse clicks, the devkit has OpenAL, and EGL can use a
+sprite as a texture with no copy (for video). The speed figures were
+measured on a Raspberry Pi 4.
 
 glbench on the Pi 4, 640x480, 24-bit depth + stencil, milliseconds per
 frame (frames per second in brackets). The 20.3.5-6 figures are from a run
 in the same session as a 20.3.5-7 pre-release; the 20.3.5-7 figures are
-from the final pre-release builds (7pre7 and 7pre8 have the same Mesa):
+from pre-releases 7pre7/7pre8. The texture changes made after them (below)
+are aimed at games; for glbench's texture scene they take 3.9% fewer
+instructions on a Linux host, and nothing else changes:
 
 | Scene | 20.3.5-6 | 20.3.5-7 | |
 | --- | --- | --- | --- |
