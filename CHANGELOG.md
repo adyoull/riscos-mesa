@@ -156,13 +156,25 @@ And in the build:
   changes. Before those, its time moved by a couple of milliseconds
   between builds of the benchmark program itself (an A/B test on the Pi
   gave the same time with 20.3.5-6's library and an early pre-release).
-- The Mesa changes are twelve new patches in `patches/mesa/`, described in
+- The Mesa changes are thirteen new patches in `patches/mesa/`, described in
   `patches/mesa/README`. `build/build-mesa.sh` applies them in order and
   records them in `.riscos-patches-applied`, so an existing Mesa tree
   gets only the ones it lacks.
 
 ### Other changes
 
+- **Video frames as textures, with no copy:** EGL now makes images of
+  32bpp sprites (`EGL_KHR_image_pixmap`), and GL and GLES contexts have
+  `GL_OES_EGL_image`: `glEGLImageTargetTexture2DOES` makes a texture use
+  the sprite's pixels in place, so a program can decode each video frame
+  straight into the sprite and draw it, without copying it with
+  `glTexSubImage2D` every frame (about 3-4 ms a frame at 1080p on a Pi 4,
+  and a second copy of the picture). The sprite can be any size and
+  either 32bpp colour order; its top row is t = 0. The Mesa side is a new
+  patch, `riscos-eglimage`. `egltest`'s
+  checks (`egl-check`) texture with a sprite and change it between two
+  draws. Requested by riscos-ffmpeg for its `ffegl` library. Not yet run
+  on a Pi.
 - **OpenAL in the devkit:** `libopenal.a` and the `AL/` headers are OpenAL
   Soft 1.19.1 (the last release written in C), so ports that use OpenAL
   share one tested copy. It mixes in software and plays through SDL2's

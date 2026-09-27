@@ -184,6 +184,25 @@ mesa-20.3.5-riscos-fastest.patch
       nearest mipmap level. Close to exact where triangles are small; a
       large triangle spanning near and far gets one level for all of it.
 
+mesa-20.3.5-riscos-eglimage.patch
+    GL_OES_EGL_image, so a texture can use a program's memory in place
+    (video frames written into a sprite every frame, with no upload):
+    - GL/osmesa.h, drivers/osmesa/osmesa.c: OSMesaSetImageLookup. The EGL
+      library (riscos-mesa's libEGL: EGL_KHR_image_pixmap) registers a
+      function that describes an EGLImage handle's pixels (address, size,
+      row bytes, R,G,B,x or B,G,R,x). glEGLImageTargetTexture2DOES asks it
+      (unknown handles: GL_INVALID_VALUE) and gives the texture level 0 in
+      the matching X8 format, GL_RGB (the fourth byte isn't used).
+      Contexts created after a lookup is registered advertise
+      GL_OES_EGL_image. glEGLImageTargetRenderbufferStorageOES gives
+      GL_INVALID_OPERATION (rendering into an image isn't supported).
+    - swrast (s_texture.c, s_context.h, swrast.h):
+      _swrast_set_external_texture_buffer points a texture image's Buffer
+      and ImageSlices at that memory with the given row stride and marks
+      it ExternalBuffer, which _swrast_free_texture_image_buffer doesn't
+      free. Texels are read (and written by glTexSubImage2D) in place, so
+      a change to the memory shows at the next draw.
+
 They are under the licence of the files they change: MIT (Mesa), except
 the change to include/c11/threads_posix.h, which is under the Boost
 Software License 1.0. See LICENCES.txt.

@@ -240,6 +240,118 @@ EGLAPI EGLint EGLAPIENTRY eglWaitSyncKHR(EGLDisplay dpy, EGLSyncKHR sync, EGLint
 }
 
 /* ------------------------------------------------------------------ */
+/* EGL_KHR_image_base, EGL_KHR_image_pixmap                            */
+/* An image is a 32bpp sprite (the same native pixmaps as pixmap
+   surfaces). It holds no copy: a GL texture made from it with
+   glEGLImageTargetTexture2DOES (GL_OES_EGL_image) uses the sprite's pixels
+   in place, so whatever the program writes into the sprite shows at the
+   next draw. Mesa asks this library what an image handle is through
+   image_lookup, registered with OSMesaSetImageLookup by eglInitialize.
+   The sprite must stay in memory while a texture uses it, even after the
+   image is destroyed. */
+
+static egl_image *get_image(egl_display *d, EGLImageKHR image)
+{
+    egl_image *m;
+    for (m = d->images; m; m = m->next)
+        if (m == (egl_image *) image) {
+            egl_obj_label = m->label;
+            return m;
+        }
+    fail(EGL_BAD_PARAMETER);
+    return NULL;
+}
+
+/* OSMesaImageLookupFunc: called by Mesa from glEGLImageTargetTexture2DOES */
+static GLboolean image_lookup(void *image, OSMesaImage *desc)
+{
+    egl_image *m;
+    if (!display.initialised)
+        return GL_FALSE;
+    for (m = display.images; m; m = m->next)
+        if (m == (egl_image *) image) {
+            desc->pixels = m->pixels;
+            desc->width = m->w;
+            desc->height = m->h;
+            desc->row_bytes = m->w * 4;
+            desc->format = m->layout == LAYOUT_TRGB ? OSMESA_BGRA : OSMESA_RGBA;
+            return GL_TRUE;
+        }
+    return GL_FALSE;
+}
+
+EGLAPI EGLImageKHR EGLAPIENTRY eglCreateImageKHR(EGLDisplay dpy, EGLContext ctx, EGLenum target,
+                                                 EGLClientBuffer buffer, const EGLint *attrib_list)
+{
+    egl_display *d;
+    egl_image *m;
+    int i, w, h, layout;
+    void *pixels;
+
+    ENTER();
+    if (!(d = get_display(dpy, 1)))
+        return EGL_NO_IMAGE_KHR;
+    for (i = 0; attrib_list && attrib_list[i] != EGL_NONE; i += 2)
+        if (attrib_list[i] != EGL_IMAGE_PRESERVED_KHR ||
+            (attrib_list[i + 1] != EGL_TRUE && attrib_list[i + 1] != EGL_FALSE)) {
+            fail(EGL_BAD_PARAMETER);
+            return EGL_NO_IMAGE_KHR;
+        }
+    /* EGL_KHR_image_pixmap: sprites only, and no context */
+    if (target != EGL_NATIVE_PIXMAP_KHR || ctx != EGL_NO_CONTEXT ||
+        !pixmap_info((void *) buffer, &w, &h, &layout, &pixels)) {
+        fail(EGL_BAD_PARAMETER);
+        return EGL_NO_IMAGE_KHR;
+    }
+    for (m = d->images; m; m = m->next)
+        if (m->sprite == (const void *) buffer) {
+            fail(EGL_BAD_ACCESS);       /* already an image */
+            return EGL_NO_IMAGE_KHR;
+        }
+    m = (egl_image *) calloc(1, sizeof *m);
+    if (!m) {
+        fail(EGL_BAD_ALLOC);
+        return EGL_NO_IMAGE_KHR;
+    }
+    m->magic = MAGIC_IMAGE;
+    m->sprite = (const void *) buffer;
+    m->pixels = pixels;
+    m->w = w;
+    m->h = h;
+    m->layout = layout;
+    m->next = d->images;
+    d->images = m;
+    ok();
+    return (EGLImageKHR) m;
+}
+
+EGLAPI EGLBoolean EGLAPIENTRY eglDestroyImageKHR(EGLDisplay dpy, EGLImageKHR image)
+{
+    egl_display *d;
+    egl_image *m, **p;
+    ENTER();
+    if (!(d = get_display(dpy, 1)) || !(m = get_image(d, image)))
+        return EGL_FALSE;
+    for (p = &d->images; *p != m; p = &(*p)->next)
+        ;
+    *p = m->next;
+    m->magic = 0;
+    free(m);
+    return ok();
+}
+
+static void destroy_images(egl_display *d)
+{
+    egl_image *m, *mn;
+    for (m = d->images; m; m = mn) {
+        mn = m->next;
+        m->magic = 0;
+        free(m);
+    }
+    d->images = NULL;
+}
+
+/* ------------------------------------------------------------------ */
 /* EGL_EXT_platform_base with EGL_RISCOS_platform_wimp                 */
 
 EGLAPI EGLDisplay EGLAPIENTRY eglGetPlatformDisplayEXT(EGLenum platform, void *native_display,
@@ -346,6 +458,7 @@ EGLAPI EGLint EGLAPIENTRY eglLabelObjectKHR(EGLDisplay dpy, EGLenum objectType,
     case EGL_OBJECT_CONTEXT_KHR:
     case EGL_OBJECT_SURFACE_KHR:
     case EGL_OBJECT_SYNC_KHR:
+    case EGL_OBJECT_IMAGE_KHR:
         if (!d->initialised) {
             fail(EGL_NOT_INITIALIZED);
             return EGL_NOT_INITIALIZED;
@@ -358,6 +471,10 @@ EGLAPI EGLint EGLAPIENTRY eglLabelObjectKHR(EGLDisplay dpy, EGLenum objectType,
             egl_surface *s = get_surface(d, (EGLSurface) object);
             if (!s) break;
             s->label = label;
+        } else if (objectType == EGL_OBJECT_IMAGE_KHR) {
+            egl_image *m = get_image(d, (EGLImageKHR) object);
+            if (!m) break;
+            m->label = label;
         } else {
             egl_sync *y = get_sync(d, (EGLSyncKHR) object);
             if (!y) break;
@@ -460,9 +577,10 @@ static const struct {
     F(eglSwapBuffers), F(eglSwapInterval), F(eglTerminate), F(eglWaitClient),
     F(eglWaitGL), F(eglWaitNative),
     /* extensions */
-    F(eglClientWaitSyncKHR), F(eglCreatePlatformPixmapSurfaceEXT),
+    F(eglClientWaitSyncKHR), F(eglCreateImageKHR), F(eglCreatePlatformPixmapSurfaceEXT),
     F(eglCreatePlatformWindowSurfaceEXT), F(eglCreateSyncKHR),
-    F(eglDebugMessageControlKHR), F(eglDestroySyncKHR), F(eglGetPlatformDisplayEXT),
+    F(eglDebugMessageControlKHR), F(eglDestroyImageKHR), F(eglDestroySyncKHR),
+    F(eglGetPlatformDisplayEXT),
     F(eglGetSyncAttribKHR), F(eglLabelObjectKHR), F(eglLockSurfaceKHR),
     F(eglQueryDebugKHR), F(eglQuerySurface64KHR), F(eglSetDamageRegionKHR),
     F(eglSignalSyncKHR), F(eglSwapBuffersWithDamageEXT), F(eglSwapBuffersWithDamageKHR),

@@ -12,6 +12,9 @@
  *             memory full screen with EGL_RENDER_BUFFER = EGL_SINGLE_BUFFER.
  *   pbuffer - plain memory.
  *   pixmap  - a 32bpp sprite; GL renders into its image directly.
+ * Images (EGL_KHR_image_pixmap): a 32bpp sprite, used in place as a GL
+ * texture by glEGLImageTargetTexture2DOES (GL_OES_EGL_image, from our
+ * Mesa patch), so a program can write each new frame into the sprite.
  * Extensions: see EGL_RISCOS_EXTENSIONS / EGL_RISCOS_CLIENT_EXTENSIONS
  * below and the table in README.md.
  * See include/EGL/eglext_riscos.h and README.md for the RISC OS details.
@@ -23,8 +26,8 @@
  *   validation.c  checking handles and attribute lists
  *   configs.c     the configs and eglChooseConfig matching
  *   api.c         the EGL 1.4 entry points
- *   extensions.c  partial update, lock surface, sync objects, platform,
- *                 debug, EGL_RISCOS_wimp_window, eglGetProcAddress
+ *   extensions.c  partial update, lock surface, sync objects, images,
+ *                 platform, debug, EGL_RISCOS_wimp_window, eglGetProcAddress
  * They are one compilation unit (build only this file), so the helpers
  * shared between them stay static and invisible to programs linking
  * libEGL.a.
@@ -63,7 +66,8 @@
 #define EGL_RISCOS_EXTENSIONS \
     "EGL_EXT_buffer_age EGL_EXT_swap_buffers_with_damage " \
     "EGL_KHR_context_flush_control EGL_KHR_create_context EGL_KHR_fence_sync " \
-    "EGL_KHR_get_all_proc_addresses EGL_KHR_lock_surface EGL_KHR_lock_surface2 " \
+    "EGL_KHR_get_all_proc_addresses EGL_KHR_image EGL_KHR_image_base " \
+    "EGL_KHR_image_pixmap EGL_KHR_lock_surface EGL_KHR_lock_surface2 " \
     "EGL_KHR_lock_surface3 EGL_KHR_partial_update EGL_KHR_reusable_sync " \
     "EGL_KHR_surfaceless_context EGL_KHR_swap_buffers_with_damage EGL_KHR_wait_sync " \
     "EGL_RISCOS_wimp_window"
@@ -76,6 +80,7 @@
 #define MAGIC_SURFACE 0x534C4745   /* "EGLS" */
 #define MAGIC_CONTEXT 0x434C4745   /* "EGLC" */
 #define MAGIC_SYNC    0x594C4745   /* "EGLY" */
+#define MAGIC_IMAGE   0x494C4745   /* "EGLI" */
 #define MAX_DAMAGE    16           /* more rectangles than this: use their bounds */
 
 #define LAYOUT_TBGR 0              /* 0x00BBGGRR: R,G,B,X in memory = OSMESA_RGBA */
@@ -198,6 +203,16 @@ typedef struct egl_sync {
     struct egl_sync *next;
 } egl_sync;
 
+typedef struct egl_image {
+    EGLint magic;
+    const void *sprite;         /* the native pixmap it was made from */
+    void *pixels;
+    int w, h;
+    int layout;                 /* LAYOUT_TBGR or LAYOUT_TRGB */
+    EGLLabelKHR label;
+    struct egl_image *next;
+} egl_image;
+
 typedef struct egl_display {
     EGLint magic;
     int initialised;
@@ -206,10 +221,15 @@ typedef struct egl_display {
     egl_surface *surfaces;
     egl_context *contexts;
     egl_sync *syncs;
+    egl_image *images;
     EGLLabelKHR label;
 } egl_display;
 
-static egl_display display = { MAGIC_DISPLAY, 0, {{0, 0, 0, 0}}, 0, NULL, NULL, NULL, NULL };
+static egl_display display = { MAGIC_DISPLAY, 0, {{0, 0, 0, 0}}, 0, NULL, NULL, NULL, NULL, NULL };
+/* EGL_KHR_image (parts/extensions.c), used by eglInitialize/eglTerminate */
+static GLboolean image_lookup(void *image, OSMesaImage *desc);
+static void destroy_images(egl_display *d);
+
 static EGLint last_error = EGL_SUCCESS;
 /* The EGL spec's initial API is OpenGL ES when it's supported (code written
    for the Pi's Khronos stack relies on it); desktop GL code binds

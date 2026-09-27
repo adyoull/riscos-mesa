@@ -18,7 +18,7 @@ full screen program, and pbuffer and pixmap use.
 ## What it provides
 | | |
 |---|---|
-| Version | EGL 1.4, with the extensions listed under [Extensions](#extensions) (sync objects, surfaceless contexts, buffer age, swap with damage, surface locking, debug callbacks, platform displays) and `EGL_RISCOS_wimp_window` |
+| Version | EGL 1.4, with the extensions listed under [Extensions](#extensions) (sync objects, surfaceless contexts, buffer age, swap with damage, surface locking, images of sprites as textures, debug callbacks, platform displays) and `EGL_RISCOS_wimp_window` |
 | Client API | `EGL_OPENGL_API`: OpenGL 2.1 compatibility profile, GLSL 1.20 (Mesa 20.3 classic swrast); a request for GL 3.x or core gives `EGL_BAD_MATCH`. `EGL_OPENGL_ES_API`: OpenGL ES 1.1 and 2.0 (see [OpenGL ES](#opengl-es)). The initial API is OpenGL ES, as the EGL spec says: desktop GL code calls `eglBindAPI(EGL_OPENGL_API)` first. |
 | Configs | 8: RGBA 8888 with depth/stencil 0/0, 16/0, 24/0, 24/8, in each of the two RISC OS 32bpp colour orders. The configs matching the current screen mode have the lowest IDs. Caveat `EGL_NONE`, no multisampling. |
 | Surfaces | window, pbuffer, pixmap, each up to 4096x4096 (Mesa's largest buffer; GL's texture and viewport limits are 4096 too). All preserve their contents across swaps. |
@@ -159,6 +159,7 @@ and include `EGL/eglext.h`.
 | `EGL_KHR_swap_buffers_with_damage`, `EGL_EXT_swap_buffers_with_damage` | `eglSwapBuffersWithDamageKHR(dpy, surf, rects, n)`, rectangles x, y, w, h in pixels from the bottom left. In a window only those parts are updated (one `Wimp_UpdateWindow` each; more than 16 become their bounding box); full screen only those parts are plotted after the vsync wait. Screen banks and direct rendering show the whole frame. `n` = 0 is a normal swap |
 | `EGL_KHR_partial_update` | After querying the buffer age, `eglSetDamageRegionKHR` says which parts of the surface this frame will change; the next `eglSwapBuffers` then shows only those |
 | `EGL_KHR_lock_surface`, `2`, `3` | `eglLockSurfaceKHR` gives direct access to a surface's pixels (a surface that isn't current): query `EGL_BITMAP_POINTER_KHR`, `EGL_BITMAP_PITCH_KHR` (bytes), origin (always `EGL_UPPER_LEFT_KHR`) and the pixel offsets (red at 0, blue at 16 for 0x00BBGGRR configs; the other way round for 0x00RRGGBB), `eglQuerySurface64KHR` for the pointer as an `EGLAttribKHR`. A locked surface can't be made current or swapped. After `eglUnlockSurfaceKHR`, `eglSwapBuffers` shows a window surface written this way even though no context is current to it. `EGL_MATCH_FORMAT_KHR`: 0x00RRGGBB configs are `EGL_FORMAT_RGBA_8888_EXACT_KHR` (B, G, R, A bytes), 0x00BBGGRR ones `EGL_FORMAT_RGBA_8888_KHR` |
+| `EGL_KHR_image`, `EGL_KHR_image_base`, `EGL_KHR_image_pixmap`, and `GL_OES_EGL_image` in GL and GLES contexts | `eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR, sprite, NULL)` makes an image of a 32bpp sprite (any size, either colour order); `glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image)` makes the bound texture use the sprite's pixels in place, with no copy: whatever the program writes into the sprite shows at the next draw (for video frames). Row 0 of the sprite (the top) is t = 0; the textures are opaque (`GL_RGB`), level 0 only. Keep the sprite while a texture uses it, even after `eglDestroyImageKHR`. Other targets, a context, or a second image of the same sprite are refused; rendering into an image (`glEGLImageTargetRenderbufferStorageOES`) isn't supported |
 | `EGL_KHR_context_flush_control` | `EGL_CONTEXT_RELEASE_BEHAVIOR_KHR` = `EGL_CONTEXT_RELEASE_BEHAVIOR_NONE_KHR` skips the flush when a context stops being current |
 | `EGL_KHR_debug` | `eglDebugMessageControlKHR` sets a callback that gets every EGL error with the function name and object labels (`eglLabelObjectKHR`); `eglQueryDebugKHR` reads the settings. Errors and critical messages are on by default |
 | `EGL_EXT_client_extensions`, `EGL_EXT_platform_base`, `EGL_RISCOS_platform_wimp` | `eglGetPlatformDisplayEXT(EGL_PLATFORM_RISCOS, NULL, NULL)`. For `eglCreatePlatformWindowSurfaceEXT` the native window is a *pointer to* an int holding the Wimp handle (or -1); for `eglCreatePlatformPixmapSurfaceEXT` it's the sprite pointer. `EGL_PLATFORM_RISCOS` is provisional |
@@ -223,7 +224,7 @@ harness are unchanged), but its body is in `egl/parts/`, which it
 | `parts/validation.c` | Looking up and checking display, config, surface and context handles |
 | `parts/configs.c` | Building the configs and matching/sorting them for `eglChooseConfig` |
 | `parts/api.c` | The EGL 1.4 functions |
-| `parts/extensions.c` | Extension functions (sync, locking, platform, debug, RISC OS) and `eglGetProcAddress` |
+| `parts/extensions.c` | Extension functions (sync, locking, images, platform, debug, RISC OS) and `eglGetProcAddress` |
 
 The parts can't be compiled on their own: helpers stay `static`, and the
 object code is the same as when it was a single file. Add a new part to the

@@ -460,6 +460,7 @@ and include `EGL/eglext.h`.
 | `EGL_KHR_swap_buffers_with_damage`, `EGL_EXT_swap_buffers_with_damage` | `eglSwapBuffersWithDamageKHR(dpy, surf, rects, n)`, rectangles x, y, w, h in pixels from the bottom left. In a window only those parts are updated (one `Wimp_UpdateWindow` each; more than 16 become their bounding box); full screen only those parts are plotted after the vsync wait. Screen banks and direct rendering show the whole frame. `n` = 0 is a normal swap |
 | `EGL_KHR_partial_update` | After querying the buffer age, `eglSetDamageRegionKHR` says which parts of the surface this frame will change; the next `eglSwapBuffers` then shows only those |
 | `EGL_KHR_lock_surface`, `2`, `3` | `eglLockSurfaceKHR` gives direct access to a surface's pixels (a surface that isn't current): query `EGL_BITMAP_POINTER_KHR`, `EGL_BITMAP_PITCH_KHR` (bytes), origin (always `EGL_UPPER_LEFT_KHR`) and the pixel offsets (red at 0, blue at 16 for 0x00BBGGRR configs; the other way round for 0x00RRGGBB), `eglQuerySurface64KHR` for the pointer as an `EGLAttribKHR`. A locked surface can't be made current or swapped. After `eglUnlockSurfaceKHR`, `eglSwapBuffers` shows a window surface written this way even though no context is current to it. `EGL_MATCH_FORMAT_KHR`: 0x00RRGGBB configs are `EGL_FORMAT_RGBA_8888_EXACT_KHR` (B, G, R, A bytes), 0x00BBGGRR ones `EGL_FORMAT_RGBA_8888_KHR` |
+| `EGL_KHR_image`, `EGL_KHR_image_base`, `EGL_KHR_image_pixmap`, and `GL_OES_EGL_image` in GL and GLES contexts | `eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR, sprite, NULL)` makes an image of a 32bpp sprite (any size, either colour order); `glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image)` makes the bound texture use the sprite's pixels in place, with no copy: whatever the program writes into the sprite shows at the next draw (for video frames). Row 0 of the sprite (the top) is t = 0; the textures are opaque (`GL_RGB`), level 0 only. Keep the sprite while a texture uses it, even after `eglDestroyImageKHR`. Other targets, a context, or a second image of the same sprite are refused; rendering into an image (`glEGLImageTargetRenderbufferStorageOES`) isn't supported |
 | `EGL_KHR_context_flush_control` | `EGL_CONTEXT_RELEASE_BEHAVIOR_KHR` = `EGL_CONTEXT_RELEASE_BEHAVIOR_NONE_KHR` skips the flush when a context stops being current |
 | `EGL_KHR_debug` | `eglDebugMessageControlKHR` sets a callback that gets every EGL error with the function name and object labels (`eglLabelObjectKHR`); `eglQueryDebugKHR` reads the settings. Errors and critical messages are on by default |
 | `EGL_EXT_client_extensions`, `EGL_EXT_platform_base`, `EGL_RISCOS_platform_wimp` | `eglGetPlatformDisplayEXT(EGL_PLATFORM_RISCOS, NULL, NULL)`. For `eglCreatePlatformWindowSurfaceEXT` the native window is a *pointer to* an int holding the Wimp handle (or -1); for `eglCreatePlatformPixmapSurfaceEXT` it's the sprite pointer. `EGL_PLATFORM_RISCOS` is provisional |
@@ -531,6 +532,32 @@ eglSwapBuffers(dpy, surf);                    /* shows it, no context needed */
 - Red is at bit 0 and blue at bit 16 for `0x00BBGGRR` configs, the other way round for `0x00RRGGBB`. Query `EGL_BITMAP_PIXEL_RED_OFFSET_KHR` and friends rather than assuming.
 - In `eglChooseConfig`, `EGL_MATCH_FORMAT_KHR` = `EGL_FORMAT_RGBA_8888_EXACT_KHR` picks the `0x00RRGGBB` configs; `EGL_FORMAT_RGBA_8888_KHR` matches all of them.
 - A locked surface can't be made current or swapped (`EGL_BAD_ACCESS`).
+
+**Video frames as textures.** To texture with a picture that changes every frame (video, a camera, your own software rendering), make the picture a 32bpp sprite and turn it into a texture once. The texture then reads the sprite's pixels in place: write the next frame into the sprite and draw, with no `glTexSubImage2D` copy in between.
+
+```c
+typedef void (*TargetTexture)(GLenum target, void *image);
+TargetTexture target = (TargetTexture) eglGetProcAddress("glEGLImageTargetTexture2DOES");
+
+EGLImageKHR img = eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR,
+                                    (EGLClientBuffer) sprite, NULL);   /* the sprite's header */
+glBindTexture(GL_TEXTURE_2D, tex);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);     /* no mipmaps */
+target(GL_TEXTURE_2D, img);                   /* level 0 is now the sprite */
+
+for (;;) {
+    decode_next_frame_into(sprite);           /* write the pixels directly */
+    draw_scene();                             /* the texture shows the new frame */
+    eglSwapBuffers(dpy, surf);
+}
+```
+
+- Check for `GL_OES_EGL_image` in `glGetString(GL_EXTENSIONS)` and keep an upload path for other GL libraries. In GLES code, `<GLES2/gl2ext.h>` declares `glEGLImageTargetTexture2DOES`; in desktop GL code get it with `eglGetProcAddress` as above.
+- The sprite can be any size (1920x1080 is fine; up to 4096 each way) and either 32bpp colour order: `0x00BBGGRR` (type 6) or `0x00RRGGBB`. The top byte of each pixel isn't used: the texture is opaque (`GL_RGB`).
+- Row 0 of the sprite (its top) is t = 0, the same as uploading the rows with `glTexImage2D`, so draw the top of the quad with t = 0 to see it the right way up.
+- Only level 0: use `GL_LINEAR` or `GL_NEAREST` for `GL_TEXTURE_MIN_FILTER` (the default needs mipmaps, which would make the texture incomplete).
+- The sprite must stay in memory while a texture uses it, even after `eglDestroyImageKHR`. Giving the texture new storage (`glTexImage2D`) ends the link and leaves the sprite alone.
+- Speed: drawing with the texture costs the same as with an uploaded one of the same size (video sizes aren't powers of two, so both go through Mesa's general texture path); what's saved is the copy of every frame, and the second copy of the picture in memory.
 
 **Error reporting.** A debug callback gets every EGL error with the function that raised it, so you needn't check `eglGetError` after each call while developing.
 

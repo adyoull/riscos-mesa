@@ -1,0 +1,247 @@
+diff --git a/include/GL/osmesa.h b/include/GL/osmesa.h
+index da61f6a..2592365 100644
+--- a/include/GL/osmesa.h
++++ b/include/GL/osmesa.h
+@@ -307,6 +307,34 @@ OSMesaGetProcAddress( const char *funcName );
+ 
+ 
+ 
++/*
++ * riscos-mesa: GL_OES_EGL_image.
++ *
++ * An EGL library that makes EGLImages from memory (riscos-mesa's libEGL:
++ * EGL_KHR_image_pixmap on 32bpp sprites) registers a lookup function here.
++ * glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image) then asks it to
++ * describe the image and makes the bound texture's level 0 use the
++ * image's pixels in place: no copy, and changes to them show at the next
++ * draw. Row 0 of the pixels is t = 0, as with glTexImage2D. The fourth
++ * byte of each pixel is not used (such textures are opaque, GL_RGB).
++ * GL_OES_EGL_image is advertised by contexts created after a lookup
++ * function has been registered.
++ */
++typedef struct OSMesaImage
++{
++   void *pixels;       /* first pixel of row 0 */
++   GLint width, height;
++   GLint row_bytes;    /* bytes from one row to the next, a multiple of 4 */
++   GLenum format;      /* byte order: OSMESA_RGBA (R,G,B,x) or OSMESA_BGRA (B,G,R,x) */
++} OSMesaImage;
++
++/* Fills in *desc and returns GL_TRUE if image is a valid image handle */
++typedef GLboolean (*OSMesaImageLookupFunc)(void *image, OSMesaImage *desc);
++
++GLAPI void GLAPIENTRY
++OSMesaSetImageLookup(OSMesaImageLookupFunc lookup);
++
++
+ /**
+  * Enable/disable color clamping, off by default.
+  * New in Mesa 6.4.2
+diff --git a/src/mesa/drivers/osmesa/osmesa.c b/src/mesa/drivers/osmesa/osmesa.c
+index 0993d2b..807043c 100644
+--- a/src/mesa/drivers/osmesa/osmesa.c
++++ b/src/mesa/drivers/osmesa/osmesa.c
+@@ -45,6 +45,7 @@
+ #include "main/mipmap.h"
+ #include "main/mtypes.h"
+ #include "main/renderbuffer.h"
++#include "main/teximage.h"
+ #include "main/version.h"
+ #include "main/vtxfmt.h"
+ #include "swrast/swrast.h"
+@@ -804,6 +805,68 @@ set_size_limits(struct gl_context *ctx)
+ }
+ 
+ 
++/**
++ * riscos-mesa: GL_OES_EGL_image. The EGL library registers a function
++ * that turns an EGLImage handle into a description of its pixels
++ * (OSMesaSetImageLookup, GL/osmesa.h); a texture made from the image uses
++ * those pixels in place (_swrast_set_external_texture_buffer).
++ */
++static OSMesaImageLookupFunc image_lookup;
++
++static void
++egl_image_target_texture_2d(struct gl_context *ctx, GLenum target,
++                            struct gl_texture_object *texObj,
++                            struct gl_texture_image *texImage,
++                            GLeglImageOES image)
++{
++   const char *func = "glEGLImageTargetTexture2DOES";
++   OSMesaImage desc;
++   mesa_format format;
++
++   (void) target;
++   (void) texObj;
++   if (!image_lookup || !image_lookup(image, &desc)) {
++      _mesa_error(ctx, GL_INVALID_VALUE, "%s(image)", func);
++      return;
++   }
++
++   /* The pixels' fourth byte isn't used: the texture is GL_RGB */
++   if (desc.format == OSMESA_RGBA)
++      format = MESA_FORMAT_R8G8B8X8_UNORM;   /* bytes R,G,B,x */
++   else if (desc.format == OSMESA_BGRA)
++      format = MESA_FORMAT_B8G8R8X8_UNORM;   /* bytes B,G,R,x */
++   else
++      format = MESA_FORMAT_NONE;
++   if (format == MESA_FORMAT_NONE || !desc.pixels ||
++       desc.width < 1 || desc.width > ctx->Const.MaxTextureSize ||
++       desc.height < 1 || desc.height > ctx->Const.MaxTextureSize ||
++       desc.row_bytes < desc.width * 4 || desc.row_bytes % 4 != 0) {
++      _mesa_error(ctx, GL_INVALID_OPERATION, "%s(image can't be a texture)", func);
++      return;
++   }
++
++   _mesa_init_teximage_fields(ctx, texImage, desc.width, desc.height, 1, 0,
++                              GL_RGB, format);
++   if (!_swrast_set_external_texture_buffer(texImage, desc.pixels,
++                                            desc.row_bytes)) {
++      _mesa_init_teximage_fields(ctx, texImage, 0, 0, 0, 0, GL_NONE,
++                                 MESA_FORMAT_NONE);
++      _mesa_error(ctx, GL_OUT_OF_MEMORY, "%s", func);
++   }
++}
++
++/* Rendering into an EGLImage isn't supported */
++static void
++egl_image_target_renderbuffer(struct gl_context *ctx,
++                              struct gl_renderbuffer *rb, void *image)
++{
++   (void) rb;
++   (void) image;
++   _mesa_error(ctx, GL_INVALID_OPERATION,
++               "glEGLImageTargetRenderbufferStorageOES(not supported)");
++}
++
++
+ /**********************************************************************/
+ /*****                    Public Functions                        *****/
+ /**********************************************************************/
+@@ -1026,6 +1089,8 @@ OSMesaCreateContextAttribs(const int *attribList, OSMesaContext sharelist)
+       /* override with our functions */
+       functions.GetString = get_string;
+       functions.UpdateState = osmesa_update_state_wrapper;
++      functions.EGLImageTargetTexture2D = egl_image_target_texture_2d;
++      functions.EGLImageTargetRenderbufferStorage = egl_image_target_renderbuffer;
+ 
+       if (!_mesa_initialize_context(&osmesa->mesa,
+                                     api_profile,
+@@ -1040,6 +1105,8 @@ OSMesaCreateContextAttribs(const int *attribList, OSMesaContext sharelist)
+ 
+       set_size_limits(&osmesa->mesa);
+       _mesa_enable_sw_extensions(&(osmesa->mesa));
++      if (image_lookup)    /* riscos-mesa: an EGL library can make images */
++         osmesa->mesa.Extensions.OES_EGL_image = GL_TRUE;
+ 
+       osmesa->gl_buffer = _mesa_create_framebuffer(osmesa->gl_visual);
+       if (!osmesa->gl_buffer) {
+@@ -1428,6 +1495,7 @@ static struct name_function functions[] = {
+    { "OSMesaGetProcAddress", (OSMESAproc) OSMesaGetProcAddress },
+    { "OSMesaColorClamp", (OSMESAproc) OSMesaColorClamp },
+    { "OSMesaPostprocess", (OSMESAproc) OSMesaPostprocess },
++   { "OSMesaSetImageLookup", (OSMESAproc) OSMesaSetImageLookup },
+    { NULL, NULL }
+ };
+ 
+@@ -1458,6 +1526,16 @@ OSMesaColorClamp(GLboolean enable)
+ }
+ 
+ 
++/**
++ * riscos-mesa: register the EGL library's image lookup (GL/osmesa.h).
++ */
++GLAPI void GLAPIENTRY
++OSMesaSetImageLookup(OSMesaImageLookupFunc lookup)
++{
++   image_lookup = lookup;
++}
++
++
+ GLAPI void GLAPIENTRY
+ OSMesaPostprocess(OSMesaContext osmesa, const char *filter,
+                   unsigned enable_value)
+diff --git a/src/mesa/swrast/s_context.h b/src/mesa/swrast/s_context.h
+index 9ccba6b..b60748b 100644
+--- a/src/mesa/swrast/s_context.h
++++ b/src/mesa/swrast/s_context.h
+@@ -159,6 +159,13 @@ struct swrast_texture_image
+    /** Malloc'd texture memory */
+    GLubyte *Buffer;
+ 
++   /**
++    * riscos-mesa: Buffer belongs to someone else (an EGLImage's pixels,
++    * _swrast_set_external_texture_buffer): it is read and written in
++    * place and never freed here.
++    */
++   GLboolean ExternalBuffer;
++
+    FetchTexelFunc FetchTexel;
+ 
+    /** For fetching texels from compressed textures */
+diff --git a/src/mesa/swrast/s_texture.c b/src/mesa/swrast/s_texture.c
+index 24fddd7..3c5cbc3 100644
+--- a/src/mesa/swrast/s_texture.c
++++ b/src/mesa/swrast/s_texture.c
+@@ -167,14 +167,44 @@ _swrast_free_texture_image_buffer(struct gl_context *ctx,
+ {
+    struct swrast_texture_image *swImage = swrast_texture_image(texImage);
+ 
+-   align_free(swImage->Buffer);
++   if (!swImage->ExternalBuffer)
++      align_free(swImage->Buffer);
+    swImage->Buffer = NULL;
++   swImage->ExternalBuffer = GL_FALSE;
+ 
+    free(swImage->ImageSlices);
+    swImage->ImageSlices = NULL;
+ }
+ 
+ 
++/**
++ * riscos-mesa: make a 2D texture image use memory it doesn't own (an
++ * EGLImage's pixels, GL_OES_EGL_image) instead of allocating its own.
++ * The caller has set up the image's fields (_mesa_init_teximage_fields)
++ * after the old buffer was freed. Texels are then read (and, by
++ * glTexSubImage2D, written) in place, so changes to the memory show at
++ * the next draw; the memory must stay valid while the image uses it.
++ * rowStride is in bytes. Returns GL_FALSE if out of memory.
++ */
++GLboolean
++_swrast_set_external_texture_buffer(struct gl_texture_image *texImage,
++                                    GLubyte *buffer, GLint rowStride)
++{
++   struct swrast_texture_image *swImg = swrast_texture_image(texImage);
++
++   assert(texture_slices(texImage) == 1);
++   assert(!swImg->Buffer);
++   if (!_swrast_init_texture_image(texImage))
++      return GL_FALSE;
++
++   swImg->Buffer = buffer;
++   swImg->ExternalBuffer = GL_TRUE;
++   swImg->RowStride = rowStride;
++   swImg->ImageSlices[0] = buffer;
++   return GL_TRUE;
++}
++
++
+ /**
+  * Error checking for debugging only.
+  */
+diff --git a/src/mesa/swrast/swrast.h b/src/mesa/swrast/swrast.h
+index 7a7bb81..4e487e2 100644
+--- a/src/mesa/swrast/swrast.h
++++ b/src/mesa/swrast/swrast.h
+@@ -232,6 +232,11 @@ _swrast_alloc_texture_image_buffer(struct gl_context *ctx,
+ extern GLboolean
+ _swrast_init_texture_image(struct gl_texture_image *texImage);
+ 
++/* riscos-mesa: GL_OES_EGL_image (see s_texture.c) */
++extern GLboolean
++_swrast_set_external_texture_buffer(struct gl_texture_image *texImage,
++                                    GLubyte *buffer, GLint rowStride);
++
+ extern void
+ _swrast_free_texture_image_buffer(struct gl_context *ctx,
+                                   struct gl_texture_image *texImage);

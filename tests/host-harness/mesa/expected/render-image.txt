@@ -1,0 +1,18 @@
+extension yes
+image rgbx flat-replace nearest 1db173c5 upload 1db173c5 same
+image rgbx flat-replace linear a545f690 upload a545f690 same
+image rgbx tilted-modulate nearest eefd74b1 upload eefd74b1 same
+image rgbx tilted-modulate linear ccf9d19a upload ccf9d19a same
+image rgbx blended nearest caf8185c upload caf8185c same
+image rgbx blended linear 36856d60 upload 36856d60 same
+image bgrx flat-replace nearest 1db173c5 upload 1db173c5 same
+image bgrx flat-replace linear a545f690 upload a545f690 same
+image bgrx tilted-modulate nearest eefd74b1 upload eefd74b1 same
+image bgrx tilted-modulate linear ccf9d19a upload ccf9d19a same
+image bgrx blended nearest caf8185c upload caf8185c same
+image bgrx blended linear 36856d60 upload 36856d60 same
+live update yes
+respecified ok
+bad image GL_INVALID_VALUE
+null image GL_INVALID_VALUE
+lookups 14

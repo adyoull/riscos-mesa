@@ -32,6 +32,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglInitialize(EGLDisplay dpy, EGLint *major, EGLin
     if (!d->initialised) {
         make_configs(d);
         d->initialised = 1;
+        OSMesaSetImageLookup(image_lookup);     /* GL_OES_EGL_image */
     }
     if (major) *major = 1;
     if (minor) *minor = 4;
@@ -64,6 +65,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglTerminate(EGLDisplay dpy)
         free(y);
     }
     d->syncs = NULL;
+    destroy_images(d);
     d->initialised = 0;
     return ok();
 }

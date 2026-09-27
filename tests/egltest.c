@@ -3,7 +3,8 @@
  *
  * Usage:
  *   egltest [-o file]            checks without the desktop: strings, configs,
- *                                pbuffer and pixmap (sprite) rendering, error
+ *                                pbuffer and pixmap (sprite) rendering, a
+ *                                sprite used as a texture (EGLImage), error
  *                                cases. Saves the pixmap as Sprite file
  *                                "eglpixmap". Prints PASS/FAIL.
  *   egltest -w [-r] [-t secs] [-o file]
@@ -291,6 +292,60 @@ static int run_checks(void)
         eglQuerySurface(dpy, ls, EGL_BITMAP_PITCH_KHR, &pitch);
         CHECK(ptr == (EGLint) ((char *) spr + spr[8]) && pitch == 96 * 4, "bitmap = the sprite's pixels");
         CHECK(eglUnlockSurfaceKHR(dpy, ls) && eglDestroySurface(dpy, ls), "unlock");
+    }
+    if (area) {
+        /* EGL_KHR_image_pixmap + GL_OES_EGL_image: the sprite as a texture,
+           used in place (a video player writes each frame into it) */
+        typedef void (*TargetTexture_t)(GLenum, void *);
+        TargetTexture_t target = (TargetTexture_t) eglGetProcAddress("glEGLImageTargetTexture2DOES");
+        const unsigned int *pix = (const unsigned int *) ((char *) spr + spr[8]);
+        static unsigned char rgba[96 * 96 * 4];
+        EGLImageKHR img;
+        GLuint tex;
+        int x, y, bad;
+
+        img = eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR, (EGLClientBuffer) spr, NULL);
+        CHECK(img != EGL_NO_IMAGE_KHR, "EGLImage from the sprite");
+        CHECK(target && strstr((const char *) glGetString(GL_EXTENSIONS), "GL_OES_EGL_image"),
+              "GL_OES_EGL_image");
+        if (img != EGL_NO_IMAGE_KHR && target) {
+            glGenTextures(1, &tex);
+            glBindTexture(GL_TEXTURE_2D, tex);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            target(GL_TEXTURE_2D, img);
+            CHECK(glGetError() == GL_NO_ERROR, "texture from the image");
+            for (i = 0; i < 2; i++) {
+                if (i == 1)                     /* a new "frame": no GL call */
+                    memset((char *) spr + spr[8], 0x60, 96 * 4 * 10);
+                glViewport(0, 0, 96, 96);
+                glMatrixMode(GL_PROJECTION); glLoadIdentity();
+                glMatrixMode(GL_MODELVIEW); glLoadIdentity();
+                glDisable(GL_LIGHTING); glDisable(GL_DEPTH_TEST);
+                glEnable(GL_TEXTURE_2D);
+                glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+                glBegin(GL_QUADS);              /* sprite row 0 at the top */
+                glTexCoord2f(0, 1); glVertex2f(-1, -1);
+                glTexCoord2f(1, 1); glVertex2f(1, -1);
+                glTexCoord2f(1, 0); glVertex2f(1, 1);
+                glTexCoord2f(0, 0); glVertex2f(-1, 1);
+                glEnd();
+                glDisable(GL_TEXTURE_2D);
+                glReadPixels(0, 0, 96, 96, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+                for (bad = 0, y = 0; y < 96; y++)
+                    for (x = 0; x < 96; x++) {
+                        unsigned int p = pix[(95 - y) * 96 + x];
+                        const unsigned char *q = rgba + (y * 96 + x) * 4;
+                        if (q[0] != (p & 255) || q[1] != ((p >> 8) & 255) || q[2] != ((p >> 16) & 255))
+                            bad++;
+                    }
+                CHECK(bad == 0, i == 0 ? "textured quad shows the sprite" :
+                                         "sprite changed: shows at the next draw, no upload");
+                if (bad) say("  (%d pixels differ)\n", bad);
+            }
+            glDeleteTextures(1, &tex);
+            CHECK(eglDestroyImageKHR(dpy, img), "destroy image");
+        }
     }
     {
         EGLAttrib on[] = { EGL_DEBUG_MSG_ERROR_KHR, EGL_TRUE, EGL_NONE };

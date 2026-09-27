@@ -50,7 +50,8 @@ Run in this order and note the output:
    results next to them (eglcheck, eglwindow, eglfull, ...).
    a) egltest -o eglcheck
       No desktop needed: EGL strings, the config list, a pbuffer and a
-      pixmap (GL drawing straight into a sprite), error cases. Ends with
+      pixmap (GL drawing straight into a sprite), the sprite used as a
+      texture with no copy (EGLImage, new in 20.3.5-7), error cases. Ends with
       PASS or FAIL. Also saves the Sprite file "eglpixmap": open it in
       Paint (a lit cube on dark red with 4 green pixels top left).
    b) egltest -w  (from the desktop, e.g. double-click or TaskWindow)

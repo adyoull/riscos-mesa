@@ -313,6 +313,223 @@ static void test_pixmap(void)
     eglDestroyContext(dpy, ctx2);
 }
 
+/* EGL_KHR_image_pixmap + GL_OES_EGL_image: a sprite used in place as a
+   texture (for video frames). */
+typedef void *GLeglImageOES_t;
+typedef void (*TargetTexture_t)(GLenum, GLeglImageOES_t);
+typedef void (*TargetRenderbuffer_t)(GLenum, GLeglImageOES_t);
+
+/* The test pattern: red from x, green from y, blue from k; the fourth byte
+   (unused by images) is 0, as in sprites without alpha. */
+static void fill_pattern(int *spr, int trgb, int k)
+{
+    unsigned int *pix = (unsigned int *) ((char *) spr + spr[8]);
+    int w = spr[4] + 1, h = spr[5] + 1, x, y;
+    for (y = 0; y < h; y++)
+        for (x = 0; x < w; x++) {
+            unsigned int r = (x * 6 + k) & 255, g = (y * 10 + k) & 255, b = (0x80 + k) & 255;
+            pix[y * w + x] = trgb ? (r << 16 | g << 8 | b) : (b << 16 | g << 8 | r);
+        }
+}
+
+/* Draw the bound texture over the whole w x h viewport, sprite row 0 at the
+   top, and count pixels that don't match pattern k. Vertex arrays and a
+   triangle fan, so it works in OpenGL ES 1.1 contexts too. */
+static int draw_and_compare(int w, int h, int k)
+{
+    static const GLfloat pos[] = { -1, -1, 1, -1, 1, 1, -1, 1 };
+    static const GLfloat st[] = { 0, 1, 1, 1, 1, 0, 0, 0 };
+    unsigned char *px = malloc(w * h * 4);
+    int x, y, bad = 0;
+    glMatrixMode(GL_PROJECTION); glLoadIdentity();
+    glMatrixMode(GL_MODELVIEW); glLoadIdentity();
+    glClearColor(0, 0, 0, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 0, pos);
+    glTexCoordPointer(2, GL_FLOAT, 0, st);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px);
+    for (y = 0; y < h; y++)                     /* GL row y = sprite row h-1-y */
+        for (x = 0; x < w; x++) {
+            const unsigned char *p = px + (y * w + x) * 4;
+            int sy = h - 1 - y;
+            if (p[0] != ((x * 6 + k) & 255) || p[1] != ((sy * 10 + k) & 255) ||
+                p[2] != ((0x80 + k) & 255) || p[3] != 255)
+                bad++;
+        }
+    free(px);
+    return bad;
+}
+
+static void test_image(void)
+{
+    const int W = 37, H = 23;                   /* not powers of two */
+    int *spr = make_sprite(W, H, 0), *spr_trgb = make_sprite(W, H, 1), *spr8 = make_sprite(4, 4, 0);
+    unsigned int *pix = (unsigned int *) ((char *) spr + 44);
+    EGLint pa[] = { EGL_WIDTH, W, EGL_HEIGHT, H, EGL_NONE };
+    EGLint preserved[] = { EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE };
+    EGLint bad_attr[] = { EGL_WIDTH, 4, EGL_NONE };
+    EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 0, EGL_PBUFFER_BIT);
+    EGLContext ctx;
+    EGLSurface pb;
+    EGLImageKHR img, img2, img_trgb;
+    TargetTexture_t target_texture;
+    TargetRenderbuffer_t target_rb;
+    GLuint tex, rb;
+    GLint v;
+    const char *ext;
+    int tag;
+
+    eglBindAPI(EGL_OPENGL_API);
+    ext = eglQueryString(dpy, EGL_EXTENSIONS);
+    CHECK(strstr(ext, "EGL_KHR_image_base") && strstr(ext, "EGL_KHR_image_pixmap"), "image extensions");
+    CHECK(eglGetProcAddress("eglCreateImageKHR") == (void *) eglCreateImageKHR &&
+          eglGetProcAddress("eglDestroyImageKHR") == (void *) eglDestroyImageKHR, "image procs");
+
+    fill_pattern(spr, 0, 0);
+    fill_pattern(spr_trgb, 1, 0);
+    spr8[10] = 28;                              /* an 8bpp numbered mode */
+
+    /* Errors */
+    ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+    CHECK(eglCreateImageKHR(dpy, ctx, EGL_NATIVE_PIXMAP_KHR, spr, NULL) == EGL_NO_IMAGE_KHR &&
+          eglGetError() == EGL_BAD_PARAMETER, "pixmap image with a context refused");
+    CHECK(eglCreateImageKHR(dpy, EGL_NO_CONTEXT, 0x30B1 /* GL_TEXTURE_2D_KHR */, spr, NULL) ==
+          EGL_NO_IMAGE_KHR && eglGetError() == EGL_BAD_PARAMETER, "other targets refused");
+    CHECK(eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR, spr8, NULL) ==
+          EGL_NO_IMAGE_KHR && eglGetError() == EGL_BAD_PARAMETER, "8bpp sprite refused");
+    CHECK(eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR, spr, bad_attr) ==
+          EGL_NO_IMAGE_KHR && eglGetError() == EGL_BAD_PARAMETER, "bad attribute refused");
+    CHECK(eglCreateImageKHR((EGLDisplay) 0x42, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR, spr, NULL) ==
+          EGL_NO_IMAGE_KHR && eglGetError() == EGL_BAD_DISPLAY, "bad display");
+
+    img = eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR, spr, preserved);
+    CHECK(img != EGL_NO_IMAGE_KHR && eglGetError() == EGL_SUCCESS, "image from a TBGR sprite");
+    CHECK(eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR, spr, NULL) ==
+          EGL_NO_IMAGE_KHR && eglGetError() == EGL_BAD_ACCESS, "second image of one sprite refused");
+    img_trgb = eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR, spr_trgb, NULL);
+    CHECK(img_trgb != EGL_NO_IMAGE_KHR, "image from a TRGB sprite");
+    CHECK(eglLabelObjectKHR(dpy, EGL_OBJECT_IMAGE_KHR, img, &tag) == EGL_SUCCESS, "image label");
+    CHECK(!eglDestroyImageKHR(dpy, (EGLImageKHR) &tag) && eglGetError() == EGL_BAD_PARAMETER,
+          "destroying a non-image refused");
+
+    /* A texture using the sprite's pixels */
+    pb = eglCreatePbufferSurface(dpy, cfg, pa);
+    CHECK(eglMakeCurrent(dpy, pb, pb, ctx), "GL context current");
+    CHECK(strstr((const char *) glGetString(GL_EXTENSIONS), "GL_OES_EGL_image") != NULL,
+          "GL_OES_EGL_image advertised");
+    target_texture = (TargetTexture_t) eglGetProcAddress("glEGLImageTargetTexture2DOES");
+    target_rb = (TargetRenderbuffer_t) eglGetProcAddress("glEGLImageTargetRenderbufferStorageOES");
+    CHECK(target_texture && target_rb, "GL_OES_EGL_image procs");
+    if (!target_texture || !target_rb)
+        return;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+    glEnable(GL_TEXTURE_2D);
+    target_texture(GL_TEXTURE_2D, img);
+    CHECK(glGetError() == GL_NO_ERROR, "glEGLImageTargetTexture2DOES");
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &v);
+    CHECK(v == W, "texture width %d", v);
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &v);
+    CHECK(v == H, "texture height %d", v);
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, &v);
+    CHECK(v == GL_RGB, "texture is GL_RGB (%x)", v);
+    CHECK(draw_and_compare(W, H, 0) == 0, "texture shows the sprite, row 0 at t = 0, opaque");
+
+    /* The next frame: write the sprite, draw, no GL upload in between */
+    fill_pattern(spr, 0, 40);
+    CHECK(draw_and_compare(W, H, 40) == 0, "changed sprite shows at the next draw");
+    /* Writes through GL land in the sprite */
+    {
+        const unsigned char red[4] = { 255, 0, 0, 255 };
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 3, 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, red);
+        CHECK(RGB(pix[2 * W + 3]) == RED_TBGR, "glTexSubImage2D writes into the sprite (%08x)",
+              pix[2 * W + 3]);
+        fill_pattern(spr, 0, 40);
+    }
+    /* Linear filtering (the general texture path) runs on it too */
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    CHECK(draw_and_compare(W, H, 40) == 0, "linear filter at texel centres");
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    /* The other colour order */
+    target_texture(GL_TEXTURE_2D, img_trgb);
+    CHECK(glGetError() == GL_NO_ERROR && draw_and_compare(W, H, 0) == 0, "TRGB sprite as a texture");
+
+    /* Destroying the image leaves the texture using the sprite */
+    target_texture(GL_TEXTURE_2D, img);
+    CHECK(eglDestroyImageKHR(dpy, img) && eglGetError() == EGL_SUCCESS, "image destroyed");
+    CHECK(draw_and_compare(W, H, 40) == 0, "texture still shows the sprite");
+    target_texture(GL_TEXTURE_2D, img);
+    CHECK(glGetError() == GL_INVALID_VALUE, "destroyed image refused by GL");
+
+    /* Replacing the texture's storage must not free the sprite's memory */
+    {
+        static unsigned char texels[4 * 4 * 4];
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 4, 4, 0, GL_RGBA, GL_UNSIGNED_BYTE, texels);
+        CHECK(glGetError() == GL_NO_ERROR, "glTexImage2D over an image texture");
+        pix[0] = 0x123456;
+        CHECK(pix[0] == 0x123456, "sprite memory still ours");
+    }
+    img2 = eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR, spr, NULL);
+    CHECK(img2 != EGL_NO_IMAGE_KHR, "a new image of the sprite once the old one is gone");
+
+    /* Rendering into an image isn't supported */
+    {
+        typedef void (*GenRb_t)(GLsizei, GLuint *);
+        typedef void (*BindRb_t)(GLenum, GLuint);
+        GenRb_t gen = (GenRb_t) eglGetProcAddress("glGenRenderbuffersEXT");
+        BindRb_t bindrb = (BindRb_t) eglGetProcAddress("glBindRenderbufferEXT");
+        gen(1, &rb);
+        bindrb(0x8D41 /* GL_RENDERBUFFER */, rb);
+        target_rb(0x8D41, img2);
+        CHECK(glGetError() == GL_INVALID_OPERATION, "renderbuffer from an image refused");
+    }
+
+    glDeleteTextures(1, &tex);
+
+    /* OpenGL ES 1.1 */
+    {
+        EGLint es1[] = { EGL_CONTEXT_CLIENT_VERSION, 1, EGL_NONE };
+        EGLContext ectx;
+        eglBindAPI(EGL_OPENGL_ES_API);
+        ectx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, es1);
+        CHECK(ectx && eglMakeCurrent(dpy, pb, pb, ectx), "ES 1.1 context current");
+        CHECK(strstr((const char *) glGetString(GL_EXTENSIONS), "GL_OES_EGL_image") != NULL,
+              "GL_OES_EGL_image in ES 1.1");
+        fill_pattern(spr, 0, 7);
+        glGenTextures(1, &tex);
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+        glEnable(GL_TEXTURE_2D);
+        target_texture(GL_TEXTURE_2D, img2);
+        CHECK(glGetError() == GL_NO_ERROR && draw_and_compare(W, H, 7) == 0, "sprite texture in ES 1.1");
+        glDeleteTextures(1, &tex);
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroyContext(dpy, ectx);
+        eglBindAPI(EGL_OPENGL_API);
+    }
+
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    CHECK(eglDestroyImageKHR(dpy, img2) && eglDestroyImageKHR(dpy, img_trgb), "images destroyed");
+    eglDestroySurface(dpy, pb);
+    eglDestroyContext(dpy, ctx);
+    free(spr - 4);
+    free(spr_trgb - 4);
+    free(spr8 - 4);
+}
+
 static void test_window(void)
 {
     EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 16, EGL_WINDOW_BIT);
@@ -1088,6 +1305,7 @@ static void *run(void *arg)
     test_pbuffer();
     test_size_limit();
     test_pixmap();
+    test_image();
     test_window();
     test_client_and_platform();
     test_surfaceless_and_sync();

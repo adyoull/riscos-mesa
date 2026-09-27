@@ -9,7 +9,9 @@ screen double-buffered and direct, both colour orders, errors and deferred
 destruction, OpenGL ES 1.1 and 2.0 contexts, the DispmanX compatibility
 library (compiled as Pi code is, in harness_es.c), and the extensions: client and platform display calls,
 surfaceless contexts, sync objects, buffer age, swap with damage (window
-and full screen), partial update, surface locking and the debug callback.
+and full screen), partial update, surface locking, the debug callback, and images (a
+sprite used in place as a GL and GLES texture: EGL_KHR_image_pixmap with
+GL_OES_EGL_image).
 
 Pointers pass through 32-bit SWI registers as on RISC OS, so everything
 must stay below 2 GB. That's why it's built with -no-pie, malloc is kept on the brk
@@ -26,7 +28,7 @@ heap in one arena, and the tests run on a thread whose stack is at 1.5 GB.
     gcc $F harness.c fake_riscos.c ../../../egl/egl_riscos.c harness_es.o bcm_host.o \
       -o harness -L$O -lOSMesa -lpthread -Wl,-rpath,$O && ./harness
 
-Expected: `265 checks, 0 failures: ALL PASS`.
+Expected: `308 checks, 0 failures: ALL PASS`.
 
 ## Running a port (docs/porting)
 
