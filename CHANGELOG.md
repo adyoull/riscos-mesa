@@ -254,10 +254,29 @@ And in the build:
   - The performance check (`tests/host-harness/mesa/perf.sh`) also
     counts the instructions to start a program and create its first
     context, so start-up slowdowns are caught as well.
-- **Docs:** `build/TOOLCHAIN.md` says to apply riscos-openttd's UnixLib
-  patch (without it C++ programs that set up `std::locale` abort with
-  "wctype not implemented"), and the porting guide warns against
-  `popen()` and `system()`.
+- **Docs:**
+  - **EGL guide** (`docs/EGL-GUIDE.md`), brought up to date for this
+    release:
+    - images, with a "Video frames as textures" walkthrough;
+    - quitting properly from the desktop (Message_Quit and PreQuit);
+    - starting window programs from the Filer or with `*WimpTask`;
+    - the 20.3.5-7 speed table and a new section, "Getting speed out of
+      the renderer" (the texture fast path, `GL_FASTEST`, compressed
+      formats, the 4096 limit);
+    - more troubleshooting entries.
+  - **`egl/README.md`** has a section on images.
+  - **Porting guides** (`docs/porting/`):
+    - EGL images for video, and how Pi video code (OpenMAX) differs;
+    - threads and the UnixLib ticker fix;
+    - quitting and starting programs;
+    - the OpenAL link line;
+    - SDL's new quit, close and click behaviour;
+    - texture speed advice for GLUT and SDL programs;
+    - a warning against `popen()` and `system()`.
+  - **DispmanX README** updated to match.
+  - **`build/TOOLCHAIN.md`** says to apply riscos-openttd's UnixLib patch:
+    without it, C++ programs that set up `std::locale` abort with
+    "wctype not implemented".
 
 ## 20.3.5-6: freeglut, SDL sound
 
