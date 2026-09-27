@@ -30,7 +30,7 @@ cp "$STAGE/lib/libOSMesa.a" "$OUT/libOSMesa.a"
 arm-linux-gnueabihf-objcopy --redefine-sym errno=ro_errno_shim "$OUT/libOSMesa.a"
 $CC -c -O2 -mfloat-abi=hard "$HERE/shim.c" -o "$OUT/shim.o"
 
-CHECKS="render-fixed glsl-basic glsl-control glsl-edge"
+CHECKS="render-fixed render-rows glsl-basic glsl-control glsl-edge"
 for c in $CHECKS; do
     $CC -c -O2 -w -mfpu=vfpv4 -mfloat-abi=hard -I"$STAGE/include" "$HERE/../$c.c" -o "$OUT/$c.o"
     $CXX -static -o "$OUT/$c" "$OUT/$c.o" "$OUT/shim.o" "$OUT/libOSMesa.a" \
@@ -48,6 +48,7 @@ run() {
     return 1
 }
 for d in "16 0" "24 0" "24 8" "32 0"; do run "$OUT/render-fixed" $d; done > "$OUT/this/render-fixed.txt"
+run "$OUT/render-rows" > "$OUT/this/render-rows.txt"
 run "$OUT/glsl-basic" > "$OUT/this/glsl-basic.txt"
 run "$OUT/glsl-control" > "$OUT/this/glsl-control.txt"
 run "$OUT/glsl-edge" > "$OUT/this/glsl-edge.txt"

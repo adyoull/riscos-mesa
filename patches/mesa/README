@@ -114,6 +114,22 @@ mesa-20.3.5-riscos-span-speed.patch
       fragment program output (float to ubyte, never in place), so each
       span did a malloc and free for nothing.
 
+mesa-20.3.5-riscos-direct-rows.patch
+    swrast/s_span.c: when the colour buffer holds RGBA8 pixels in swrast's
+    own byte order (R, G, B, A: OSMesa's OSMESA_RGBA, the usual RISC OS
+    screen layout), rows are used as they are:
+    - _swrast_get_dest_rgba (blending, logic ops, colour masking) returns
+      a pointer to the row in the buffer instead of unpacking it into a
+      temporary array, if the span is a whole row inside the buffer and
+      the address is 4-byte aligned (masking and logic ops read it as
+      32-bit words; a program's own OSMesa buffer need not be aligned).
+      Its callers only read through the pointer.
+    - _swrast_put_row copies GL_UNSIGNED_BYTE rows with memcpy instead of
+      packing them pixel by pixel (put_ubyte_run).
+    Output identical (tests/host-harness/mesa/render-rows.c draws each
+    case aligned and misaligned). glbench's blend scene: 9.3% fewer
+    instructions.
+
 They are under the licence of the files they change: MIT (Mesa), except
 the change to include/c11/threads_posix.h, which is under the Boost
 Software License 1.0. See LICENCES.txt.

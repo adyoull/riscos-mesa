@@ -12,6 +12,7 @@ Renders a few thousand cases and compares a hash of every image with
 | Program | Covers |
 |---|---|
 | `render-fixed.c` | every depth function, lighting, smooth and flat shading, depth writes, lines, four depth/stencil sizes; 14 texture formats x filters x wrap modes x texture environment modes |
+| `render-rows.c` | blending, colour masking and logic ops, each into an aligned buffer (the destination row is read in place) and a misaligned one (it is unpacked): both hashes must match |
 | `glsl-basic.c` | GLSL vertex and fragment shaders: lighting, textures, uniforms, discard, blending |
 | `glsl-control.c` | indexed uniform arrays, loops with break/continue, nested if/else, discard, gl_FrontFacing, uniforms changed between draws, program switches, ARB programs (one replaced in place) |
 | `glsl-edge.c` | early return, derivatives, per-pixel loop counts, discard in loops, gl_FragDepth, projective and LOD texturing, a runaway loop |

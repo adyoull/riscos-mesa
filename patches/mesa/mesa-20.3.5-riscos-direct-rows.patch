@@ -1,0 +1,92 @@
+diff --git a/src/mesa/swrast/s_span.c b/src/mesa/swrast/s_span.c
+index 418cb80..51cce1f 100644
+--- a/src/mesa/swrast/s_span.c
++++ b/src/mesa/swrast/s_span.c
+@@ -1059,6 +1059,32 @@ shade_texture_span(struct gl_context *ctx, SWspan *span)
+ }
+ 
+ 
++/**
++ * riscos-mesa: true if rb holds 8-bit RGBA pixels with the bytes in the
++ * order swrast's GL_UNSIGNED_BYTE colour arrays use (R, G, B, A). A row of
++ * such a buffer can be read and written as it is, instead of being
++ * unpacked into, or packed from, a temporary array pixel by pixel.
++ * OSMesa's OSMESA_RGBA buffers are like this (riscos-mesa's EGL configs
++ * for the usual RISC OS screen layout, 0x00BBGGRR).
++ */
++static inline bool
++rgba8_layout(const struct gl_renderbuffer *rb)
++{
++   return rb->Format == MESA_FORMAT_RGBA_UNORM8;
++}
++
++/** Pack a run of GL_UNSIGNED_BYTE colours into renderbuffer memory */
++static inline void
++put_ubyte_run(const struct gl_renderbuffer *rb, GLuint n,
++              const GLubyte (*src)[4], void *dst)
++{
++   if (rgba8_layout(rb))
++      memcpy(dst, src, n * 4);
++   else
++      _mesa_pack_ubyte_rgba_row(rb->Format, n, src, dst);
++}
++
++
+ /** Put colors at x/y locations into a renderbuffer */
+ static void
+ put_values(struct gl_context *ctx, struct gl_renderbuffer *rb,
+@@ -1102,8 +1128,7 @@ _swrast_put_row(struct gl_context *ctx, struct gl_renderbuffer *rb,
+ 
+    if (!mask) {
+       if (datatype == GL_UNSIGNED_BYTE) {
+-         _mesa_pack_ubyte_rgba_row(rb->Format, count,
+-                                   (const GLubyte (*)[4]) values, dst);
++         put_ubyte_run(rb, count, (const GLubyte (*)[4]) values, dst);
+       }
+       else {
+          assert(datatype == GL_FLOAT);
+@@ -1129,9 +1154,9 @@ _swrast_put_row(struct gl_context *ctx, struct gl_renderbuffer *rb,
+             /* might be the end of a run of pixels */
+             if (runLen > 0) {
+                if (datatype == GL_UNSIGNED_BYTE) {
+-                  _mesa_pack_ubyte_rgba_row(rb->Format, runLen,
+-                                     (const GLubyte (*)[4]) values + runStart,
+-                                     dst + runStart * bpp);
++                  put_ubyte_run(rb, runLen,
++                                (const GLubyte (*)[4]) values + runStart,
++                                dst + runStart * bpp);
+                }
+                else {
+                   assert(datatype == GL_FLOAT);
+@@ -1598,7 +1623,8 @@ get_row(struct gl_context *ctx, struct gl_renderbuffer *rb,
+ /**
+  * Get RGBA pixels from the given renderbuffer.
+  * Used by blending, logicop and masking functions.
+- * \return pointer to the colors we read.
++ * \return pointer to the colors we read. Only read through it: it may
++ * point into the renderbuffer itself (see below).
+  */
+ void *
+ _swrast_get_dest_rgba(struct gl_context *ctx, struct gl_renderbuffer *rb,
+@@ -1606,6 +1632,21 @@ _swrast_get_dest_rgba(struct gl_context *ctx, struct gl_renderbuffer *rb,
+ {
+    void *rbPixels;
+ 
++   /* riscos-mesa: a row that lies inside the buffer and is already in
++    * swrast's own byte layout is used where it is, instead of being
++    * unpacked into the temporary array. Its address must be 4-byte
++    * aligned: masking and logic ops read it as 32-bit words (an OSMesa
++    * buffer supplied by the program need not be aligned).
++    */
++   if (!(span->arrayMask & SPAN_XY) &&
++       span->array->ChanType == GL_UNSIGNED_BYTE && rgba8_layout(rb) &&
++       span->y >= 0 && span->y < (GLint) rb->Height &&
++       span->x >= 0 && span->x + span->end <= rb->Width) {
++      GLubyte *row = _swrast_pixel_address(rb, span->x, span->y);
++      if (((uintptr_t) row & 3) == 0)
++         return row;
++   }
++
+    /* Point rbPixels to a temporary space */
+    rbPixels = span->array->attribs[VARYING_SLOT_MAX - 1];
+ 

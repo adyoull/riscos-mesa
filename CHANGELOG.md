@@ -104,6 +104,11 @@ Hot paths (`mesa-20.3.5-riscos-span-speed.patch`, same picture):
   stepping the colour per pixel: 12.6% fewer instructions for the blend
   scene.
 - **No malloc per span** when converting shader output to 8-bit colour.
+- **Blending, colour masks and logic ops read the screen in place**
+  (`mesa-20.3.5-riscos-direct-rows.patch`) when it's in the usual RISC OS
+  layout, instead of unpacking each row into a copy first; finished rows
+  are copied back whole rather than packed pixel by pixel. Blend scene:
+  9.3% fewer instructions.
 
 And in the build:
 
@@ -127,7 +132,7 @@ And in the build:
 - Blending is unchanged: its time moves by a couple of milliseconds
   between builds of the benchmark program itself (an A/B test on the Pi
   gave the same time with 20.3.5-6's library and this one).
-- The Mesa changes are seven new patches in `patches/mesa/`, described in
+- The Mesa changes are eight new patches in `patches/mesa/`, described in
   `patches/mesa/README`. `build/build-mesa.sh` applies them in order and
   records them in `.riscos-patches-applied`, so an existing Mesa tree
   gets only the ones it lacks.
