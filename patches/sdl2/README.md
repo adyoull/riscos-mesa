@@ -55,8 +55,9 @@ It contains:
   a062b36): in an EX0 EY0 ("180 dpi") mode a desktop window is shown with
   each SDL pixel as 2x2 screen pixels, as a 90 dpi mode would show it, and
   the mouse position is scaled to match. It falls back to 1:1 if the
-  doubled window wouldn't fit. `SDL$WindowScale` (1 = off, 2-4) overrides
-  it. The plot works out the scale from the sprite's own resolution too, so
+  doubled window wouldn't fit. The hint `SDL_RISCOS_WINDOW_SCALE` (1 = off,
+  2-4; `SDL_SetHint` or a system variable of that name) overrides it, and
+  so does the older `SDL$WindowScale` variable if the hint isn't set. The plot works out the scale from the sprite's own resolution too, so
   a 90 dpi sprite (non-16M-colour screens) isn't doubled twice. Full screen
   is unaffected. GL windows are scaled the same way (GL renders at the
   window's SDL size).
@@ -112,6 +113,12 @@ It contains:
     numeric offsets. The conversion changes no code (checked on the
     compiled objects).
   - Tested by `tests/host-harness/sdl-wimp`.
+- Tidy-ups (2026-09-27, requested by riscos-openttd, from its 67f38d2; no
+  change in behaviour): `RISCOS_IsWindowed()` instead of `wimp_window !=
+  0` (21 places; the compiled code is identical); the window title and
+  scroll wheel state are per device, in `SDL_VideoData`; the one desktop
+  window limit is written down; the window scale is also an SDL hint
+  (`SDL_HINT_RISCOS_WINDOW_SCALE`).
 - `sdl2-configure.ac.host.p`: OpenTTD's triplet fix (arm-riscos-gnueabihf
   is not Linux). `sdl2-configure.ac.osmesa.p`: the OSMesa option.
 

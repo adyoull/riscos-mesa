@@ -1,5 +1,5 @@
 diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
-index db6c86e..416232b 100644
+index db6c86e..8796dc2 100644
 --- src/video/riscos/SDL_riscosvideo.h
 +++ src/video/riscos/SDL_riscosvideo.h
 @@ -24,6 +24,7 @@
@@ -10,14 +10,16 @@ index db6c86e..416232b 100644
  
  #define RISCOS_MAX_KEYS_PRESSED 6
  
-@@ -31,8 +32,33 @@ typedef struct SDL_VideoData
+@@ -31,8 +32,53 @@ typedef struct SDL_VideoData
  {
      int last_mouse_buttons;
      Uint8 key_pressed[RISCOS_MAX_KEYS_PRESSED];
 +
-+    /* 2026: windowed (Wimp) mode */
++    /* 2026: windowed (Wimp) mode. Only one SDL window at a time can be a
++       desktop window (wimp_sdl_window); any other window is created full
++       screen, as the original driver did. Games only need one. */
 +    int wimp_task;              /* task handle, or 0 if not a Wimp task */
-+    int wimp_window;            /* window handle of the windowed SDL window */
++    int wimp_window;            /* Wimp window handle, or 0 in full screen (see RISCOS_IsWindowed) */
 +    int wimp_open_x, wimp_open_y; /* where it opens (top left, OS units) when shown */
 +    SDL_Window *wimp_sdl_window;
 +    SDL_bool pointer_in;        /* pointer is over our window */
@@ -29,12 +31,30 @@ index db6c86e..416232b 100644
 +    int xeig, yeig;             /* cached eigen factors of the current mode */
 +    int iconbar_icon;           /* icon bar icon handle, or -1 */
 +    int wscale_x, wscale_y;     /* screen pixels per SDL pixel in a desktop window */
++    char window_title[128];     /* title bar text (the Wimp reads it from here) */
++    int wheel_x, wheel_y;       /* last OS_Pointer 2 wheel position */
++    SDL_bool wheel_valid;       /* wheel_x/y have been read at least once */
 +    int gl_swap_interval;       /* 2026: OpenGL swap interval (0 or 1) */
 +    Uint32 gl_next_frame;       /* 2026: when the next paced GL frame is due (ms) */
 +    SDL_threadID main_thread;   /* 2026: only this thread may call the Wimp */
 +    volatile int *wakeup_pollword; /* 2026: Wimp pollword in the RMA (SDL_SendWakeupEvent) */
  } SDL_VideoData;
  
++/* 2026: SDL_TRUE when the program is running in a desktop window, SDL_FALSE
++   when it has the whole screen (single-tasking) or no window yet. */
++SDL_FORCE_INLINE SDL_bool
++RISCOS_IsWindowed(const SDL_VideoData *vdata)
++{
++    return (vdata->wimp_window != 0) ? SDL_TRUE : SDL_FALSE;
++}
++
++/* 2026: scale of a desktop window in screen pixels per SDL pixel: "1" never
++   scales, "2" to "4" always scale by that much; unset scales by 2 in high
++   resolution (EX0 EY0) modes. Can be set with SDL_SetHint or as the system
++   variable SDL_RISCOS_WINDOW_SCALE; SDL$WindowScale is still read if the
++   hint isn't set. */
++#define SDL_HINT_RISCOS_WINDOW_SCALE "SDL_RISCOS_WINDOW_SCALE"
++
 +extern void RISCOS_ApplyPointerVisibility(_THIS);
 +extern void RISCOS_WimpPlotWindow(_THIS, SDL_Window *window, RISCOS_Redraw *redraw, int more);
 +extern int RISCOS_WimpReadEig(int var);

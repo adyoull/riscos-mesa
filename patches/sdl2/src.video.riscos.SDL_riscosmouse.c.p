@@ -1,5 +1,5 @@
 diff --git src/video/riscos/SDL_riscosmouse.c src/video/riscos/SDL_riscosmouse.c
-index 072f8a7..1980952 100644
+index 072f8a7..9c6fde6 100644
 --- src/video/riscos/SDL_riscosmouse.c
 +++ src/video/riscos/SDL_riscosmouse.c
 @@ -23,6 +23,8 @@
@@ -22,7 +22,7 @@ index 072f8a7..1980952 100644
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +    SDL_bool hide = vdata->cursor_hidden;
 +
-+    if (vdata->wimp_window != 0 && !vdata->pointer_in)
++    if (RISCOS_IsWindowed(vdata) && !vdata->pointer_in)
 +        hide = SDL_FALSE;
 +    _kernel_osbyte(106, hide ? 0 : 1, 0);
 +}

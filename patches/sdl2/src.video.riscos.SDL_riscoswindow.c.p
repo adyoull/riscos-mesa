@@ -1,8 +1,8 @@
 diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow.c
-index f47d33a..92833f1 100644
+index f47d33a..c09844a 100644
 --- src/video/riscos/SDL_riscoswindow.c
 +++ src/video/riscos/SDL_riscoswindow.c
-@@ -24,16 +24,334 @@
+@@ -24,16 +24,340 @@
  
  #include "SDL_version.h"
  #include "SDL_syswm.h"
@@ -24,16 +24,17 @@ index f47d33a..92833f1 100644
 +#include <stdlib.h>
 +#include <swis.h>
 +
-+static char riscos_window_title[128] = "SDL";
 +/* Messages we want besides Message_Quit, which every task gets: Message_PreQuit
 +   (see SDL_riscosevents.c). */
-+static int riscos_wimp_messages[] = { 8 /* Message_PreQuit */, 0 };
++static const int riscos_wimp_messages[] = { 8 /* Message_PreQuit */, 0 };
 +
 +/* 2026: the program's own name (task name, icon bar menu title) and icon
 +   bar sprite, found from its application directory: a program run as
 +   ...!TestGL2.!RunImage is "TestGL2" with the sprite "!TestGL2" if the
 +   Wimp sprite pool has it (IconSprites / the Filer loads it), otherwise
 +   the generic "application" sprite. SDL_HINT_APP_NAME overrides the name.
++   These are properties of the program, not of a window or video device,
++   so they're kept per process (static) rather than in SDL_VideoData.
 +   (This replaces the old global SDL$IconSprite variable, which leaked from
 +   one program to the next: OpenTTD's setting showed up in other programs.) */
 +#include <unixlib/local.h>
@@ -134,17 +135,20 @@ index f47d33a..92833f1 100644
 +/* 2026: high resolution desktops. In a mode with 1 OS unit per pixel
 +   (EX0 EY0, "180dpi") a window the size the program asked for would look
 +   half size, so each SDL pixel is shown as 2x2 screen pixels, as a normal
-+   90dpi (EX1 EY1) mode would show it. SDL$WindowScale overrides this
-+   (1 = never scale, 2-4 = always scale by that much). Automatic scaling is
-+   skipped if the scaled window wouldn't fit on the screen. */
++   90dpi (EX1 EY1) mode would show it. SDL_HINT_RISCOS_WINDOW_SCALE (or
++   the older SDL$WindowScale variable) overrides this (1 = never scale,
++   2-4 = always scale by that much). Automatic scaling is skipped if the
++   scaled window wouldn't fit on the screen. */
 +void
 +RISCOS_ChooseWindowScale(_THIS, SDL_Window *window)
 +{
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +    int xeig = RISCOS_WimpReadEig(4), yeig = RISCOS_WimpReadEig(5);
-+    const char *env = SDL_getenv("SDL$WindowScale");
++    const char *env = SDL_GetHint(SDL_HINT_RISCOS_WINDOW_SCALE);
 +    int sx, sy;
 +
++    if (!env || !*env)
++        env = SDL_getenv("SDL$WindowScale");    /* older name, as set by !Run files */
 +    if (env && *env >= '1' && *env <= '4' && env[1] == 0) {
 +        sx = sy = *env - '0';
 +    } else {
@@ -270,7 +274,9 @@ index f47d33a..92833f1 100644
 +    h_os = (window->h * vdata->wscale_y) << yeig;
 +
 +    if (window->title)
-+        SDL_strlcpy(riscos_window_title, window->title, sizeof(riscos_window_title));
++        SDL_strlcpy(vdata->window_title, window->title, sizeof(vdata->window_title));
++    if (!vdata->window_title[0])
++        SDL_strlcpy(vdata->window_title, "SDL", sizeof(vdata->window_title));
 +
 +    SDL_memset(&def, 0, sizeof(def));
 +    def.visible.x0 = 0; def.visible.y0 = 0;                   /* visible area (set when opened) */
@@ -292,9 +298,9 @@ index f47d33a..92833f1 100644
 +    def.work_flags = 3 << 12;      /* work area button type: click */
 +    def.sprite_area = 1;           /* the Wimp sprite area */
 +    def.min_width = 0; def.min_height = 0;
-+    def.title_data[0] = (int)riscos_window_title;
++    def.title_data[0] = (int)vdata->window_title;
 +    def.title_data[1] = -1;
-+    def.title_data[2] = sizeof(riscos_window_title);
++    def.title_data[2] = sizeof(vdata->window_title);
 +    def.icon_count = 0;
 +
 +    regs.r[1] = (int)&def;
@@ -337,14 +343,14 @@ index f47d33a..92833f1 100644
      SDL_WindowData *driverdata;
  
      driverdata = (SDL_WindowData *) SDL_calloc(1, sizeof(*driverdata));
-@@ -42,27 +360,212 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
+@@ -42,27 +366,212 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
      }
      driverdata->window = window;
  
 -    window->flags |= SDL_WINDOW_FULLSCREEN;
 -
 -    SDL_SetMouseFocus(window);
-+    if ((window->flags & SDL_WINDOW_FULLSCREEN) || vdata->wimp_window != 0) {
++    if ((window->flags & SDL_WINDOW_FULLSCREEN) || RISCOS_IsWindowed(vdata)) {
 +        /* Full screen: we own the whole screen. We stay a Wimp task (if we
 +           are one) but stop calling Wimp_Poll, so the desktop is suspended
 +           until we return to a window or quit (fix 13). */
@@ -372,7 +378,7 @@ index f47d33a..92833f1 100644
 +    _kernel_swi_regs regs;
 +    int handle;
 +
-+    if (vdata->wimp_window == 0)
++    if (!RISCOS_IsWindowed(vdata))
 +        return;
 +    handle = vdata->wimp_window;
 +    regs.r[1] = (int)&handle;
@@ -399,7 +405,7 @@ index f47d33a..92833f1 100644
 +        RISCOS_UpdateEigs(_this);
 +        SDL_SetMouseFocus(window);
 +        RISCOS_ApplyPointerVisibility(_this);
-+    } else if (!window->is_destroying && vdata->wimp_window == 0) {
++    } else if (!window->is_destroying && !RISCOS_IsWindowed(vdata)) {
 +        /* Back to a desktop window of the windowed size. */
 +        if (window->windowed.w > 0 && window->windowed.h > 0) {
 +            window->w = window->windowed.w;
@@ -420,7 +426,7 @@ index f47d33a..92833f1 100644
 +    RISCOS_Box extent;
 +    _kernel_swi_regs regs;
 +
-+    if (vdata->wimp_window == 0 || vdata->wimp_sdl_window != window)
++    if (!RISCOS_IsWindowed(vdata) || vdata->wimp_sdl_window != window)
 +        return;
 +
 +    xeig = RISCOS_WimpReadEig(4);
@@ -453,7 +459,7 @@ index f47d33a..92833f1 100644
 +{
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +
-+    if (vdata->wimp_window == 0 || vdata->wimp_sdl_window != window)
++    if (!RISCOS_IsWindowed(vdata) || vdata->wimp_sdl_window != window)
 +        return;
 +    RISCOS_WimpShowWindow(_this, window);
 +}
@@ -466,7 +472,7 @@ index f47d33a..92833f1 100644
 +    _kernel_swi_regs regs;
 +    int handle;
 +
-+    if (vdata->wimp_window == 0 || vdata->wimp_sdl_window != window)
++    if (!RISCOS_IsWindowed(vdata) || vdata->wimp_sdl_window != window)
 +        return;
 +
 +    /* Remember where it was, to open it there again. */
@@ -495,8 +501,8 @@ index f47d33a..92833f1 100644
 +    _kernel_swi_regs regs;
 +
 +    if (window->title)
-+        SDL_strlcpy(riscos_window_title, window->title, sizeof(riscos_window_title));
-+    if (vdata->wimp_window == 0 || vdata->wimp_sdl_window != window)
++        SDL_strlcpy(vdata->window_title, window->title, sizeof(vdata->window_title));
++    if (!RISCOS_IsWindowed(vdata) || vdata->wimp_sdl_window != window)
 +        return;
 +
 +    /* Redraw the title bar (RISC OS 3.8+ form of Wimp_ForceRedraw). */
@@ -512,7 +518,7 @@ index f47d33a..92833f1 100644
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
      SDL_WindowData *driverdata = (SDL_WindowData *) window->driverdata;
  
-+    if (vdata->wimp_window != 0 && vdata->wimp_sdl_window == window) {
++    if (RISCOS_IsWindowed(vdata) && vdata->wimp_sdl_window == window) {
 +        _kernel_swi_regs regs;
 +        int handle = vdata->wimp_window;
 +        regs.r[1] = (int)&handle;

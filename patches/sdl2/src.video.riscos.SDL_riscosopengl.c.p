@@ -1,6 +1,6 @@
 diff --git src/video/riscos/SDL_riscosopengl.c src/video/riscos/SDL_riscosopengl.c
 new file mode 100644
-index 0000000..80eaba9
+index 0000000..b5ef9cb
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.c
 @@ -0,0 +1,392 @@
@@ -318,7 +318,7 @@ index 0000000..80eaba9
 +    SDL_DisplayMode mode;
 +    Uint32 period, now;
 +
-+    if (vdata->wimp_window == 0 || vdata->wimp_sdl_window != window) {
++    if (!RISCOS_IsWindowed(vdata) || vdata->wimp_sdl_window != window) {
 +        _kernel_osbyte(19, 0, 0);
 +        return;
 +    }
