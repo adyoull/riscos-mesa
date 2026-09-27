@@ -98,7 +98,7 @@ runs anywhere.
 | --- | --- | --- |
 | all | exit on a key (`OS_Byte 122`) or Menu (`OS_Mouse`); paths via `<App$Dir>` | no terminal or `/dev/input`; files live in the application |
 | hello_triangle2 | render at 1/N size (default: about 320 wide); the fractal scale and mouse follow the render size | shaders run on the CPU; the same picture in a window or full screen |
-| hello_teapot | a still picture instead of the video texture | the video came from OpenMAX through an `EGLImage`; neither exists here |
+| hello_teapot | a still picture instead of the video texture | the video came from OpenMAX, which renders into an `EGLImage` made from a GL texture; neither exists here (see below for video) |
 
 Four things in riscos-mesa made the rest of the code work unchanged:
 
@@ -115,7 +115,7 @@ Four things in riscos-mesa made the rest of the code work unchanged:
 | Example | Uses | Status |
 | --- | --- | --- |
 | hello_triangle, hello_triangle2, hello_teapot | EGL, OpenGL ES | ported (`ports/hello_pi`) |
-| hello_videocube | OpenGL ES + OpenMAX video texture | portable the way hello_teapot was (a still picture instead of the video) |
+| hello_videocube | OpenGL ES + OpenMAX video texture | portable the way hello_teapot was (a still picture), or with real video: decode into a sprite whose EGL image is the texture (see below) |
 | hello_tiger, hello_font | OpenVG (hello_font through vgfont, with DispmanX resources) | not portable: riscos-mesa has no OpenVG |
 | hello_dispmanx | DispmanX resources (2D images) | not supported by the compatibility library |
 | hello_video, hello_audio, hello_encode, hello_jpeg | OpenMAX IL (the VideoCore codecs) | not portable |
@@ -125,7 +125,16 @@ Four things in riscos-mesa made the rest of the code work unchanged:
 
 Other Pi Khronos programs follow the same pattern. If they only use EGL,
 GLES and DispmanX elements, they port as above. If they need OpenVG,
-OpenMAX, MMAL or `EGLImage`, those parts need replacing.
+OpenMAX or MMAL, those parts need replacing.
+
+**Video textures.** On the Pi, `hello_videocube` and `hello_teapot` make an
+`EGLImage` from a GL texture (`EGL_GL_TEXTURE_2D_KHR`) and have OpenMAX's
+`egl_render` component decode video into it. riscos-mesa makes images the
+other way round: from a 32bpp sprite (`EGL_KHR_image_pixmap`), which a
+texture then uses in place (`glEGLImageTargetTexture2DOES`). So the
+texture set-up stays GL ES, and the video part is rewritten to decode each
+frame into the sprite, for example with riscos-ffmpeg's `ffegl`, which does
+exactly that. See "Video frames as textures" in `docs/EGL-GUIDE.md`.
 
 ## Going native
 

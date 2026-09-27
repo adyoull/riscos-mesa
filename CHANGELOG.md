@@ -198,8 +198,9 @@ And in the build:
   sprite name is the full 12 characters (e.g. `!Warzone2100`) got a blank
   icon bar icon, because the name was cut to 11 characters.
 - **SDL2 window scale hint:** the desktop window scale can be set with
-  `SDL_SetHint(SDL_HINT_RISCOS_WINDOW_SCALE, "1")` (or the system variable
-  `SDL_RISCOS_WINDOW_SCALE`); `SDL$WindowScale` still works.
+  `SDL_SetHint("SDL_RISCOS_WINDOW_SCALE", "1")` (the name is a string:
+  it isn't in SDL's public headers), or the system variable
+  `SDL_RISCOS_WINDOW_SCALE`; `SDL$WindowScale` still works.
 - **SDL2 mouse clicks in a window are no longer lost:** the window's
   buttons were read once per `SDL_PumpEvents`, so a click pressed and
   released between two frames (easy at the 5-10 frames a second of a busy

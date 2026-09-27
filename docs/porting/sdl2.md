@@ -28,6 +28,18 @@ its window and context from SDL has no window code to change.
   loading it works too.
 - **Windows:** resizing, switching to full screen and back, and EX0 EY0
   (180 dpi) scaling are handled by the driver.
+  The hint `"SDL_RISCOS_WINDOW_SCALE"` (`SDL_SetHint`, or a system
+  variable of that name; `SDL$WindowScale` also works) sets the scale;
+  `SDL_ShowWindow` / `SDL_HideWindow` work.
+- **Quitting:** the close icon sends `SDL_WINDOWEVENT_CLOSE` (and SDL then
+  sends `SDL_QUIT` if it was the last window), the icon bar menu's Quit
+  sends `SDL_QUIT`. A desktop shutdown or the Task Manager's Quit also
+  sends `SDL_QUIT`, so the program can save or confirm first; the
+  shutdown carries on once it has quit. A program that keeps running
+  after Message_Quit is ended at its next event pump, as RISC OS requires.
+- **Mouse clicks** are never lost, even at a few frames a second: a click
+  pressed and released between two event pumps is reported as a press and
+  a release where it happened.
 - **Sound:** `SDL_OpenAudioDevice` / `SDL_OpenAudio` play through the RISC
   OS audio driver, over SharedSoundBuffer (it mixes with other programs'
   sound and resamples to the hardware rate). Load the modules in `!Run`:
@@ -112,6 +124,11 @@ its window and context from SDL has no window code to change.
   - GLSL and ES 2.0 are several times slower.
   - Full screen at a large mode is a lot of pixels: offer a smaller
     window, or render to a smaller framebuffer and scale up.
+  - Textures: see "Speed" in [README.md](README.md). `GL_CLAMP_TO_EDGE`
+    instead of `GL_CLAMP`, and `glHint(GL_PERSPECTIVE_CORRECTION_HINT,
+    GL_FASTEST)` for mipmapped scenes, keep games on the fast path.
+- **Threads:** SDL's sound runs in a thread. Link with a UnixLib that has
+  the pthread ticker fix (see [README.md](README.md)).
 - **SDL's GL renderer:** riscos-mesa's SDL deliberately leaves SDL's
   OpenGL *renderer* out. `SDL_CreateRenderer` programs use SDL's faster
   software renderer, and only programs that call GL themselves use Mesa.
@@ -131,5 +148,5 @@ surfaces, see `docs/EGL-GUIDE.md`.
 - **Build:** they cross-build unchanged with the steps above.
 - **Host rig:** the SDL host harness (`tests/host-harness`) covers the
   driver's GL context creation for desktop GL, ES 1.1 and ES 2.0.
-- **For comparison:** `sdlgltest`, the same pattern, runs at 153 fps in a
-  640x480 window on the Pi 4.
+- **For comparison:** `sdlgltest`, the same pattern, ran at 153 fps in a
+  640x480 window on the Pi 4, measured before the 20.3.5-7 speed-ups.

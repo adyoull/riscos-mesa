@@ -106,6 +106,11 @@ Watch for:
 - **Pixmaps:** X11 pixmaps have no RISC OS equivalent, but riscos-mesa's
   EGL pixmaps are sprites. A program that renders into a pixmap can make
   a 32bpp sprite instead: see `run_pixmap` in `tests/glestest.c`.
+- **Textures from pixmaps:** the `texture_from_pixmap` demos use
+  `EGL_NOK_texture_from_pixmap`, which isn't available. The RISC OS way to
+  texture from a sprite is an EGL image of it (`EGL_KHR_image_pixmap` with
+  `GL_OES_EGL_image`), which reads the sprite in place: see "Video frames
+  as textures" in `docs/EGL-GUIDE.md`.
 
 ## Going native
 

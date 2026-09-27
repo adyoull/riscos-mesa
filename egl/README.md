@@ -13,7 +13,10 @@ same code a future hardware driver (or a shared module) would serve.
     link: -lEGL -lOSMesa -lstdc++ -lz -lm      (compile with -fstack-clash-protection)
 
 `tests/egltest.c` is a complete example: a Wimp task with a GL window, a
-full screen program, and pbuffer and pixmap use.
+full screen program, pbuffer and pixmap use, and a sprite used as a
+texture (an EGL image). `tests/glestest.c` does the same with OpenGL ES.
+For a guided tour, with performance advice, see
+[docs/EGL-GUIDE.md](../docs/EGL-GUIDE.md).
 
 ## What it provides
 | | |
@@ -22,6 +25,7 @@ full screen program, and pbuffer and pixmap use.
 | Client API | `EGL_OPENGL_API`: OpenGL 2.1 compatibility profile, GLSL 1.20 (Mesa 20.3 classic swrast); a request for GL 3.x or core gives `EGL_BAD_MATCH`. `EGL_OPENGL_ES_API`: OpenGL ES 1.1 and 2.0 (see [OpenGL ES](#opengl-es)). The initial API is OpenGL ES, as the EGL spec says: desktop GL code calls `eglBindAPI(EGL_OPENGL_API)` first. |
 | Configs | 8: RGBA 8888 with depth/stencil 0/0, 16/0, 24/0, 24/8, in each of the two RISC OS 32bpp colour orders. The configs matching the current screen mode have the lowest IDs. Caveat `EGL_NONE`, no multisampling. |
 | Surfaces | window, pbuffer, pixmap, each up to 4096x4096 (Mesa's largest buffer; GL's texture and viewport limits are 4096 too). All preserve their contents across swaps. |
+| Images | 32bpp sprites (`EGL_KHR_image_pixmap`), used in place as GL or GLES textures through `GL_OES_EGL_image`: see [Images](#images-sprites-as-textures). |
 
 **The EGL default:** `eglChooseConfig` matches `EGL_RENDERABLE_TYPE` =
 `EGL_OPENGL_ES_BIT` unless you say otherwise. Every config here supports
@@ -96,6 +100,28 @@ with its colour order matching the config: `EGL_MATCH_NATIVE_PIXMAP` in
 surface exists. `eglCopyBuffers` copies any surface into a 32bpp sprite,
 swapping red and blue if the orders differ.
 
+### Images: sprites as textures
+`eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR, sprite, NULL)`
+makes an image of a 32bpp sprite, and
+`glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image)` (from
+`eglGetProcAddress`, or `GLES2/gl2ext.h`) makes the bound texture use the
+sprite's pixels as its level 0, in place. Nothing is copied, then or later:
+a program that writes each new frame of a video into the sprite sees it at
+the next draw. The Mesa side is patch `riscos-eglimage` (`OSMesaSetImageLookup`
+in `GL/osmesa.h`, which this library calls in `eglInitialize`).
+
+- Any size up to 4096x4096 (powers of two not needed), either colour order.
+- Sprite row 0 (the top) is t = 0, as when the rows are uploaded with
+  `glTexImage2D`. The pixel's top byte isn't used: the texture is `GL_RGB`.
+- Level 0 only: set `GL_TEXTURE_MIN_FILTER` to `GL_LINEAR` or `GL_NEAREST`.
+- The sprite must stay in memory, and not move, while a texture uses it,
+  even after `eglDestroyImageKHR`. `glTexImage2D` on the texture, or
+  deleting it, ends the link; the sprite is never freed by GL.
+- One image per sprite (a second is `EGL_BAD_ACCESS`); `ctx` must be
+  `EGL_NO_CONTEXT`; only `EGL_NATIVE_PIXMAP_KHR` images; no rendering into
+  an image (`glEGLImageTargetRenderbufferStorageOES` gives
+  `GL_INVALID_OPERATION`). To render into a sprite, use a pixmap surface.
+
 ### Colour order
 32bpp RISC OS modes are either `0x00BBGGRR` (ModeFlags bit 14 clear, sprite
 type 6) or `0x00RRGGBB` (bit 14 set). `EGL_NATIVE_VISUAL_ID` of a config is
@@ -133,8 +159,10 @@ screen (`EGL_RISCOS_SCREEN_WINDOW`), a sprite pixmap or a pbuffer.
   a desktop GL one and the other way round. `eglGetCurrentContext` reports
   the current context only while its API is the bound one.
 - ES 2.0 is all shaders, and shaders run through Mesa's GLSL interpreter:
-  expect roughly a sixth of the speed of the same scene in fixed-function
-  ES 1.1 or desktop GL.
+  expect it to be several times slower than the same scene in
+  fixed-function ES 1.1 or desktop GL (on a Pi 4 at 640x480, glbench's
+  per-pixel shaded cube takes 38 ms a frame, the fixed-function lit cube
+  3 ms).
 
 Existing code written for the Raspberry Pi's Khronos stack (DispmanX
 windows) can instead use the compatibility library in `dispmanx/`
@@ -180,8 +208,10 @@ modes it was shown doubled and cropped.)
 - Not thread safe: make all EGL and GL calls from one thread.
 - OSMesa can't un-bind a context. After releasing with `eglMakeCurrent(dpy,
   EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT)`, don't make GL calls.
-- The draw and read surfaces must be the same. No bind-to-texture, no
-  OpenVG, no EGL 1.5 entry points (the KHR sync extensions are there).
+- The draw and read surfaces must be the same. No `eglBindTexImage`
+  (textures from memory are done with images of sprites instead), no
+  OpenVG, no EGL 1.5 entry points (the KHR sync and image extensions are
+  there).
 - The enum values and function names of `EGL_RISCOS_wimp_window` are
   provisional: they aren't registered with Khronos.
 

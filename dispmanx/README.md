@@ -93,6 +93,10 @@ fewer pixels, because it sizes everything from `graphics_get_display_size`.
   clamping and DispmanX resources (2D images, `vc_dispmanx_resource_*`)
   aren't supported. An element whose source is a resource shows nothing.
 - No OpenMAX, MMAL or other VideoCore services.
+- EGL images come only from sprites (`EGL_KHR_image_pixmap`), not from GL
+  textures (`EGL_GL_TEXTURE_2D_KHR`, which Pi video code gives to OpenMAX).
+  Video textures are done by decoding into a sprite whose image the
+  texture uses: see `docs/porting/hello_pi.md`.
 - Rendering is Mesa's software rasteriser: OpenGL ES 1.1 is quick;
   ES 2.0 programs are all shaders, which are slow on the CPU.
 

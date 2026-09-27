@@ -1,12 +1,12 @@
 # RISC OS EGL programming guide
 
-For riscos-mesa v20.3.5-5 (September 2026). Andrew Youll.
+For riscos-mesa v20.3.5-7 (September 2026). Andrew Youll.
 
 ## Overview
 
 `libEGL` gives RISC OS programs the standard Khronos way to set up OpenGL: EGL 1.4 on top of Mesa's software renderer (OSMesa), with desktop OpenGL 2.1 (GLSL 1.20), OpenGL ES 1.1 and OpenGL ES 2.0. You write ordinary EGL and GL code; the library handles Wimp windows, full screen and sprites. Code written for the Raspberry Pi's Khronos stack can keep its DispmanX window code through a compatibility library.
 
-- **Where it comes from:** riscos-mesa, release v20.3.5-3 or later; the standard extensions need v20.3.5-4, OpenGL ES and DispmanX compatibility v20.3.5-5 (devkit `riscos-mesa-devkit-20.3.5-5.tgz`: `lib/libEGL.a`, `lib/libOSMesa.a`, `lib/libbcm_host.a`, `include/EGL/`, `include/GL/`, `include/GLES/`, `include/GLES2/`).
+- **Where it comes from:** riscos-mesa, release v20.3.5-3 or later; the standard extensions need v20.3.5-4, OpenGL ES and DispmanX compatibility v20.3.5-5, and images (sprites as textures) v20.3.5-7. The devkit (`riscos-mesa-devkit-VERSION.tgz`) has `lib/libEGL.a`, `lib/libOSMesa.a`, `lib/libbcm_host.a` and the headers: `include/EGL/`, `include/GL/`, `include/GLES/`, `include/GLES2/`.
 - **Runs on:** RISC OS 5 on ARMv7 with VFP (Raspberry Pi 2, 3, 4), with SharedUnixLibrary and ARMEABISupport loaded. Tested on a Pi 4.
 - **Toolchain:** GCCSDK GCC 10 (`arm-riscos-gnueabihf`), static ELF programs.
 
@@ -39,8 +39,9 @@ Every EGL program follows the same five steps: get the display, initialise it, c
 | --- | --- |
 | Display | The screen. Only `EGL_DEFAULT_DISPLAY` (0) is accepted. |
 | Config | A pixel format: RGBA 8888 plus a depth/stencil combination (0/0, 16/0, 24/0, 24/8), in one of the two 32bpp colour orders. 8 in all. |
-| Context | An OpenGL 2.1 compatibility context (all GL state lives here). |
+| Context | An OpenGL 2.1 compatibility, OpenGL ES 1.1 or OpenGL ES 2.0 context (all GL state lives here). |
 | Surface | Where GL draws: a window surface, a pbuffer (plain memory) or a pixmap (a sprite). |
+| Image | A sprite that a GL texture reads in place (`EGL_KHR_image_pixmap`): see [Video frames as textures](#using-the-extensions). |
 
 **Native types** (defined in `EGL/eglplatform.h` when `__riscos__` is set):
 
@@ -169,8 +170,8 @@ for (;;) {
         break;
     case 3:                                   /* Close_Window_Request */
         goto done;
-    case 17: case 18:                         /* Message_Quit */
-        if (block[4] == 0) goto done;
+    case 17: case 18:                         /* User_Message (Recorded) */
+        if (block[4] == 0) goto done;         /* Message_Quit: must exit */
         break;
     }
 }
@@ -183,6 +184,8 @@ for (;;) {
 - A plain GL window doesn't need scroll bars. Without them, the scroll wheel is free for your program (the wheel position is `OS_Pointer 2`).
 
 **Redraws.** When another window is dragged over yours, the Wimp sends Redraw_Window_Request. `eglRedrawWindowRISCOS(dpy, block)` runs the whole `Wimp_RedrawWindow` / `Wimp_GetRectangle` loop and plots the last finished frame of every EGL surface in that window. It returns `EGL_FALSE`, without starting a redraw, if the window has no EGL surfaces.
+
+**Quitting.** Message_Quit (0) means the desktop is closing down or the Task Manager quit the task: tidy up and exit, as the loop above does. To ask the user about unsaved work first, answer Message_PreQuit (8), which comes as a recorded message (reason 18) before a shutdown: acknowledge it (send it back to the sender as reason 19 with your_ref set to its my_ref) to stop the shutdown, then restart it once you're done with `Wimp_ProcessKey` &1FC (Ctrl-Shift-F12) if bit 0 of the flags at block+20 was clear.
 
 **Pacing: don't hog the machine.** In a window `eglSwapBuffers` never waits for vsync, because waiting would stop every other task. A program that draws on every null event uses all the CPU it's given, while still multitasking. To limit the frame rate, use `Wimp_PollIdle` with a time a frame ahead instead of `Wimp_Poll`. To draw only when something changes, turn null events off (poll mask bit 0) and call your draw code from the events that change the scene.
 
@@ -289,6 +292,8 @@ eglMakeCurrent(dpy, ps, ps, ctx);            /* ctx made from the same cfg */
 - Pixmap surfaces are single buffered: `eglSwapBuffers` does nothing, and drawing lands in the sprite as it happens.
 
 **Copying out.** `eglCopyBuffers(dpy, surface, spr)` copies any surface (window, pbuffer or pixmap) into a 32bpp sprite, swapping red and blue if the colour orders differ. It's a quick way to take a screenshot of a window surface.
+
+**Sprites as textures.** The other way round, a 32bpp sprite can be the storage of a GL texture: make an EGL image of it and bind that to a texture, and GL reads the sprite's pixels in place every time it draws. That suits video or anything else you write into memory every frame; see "Video frames as textures" under [Using the extensions](#using-the-extensions).
 
 ## Choosing configs and creating contexts
 
@@ -598,14 +603,36 @@ Rendering is Mesa's software rasteriser on one CPU core, so keep scenes simple a
 | Same, no vsync | ~67 fps | 9.2 ms / 5.7 ms |
 | Same, direct to screen | ~100 fps | 9.9 ms / 0 ms |
 
-From the riscos-mesa benchmark at 640x480 (ms per frame): clear 1.5, lit cube 5.6, 12k lit triangles 27, 4x blended quads 28, full-screen texture 45, GLSL cube 95. **GLSL is slow**: fixed-function GL is several times faster for the same result.
+The window and full screen figures are from the 20.3.5-4 tests; rendering has got faster since. The riscos-mesa benchmark (`glbench`, 640x480, 24-bit depth + stencil, 20.3.5-7, ms per frame and frames per second):
+
+| Scene | ms | fps |
+| --- | --- | --- |
+| clear | 1.51 | 664 |
+| lit cube | 3.11 | 322 |
+| 12288 lit triangles | 11.06 | 90 |
+| 4 blended full-screen quads | 20.45 | 49 |
+| full-screen bilinear texture | 23.47 | 43 |
+| GLSL per-pixel shaded cube | 38.05 | 26 |
+
+**GLSL is slow**: shaders run through Mesa's interpreter, so fixed-function GL is several times faster for the same result.
+
+**Getting speed out of the renderer**
+
+- **Pixels cost most.** Time grows with the pixels drawn: a smaller window, or rendering smaller and scaling up full screen, is the biggest saving.
+- **Textured triangles have a fast path.** It takes one 2D texture, a power of two in size, RGB or RGBA (8 bits a channel), in `GL_REPEAT` or `GL_CLAMP_TO_EDGE` mode (or `GL_CLAMP` with `GL_NEAREST`), with or without fog. Anything else goes through the general path, which can be much slower per pixel.
+  - Use `GL_CLAMP_TO_EDGE`, not `GL_CLAMP`, with `GL_LINEAR`: `GL_CLAMP` blends in the border colour at the edges, which only the general path does.
+  - Mipmaps, or different minification and magnification filters, use the general path unless you set `glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST)`. Then each triangle uses one mipmap level, and perspective is corrected every 16 pixels instead of every pixel. Without the hint, rendering is exact.
+  - Generic compressed formats (`GL_COMPRESSED_RGBA` and so on) are stored uncompressed, so they cost nothing. Explicit S3TC formats are decoded for every texel: avoid them.
+  - Several texture units, combiners and shaders take the general path.
+- **Blending and colour masks** read the destination in place when it's a plain 32-bit buffer, so they're cheaper than they were, but each blended layer still costs a full pass over its pixels.
+- **Surfaces, textures and viewports** are at most 4096 pixels each way.
 
 **Limits**
 
 - OpenGL 2.1, OpenGL ES 1.1 and ES 2.0; GL 3.x, core profiles and ES 3.x are refused.
 - One thread: make all EGL and GL calls from the same thread.
 - OSMesa can't really release a context: after `eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT)` don't make GL calls.
-- No multisampling, no bind-to-texture, no EGL 1.5 entry points.
+- No multisampling, no EGL 1.5 entry points. No `eglBindTexImage` (pbuffers as textures); to texture from memory you write yourself, make an image of a sprite (see [Using the extensions](#using-the-extensions)).
 - Static linking only; each program carries its own copy of Mesa (about 9 MB).
 
 **Troubleshooting**
@@ -621,9 +648,11 @@ From the riscos-mesa benchmark at 640x480 (ms per frame): clear 1.5, lit cube 5.
 | Full screen tears | Use the default sprite plot with a swap interval of 1; direct rendering and (on the Pi 4) screen banks tear |
 | Desktop left covered after a full screen run | `Wimp_ForceRedraw` with window -1 before exiting |
 | Printing from a Wimp task pops up a window | Normal for UnixLib programs: write results to a file instead |
+| Textured drawing much slower than expected | The textures miss the fast path: see "Getting speed out of the renderer" above (usually `GL_CLAMP`, mipmaps without the `GL_FASTEST` hint, or sizes that aren't powers of two) |
+| A texture made from an image shows nothing (black or white) | The min filter still needs mipmaps: set `GL_TEXTURE_MIN_FILTER` to `GL_LINEAR` or `GL_NEAREST` |
 
 **A Pi 4 quirk the library works around:** small sprites (well under 1 MB) plotted repeatedly kept showing their first image, black or a frozen frame, even though their memory had changed. Window surface sprites are therefore padded to at least 1 MB with rows that are never shown. If your own code plots small sprites that change every frame, it may need the same treatment.
 
-**Licences.** Programs built with the devkit contain Mesa, UnixLib and the GCC runtime (and SDL, GLU, zlib if used). Ship `LICENCES.txt` from the devkit with them. UnixLib includes LGPL v2 code: open source programs are fine as they are; a closed source program must offer its object files so it can be relinked.
+**Licences.** Programs built with the devkit contain Mesa, UnixLib and the GCC runtime (and SDL, GLU, zlib, freeglut or OpenAL if used). Ship `LICENCES.txt` from the devkit with them. UnixLib (in part) and OpenAL are LGPL v2: open source programs are fine as they are; a closed source program must offer its object files so it can be relinked.
 
-Further reading: `egl/README.md` in the riscos-mesa repository, and `tests/egltest.c`, a complete example of every surface type.
+Further reading: `egl/README.md` in the riscos-mesa repository; `tests/egltest.c`, a complete example of every surface type and of a sprite used as a texture; `tests/glestest.c` for OpenGL ES; and the [porting guides](porting/README.md).

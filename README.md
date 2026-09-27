@@ -16,8 +16,9 @@ GL programs multitask properly.
 1. **EGL: the way to write RISC OS GL and GLES programs.**
    - `libEGL.a` is EGL 1.4 with the common extensions.
    - The native window is a Wimp window handle, or
-     `EGL_RISCOS_SCREEN_WINDOW` for the whole screen. Sprites are pixmaps,
-     and pbuffers are supported.
+     `EGL_RISCOS_SCREEN_WINDOW` for the whole screen. Sprites are pixmaps
+     (GL draws into them) and images (textures that read them in place,
+     for video), and pbuffers are supported.
    - Your program runs its own Wimp_Poll loop, and EGL does the plotting.
    - See the [programming guide](docs/EGL-GUIDE.md) and
      [egl/README.md](egl/README.md).

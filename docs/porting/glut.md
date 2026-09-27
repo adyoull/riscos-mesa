@@ -149,6 +149,8 @@ build of freeglut.
 - **Speed.** Rendering is on the CPU. Fixed-function programs are fine at
   400x400 or so; big windows full of shaded, lit geometry are slow.
   Programs that ask for huge default windows are worth making smaller.
+  Textured programs: see "Speed" in [README.md](README.md) for what keeps
+  textures on the fast path.
 - **`GLUT_ACCUM`.** Motion blur, depth-of-field and anti-aliasing demos
   from the *Red Book* use the accumulation buffer, which isn't available.
 - **Reading stdin.** Programs that ask questions on the console (a few

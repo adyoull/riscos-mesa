@@ -39,6 +39,8 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
   - SDL2: `-lSDL2 -lOSMesa -lstdc++ -lz -lm` (add `-lGLU` if used).
   - GLUT: `-lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm`.
   - Pi code: `-lbcm_host -lEGL -lOSMesa -lstdc++ -lz -lm`.
+  - OpenAL (sound, through SDL): `-lopenal -lSDL2` before the rest of the
+    SDL2 line.
   - Never `-pthread`: UnixLib has threads built in, and GCCSDK's GCC
     rejects it.
 - Add `-D_GNU_SOURCE` if the code uses GNU extras such as `sincos`. Linux
@@ -61,6 +63,10 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
 - The surface follows the window's visible area. After `eglSwapBuffers`,
   query `EGL_WIDTH` / `EGL_HEIGHT` and call the program's resize code if
   they changed.
+- **Quitting:** exit on a Close_Window_Request (or hide the window) and
+  always on Message_Quit. A program with unsaved work can object to a
+  desktop shutdown by acknowledging Message_PreQuit (see the EGL guide).
+  SDL and freeglut programs get this from their libraries.
 
 **Input**
 
@@ -82,6 +88,16 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
   variable that the `!Run` file sets, and show the newest line in the
   title bar. `ports/sdl2-tests/riscos_output.c` does the same with no
   change to the program at all.
+
+**Threads**
+
+- Threads work (UnixLib has pthreads), but they share one CPU core and
+  switch on a timer. A program with more than one thread, including any
+  that uses SDL sound or OpenAL, should be linked with a UnixLib that has
+  the pthread ticker fix (riscos-unixlib 214412f or later): without it the
+  thread switcher can crash other tasks while the program multitasks.
+- Long-lived worker threads buy nothing on one core; running the work in
+  the main loop is often simpler.
 
 **Other programs**
 
@@ -106,8 +122,12 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
   Drop them. Pi code that uses `eglSaneChooseConfigBRCM` gets this done
   for it.
 - **Newer APIs:** OpenGL 3.x and OpenGL ES 3.x aren't available.
-- **Other Khronos APIs:** OpenVG and OpenMAX aren't available, nor
-  `EGLImage` or streaming video into a texture.
+- **Other Khronos APIs:** OpenVG and OpenMAX aren't available.
+- **EGL images:** only of sprites (`EGL_KHR_image_pixmap`), as texture
+  storage used in place: the way to stream video into a texture (decode
+  each frame into the sprite). Images made from GL textures or
+  renderbuffers (`EGL_GL_TEXTURE_2D_KHR`, as Pi code hands to OpenMAX)
+  aren't available.
 
 **Speed**
 
@@ -137,6 +157,13 @@ Everything runs on the CPU:
     texel, which is slow; avoid them.
   - More than one texture unit, texture environment combiners, or
     shaders use the slow path.
+- **A texture replaced every frame** (video, emulator screens) costs a
+  whole copy each time with `glTexSubImage2D`. With EGL, make the picture
+  a sprite, bind an image of it to the texture once and write each frame
+  straight into the sprite: see "Video frames as textures" in the
+  [EGL guide](../EGL-GUIDE.md#using-the-extensions).
+- The [EGL guide](../EGL-GUIDE.md#limits-performance-and-troubleshooting)
+  has the Pi 4 benchmark figures.
 
 ## Testing on a Linux host first
 
