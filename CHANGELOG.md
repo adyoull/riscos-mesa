@@ -175,6 +175,13 @@ And in the build:
   checks (`egl-check`) texture with a sprite and change it between two
   draws. Requested by riscos-ffmpeg for its `ffegl` library. Not yet run
   on a Pi.
+- **Programs started in a TaskWindow say what's wrong:** a TaskWindow is
+  already the program's Wimp task, so opening a desktop window from one
+  fails with the Wimp's "Window Manager is currently in use". SDL now says
+  "Can't open a desktop window from a TaskWindow: start the program with
+  *WimpTask", and freeglut, libbcm_host (in window mode), the porting
+  helpers and the test programs give the same advice. The docs say how to
+  start window programs. Reported by riscos-ffmpeg (ffplay).
 - **OpenAL in the devkit:** `libopenal.a` and the `AL/` headers are OpenAL
   Soft 1.19.1 (the last release written in C), so ports that use OpenAL
   share one tested copy. It mixes in software and plays through SDL2's

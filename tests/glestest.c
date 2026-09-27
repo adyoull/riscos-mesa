@@ -41,6 +41,17 @@ static void say(const char *fmt, ...)
 
 static int task;
 
+/* Why Wimp_Initialise failed: in a TaskWindow the program already is a
+   Wimp task (the TaskWindow's), so it has to be started with *WimpTask. */
+static const char *no_desktop_reason(void)
+{
+    _kernel_swi_regs r;
+    r.r[0] = 0;
+    if (_kernel_swi(0x43380 /* TaskWindow_TaskInfo */, &r, &r) == NULL && r.r[0] != 0)
+        return "Can't open a window from a TaskWindow: use *WimpTask Run glestest ...";
+    return "Needs the desktop (Wimp_Initialise failed)";
+}
+
 static int wimp_start(void)
 {
     static const int messages[] = { 0 };
@@ -90,7 +101,7 @@ static int run_window(int es2, double limit)
     long frames = 0, title_frames = 0;
     float a = 0;
 
-    if (!wimp_start()) { say("Needs the desktop\n"); return 1; }
+    if (!wimp_start()) { say("%s\n", no_desktop_reason()); return 1; }
     memset(wb, 0, sizeof wb);
     wb[0] = 200; wb[1] = 200; wb[2] = 200 + 1280; wb[3] = 200 + 960;
     wb[6] = -1;

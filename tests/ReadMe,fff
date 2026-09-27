@@ -4,6 +4,10 @@ riscos-mesa 20.3.5-7 test programs (static ELF, GCCSDK GCC 10.2.0)
 Needs: RISC OS 5, ARMv7 with VFP (Pi 2/3/4), SharedUnixLibrary and
 ARMEABISupport loaded (same as the OpenTTD build). Best in a 16M-colour
 screen mode. Run from a TaskWindow or F12 command line, in this directory.
+Programs that open a desktop window (egltest -w, glestest, sdlgltest, and
+the dmx-window tests) can't do so from a TaskWindow, which is already the
+program's Wimp task: double-click their Obey files, or type
+*WimpTask Run egltest -w (they say so if you forget).
 The zip carries RISC OS filetypes: the programs unzip as ELF (&E1F) with
 SparkFS or the RISC OS unzip.
 
@@ -54,7 +58,8 @@ Run in this order and note the output:
       texture with no copy (EGLImage, new in 20.3.5-7), error cases. Ends with
       PASS or FAIL. Also saves the Sprite file "eglpixmap": open it in
       Paint (a lit cube on dark red with 4 green pixels top left).
-   b) egltest -w  (from the desktop, e.g. double-click or TaskWindow)
+   b) egltest -w  (from the desktop: double-click egl-window, or
+      *WimpTask Run egltest -w)
       Desktop window with a spinning cube, fps and render/present ms in
       the title. The scroll wheel zooms. Resize it, drag other windows over
       it, and close it to finish. In a window there's no vsync (waiting

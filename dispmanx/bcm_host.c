@@ -40,6 +40,9 @@
 #ifndef Wimp_ForceRedraw
 #define Wimp_ForceRedraw 0x400D1
 #endif
+#ifndef TaskWindow_TaskInfo
+#define TaskWindow_TaskInfo 0x43380
+#endif
 #ifndef Wimp_ReadSysInfo
 #define Wimp_ReadSysInfo 0x400F2
 #endif
@@ -211,8 +214,19 @@ static void choose_mode(void)
     if (h > sh - 64) h = sh - 64;
     wscale = (xe == 0 && ye == 0 && 2 * w <= sw && 2 * h <= sh - 64) ? 2 : 1;
     r.r[0] = 380; r.r[1] = 0x4B534154; r.r[2] = (int) app_name; r.r[3] = (int) messages;
-    if (_kernel_swi(Wimp_Initialise, &r, &r) != NULL)
-        return;
+    if (_kernel_swi(Wimp_Initialise, &r, &r) != NULL) {
+        /* In a TaskWindow the program already is a Wimp task (of the
+           TaskWindow's) and can't start its own. Full screen from there
+           would paint over a desktop that keeps running, so stop and say
+           what to do; "full" (above) still runs it full screen. */
+        r.r[0] = 0;
+        if (_kernel_swi(TaskWindow_TaskInfo, &r, &r) == NULL && r.r[0] != 0) {
+            fprintf(stderr, "%s: can't open a window from a TaskWindow: start the "
+                    "program with *WimpTask, or set %s to full\n", app_name, var);
+            exit(1);
+        }
+        return;                                      /* the whole screen */
+    }
     wimp_task = r.r[1];
 
     snprintf(win_title, sizeof win_title, "%s", app_name);

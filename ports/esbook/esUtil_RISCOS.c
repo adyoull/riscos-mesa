@@ -66,8 +66,12 @@ GLboolean ESUTIL_API esCreateWindow(ESContext *esContext, const char *title,
     rw_redirect_output("ESUtil$Output");
     if (flags & ES_WINDOW_MULTISAMPLE)
         esLogMessage("esCreateWindow: no multisampling on riscos-mesa, using none\n");
-    if (!rw_init(title))
+    if (!rw_init(title)) {
+        esLogMessage(rw_in_taskwindow() ? "esCreateWindow: can't open a window from a "
+                                          "TaskWindow: start the program with *WimpTask\n"
+                                        : "esCreateWindow: needs the desktop\n");
         return GL_FALSE;
+    }
     atexit(finish);
     snprintf(base_title, sizeof base_title, "%s", title);
     if (!rw_open(&rwin, title, -1, -1, width, height))

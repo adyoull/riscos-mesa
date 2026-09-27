@@ -410,6 +410,17 @@ static int run_checks(void)
 
 static int task_handle;
 
+/* Why Wimp_Initialise failed: in a TaskWindow the program already is a
+   Wimp task (the TaskWindow's), so it has to be started with *WimpTask. */
+static const char *no_desktop_reason(void)
+{
+    _kernel_swi_regs r;
+    r.r[0] = 0;
+    if (_kernel_swi(0x43380 /* TaskWindow_TaskInfo */, &r, &r) == NULL && r.r[0] != 0)
+        return "Can't open a window from a TaskWindow: use *WimpTask Run egltest ...";
+    return "Needs the desktop (Wimp_Initialise failed)";
+}
+
 static int wimp_start(const char *name)
 {
     static const int messages[] = { 0 };
@@ -544,7 +555,7 @@ static int run_window(int second, double limit)
     int quit = 0;
 
     collect = 1;
-    if (!wimp_start("egltest")) { collect = 0; say("Needs the desktop (Wimp_Initialise failed)\n"); return 1; }
+    if (!wimp_start("egltest")) { collect = 0; say("%s\n", no_desktop_reason()); return 1; }
     if (!egl_start()) { wimp_end(); collect = 0; fputs(summary, stdout); return 1; }
 
     memset(wb, 0, sizeof wb);

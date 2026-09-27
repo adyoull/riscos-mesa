@@ -37,6 +37,11 @@ its window and context from SDL has no window code to change.
   sends `SDL_QUIT`, so the program can save or confirm first; the
   shutdown carries on once it has quit. A program that keeps running
   after Message_Quit is ended at its next event pump, as RISC OS requires.
+- **Starting from a TaskWindow:** a desktop window can't be opened there
+  (the TaskWindow already is the program's Wimp task): `SDL_CreateWindow`
+  fails with "Can't open a desktop window from a TaskWindow: start the
+  program with *WimpTask". Start SDL programs from `!Run`, or type
+  `*WimpTask Run prog args`.
 - **Mouse clicks** are never lost, even at a few frames a second: a click
   pressed and released between two event pumps is reported as a press and
   a release where it happened.

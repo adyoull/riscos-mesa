@@ -36,7 +36,9 @@ void _eglutNativeInitDisplay(void)
 {
     rw_redirect_output("EGLUT$Output");
     if (!rw_init("eglut"))
-        _eglutFatal("needs the desktop");
+        _eglutFatal(rw_in_taskwindow() ? (char *) "can't open a window from a TaskWindow: "
+                                                  "start the program with *WimpTask"
+                                       : (char *) "needs the desktop");
     atexit(finish);
     _eglut->native_dpy = EGL_DEFAULT_DISPLAY;
     _eglut->surface_type = EGL_WINDOW_BIT;

@@ -49,7 +49,10 @@ translation layer: nothing pretends to be X.
    application directory (`!Shapes` gives "Shapes"); `FreeGLUT$TaskName`
    overrides it.
 
-That's all for most programs.
+That's all for most programs. Start them from the Filer or with
+`*WimpTask`: typed in a TaskWindow they can't open windows (the
+TaskWindow already is their Wimp task), and freeglut stops with a message
+saying so.
 
 ## How GLUT maps onto RISC OS
 

@@ -80,6 +80,11 @@ fewer pixels, because it sizes everything from `graphics_get_display_size`.
     screen's shape if left out).
 
   Outside the desktop it's always full screen.
+- **From a TaskWindow** the window can't be opened (the TaskWindow already
+  is the program's Wimp task), and full screen would paint over a desktop
+  that keeps running, so the library stops with a message: start the
+  program with `*WimpTask`, or set `<App>$Display` to `full` to run it full
+  screen anyway.
 - **Input:** Pi programs usually read the keyboard and mouse directly
   (`OS_Byte 121/122`, `OS_Mouse`). That still works in a window, but it
   sees the whole machine: a key pressed for another program is seen too.

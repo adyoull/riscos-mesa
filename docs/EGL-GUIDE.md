@@ -177,6 +177,8 @@ for (;;) {
 }
 ```
 
+**Starting the program.** A program that opens windows must be its own Wimp task: start it from the Filer (a `!Run` file or a double-clicked Obey file) or with `*WimpTask`. In a TaskWindow `Wimp_Initialise` fails with "Window Manager is currently in use", because the TaskWindow already is the program's task; check `TaskWindow_TaskInfo 0` (SWI &43380, non-zero in a TaskWindow) to tell the user to use `*WimpTask`. Full screen programs and pbuffers work from a TaskWindow.
+
 **The window surface:**
 
 - It covers the window's **visible area** and stays put when the window scrolls. It follows the window's size: after a resize, the next `eglSwapBuffers` shows the finished frame, then resizes the surface for the following one. Read `EGL_WIDTH`/`EGL_HEIGHT` and set `glViewport` every frame.
@@ -647,6 +649,7 @@ The window and full screen figures are from the 20.3.5-4 tests; rendering has go
 | Colours swapped (red and blue) | A sprite or config in the other colour order: use `EGL_MATCH_NATIVE_PIXMAP`, or check `EGL_NATIVE_VISUAL_ID` |
 | Full screen tears | Use the default sprite plot with a swap interval of 1; direct rendering and (on the Pi 4) screen banks tear |
 | Desktop left covered after a full screen run | `Wimp_ForceRedraw` with window -1 before exiting |
+| "Window Manager is currently in use" | The program was started in a TaskWindow, which is already its Wimp task: start it with `*WimpTask` or from the Filer |
 | Printing from a Wimp task pops up a window | Normal for UnixLib programs: write results to a file instead |
 | Textured drawing much slower than expected | The textures miss the fast path: see "Getting speed out of the renderer" above (usually `GL_CLAMP`, mipmaps without the `GL_FASTEST` hint, or sizes that aren't powers of two) |
 | A texture made from an image shows nothing (black or white) | The min filter still needs mipmaps: set `GL_TEXTURE_MIN_FILTER` to `GL_LINEAR` or `GL_NEAREST` |

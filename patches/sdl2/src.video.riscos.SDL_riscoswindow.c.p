@@ -1,8 +1,8 @@
 diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow.c
-index f47d33a..2136097 100644
+index f47d33a..becac35 100644
 --- src/video/riscos/SDL_riscoswindow.c
 +++ src/video/riscos/SDL_riscoswindow.c
-@@ -24,16 +24,340 @@
+@@ -24,16 +24,361 @@
  
  #include "SDL_version.h"
  #include "SDL_syswm.h"
@@ -164,6 +164,20 @@ index f47d33a..2136097 100644
 +    vdata->wscale_y = sy;
 +}
 +
++#ifndef TaskWindow_TaskInfo
++#define TaskWindow_TaskInfo 0x43380
++#endif
++
++/* 2026: whether the program runs in a TaskWindow. TaskWindow_TaskInfo 0
++   returns non-zero there; without the TaskWindow module the SWI fails. */
++static SDL_bool
++RISCOS_InTaskWindow(void)
++{
++    _kernel_swi_regs regs;
++    regs.r[0] = 0;
++    return _kernel_swi(TaskWindow_TaskInfo, &regs, &regs) == NULL && regs.r[0] != 0;
++}
++
 +int
 +RISCOS_WimpStart(_THIS)
 +{
@@ -180,8 +194,15 @@ index f47d33a..2136097 100644
 +    regs.r[2] = (int)riscos_app_name;      /* the name in the Task Manager */
 +    regs.r[3] = (int)riscos_wimp_messages;
 +    err = _kernel_swi(Wimp_Initialise, &regs, &regs);
-+    if (err != NULL)
++    if (err != NULL) {
++        /* A TaskWindow is already the program's Wimp task, so it can't
++           become another ("Window Manager is currently in use"): say how
++           to run it instead. */
++        if (RISCOS_InTaskWindow())
++            return SDL_SetError("Can't open a desktop window from a TaskWindow: "
++                                "start the program with *WimpTask (%s)", err->errmess);
 +        return SDL_SetError("Wimp_Initialise failed: %s", err->errmess);
++    }
 +    vdata->wimp_task = regs.r[1];
 +    {
 +        /* A program may exit without SDL_Quit: restart a desktop shutdown
@@ -343,7 +364,7 @@ index f47d33a..2136097 100644
      SDL_WindowData *driverdata;
  
      driverdata = (SDL_WindowData *) SDL_calloc(1, sizeof(*driverdata));
-@@ -42,27 +366,212 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
+@@ -42,27 +387,212 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
      }
      driverdata->window = window;
  

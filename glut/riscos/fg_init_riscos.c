@@ -31,6 +31,9 @@
 #include <GL/freeglut.h>
 #include "../fg_internal.h"
 
+#ifndef TaskWindow_TaskInfo
+#define TaskWindow_TaskInfo 0x43380
+#endif
 #ifndef Wimp_Initialise
 #define Wimp_Initialise     0x400C0
 #endif
@@ -141,7 +144,15 @@ void fgPlatformInitialize( const char* displayName )
         r.r[2] = (int) d->TaskName;
         r.r[3] = (int) fghMessages;
         if( _kernel_swi( Wimp_Initialise, &r, &r ) != NULL )
+        {
+            /* In a TaskWindow the program already is a Wimp task (of the
+               TaskWindow's), so it can't start its own */
+            r.r[0] = 0;
+            if( _kernel_swi( TaskWindow_TaskInfo, &r, &r ) == NULL && r.r[0] != 0 )
+                fgError( "can't open a window from a TaskWindow: "
+                         "start the program with *WimpTask" );
             fgError( "Wimp_Initialise failed" );
+        }
     }
     d->Task = r.r[1];
 

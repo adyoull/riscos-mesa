@@ -53,6 +53,12 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
 
 - An EGL window surface on RISC OS is a Wimp window: pass the window
   handle to `eglCreateWindowSurface`.
+- A program with windows is its own Wimp task, so start it from the Filer
+  (`!Run`) or with `*WimpTask`, not by typing its name in a TaskWindow:
+  there `Wimp_Initialise` fails ("Window Manager is currently in use").
+  SDL, freeglut, the helpers here and libbcm_host say so when it happens.
+  A program that must also work when typed in a TaskWindow can start
+  itself again with `Wimp_StartTask` (riscos-ffmpeg's ffplay does).
 - Your program runs the Wimp_Poll loop. On a Redraw_Window_Request, pass
   the poll block to `eglRedrawWindowRISCOS`, and EGL draws the window.
 - Leave null events unmasked while animating and draw a frame on each

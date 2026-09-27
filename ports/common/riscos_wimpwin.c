@@ -14,6 +14,9 @@
 #include "riscos_wimpwin.h"
 
 #define TASK 0x4B534154             /* "TASK" */
+#ifndef TaskWindow_TaskInfo
+#define TaskWindow_TaskInfo 0x43380
+#endif
 
 static int task;
 
@@ -24,6 +27,13 @@ static int vdu_var(int var)
     r.r[0] = (int) in; r.r[1] = (int) out;
     _kernel_swi(OS_ReadVduVariables, &r, &r);
     return out[0];
+}
+
+int rw_in_taskwindow(void)
+{
+    _kernel_swi_regs r;
+    r.r[0] = 0;                 /* non-zero inside a TaskWindow */
+    return _kernel_swi(TaskWindow_TaskInfo, &r, &r) == NULL && r.r[0] != 0;
 }
 
 int rw_init(const char *task_name)

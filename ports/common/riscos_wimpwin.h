@@ -35,8 +35,13 @@ typedef struct {
    takes a new size at the next eglSwapBuffers). */
 enum { RW_NONE, RW_IDLE, RW_KEY, RW_CLOSE, RW_OPEN };
 
-/* Start the Wimp task. Returns 0 outside the desktop. */
+/* Start the Wimp task. Returns 0 outside the desktop, or in a TaskWindow
+   (which is already the program's task: see rw_in_taskwindow). */
 int rw_init(const char *task_name);
+
+/* Whether the program runs in a TaskWindow, where it can't open windows of
+   its own: it has to be started with *WimpTask (or from the Filer). */
+int rw_in_taskwindow(void);
 
 /* Create and open a window with a visible area of width x height pixels.
    x, y: top left in pixels from the screen's top left, or -1 to centre.
