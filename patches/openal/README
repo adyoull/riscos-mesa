@@ -1,0 +1,39 @@
+Patches to OpenAL Soft 1.19.1 (applied by build/build-openal.sh, patch -p1)
+
+openal-soft-1.19.1-riscos.patch
+    Two build fixes, neither of which changes what the library does:
+    - Alc/bformatdec.h: N3D2N3DScale, SN3D2N3DScale and FuMa2N3DScale
+      declared extern. They were tentative definitions in the header, one
+      per file that includes it, which GCC 10 (-fno-common by default)
+      rejects at link time. Later OpenAL Soft releases fixed it the same
+      way.
+    - Alc/helpers.c SetRTPriority(): the real-time priority code is left
+      out on __riscos__. UnixLib has pthread_setschedparam but no
+      sched_get_priority_min (and no real-time scheduling). Only the ALSA,
+      OSS, sndio, Solaris and WASAPI backends call it, none of which are
+      built; the SDL2 backend doesn't.
+
+Taken from the Warzone 2100 port (riscos-warzone2100
+patches/openal/openal-soft-1.19.1-riscos.diff), with comments added.
+
+They are under OpenAL Soft's licence, the GNU LGPL v2 or later (see
+LICENCES.txt).
+
+Build notes (build/build-openal.sh has them as comments too):
+- Only the SDL2 output backend (and Null) is built: on RISC OS the sound
+  goes OpenAL -> SDL's audio thread -> the SDL overlay's RISC OS audio
+  driver -> SharedSoundBuffer.
+- UnixLib only declares nanosleep() and friends when asked for POSIX, and
+  OpenAL builds with -std=c11: hence -D_POSIX_C_SOURCE=200809L
+  -D_XOPEN_SOURCE=700.
+- OpenAL builds two table generators (bin2h, bsincgen) for the build
+  machine in a sub-build that inherits CC/CFLAGS from the environment, so
+  make runs with those unset; the library's compiler comes from
+  build/riscos.cmake.
+- Configuration: OpenAL reads the file named by the ALSOFT_CONF variable
+  (and alsoft.conf in the usual Unix places, which UnixLib maps to RISC OS
+  paths). Errors are logged to stderr, which in a desktop program opens a
+  command window: set ALSOFT_LOGFILE to a file to send them there.
+
+Test: tests/host-harness/openal (the same source built for Linux, its
+sound recorded and checked); tests/altest.c on RISC OS.

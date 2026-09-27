@@ -163,6 +163,17 @@ And in the build:
 
 ### Other changes
 
+- **OpenAL in the devkit:** `libopenal.a` and the `AL/` headers are OpenAL
+  Soft 1.19.1 (the last release written in C), so ports that use OpenAL
+  share one tested copy. It mixes in software and plays through SDL2's
+  sound driver (SharedSoundBuffer, mixing with other programs); link with
+  `-lopenal -lSDL2 -lOSMesa -lstdc++ -lz -lm`. Two small build fixes are
+  in `patches/openal`. It is under the GNU LGPL (see `LICENCES.txt`). The
+  tests zip has `altest` (Obey file `al-tone`), which plays tones in the
+  middle, left and right and checks they play in real time. Requested by
+  the Warzone 2100 port, which built its own copy until now. The same
+  OpenAL, built for Linux, is checked by `tests/host-harness/openal`.
+  Not yet run on a Pi.
 - **SDL2 programs quit properly from the desktop:** a desktop shutdown
   or the Task Manager's Quit now asks the program to quit (SDL_QUIT), so it
   can confirm or save first, and the shutdown carries on once it has quit;

@@ -1,0 +1,9 @@
+| riscos-mesa OpenAL test: double-click to run. Plays three tones (middle,
+| left, right) through OpenAL and SDL's sound driver and saves the results
+| in "altone" in this directory. It has no window: it takes about 4 seconds.
+Dir <Obey$Dir>
+RMEnsure SharedSound 1.07 IfThere System:Modules.SSound Then RMLoad System:Modules.SSound
+RMEnsure StreamManager 0.03 IfThere System:Modules.StreamMan Then RMLoad System:Modules.StreamMan
+RMEnsure SharedSoundBuffer 0.07 IfThere System:Modules.SSBuffer Then RMLoad System:Modules.SSBuffer
+RMEnsure SharedSoundBuffer 0.07 RMEnsure DigitalRenderer 0.51 IfThere System:Modules.DRenderer Then RMLoad System:Modules.DRenderer
+Run altest -o altone

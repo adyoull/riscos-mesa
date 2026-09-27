@@ -11,6 +11,8 @@ every GCCSDK program links statically, contains code under the GNU Library
 General Public License: see section 8 and UnixLib's own guidance there.
 Open source programs meet this automatically; a closed source program must
 offer its object files so it can be relinked with a modified UnixLib.
+The same applies to programs linked with OpenAL Soft (libopenal, section
+11), which is under the GNU LGPL as a whole.
 
  1. riscos-mesa's own files (the EGL library egl/egl_riscos.c and
     EGL/eglext_riscos.h, the DispmanX compatibility library libbcm_host and
@@ -21,6 +23,7 @@ offer its object files so it can be relinked with a modified UnixLib.
     change:
     - patches/mesa - MIT, as Mesa, except the change to
       include/c11/threads_posix.h, which is under the Boost licence (see 3)
+    - patches/openal - GNU LGPL v2 or later, as OpenAL Soft (see 11)
     - patches/sdl2 (the SDL RISC OS driver overlay, including the new
       SDL_riscosopengl.c/.h, which carry SDL's notice) - zlib, as SDL (see 6)
     - the RISC OS section of EGL/eglplatform.h - Khronos, as the rest of
@@ -44,6 +47,10 @@ offer its object files so it can be relinked with a modified UnixLib.
     Its RISC OS back end (glut/riscos, written for riscos-mesa) is under the
     same MIT terms, and riscos-mesa's small patch to freeglut's own files
     (patches/freeglut) keeps freeglut's licence.
+11. OpenAL Soft 1.19.1 (libopenal) - GNU Library General Public License
+    v2 or (at your option) any later version. riscos-mesa's small patch to
+    it (patches/openal) is under the same terms. Source:
+    https://github.com/kcat/openal-soft (tag openal-soft-1.19.1).
 
 
 ===========================================================================
@@ -1042,3 +1049,27 @@ https://www.gnu.org/licenses/gcc-exception-3.1.html
   Except as contained in this notice,  the name of Pawel W. Olszta shall not be 
   used  in advertising  or otherwise to promote the sale, use or other dealings 
   in this Software without prior written authorization from Pawel W. Olszta.
+
+===========================================================================
+
+11. OpenAL Soft
+
+ OpenAL cross platform audio library
+ Copyright (C) 1999-2007 by authors.
+ This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Library General Public
+  License as published by the Free Software Foundation; either
+  version 2 of the License, or (at your option) any later version.
+
+ This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Library General Public License for more details.
+
+ The full text of the GNU Library General Public License version 2 is in
+ section 8 above (OpenAL Soft's own COPYING file is the same licence).
+ Programs linked statically with libopenal must let their users relink
+ them with a modified OpenAL Soft (for example by offering the program's
+ object files), and must say where OpenAL Soft's source can be had: the
+ tarball, with riscos-mesa's patches/openal, as build/build-openal.sh
+ fetches and applies them.

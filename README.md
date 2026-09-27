@@ -64,12 +64,18 @@ and `tests/glestest.c` (OpenGL ES) are complete programs.
 | `libOSMesa.a` | Mesa 20.3.5 classic OSMesa (swrast), one static library: OpenGL 2.1 + GLSL 1.20, OpenGL ES 1.1 and 2.0 | `-lOSMesa -lstdc++ -lz -lm` |
 | `libGLU.a` | GLU 1.3 (9.0.1) | `-lGLU` before `-lOSMesa` |
 | `libSDL2.a` | SDL 2.26 with the RISC OS drivers: desktop windows and full screen, OpenGL and OpenGL ES contexts, typing, the scroll wheel, 180 dpi desktops, cooperative multitasking, and sound through SharedSoundBuffer (mixes with other programs) | `-lSDL2 -lOSMesa -lstdc++ -lz -lm` |
+| `libopenal.a` | OpenAL Soft 1.19.1: OpenAL 1.1 with the EFX effects and positioned (3D) sources, mixed in software and played through SDL's sound driver (so it mixes with other programs) | `-lopenal -lSDL2 -lOSMesa -lstdc++ -lz -lm` |
 | `libglut.a` | freeglut 3.8.0 with a native RISC OS back end: Wimp windows and subwindows, Wimp menus, full screen and game mode, keyboard (with key releases), mouse, wheel. `libfreeglut-gles.a` is the OpenGL ES build (`-DFREEGLUT_GLES`) | `-lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libbcm_host.a` | DispmanX compatibility, a porting aid for Raspberry Pi 1–3 Khronos code. Empty `libGLESv2`, `libGLESv1_CM`, `libvcos` and `libvchiq_arm` come with it so Pi link lines work | `-lbcm_host -lEGL -lOSMesa -lstdc++ -lz -lm` |
 
 Headers: `EGL/` (with `EGL/eglext_riscos.h` for the RISC OS additions),
 `GL/` (with `GL/glut.h` and `GL/freeglut*.h`), `GLES/`, `GLES2/`, `KHR/`,
-`SDL2/`, `bcm_host.h` and `interface/`.
+`SDL2/`, `AL/`, `bcm_host.h` and `interface/`.
+
+OpenAL mixes in SDL's audio thread, so a program using it has more than
+one thread: link it with a UnixLib that has the pthread ticker fix
+(riscos-unixlib 214412f or later), or it can crash other tasks when it
+multitasks. (That applies to any threaded program, SDL sound included.)
 
 ## Download
 
@@ -117,6 +123,7 @@ changing only `egl/`, say, run `build-egl.sh` and the steps after it):
     build/build-mesa.sh
     build/build-glu.sh
     build/build-sdl2.sh      # SDL 2.26 + patches/sdl2 (the RISC OS overlay)
+    build/build-openal.sh    # OpenAL Soft 1.19.1 + patches/openal (SDL2 output)
     build/build-egl.sh       # libEGL.a, libbcm_host.a + headers
     build/build-freeglut.sh  # libglut.a, libfreeglut-gles.a (freeglut 3.8.0 + glut/riscos)
     build/build-tests.sh     # -> stage/tests/*,e1f
@@ -126,7 +133,7 @@ changing only `egl/`, say, run `build-egl.sh` and the steps after it):
 
 Everything installs into `stage/`. No GCCSDK GCC 10 yet? See
 [build/TOOLCHAIN.md](build/TOOLCHAIN.md). The host needs meson, ninja,
-python3-mako, bison, flex, autoconf, automake and libtool.
+python3-mako, bison, flex, autoconf, automake, libtool and cmake.
 
 ## Using it from another port
 
@@ -182,6 +189,7 @@ Mesa build; see `tests/run-all.sh` for the rest).
   - `patches/mesa` is MIT, like Mesa. Its one change to
     `include/c11/threads_posix.h` is Boost.
   - `patches/sdl2` is zlib, like SDL.
+  - `patches/openal` is LGPL v2 or later, like OpenAL Soft.
   - The RISC OS section of `EGL/eglplatform.h` is under the Khronos
     licence.
 - **freeglut's RISC OS back end** (`glut/riscos`) is MIT, like freeglut;
@@ -194,6 +202,9 @@ Mesa build; see `tests/run-all.sh` for the rest).
   - GLU: SGI Free Software Licence B.
   - freeglut: MIT/X style.
   - SDL and zlib: zlib.
+  - OpenAL Soft: GNU LGPL v2 or later. It is linked statically, so, as
+    for UnixLib, closed source programs using it must offer their object
+    files for relinking.
   - UnixLib, linked into every GCCSDK program: BSD with some LGPL v2
     parts, so closed source programs must offer their object files for
     relinking.

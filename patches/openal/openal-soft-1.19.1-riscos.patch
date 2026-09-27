@@ -1,0 +1,36 @@
+diff -ru a/Alc/bformatdec.h b/Alc/bformatdec.h
+--- a/Alc/bformatdec.h
++++ b/Alc/bformatdec.h
+@@ -23,10 +23,14 @@
+ 
+ /* NOTE: These are scale factors as applied to Ambisonics content. Decoder
+  * coefficients should be divided by these values to get proper N3D scalings.
++ *
++ * (RISC OS: declared extern, as later OpenAL Soft releases do. Without it
++ * these are tentative definitions in every file including this header,
++ * which GCC 10 (-fno-common by default) rejects as multiple definitions.)
+  */
+-const ALfloat N3D2N3DScale[MAX_AMBI_COEFFS];
+-const ALfloat SN3D2N3DScale[MAX_AMBI_COEFFS];
+-const ALfloat FuMa2N3DScale[MAX_AMBI_COEFFS];
++extern const ALfloat N3D2N3DScale[MAX_AMBI_COEFFS];
++extern const ALfloat SN3D2N3DScale[MAX_AMBI_COEFFS];
++extern const ALfloat FuMa2N3DScale[MAX_AMBI_COEFFS];
+ 
+ 
+ struct AmbDecConf;
+diff -ru a/Alc/helpers.c b/Alc/helpers.c
+--- a/Alc/helpers.c
++++ b/Alc/helpers.c
+@@ -1010,7 +1010,10 @@
+ #ifdef _WIN32
+     if(RTPrioLevel > 0)
+         failed = !SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+-#elif defined(HAVE_PTHREAD_SETSCHEDPARAM) && !defined(__OpenBSD__)
++#elif defined(HAVE_PTHREAD_SETSCHEDPARAM) && !defined(__OpenBSD__) && !defined(__riscos__)
++    /* (RISC OS: UnixLib has pthread_setschedparam but no real-time
++     * scheduling and no sched_get_priority_min, so this is left out. Only
++     * the ALSA, OSS, sndio, Solaris and WASAPI backends call it anyway.) */
+     if(RTPrioLevel > 0)
+     {
+         struct sched_param param;

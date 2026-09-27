@@ -22,8 +22,11 @@ $CC $RO_CFLAGS $GL -static "$T/prof.c"       -o "$STAGE/tests/prof,e1f"       $L
     -o "$STAGE/tests/dmxtest,e1f" -lbcm_host -lEGL -lGLESv2 -lvcos -lvchiq_arm $LIBS
 [ -f "$STAGE/lib/libSDL2.a" ] && $CC $RO_CFLAGS $GL -I"$STAGE/include/SDL2" -static "$T/sdlgltest.c" "$T/hrtime.c" \
     -o "$STAGE/tests/sdlgltest,e1f" -lSDL2 $LIBS
+# OpenAL (libopenal.a) playing through SDL2's audio
+[ -f "$STAGE/lib/libopenal.a" ] && $CC $RO_CFLAGS $GL -I"$STAGE/include/SDL2" -static "$T/altest.c" \
+    -o "$STAGE/tests/altest,e1f" -lopenal -lSDL2 $LIBS
 for f in "$STAGE"/tests/*,e1f; do $STRIP "$f"; done
-cp "$T/ReadMe,fff" "$T"/egl-*,feb "$T"/dmx-*,feb "$T"/gles-*,feb "$STAGE/tests/"
+cp "$T/ReadMe,fff" "$T"/egl-*,feb "$T"/dmx-*,feb "$T"/gles-*,feb "$T"/al-*,feb "$STAGE/tests/"
 # Left as ELF (&E1F), same as the OpenTTD build: needs SharedUnixLibrary
 # and ARMEABISupport loaded on the Pi.
 ls -la "$STAGE/tests"

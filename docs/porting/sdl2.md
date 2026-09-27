@@ -41,6 +41,14 @@ its window and context from SDL has no window code to change.
   Without them SDL falls back to its `dsp` driver (DigitalRenderer).
   `SDL_AUDIODRIVER=riscos` or `dsp` forces one. `!LoopWave`
   (SDL's loopwave test) is the worked example.
+- **OpenAL:** programs that use OpenAL (games with 3D sound) link the
+  devkit's `libopenal.a` (OpenAL Soft 1.19.1): `-lopenal -lSDL2 -lOSMesa
+  -lstdc++ -lz -lm`. It plays through SDL's sound, so the modules above
+  are needed the same way. OpenAL mixes in SDL's audio thread: link with a
+  UnixLib that has the pthread ticker fix (see the README). OpenAL's error
+  messages go to stderr, which opens a command window in the desktop; set
+  `ALSOFT_LOGFILE` to a file in `!Run` to catch them there. `tests/altest.c`
+  is a small complete example.
 - **MIDI music:** RISC OS has no General MIDI synthesiser of its own.
   [riscos-midisynth](https://github.com/adyoull/riscos-midisynth) plays
   `.mid` files through a SoundFont; its `midisynth_render` output can be

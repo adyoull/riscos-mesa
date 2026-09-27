@@ -125,7 +125,15 @@ Run in this order and note the output:
                     *Unset SDL$WindowScale turns it back on.
       egl-window    the cube should fill the window, sharp, not doubled.
 
-   j) More programs, in separate zips, each with its own ReadMe:
+   j) altest  (OpenAL, new in 20.3.5-7)
+      Double-click al-tone. It plays three one-second tones through
+      OpenAL and SDL's sound driver: a low one in the middle, a higher one
+      on the left, the highest on the right, and saves the results in
+      "altone" (OpenAL and SDL details, how long each tone took, PASS or
+      FAIL). Please check the tones come from the middle, the left and the
+      right, and send altone.
+
+   k) More programs, in separate zips, each with its own ReadMe:
       riscos-mesa-hello_pi   the Raspberry Pi's hello_triangle,
                              hello_triangle2 and hello_teapot, rebuilt
       riscos-mesa-ports      Mesa's EGL demos (gears etc.) and SDL 2's

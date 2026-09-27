@@ -25,3 +25,16 @@ as 32-bit addresses.
 
     SDL=<patched SDL-release-2.26.0> tests/host-harness/sdl-wimp/run.sh
 
+
+## `openal/`: OpenAL Soft through SDL's sound
+
+`openal/run.sh` builds the devkit's OpenAL Soft 1.19.1 (with
+`patches/openal`, the same options as `build/build-openal.sh`) and SDL 2.26
+(audio only) for the host, then runs `tests/altest.c` with SDL's `disk`
+audio driver, which writes the mixed sound to a file (OpenAL is told to mix
+16-bit stereo at 22050 Hz through an `ALSOFT_CONF` file).
+`openal/check-tones.py` checks the recording: 440 Hz in the middle, 660 Hz
+on the left and 880 Hz on the right, about a second each, in that order.
+The host builds are kept in `OUT` and redone when the patch changes.
+
+    SRC=<where build-sdl2.sh and build-openal.sh left their sources> tests/host-harness/openal/run.sh
