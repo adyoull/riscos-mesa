@@ -6,21 +6,24 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-7: faster rendering, SDL clicks
 
-Rendering is up to 2.8 times as fast as 20.3.5-6, with the same picture,
-and SDL programs no longer lose short mouse clicks. The speed figures
-were measured on a Raspberry Pi 4.
+Rendering is up to 2.9 times as fast as 20.3.5-6, with the same picture,
+programs start faster and use less memory, and SDL programs no longer
+lose short mouse clicks. The speed figures were measured on a Raspberry
+Pi 4.
 
 glbench on the Pi 4, 640x480, 24-bit depth + stencil, milliseconds per
-frame, 20.3.5-6 and 20.3.5-7 run in the same session:
+frame (frames per second in brackets). The 20.3.5-6 figures are from a run
+in the same session as a 20.3.5-7 pre-release; the 20.3.5-7 figures are
+from the final pre-release builds (7pre7 and 7pre8 have the same Mesa):
 
 | Scene | 20.3.5-6 | 20.3.5-7 | |
 | --- | --- | --- | --- |
-| lit cube | 5.38 | 3.02 | 1.8x |
-| full-screen bilinear texture | 44.04 | 26.13 | 1.7x |
-| 12288 lit triangles | 25.79 | 11.03 | 2.3x |
-| GLSL per-pixel shaded cube | 108.91 | 38.83 | 2.8x |
-| 4 blended full-screen quads | 28.29 | 27.53 | |
-| clear | 1.53 | 1.52 | |
+| lit cube | 5.38 (186) | 3.11 (322) | 1.7x |
+| full-screen bilinear texture | 44.04 (22.7) | 23.47 (42.6) | 1.9x |
+| 12288 lit triangles | 25.79 (38.8) | 11.06 (90.4) | 2.3x |
+| GLSL per-pixel shaded cube | 108.91 (9.2) | 38.05 (26.3) | 2.9x |
+| 4 blended full-screen quads | 28.29 (35.3) | 20.45 (48.9) | 1.4x |
+| clear | 1.53 (654) | 1.51 (664) | |
 
 ### GLSL: a rebuilt shader interpreter
 
@@ -129,9 +132,10 @@ And in the build:
   only differences: the integer texture path rounds by up to 2/255
   differently, and a shader that reads a variable it never wrote
   (undefined in GLSL) can see a different leftover value.
-- Blending is unchanged: its time moves by a couple of milliseconds
+- Blending is 1.4x as fast from the one-colour span and in-place row
+  changes. Before those, its time moved by a couple of milliseconds
   between builds of the benchmark program itself (an A/B test on the Pi
-  gave the same time with 20.3.5-6's library and this one).
+  gave the same time with 20.3.5-6's library and an early pre-release).
 - The Mesa changes are eight new patches in `patches/mesa/`, described in
   `patches/mesa/README`. `build/build-mesa.sh` applies them in order and
   records them in `.riscos-patches-applied`, so an existing Mesa tree
