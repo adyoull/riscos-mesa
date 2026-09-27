@@ -120,6 +120,7 @@ Uint32 SDL_GetTicks_REAL(void) { return ticks; }
 size_t SDL_strlcpy_REAL(char *d, const char *s, size_t n) { snprintf(d, n, "%s", s); return strlen(s); }
 size_t SDL_strlen_REAL(const char *s) { return strlen(s); }
 void *SDL_memset_REAL(void *d, int c, size_t n) { return memset(d, c, n); }
+void *SDL_memcpy_REAL(void *d, const void *s, size_t n) { return memcpy(d, s, n); }
 int SDL_SendQuit(void) { n_sdl_quit++; return 1; }
 int SDL_SendAppEvent(SDL_EventType t) { if (t == SDL_APP_TERMINATING) n_app_terminating++; return 1; }
 int SDL_SendWindowEvent(SDL_Window *w, Uint8 e, int d1, int d2)
@@ -304,6 +305,28 @@ static void test_quit(void)
     CHECK(!restarted(), "no restart after Message_Quit");
 }
 
+/* The icon bar icon's sprite name: all 12 characters of the longest names
+   (SDL_riscoswimp.h RISCOS_IconSpriteName; Warzone 2100's icon was blank
+   when "!Warzone2100" was cut to 11) */
+static void test_icon_sprite_name(void)
+{
+    static const char *const names[] = { "!Warzone2100", "!OpenTTD", "application", "!TestGL2" };
+    RISCOS_IconCreate icon;
+    int i;
+
+    for (i = 0; i < 4; i++) {
+        size_t n = strlen(names[i]);
+        memset(&icon, 0x55, sizeof(icon));
+        RISCOS_IconSpriteName(&icon, names[i]);
+        CHECK(memcmp(icon.data, names[i], n) == 0 && (n == 12 || icon.data[n] == 0),
+              "sprite name \"%s\" (%zu characters) in full in the icon", names[i], n);
+    }
+    memset(&icon, 0x55, sizeof(icon));
+    RISCOS_IconSpriteName(&icon, "!ThirteenChrs");
+    CHECK(memcmp(icon.data, "!ThirteenChr", 12) == 0 && icon.box.x0 == 0x55555555,
+          "a longer name is cut at 12, not past the data field");
+}
+
 static void test_keys(void)
 {
     static const int wimp_keys[] = { 0x1CC, 0x1DC, 0x1EC, 0x1FC };
@@ -340,6 +363,7 @@ static void *run(void *arg)
     test_close_and_menu();
     test_quit();
     test_keys();
+    test_icon_sprite_name();
     return NULL;
 }
 

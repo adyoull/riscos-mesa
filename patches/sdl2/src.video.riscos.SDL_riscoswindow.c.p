@@ -1,5 +1,5 @@
 diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow.c
-index f47d33a..c09844a 100644
+index f47d33a..2136097 100644
 --- src/video/riscos/SDL_riscoswindow.c
 +++ src/video/riscos/SDL_riscoswindow.c
 @@ -24,16 +24,340 @@
@@ -204,7 +204,7 @@ index f47d33a..c09844a 100644
 +            icon.window = -1;              /* right hand side of the icon bar */
 +            icon.box.x0 = 0; icon.box.y0 = 0; icon.box.x1 = 68; icon.box.y1 = 68;
 +            icon.flags = 0x0000301A;       /* sprite, centred, button type click */
-+            SDL_strlcpy(icon.data, sprite, sizeof(icon.data));
++            RISCOS_IconSpriteName(&icon, sprite);
 +            regs.r[0] = 0;
 +            regs.r[1] = (int)&icon;
 +            if (_kernel_swi(Wimp_CreateIcon, &regs, &regs) == NULL)

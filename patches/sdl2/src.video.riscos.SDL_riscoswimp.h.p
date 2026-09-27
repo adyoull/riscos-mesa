@@ -1,9 +1,9 @@
 diff --git src/video/riscos/SDL_riscoswimp.h src/video/riscos/SDL_riscoswimp.h
 new file mode 100644
-index 0000000..4095d28
+index 0000000..920a3bc
 --- /dev/null
 +++ src/video/riscos/SDL_riscoswimp.h
-@@ -0,0 +1,160 @@
+@@ -0,0 +1,174 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -114,6 +114,20 @@ index 0000000..4095d28
 +    unsigned int flags;
 +    char data[12];              /* e.g. a sprite name */
 +} RISCOS_IconCreate;
++
++/* Put a sprite name in a (non-indirected) icon's data. Sprite names are
++   up to 12 characters, and the Wimp takes all 12 bytes when there is no
++   terminator, so a 12-character name such as "!Warzone2100" fits exactly
++   (a string copy with a 12-byte limit would cut it to 11). */
++SDL_FORCE_INLINE void
++RISCOS_IconSpriteName(RISCOS_IconCreate *icon, const char *name)
++{
++    size_t n = SDL_strlen(name);
++    if (n > sizeof(icon->data))
++        n = sizeof(icon->data);
++    SDL_memset(icon->data, 0, sizeof(icon->data));
++    SDL_memcpy(icon->data, name, n);
++}
 +
 +/* Wimp_CreateWindow: the window block, with no icons following */
 +typedef struct RISCOS_WindowDef

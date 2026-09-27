@@ -151,6 +151,9 @@ And in the build:
   (SDL_WINDOWEVENT_CLOSE), as on other platforms; programs that don't
   handle it still quit. SDL_ShowWindow/SDL_HideWindow work on desktop
   windows. Requested by riscos-openttd, which takes its SDL from here.
+- **SDL2 icon bar icons for 12-character names:** a program whose
+  sprite name is the full 12 characters (e.g. `!Warzone2100`) got a blank
+  icon bar icon, because the name was cut to 11 characters.
 - **SDL2 window scale hint:** the desktop window scale can be set with
   `SDL_SetHint(SDL_HINT_RISCOS_WINDOW_SCALE, "1")` (or the system variable
   `SDL_RISCOS_WINDOW_SCALE`); `SDL$WindowScale` still works.

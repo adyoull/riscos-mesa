@@ -119,6 +119,12 @@ It contains:
   scroll wheel state are per device, in `SDL_VideoData`; the one desktop
   window limit is written down; the window scale is also an SDL hint
   (`SDL_HINT_RISCOS_WINDOW_SCALE`).
+- Icon bar sprite names of 12 characters (2026-09-27, reported by the
+  Warzone 2100 port): the name was copied into the icon with a 12-byte
+  string copy, which keeps 11 characters, so `!Warzone2100` became
+  `!Warzone210` and the icon was blank. `RISCOS_IconSpriteName`
+  (`SDL_riscoswimp.h`) copies up to 12 characters with no terminator
+  needed; checked by `tests/host-harness/sdl-wimp`.
 - `sdl2-configure.ac.host.p`: OpenTTD's triplet fix (arm-riscos-gnueabihf
   is not Linux). `sdl2-configure.ac.osmesa.p`: the OSMesa option.
 
