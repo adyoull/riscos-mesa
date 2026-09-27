@@ -1,0 +1,116 @@
+Name
+
+    RISCOS_platform_wimp
+
+Name Strings
+
+    EGL_RISCOS_platform_wimp
+
+Contributors
+
+    Andrew Youll
+
+Contacts
+
+    Andrew Youll (adyoull 'at' users.noreply.github.com)
+
+Status
+
+    Complete. Shipping in riscos-mesa (Mesa 20.3.5 for RISC OS 5) since
+    version 20.3.5-4 (2026).
+
+Version
+
+    Version 1, 2026-09-27
+
+Number
+
+    EGL Extension #156
+
+Extension Type
+
+    EGL client extension
+
+Dependencies
+
+    Requires EGL_EXT_client_extensions to query its existence without
+    a display.
+
+    Requires EGL_EXT_platform_base.
+
+    Requires EGL_RISCOS_wimp_window, which defines the native window and
+    pixmap types this extension passes by pointer.
+
+    This extension is written against the wording of version 9 of the
+    EGL_EXT_platform_base specification.
+
+Overview
+
+    This extension defines how to create EGL resources from native RISC OS
+    resources (the desktop's Window Manager, the "Wimp", and sprites) with
+    the functions defined by EGL_EXT_platform_base.
+
+New Types
+
+    None
+
+New Procedures and Functions
+
+    None
+
+New Tokens
+
+    Accepted as the <platform> argument of eglGetPlatformDisplayEXT:
+
+        EGL_PLATFORM_RISCOS                     0x35A5
+
+Additions to the EGL Specification
+
+    None.
+
+New Behavior
+
+    To determine if the EGL implementation supports this extension, clients
+    should query the EGL_EXTENSIONS string of EGL_NO_DISPLAY.
+
+    To obtain the EGLDisplay for the RISC OS screen, call
+    eglGetPlatformDisplayEXT with <platform> set to EGL_PLATFORM_RISCOS.
+    RISC OS has a single display, so <native_display> must be NULL; any
+    other value generates EGL_BAD_PARAMETER. No attributes are defined:
+    <attrib_list> must be NULL or empty, otherwise EGL_BAD_ATTRIBUTE is
+    generated. The display returned is the one returned by
+    eglGetDisplay(EGL_DEFAULT_DISPLAY).
+
+    To obtain an on-screen rendering surface, call
+    eglCreatePlatformWindowSurfaceEXT with <native_window> pointing to an
+    int holding the Wimp window handle, or -1 (EGL_RISCOS_SCREEN_WINDOW) for
+    the whole screen, as described by EGL_RISCOS_wimp_window. If
+    <native_window> is NULL, EGL_BAD_NATIVE_WINDOW is generated. The
+    attributes accepted, and the surface's behaviour, are those of
+    eglCreateWindowSurface with the same handle.
+
+    To obtain an offscreen rendering surface, call
+    eglCreatePlatformPixmapSurfaceEXT with <native_pixmap> set to a pointer
+    to the header of a 32 bits per pixel sprite, as described by
+    EGL_RISCOS_wimp_window. (This is the same value that would be passed to
+    eglCreatePixmapSurface.)
+
+Issues
+
+    1. Why is <native_window> a pointer to an int rather than the handle?
+
+       RESOLVED: EGL_EXT_platform_base passes native objects as pointers,
+       and a Wimp window handle is an int. Following EGL_KHR_platform_x11,
+       whose window is an XID, the pointer points to the handle.
+
+    2. Why is <native_pixmap> the sprite pointer itself?
+
+       RESOLVED: a sprite is already referred to by pointer (to its
+       header), as EGLNativePixmapType is on RISC OS; no indirection is
+       needed.
+
+Revision History
+
+    Version 1, 2026-09-27 (Andrew Youll)
+        - Initial version. Before registration the implementation used the
+          provisional value 0x3FF5 for EGL_PLATFORM_RISCOS.

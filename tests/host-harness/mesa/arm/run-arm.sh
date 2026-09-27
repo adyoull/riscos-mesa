@@ -27,7 +27,12 @@ mkdir -p "$OUT/this"
 
 # errno is thread-local in glibc: point Mesa's references at the shim's
 cp "$STAGE/lib/libOSMesa.a" "$OUT/libOSMesa.a"
-arm-linux-gnueabihf-objcopy --redefine-sym errno=ro_errno_shim "$OUT/libOSMesa.a"
+# and UnixLib's mutexes are laid out differently from glibc's: the checks
+# run in one thread, so Mesa's mutex calls go to do-nothing shims
+arm-linux-gnueabihf-objcopy --redefine-sym errno=ro_errno_shim \
+    $(for f in mutex_init mutex_lock mutex_unlock mutex_destroy mutexattr_init mutexattr_settype \
+               mutexattr_destroy; do echo "--redefine-sym pthread_$f=ro_pthread_${f}_shim"; done) \
+    "$OUT/libOSMesa.a"
 $CC -c -O2 -mfloat-abi=hard "$HERE/shim.c" -o "$OUT/shim.o"
 
 CHECKS="render-fixed render-rows render-tex render-image glsl-basic glsl-control glsl-edge"
@@ -37,8 +42,8 @@ for c in $CHECKS; do
         "$STAGE/lib/libz.a" -lm -lpthread 2>&1 | grep -v "warning:\|NOTE:" || true
 done
 
-# qemu-arm with retries: glibc's pthread_mutex_lock sometimes aborts on
-# UnixLib-initialised mutexes (see shim.c); that's the harness, not Mesa.
+# qemu-arm with retries, in case qemu itself fails (it used to be glibc
+# aborting on UnixLib-initialised mutexes; see shim.c).
 run() {
     local i
     for i in 1 2 3 4 5 6 7 8; do

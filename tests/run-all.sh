@@ -15,7 +15,7 @@
 #                   scenes, no more than 2% above expected/perf.txt
 #                   (tests/host-harness/mesa/perf.sh; needs valgrind)
 #   egl             libEGL and libbcm_host against a fake RISC OS
-#                   (tests/host-harness/egl, 308 checks)
+#                   (tests/host-harness/egl, 347 checks)
 #   sdl             SDL's GL glue with emulated SWIs (tests/host-harness)
 #   sdl-wimp        SDL's Wimp event handling: desktop quit, close icon,
 #                   icon bar menu (tests/host-harness/sdl-wimp)
@@ -30,6 +30,10 @@
 #   arm             the rendering checks on the RISC OS build of Mesa under
 #                   qemu-arm (tests/host-harness/mesa/arm); only with ARM=1,
 #                   as it takes a few minutes
+#
+# Not run here, as it takes a long first build: Khronos's dEQP-EGL tests
+# (tests/host-harness/deqp/README.md). Run them after changing egl/ or
+# patches/mesa.
 #
 # Other settings (environment):
 #   SRC=<dir>    where build/build-sdl2.sh and build-freeglut.sh left the

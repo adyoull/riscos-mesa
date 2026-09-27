@@ -25,6 +25,8 @@
  *   buffers.c     sprites, screen banks, pbuffer memory, pixmaps
  *   validation.c  checking handles and attribute lists
  *   configs.c     the configs and eglChooseConfig matching
+ *   current.c     per-thread state, the lock, binding contexts and
+ *                 surfaces to OSMesa (eglMakeCurrent's work)
  *   api.c         the EGL 1.4 entry points
  *   extensions.c  partial update, lock surface, sync objects, images,
  *                 platform, debug, EGL_RISCOS_wimp_window, eglGetProcAddress
@@ -32,13 +34,20 @@
  * shared between them stay static and invisible to programs linking
  * libEGL.a.
  *
- * Not thread safe: all EGL and GL calls must come from one thread (the
- * normal case on RISC OS). OSMesa has no "release current", so after
- * eglMakeCurrent(dpy, NO_SURFACE, NO_SURFACE, NO_CONTEXT) GL calls still
- * reach the last context; don't make them.
+ * Threads: the error code, the bound API and the current contexts are kept
+ * for each thread, as EGL requires, and each EGL call holds one lock, so
+ * threads can use EGL and GL at once (each with its own current context).
+ * A thread can have an OpenGL and an OpenGL ES context current together;
+ * GL calls go to the bound API's one (see parts/current.c).
+ *
+ * Every surface has its own OSMesaBuffer (patches/mesa riscos-osmesa-
+ * buffers): the colour is the surface's memory, and the depth and stencil
+ * buffers belong to the surface, not to a context, so contexts can share a
+ * surface, and draw into one surface while reading from another.
  */
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 #define EGL_EGLEXT_PROTOTYPES 1
 #include <EGL/egl.h>
@@ -174,7 +183,9 @@ typedef struct egl_surface {
     int locked;                 /* EGL_KHR_lock_surface */
     int ever_locked;
     /* bookkeeping */
-    int current;
+    OSMesaBuffer buf;           /* what OSMesa draws into: pixels + depth/stencil */
+    int bound;                  /* bindings to current contexts (as draw or read) */
+    struct egl_thread *thread;  /* the thread whose contexts bind it */
     int destroy_pending;
     EGLLabelKHR label;
     struct egl_surface *next;
@@ -189,7 +200,8 @@ typedef struct egl_context {
     int release_flush;          /* EGL_KHR_context_flush_control */
     int surfaceless;            /* has been current without a surface */
     int had_surface;            /* has been current with one */
-    int current;
+    struct egl_thread *thread;  /* the thread it is current in, or NULL */
+    struct egl_surface *draw, *read;    /* while current (NULL: surfaceless) */
     int destroy_pending;
     EGLLabelKHR label;
     struct egl_context *next;
@@ -230,21 +242,95 @@ static egl_display display = { MAGIC_DISPLAY, 0, {{0, 0, 0, 0}}, 0, NULL, NULL, 
 static GLboolean image_lookup(void *image, OSMesaImage *desc);
 static void destroy_images(egl_display *d);
 
-static EGLint last_error = EGL_SUCCESS;
-/* The EGL spec's initial API is OpenGL ES when it's supported (code written
-   for the Pi's Khronos stack relies on it); desktop GL code binds
-   EGL_OPENGL_API. */
-static EGLenum bound_api = EGL_OPENGL_ES_API;
-static egl_context *cur_ctx;
-static egl_surface *cur_surf;
+/* Per-thread state (EGL 1.4 section 3.1): made the first time a thread
+   calls EGL, freed by eglReleaseThread and at thread exit. */
+typedef struct egl_thread {
+    EGLint error;               /* eglGetError */
+    EGLenum api;                /* eglBindAPI */
+    egl_context *ctx[2];        /* current context for OpenGL [0] and OpenGL ES [1] */
+    egl_context *active;        /* the one OSMesa renders with (see current.c) */
+    EGLLabelKHR label;          /* EGL_KHR_debug: eglLabelObjectKHR(THREAD) */
+} egl_thread;
+#define API_SLOT(api) ((api) == EGL_OPENGL_API ? 0 : 1)
+
+static pthread_key_t thread_key;
+static pthread_mutex_t egl_mutex;
+static egl_thread first_thread; /* if a thread's state can't be allocated */
+
+static void release_slot(struct egl_display *d, egl_thread *t, int slot);   /* current.c */
+
+/* A thread that ends with contexts current releases them (as
+   eglReleaseThread), so other threads can use them and their surfaces. */
+static void thread_exit(void *p)
+{
+    egl_thread *t = (egl_thread *) p;
+    pthread_mutex_lock(&egl_mutex);
+    release_slot(&display, t, 0);
+    release_slot(&display, t, 1);
+    pthread_mutex_unlock(&egl_mutex);
+    if (t != &first_thread)
+        free(t);
+}
+
+static void egl_once_init(void)
+{
+    pthread_mutexattr_t a;
+    pthread_mutexattr_init(&a);
+    pthread_mutexattr_settype(&a, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&egl_mutex, &a);
+    pthread_mutexattr_destroy(&a);
+    pthread_key_create(&thread_key, thread_exit);
+}
+
+static pthread_once_t egl_once = PTHREAD_ONCE_INIT;
+
+/* The calling thread's state */
+static egl_thread *thr(void)
+{
+    egl_thread *t;
+    pthread_once(&egl_once, egl_once_init);
+    t = (egl_thread *) pthread_getspecific(thread_key);
+    if (!t) {
+        t = (egl_thread *) calloc(1, sizeof *t);
+        if (!t)
+            t = &first_thread;
+        /* The EGL spec's initial API is OpenGL ES when it's supported (code
+           written for the Pi's Khronos stack relies on it); desktop GL code
+           binds EGL_OPENGL_API. */
+        t->error = EGL_SUCCESS;
+        t->api = EGL_OPENGL_ES_API;
+        pthread_setspecific(thread_key, t);
+    }
+    return t;
+}
 
 /* EGL_KHR_debug: every public function records its name on entry, and the
-   validation helpers record the label of the object they found. */
+   validation helpers record the label of the object they found (both
+   under the lock). */
 static const char *egl_cmd = "";
-static EGLLabelKHR egl_obj_label, thread_label;
+static EGLLabelKHR egl_obj_label;
 static EGLDEBUGPROCKHR debug_callback;
 static int debug_enabled[4] = { 1, 1, 0, 0 };   /* critical, error, warn, info */
-#define ENTER() (egl_cmd = __func__, egl_obj_label = NULL)
+
+/* Every public function starts with ENTER(): it takes the lock, which is
+   released when the function returns (GCC's cleanup attribute), and
+   records the function's name for EGL_KHR_debug. */
+static int egl_enter(const char *cmd)
+{
+    pthread_once(&egl_once, egl_once_init);
+    pthread_mutex_lock(&egl_mutex);
+    egl_cmd = cmd;
+    egl_obj_label = NULL;
+    return 1;
+}
+
+static void egl_leave(int *entered)
+{
+    (void) entered;
+    pthread_mutex_unlock(&egl_mutex);
+}
+
+#define ENTER() int egl_entered __attribute__((cleanup(egl_leave), unused)) = egl_enter(__func__)
 
 static const char *error_name(EGLint e)
 {
@@ -262,17 +348,18 @@ static const char *error_name(EGLint e)
 
 static EGLBoolean fail(EGLint error)
 {
-    last_error = error;
+    egl_thread *t = thr();
+    t->error = error;
     if (debug_callback && debug_enabled[error == EGL_BAD_ALLOC ? 0 : 1])
         debug_callback(error, egl_cmd,
                        error == EGL_BAD_ALLOC ? EGL_DEBUG_MSG_CRITICAL_KHR : EGL_DEBUG_MSG_ERROR_KHR,
-                       thread_label, egl_obj_label, error_name(error));
+                       t->label, egl_obj_label, error_name(error));
     return EGL_FALSE;
 }
 
 static EGLBoolean ok(void)
 {
-    last_error = EGL_SUCCESS;
+    thr()->error = EGL_SUCCESS;
     return EGL_TRUE;
 }
 
@@ -284,5 +371,6 @@ static EGLBoolean ok(void)
 #include "parts/buffers.c"
 #include "parts/validation.c"
 #include "parts/configs.c"
+#include "parts/current.c"
 #include "parts/api.c"
 #include "parts/extensions.c"

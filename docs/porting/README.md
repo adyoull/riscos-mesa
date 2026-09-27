@@ -104,6 +104,9 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
   thread switcher can crash other tasks while the program multitasks.
 - Long-lived worker threads buy nothing on one core; running the work in
   the main loop is often simpler.
+- EGL follows EGL 1.4's thread rules (from 20.3.5-8): each thread has
+  its own current context, so a program that loads textures in a second
+  thread with a shared context ports as it is. It won't render faster.
 
 **Other programs**
 

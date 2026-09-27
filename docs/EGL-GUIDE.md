@@ -326,8 +326,11 @@ ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, want_21);
 - Asking for GL 3.0 or later, or a core profile, fails with `EGL_BAD_MATCH`. Check for `EGL_NO_CONTEXT` and fall back to 2.1 if your program can.
 - The debug flag is accepted (and ignored); robust access fails with `EGL_BAD_MATCH`.
 - **Sharing:** pass an existing context as `share` to share textures, display lists and buffer objects between contexts.
-- **Surfaces and contexts must match** in colour order (same config family), or `eglMakeCurrent` fails with `EGL_BAD_MATCH`. Depth and stencil belong to the context, so any depth works with any surface of the right order.
-- The draw and read surfaces passed to `eglMakeCurrent` must be the same surface.
+- **Surfaces and contexts must match**, as EGL requires: the same colour order and the same depth and stencil sizes. Otherwise `eglMakeCurrent` fails with `EGL_BAD_MATCH`. Using the same config for both always works. (Before 20.3.5-8 depth and stencil belonged to the context, so any depth worked with any surface.)
+- **Depth and stencil belong to the surface.** Two contexts that draw into one surface in turn share its depth buffer.
+- **Draw and read can differ:** `eglMakeCurrent(dpy, draw, read, ctx)` renders into `draw`, while `glReadPixels` and `glCopyTexImage2D` read from `read`.
+- **One current context per API:** a thread can have a GL context and an ES context current at the same time. `eglBindAPI` chooses which one `eglGetCurrentContext` reports and which one GL calls go to.
+- **Threads:** each thread has its own current context, error and bound API. A context or surface can be current in only one thread at a time; making it current in another gives `EGL_BAD_ACCESS`. EGL calls are serialised by one lock. The rendering itself isn't faster with threads: Mesa renders on the CPU, and RISC OS runs one thread at a time. Link threaded programs with a UnixLib that has the pthread ticker fix (see the porting guide).
 
 **Function pointers.** `eglGetProcAddress` returns every EGL function (including the RISC OS ones) and every GL function, including core GL 1.x/2.x entry points (`EGL_KHR_get_all_proc_addresses`).
 
@@ -405,7 +408,7 @@ Link with `-lbcm_host -lEGL -lOSMesa -lstdc++ -lz -lm`. Empty `libGLESv2`, `libG
 
 ## Reference: RISC OS additions
 
-All of these are in `EGL/eglext_riscos.h`, under the extension name `EGL_RISCOS_wimp_window` (listed in `EGL_EXTENSIONS`). The values are provisional: they aren't registered with Khronos and may change.
+All of these are in `EGL/eglext_riscos.h`, under the extension name `EGL_RISCOS_wimp_window` (listed in `EGL_EXTENSIONS`). The values are provisional: they aren't registered with Khronos and may change: a registration is ready to submit (`docs/khronos/`). If they change, the library will keep accepting the old values.
 
 **Constants**
 
@@ -462,7 +465,7 @@ and include `EGL/eglext.h`.
 | `EGL_KHR_create_context` | GL version, profile and flags when creating a context (2.1 compatibility is what you get) |
 | `EGL_KHR_get_all_proc_addresses`, `EGL_KHR_client_get_all_proc_addresses` | `eglGetProcAddress` returns core functions as well |
 | `EGL_KHR_surfaceless_context` | `eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx)` works: for loading textures or rendering to framebuffer objects without a window. Giving just one of draw and read is `EGL_BAD_MATCH` |
-| `EGL_KHR_fence_sync`, `EGL_KHR_reusable_sync`, `EGL_KHR_wait_sync` | Sync objects. GL runs on the CPU, in order, so a fence is signalled as soon as it's created (the library calls `glFinish`). With one thread nothing can signal a reusable sync while `eglClientWaitSyncKHR` waits, so an unsignalled one returns `EGL_TIMEOUT_EXPIRED_KHR` at once, whatever the timeout |
+| `EGL_KHR_fence_sync`, `EGL_KHR_reusable_sync`, `EGL_KHR_wait_sync` | Sync objects. GL runs on the CPU, in order, so a fence is signalled as soon as it's created (the library calls `glFinish`). `eglClientWaitSyncKHR` doesn't block: an unsignalled reusable sync returns `EGL_TIMEOUT_EXPIRED_KHR` at once, whatever the timeout |
 | `EGL_EXT_buffer_age` | `eglQuerySurface(..., EGL_BUFFER_AGE_EXT, ...)` on the current surface: 0 = contents unknown (first frame, or the surface was just resized or the mode changed), 1 = the buffer still holds the previous frame (window sprites, full screen sprite, direct rendering), N = the frame from N swaps ago (N screen banks). Pbuffers and pixmaps: 0 |
 | `EGL_KHR_swap_buffers_with_damage`, `EGL_EXT_swap_buffers_with_damage` | `eglSwapBuffersWithDamageKHR(dpy, surf, rects, n)`, rectangles x, y, w, h in pixels from the bottom left. In a window only those parts are updated (one `Wimp_UpdateWindow` each; more than 16 become their bounding box); full screen only those parts are plotted after the vsync wait. Screen banks and direct rendering show the whole frame. `n` = 0 is a normal swap |
 | `EGL_KHR_partial_update` | After querying the buffer age, `eglSetDamageRegionKHR` says which parts of the surface this frame will change; the next `eglSwapBuffers` then shows only those |
@@ -512,7 +515,7 @@ eglClientWaitSyncKHR(dpy, fence, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR, EGL_FOREVER_KH
 eglDestroySyncKHR(dpy, fence);
 ```
 
-A reusable sync (`EGL_SYNC_REUSABLE_KHR`) starts unsignalled and changes with `eglSignalSyncKHR`. Everything runs on one thread, so nothing can signal it while you wait: an unsignalled wait returns `EGL_TIMEOUT_EXPIRED_KHR` at once, whatever the timeout.
+A reusable sync (`EGL_SYNC_REUSABLE_KHR`) starts unsignalled and changes with `eglSignalSyncKHR`. The library doesn't block in `eglClientWaitSyncKHR`: an unsignalled wait returns `EGL_TIMEOUT_EXPIRED_KHR` at once, whatever the timeout. Poll it from your event loop.
 
 **No surface needed.** Make a context current with no surface to load textures or build framebuffer objects before a window exists.
 
@@ -632,8 +635,9 @@ The window and full screen figures are from the 20.3.5-4 tests; rendering has go
 **Limits**
 
 - OpenGL 2.1, OpenGL ES 1.1 and ES 2.0; GL 3.x, core profiles and ES 3.x are refused.
-- One thread: make all EGL and GL calls from the same thread.
-- OSMesa can't really release a context: after `eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT)` don't make GL calls.
+- Threads work as EGL describes (see [Choosing configs and creating contexts](#choosing-configs-and-creating-contexts)), but have only been tested on the host test harness, not yet on a Pi.
+- Swap interval in a desktop window is accepted but doesn't wait for vertical sync: that would stop every other task. Pace frames with `Wimp_PollIdle`. Full screen honours it.
+- `EGL_CONFORMANT` is 0 for every config: the library passes the Khronos dEQP-EGL tests it can run (see `tests/host-harness/deqp`), but isn't certified by Khronos, and only certified implementations may claim conformance. Don't put `EGL_CONFORMANT` in the attributes you give `eglChooseConfig`.
 - No multisampling, no EGL 1.5 entry points. No `eglBindTexImage` (pbuffers as textures); to texture from memory you write yourself, make an image of a sprite (see [Using the extensions](#using-the-extensions)).
 - Static linking only; each program carries its own copy of Mesa (about 9 MB).
 
@@ -643,7 +647,9 @@ The window and full screen figures are from the 20.3.5-4 tests; rendering has go
 | --- | --- |
 | `eglChooseConfig` returns no configs | Check what you asked for: all configs are 32-bit RGBA with depth 0, 16 or 24 and no multisampling |
 | `eglCreateContext` returns `EGL_NO_CONTEXT`, `EGL_BAD_MATCH` | You asked for GL 3.x or core; ask for 2.1 or nothing |
-| `eglMakeCurrent` fails, `EGL_BAD_MATCH` | Surface and context configs are in different colour orders, or draw and read differ |
+| `eglMakeCurrent` fails, `EGL_BAD_MATCH` | The surface and the context were made from configs that differ in colour order, depth or stencil: use the same config for both |
+| `eglMakeCurrent` fails, `EGL_BAD_ACCESS` | The context, or one of the surfaces, is current in another thread: release it there first |
+| `eglChooseConfig` returns no configs, and you asked for `EGL_CONFORMANT` | No config claims conformance (see Limits): leave it out |
 | Random crashes (abort on data transfer, illegal instruction) | Compile everything with `-fstack-clash-protection` |
 | Image in a window doesn't come back after another window covers it | Call `eglRedrawWindowRISCOS` on Redraw_Window_Request |
 | Colours swapped (red and blue) | A sprite or config in the other colour order: use `EGL_MATCH_NATIVE_PIXMAP`, or check `EGL_NATIVE_VISUAL_ID` |

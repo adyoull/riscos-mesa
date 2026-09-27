@@ -203,6 +203,20 @@ mesa-20.3.5-riscos-eglimage.patch
       free. Texels are read (and written by glTexSubImage2D) in place, so
       a change to the memory shows at the next draw.
 
+mesa-20.3.5-riscos-osmesa-buffers.patch
+    Buffers that belong to surfaces, not contexts, for EGL 1.4's rules
+    (found by the Khronos dEQP-EGL tests, tests/host-harness/deqp):
+    - GL/osmesa.h, drivers/osmesa/osmesa.c: OSMesaCreateBuffer(format,
+      depthBits, stencilBits) makes a framebuffer with its own software
+      depth and stencil buffers; OSMesaBufferStorage points its colour
+      buffer at the caller's memory (size, row length, y up or down);
+      OSMesaDestroyBuffer frees it. OSMesaMakeCurrentBuffers(ctx, draw,
+      read) binds a context to two buffers, which may differ (glReadPixels
+      and glCopyTexImage read from the read buffer). Several contexts
+      bound to one buffer share its depth and stencil. The buffer's
+      format must be the context's.
+    OSMesaMakeCurrent with a context's own buffer works as before.
+
 They are under the licence of the files they change: MIT (Mesa), except
 the change to include/c11/threads_posix.h, which is under the Boost
 Software License 1.0. See LICENCES.txt.

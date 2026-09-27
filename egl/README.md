@@ -182,7 +182,7 @@ and include `EGL/eglext.h`.
 | `EGL_KHR_create_context` | GL version, profile and flags when creating a context (2.1 compatibility is what you get) |
 | `EGL_KHR_get_all_proc_addresses`, `EGL_KHR_client_get_all_proc_addresses` | `eglGetProcAddress` returns core functions as well |
 | `EGL_KHR_surfaceless_context` | `eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx)` works: for loading textures or rendering to framebuffer objects without a window. Giving just one of draw and read is `EGL_BAD_MATCH` |
-| `EGL_KHR_fence_sync`, `EGL_KHR_reusable_sync`, `EGL_KHR_wait_sync` | Sync objects. GL runs on the CPU, in order, so a fence is signalled as soon as it's created (the library calls `glFinish`). With one thread nothing can signal a reusable sync while `eglClientWaitSyncKHR` waits, so an unsignalled one returns `EGL_TIMEOUT_EXPIRED_KHR` at once, whatever the timeout |
+| `EGL_KHR_fence_sync`, `EGL_KHR_reusable_sync`, `EGL_KHR_wait_sync` | Sync objects. GL runs on the CPU, in order, so a fence is signalled as soon as it's created (the library calls `glFinish`). `eglClientWaitSyncKHR` doesn't block: an unsignalled reusable sync returns `EGL_TIMEOUT_EXPIRED_KHR` at once, whatever the timeout |
 | `EGL_EXT_buffer_age` | `eglQuerySurface(..., EGL_BUFFER_AGE_EXT, ...)` on the current surface: 0 = contents unknown (first frame, or the surface was just resized or the mode changed), 1 = the buffer still holds the previous frame (window sprites, full screen sprite, direct rendering), N = the frame from N swaps ago (N screen banks). Pbuffers and pixmaps: 0 |
 | `EGL_KHR_swap_buffers_with_damage`, `EGL_EXT_swap_buffers_with_damage` | `eglSwapBuffersWithDamageKHR(dpy, surf, rects, n)`, rectangles x, y, w, h in pixels from the bottom left. In a window only those parts are updated (one `Wimp_UpdateWindow` each; more than 16 become their bounding box); full screen only those parts are plotted after the vsync wait. Screen banks and direct rendering show the whole frame. `n` = 0 is a normal swap |
 | `EGL_KHR_partial_update` | After querying the buffer age, `eglSetDamageRegionKHR` says which parts of the surface this frame will change; the next `eglSwapBuffers` then shows only those |
@@ -205,15 +205,23 @@ the pixel size. (Before 20.3.5-5 the sprite was always 90 dpi, so in these
 modes it was shown doubled and cropped.)
 
 ## Limits
-- Not thread safe: make all EGL and GL calls from one thread.
-- OSMesa can't un-bind a context. After releasing with `eglMakeCurrent(dpy,
-  EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT)`, don't make GL calls.
-- The draw and read surfaces must be the same. No `eglBindTexImage`
-  (textures from memory are done with images of sprites instead), no
-  OpenVG, no EGL 1.5 entry points (the KHR sync and image extensions are
-  there).
-- The enum values and function names of `EGL_RISCOS_wimp_window` are
-  provisional: they aren't registered with Khronos.
+- Threads: each thread has its own current context, error and bound API,
+  and one GL and one ES context can be current in a thread at once (EGL
+  1.4's rules). EGL calls are serialised by one lock. Tested on the host
+  harness only, not yet on a Pi.
+- Depth and stencil belong to surfaces: a context and the surfaces it's
+  made current with must have the same colour order, depth and stencil
+  (`EGL_BAD_MATCH` otherwise). Draw and read surfaces can differ.
+- Swap interval in a desktop window doesn't wait (that would stop every
+  task); full screen honours it.
+- `EGL_CONFORMANT` is 0: not certified by Khronos. The Khronos dEQP-EGL
+  tests run on the host in `tests/host-harness/deqp`.
+- No `eglBindTexImage` (textures from memory are done with images of
+  sprites instead), no OpenVG, no EGL 1.5 entry points (the KHR sync and
+  image extensions are there). `eglClientWaitSyncKHR` doesn't block.
+- The enum values of `EGL_RISCOS_wimp_window` and
+  `EGL_RISCOS_platform_wimp` are provisional until registered with Khronos:
+  `docs/khronos/` has the registration ready to submit.
 
 ## Design notes: toward a common RISC OS GL interface
 Cameron Cawley's ROOL thread "Generic OpenGL interface" (July 2024) asked

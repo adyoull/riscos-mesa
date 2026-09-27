@@ -4,6 +4,53 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## 20.3.5-8 (in development): EGL follows the Khronos rules
+
+The EGL library was run against Khronos's own EGL tests (dEQP-EGL, from
+the conformance suite) on the host test harness, and the places where it
+differed from the EGL 1.4 specification were fixed: 858 of the tests pass
+(842 before), and the 12 that fail are one test's use of an empty pbuffer
+(see `tests/host-harness/deqp/README.md`). None of this has been tested on
+a Pi yet.
+
+- **Depth and stencil belong to surfaces**, as EGL says: two contexts
+  drawing into one surface share its depth buffer. A new OSMesa patch
+  (`patches/mesa/mesa-20.3.5-riscos-osmesa-buffers.patch`) gives each
+  surface its own buffers. **A context and its surfaces must now have the
+  same depth and stencil sizes** (before, any depth worked with any
+  surface): `eglMakeCurrent` gives `EGL_BAD_MATCH` otherwise. Programs
+  that use one config for both, as nearly all do, aren't affected.
+- **Different draw and read surfaces** in `eglMakeCurrent` work.
+- **One current context per API:** a GL and an ES context can be current
+  in a thread at once; `eglBindAPI` picks which one GL calls go to.
+- **Threads:** each thread has its own current context, error and bound
+  API; making a context or surface current in two threads gives
+  `EGL_BAD_ACCESS`; every EGL call takes one lock; a thread that ends
+  with a context current releases it. Releasing a context
+  (`eglMakeCurrent` with `EGL_NO_CONTEXT`) now really releases it.
+- **Stricter checks:** `eglChooseConfig` refuses invalid values for
+  boolean and enum attributes (`EGL_BAD_ATTRIBUTE`);
+  `eglSetDamageRegionKHR` refuses surfaces set to `EGL_BUFFER_PRESERVED`,
+  as `EGL_KHR_partial_update` requires; a surface's `EGL_SWAP_BEHAVIOR`
+  starts as `EGL_BUFFER_DESTROYED` (the contents are still kept in
+  practice, except with screen banks).
+- **`EGL_CONFORMANT` is 0** for every config: only implementations
+  certified by Khronos may claim conformance. A program that asks for
+  `EGL_CONFORMANT` in `eglChooseConfig` now gets no configs.
+- **Khronos registration:** `docs/khronos/` has the specifications of
+  `EGL_RISCOS_wimp_window` and `EGL_RISCOS_platform_wimp` and a pull
+  request for the Khronos EGL registry, ready to submit. Until it's
+  accepted the enum values stay as they are (provisional).
+- **Tests:** `tests/host-harness/deqp` builds and runs dEQP-EGL on the
+  host; the EGL harness has 39 new checks (draw/read, shared depth, the
+  depth check, GL and ES current together, two threads rendering at once,
+  a thread ending with a context current);
+  the fake RISC OS serialises SWIs so threaded tests are safe.
+- **Docs:** the EGL guide, `egl/README.md` and the porting guide describe
+  the new rules; the swap interval in desktop windows (accepted, doesn't
+  wait, so other tasks keep running) is now documented as a deliberate
+  choice.
+
 ## 20.3.5-7: faster rendering, OpenAL, video textures
 
 Rendering is up to 2.9 times as fast as 20.3.5-6, with the same picture,

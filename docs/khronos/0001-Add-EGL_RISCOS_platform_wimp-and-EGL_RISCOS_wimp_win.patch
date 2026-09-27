@@ -1,0 +1,609 @@
+From d2e5226edc90e4d91dd53cb2c15e916a995ed950 Mon Sep 17 00:00:00 2001
+From: Andrew Youll <adyoull@users.noreply.github.com>
+Date: Sun, 27 Sep 2026 15:40:56 +0100
+Subject: [PATCH] Add EGL_RISCOS_platform_wimp and EGL_RISCOS_wimp_window
+
+Reserve enumerant block 0x35A0-0x35AF for RISCOS (riscos-mesa) and
+register two extensions, #156 and #157:
+
+- EGL_RISCOS_platform_wimp: EGL_PLATFORM_RISCOS for
+  EGL_EXT_platform_base (client extension).
+- EGL_RISCOS_wimp_window: RISC OS native types (Wimp window handles,
+  sprites, the whole screen), work area surfaces, screen banks, and
+  eglRedrawWindowRISCOS / eglPlotSurfaceRISCOS for redrawing windows
+  from the task's own Wimp_Poll loop.
+
+Also adds a __riscos__ branch to eglplatform.h and regenerates the
+headers.
+---
+ api/EGL/egl.h                                 |   4 +-
+ api/EGL/eglext.h                              |  27 +-
+ api/EGL/eglplatform.h                         |   8 +
+ api/egl.xml                                   |  47 +++-
+ .../RISCOS/EGL_RISCOS_platform_wimp.txt       | 116 +++++++++
+ extensions/RISCOS/EGL_RISCOS_wimp_window.txt  | 238 ++++++++++++++++++
+ index.php                                     |   4 +
+ registry.tcl                                  |  12 +-
+ 8 files changed, 449 insertions(+), 7 deletions(-)
+ create mode 100644 extensions/RISCOS/EGL_RISCOS_platform_wimp.txt
+ create mode 100644 extensions/RISCOS/EGL_RISCOS_wimp_window.txt
+
+diff --git a/api/EGL/egl.h b/api/EGL/egl.h
+index 314ef43..c8086da 100644
+--- a/api/EGL/egl.h
++++ b/api/EGL/egl.h
+@@ -14,7 +14,7 @@ extern "C" {
+ ** used to make the header, and the header can be found at
+ **   http://www.khronos.org/registry/egl
+ **
+-** Khronos $Git commit SHA1: e80a2e0050 $ on $Git commit date: 2026-03-19 06:21:49 +0100 $
++** Khronos $Git commit SHA1: db3425b824 $ on $Git commit date: 2026-09-21 10:38:31 -0400 $
+ */
+ 
+ #include <EGL/eglplatform.h>
+@@ -23,7 +23,7 @@ extern "C" {
+ #define EGL_EGL_PROTOTYPES 1
+ #endif
+ 
+-/* Generated on date 20260319 */
++/* Generated on date 20260927 */
+ 
+ /* Generated C header for:
+  * API: egl
+diff --git a/api/EGL/eglext.h b/api/EGL/eglext.h
+index c3639e4..0485f63 100644
+--- a/api/EGL/eglext.h
++++ b/api/EGL/eglext.h
+@@ -14,12 +14,12 @@ extern "C" {
+ ** used to make the header, and the header can be found at
+ **   http://www.khronos.org/registry/egl
+ **
+-** Khronos $Git commit SHA1: e80a2e0050 $ on $Git commit date: 2026-03-19 06:21:49 +0100 $
++** Khronos $Git commit SHA1: db3425b824 $ on $Git commit date: 2026-09-21 10:38:31 -0400 $
+ */
+ 
+ #include <EGL/eglplatform.h>
+ 
+-#define EGL_EGLEXT_VERSION 20260319
++#define EGL_EGLEXT_VERSION 20260927
+ 
+ /* Generated C header for:
+  * API: egl
+@@ -1479,6 +1479,29 @@ EGLAPI EGLuint64NV EGLAPIENTRY eglGetSystemTimeNV (void);
+ #define EGL_PLATFORM_SCREEN_QNX           0x3550
+ #endif /* EGL_QNX_platform_screen */
+ 
++#ifndef EGL_RISCOS_platform_wimp
++#define EGL_RISCOS_platform_wimp 1
++#define EGL_PLATFORM_RISCOS               0x35A5
++#endif /* EGL_RISCOS_platform_wimp */
++
++#ifndef EGL_RISCOS_wimp_window
++#define EGL_RISCOS_wimp_window 1
++#define EGL_RISCOS_SCREEN_WINDOW          EGL_CAST(EGLNativeWindowType,-1)
++#define EGL_WORK_AREA_X_RISCOS            0x35A0
++#define EGL_WORK_AREA_Y_RISCOS            0x35A1
++#define EGL_WORK_AREA_WIDTH_RISCOS        0x35A2
++#define EGL_WORK_AREA_HEIGHT_RISCOS       0x35A3
++#define EGL_SCREEN_BANKS_RISCOS           0x35A4
++#define EGL_RISCOS_VISUAL_TBGR            0x0000
++#define EGL_RISCOS_VISUAL_TRGB            0x4000
++typedef EGLBoolean (EGLAPIENTRYP PFNEGLREDRAWWINDOWRISCOSPROC) (EGLDisplay dpy, int *block);
++typedef EGLBoolean (EGLAPIENTRYP PFNEGLPLOTSURFACERISCOSPROC) (EGLDisplay dpy, EGLSurface surface, const int *block);
++#ifdef EGL_EGLEXT_PROTOTYPES
++EGLAPI EGLBoolean EGLAPIENTRY eglRedrawWindowRISCOS (EGLDisplay dpy, int *block);
++EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS (EGLDisplay dpy, EGLSurface surface, const int *block);
++#endif
++#endif /* EGL_RISCOS_wimp_window */
++
+ #ifndef EGL_TIZEN_image_native_buffer
+ #define EGL_TIZEN_image_native_buffer 1
+ #define EGL_NATIVE_BUFFER_TIZEN           0x32A0
+diff --git a/api/EGL/eglplatform.h b/api/EGL/eglplatform.h
+index 6786afd..79901e9 100644
+--- a/api/EGL/eglplatform.h
++++ b/api/EGL/eglplatform.h
+@@ -119,6 +119,14 @@ typedef Display *EGLNativeDisplayType;
+ typedef Pixmap   EGLNativePixmapType;
+ typedef Window   EGLNativeWindowType;
+ 
++#elif defined(__riscos__)
++
++/* RISC OS: see EGL_RISCOS_wimp_window. The display is EGL_DEFAULT_DISPLAY,
++ * a pixmap points to a 32bpp sprite, a window is a Wimp window handle. */
++typedef int   EGLNativeDisplayType;
++typedef void *EGLNativePixmapType;
++typedef int   EGLNativeWindowType;
++
+ #elif defined(__unix__)
+ 
+ typedef void             *EGLNativeDisplayType;
+diff --git a/api/egl.xml b/api/egl.xml
+index e937823..b656a56 100644
+--- a/api/egl.xml
++++ b/api/egl.xml
+@@ -189,6 +189,9 @@
+         <enum value="EGL_CAST(EGLImage,0)" name="EGL_NO_IMAGE"/>
+         <enum value="EGL_CAST(EGLImageKHR,0)" name="EGL_NO_IMAGE_KHR"/>
+         <enum value="EGL_CAST(EGLNativeDisplayType,0)" name="EGL_DEFAULT_DISPLAY"/>
++        <enum value="EGL_CAST(EGLNativeWindowType,-1)" name="EGL_RISCOS_SCREEN_WINDOW"/>
++        <enum value="0x0000" name="EGL_RISCOS_VISUAL_TBGR"/>
++        <enum value="0x4000" name="EGL_RISCOS_VISUAL_TRGB"/>
+         <enum value="EGL_CAST(EGLNativeFileDescriptorKHR,-1)" name="EGL_NO_FILE_DESCRIPTOR_KHR"/>
+         <enum value="EGL_CAST(EGLOutputLayerEXT,0)" name="EGL_NO_OUTPUT_LAYER_EXT"/>
+         <enum value="EGL_CAST(EGLOutputPortEXT,0)" name="EGL_NO_OUTPUT_PORT_EXT"/>
+@@ -1108,6 +1111,16 @@
+             <unused start="0x3595" end="0x359F"/>
+     </enums>
+ 
++    <enums namespace="EGL" start="0x35A0" end="0x35AF" vendor="RISCOS" comment="Reserved for Andrew Youll - riscos-mesa (via github pull request)">
++        <enum value="0x35A0" name="EGL_WORK_AREA_X_RISCOS"/>
++        <enum value="0x35A1" name="EGL_WORK_AREA_Y_RISCOS"/>
++        <enum value="0x35A2" name="EGL_WORK_AREA_WIDTH_RISCOS"/>
++        <enum value="0x35A3" name="EGL_WORK_AREA_HEIGHT_RISCOS"/>
++        <enum value="0x35A4" name="EGL_SCREEN_BANKS_RISCOS"/>
++        <enum value="0x35A5" name="EGL_PLATFORM_RISCOS"/>
++            <unused start="0x35A6" end="0x35AF"/>
++    </enums>
++
+ <!-- Please remember that new enumerant allocations must be obtained by
+      request to the Khronos API registrar (see comments at the top of this
+      file) File requests in the Khronos Bugzilla, EGL project, Registry
+@@ -1117,8 +1130,8 @@
+ 
+ <!-- Reservable for future use. To generate a new range, allocate multiples
+      of 16 starting at the lowest available point in this block. -->
+-    <enums namespace="EGL" start="0x35A0" end="0x3FFF" vendor="KHR" comment="Reserved for future use">
+-            <unused start="0x35A0" end="0x3FFF"/>
++    <enums namespace="EGL" start="0x35B0" end="0x3FFF" vendor="KHR" comment="Reserved for future use">
++            <unused start="0x35B0" end="0x3FFF"/>
+     </enums>
+ 
+     <enums namespace="EGL" start="0x8F70" end="0x8F7F" vendor="HI" comment="For Mark Callow, Khronos bug 4055. Shared with GL.">
+@@ -2085,6 +2098,17 @@
+              <proto><ptype>EGLBoolean</ptype> <name>eglDestroyDisplayEXT</name></proto>
+              <param><ptype>EGLDisplay</ptype> <name>dpy</name></param>
+         </command>
++        <command>
++            <proto><ptype>EGLBoolean</ptype> <name>eglRedrawWindowRISCOS</name></proto>
++            <param><ptype>EGLDisplay</ptype> <name>dpy</name></param>
++            <param>int *<name>block</name></param>
++        </command>
++        <command>
++            <proto><ptype>EGLBoolean</ptype> <name>eglPlotSurfaceRISCOS</name></proto>
++            <param><ptype>EGLDisplay</ptype> <name>dpy</name></param>
++            <param><ptype>EGLSurface</ptype> <name>surface</name></param>
++            <param>const int *<name>block</name></param>
++        </command>
+     </commands>
+ 
+     <!-- SECTION: EGL API interface definitions. -->
+@@ -3613,5 +3637,24 @@
+                 <enum name="EGL_DEVICE_TYPE_CPU_EXT"/>
+             </require>
+         </extension>
++        <extension name="EGL_RISCOS_platform_wimp" supported="egl">
++            <require>
++                <enum name="EGL_PLATFORM_RISCOS"/>
++            </require>
++        </extension>
++        <extension name="EGL_RISCOS_wimp_window" supported="egl">
++            <require>
++                <enum name="EGL_RISCOS_SCREEN_WINDOW"/>
++                <enum name="EGL_WORK_AREA_X_RISCOS"/>
++                <enum name="EGL_WORK_AREA_Y_RISCOS"/>
++                <enum name="EGL_WORK_AREA_WIDTH_RISCOS"/>
++                <enum name="EGL_WORK_AREA_HEIGHT_RISCOS"/>
++                <enum name="EGL_SCREEN_BANKS_RISCOS"/>
++                <enum name="EGL_RISCOS_VISUAL_TBGR"/>
++                <enum name="EGL_RISCOS_VISUAL_TRGB"/>
++                <command name="eglRedrawWindowRISCOS"/>
++                <command name="eglPlotSurfaceRISCOS"/>
++            </require>
++        </extension>
+     </extensions>
+ </registry>
+diff --git a/extensions/RISCOS/EGL_RISCOS_platform_wimp.txt b/extensions/RISCOS/EGL_RISCOS_platform_wimp.txt
+new file mode 100644
+index 0000000..ba5ae50
+--- /dev/null
++++ b/extensions/RISCOS/EGL_RISCOS_platform_wimp.txt
+@@ -0,0 +1,116 @@
++Name
++
++    RISCOS_platform_wimp
++
++Name Strings
++
++    EGL_RISCOS_platform_wimp
++
++Contributors
++
++    Andrew Youll
++
++Contacts
++
++    Andrew Youll (adyoull 'at' users.noreply.github.com)
++
++Status
++
++    Complete. Shipping in riscos-mesa (Mesa 20.3.5 for RISC OS 5) since
++    version 20.3.5-4 (2026).
++
++Version
++
++    Version 1, 2026-09-27
++
++Number
++
++    EGL Extension #156
++
++Extension Type
++
++    EGL client extension
++
++Dependencies
++
++    Requires EGL_EXT_client_extensions to query its existence without
++    a display.
++
++    Requires EGL_EXT_platform_base.
++
++    Requires EGL_RISCOS_wimp_window, which defines the native window and
++    pixmap types this extension passes by pointer.
++
++    This extension is written against the wording of version 9 of the
++    EGL_EXT_platform_base specification.
++
++Overview
++
++    This extension defines how to create EGL resources from native RISC OS
++    resources (the desktop's Window Manager, the "Wimp", and sprites) with
++    the functions defined by EGL_EXT_platform_base.
++
++New Types
++
++    None
++
++New Procedures and Functions
++
++    None
++
++New Tokens
++
++    Accepted as the <platform> argument of eglGetPlatformDisplayEXT:
++
++        EGL_PLATFORM_RISCOS                     0x35A5
++
++Additions to the EGL Specification
++
++    None.
++
++New Behavior
++
++    To determine if the EGL implementation supports this extension, clients
++    should query the EGL_EXTENSIONS string of EGL_NO_DISPLAY.
++
++    To obtain the EGLDisplay for the RISC OS screen, call
++    eglGetPlatformDisplayEXT with <platform> set to EGL_PLATFORM_RISCOS.
++    RISC OS has a single display, so <native_display> must be NULL; any
++    other value generates EGL_BAD_PARAMETER. No attributes are defined:
++    <attrib_list> must be NULL or empty, otherwise EGL_BAD_ATTRIBUTE is
++    generated. The display returned is the one returned by
++    eglGetDisplay(EGL_DEFAULT_DISPLAY).
++
++    To obtain an on-screen rendering surface, call
++    eglCreatePlatformWindowSurfaceEXT with <native_window> pointing to an
++    int holding the Wimp window handle, or -1 (EGL_RISCOS_SCREEN_WINDOW) for
++    the whole screen, as described by EGL_RISCOS_wimp_window. If
++    <native_window> is NULL, EGL_BAD_NATIVE_WINDOW is generated. The
++    attributes accepted, and the surface's behaviour, are those of
++    eglCreateWindowSurface with the same handle.
++
++    To obtain an offscreen rendering surface, call
++    eglCreatePlatformPixmapSurfaceEXT with <native_pixmap> set to a pointer
++    to the header of a 32 bits per pixel sprite, as described by
++    EGL_RISCOS_wimp_window. (This is the same value that would be passed to
++    eglCreatePixmapSurface.)
++
++Issues
++
++    1. Why is <native_window> a pointer to an int rather than the handle?
++
++       RESOLVED: EGL_EXT_platform_base passes native objects as pointers,
++       and a Wimp window handle is an int. Following EGL_KHR_platform_x11,
++       whose window is an XID, the pointer points to the handle.
++
++    2. Why is <native_pixmap> the sprite pointer itself?
++
++       RESOLVED: a sprite is already referred to by pointer (to its
++       header), as EGLNativePixmapType is on RISC OS; no indirection is
++       needed.
++
++Revision History
++
++    Version 1, 2026-09-27 (Andrew Youll)
++        - Initial version. Before registration the implementation used the
++          provisional value 0x3FF5 for EGL_PLATFORM_RISCOS.
+diff --git a/extensions/RISCOS/EGL_RISCOS_wimp_window.txt b/extensions/RISCOS/EGL_RISCOS_wimp_window.txt
+new file mode 100644
+index 0000000..b7c7298
+--- /dev/null
++++ b/extensions/RISCOS/EGL_RISCOS_wimp_window.txt
+@@ -0,0 +1,238 @@
++Name
++
++    RISCOS_wimp_window
++
++Name Strings
++
++    EGL_RISCOS_wimp_window
++
++Contributors
++
++    Andrew Youll
++
++Contacts
++
++    Andrew Youll (adyoull 'at' users.noreply.github.com)
++
++Status
++
++    Complete. Shipping in riscos-mesa (Mesa 20.3.5 for RISC OS 5) since
++    version 20.3.5-3 (2026).
++
++Version
++
++    Version 1, 2026-09-27
++
++Number
++
++    EGL Extension #157
++
++Extension Type
++
++    EGL display extension
++
++Dependencies
++
++    EGL 1.4 is required.
++
++    This extension is written against the EGL 1.5 specification.
++
++    Interacts with EGL_KHR_partial_update and EGL_EXT_buffer_age (see
++    "Swap behaviour" below).
++
++Overview
++
++    RISC OS is a cooperatively multitasking operating system. On its
++    desktop, applications ("tasks") own windows handled by the Window
++    Manager (the "Wimp"). A task receives events by calling Wimp_Poll, and
++    must redraw its windows when asked, through the Wimp_RedrawWindow /
++    Wimp_GetRectangle loop; nothing is drawn into a window at any other
++    time without Wimp_UpdateWindow. Full-screen programs instead own the
++    whole screen.
++
++    This extension defines the RISC OS native window and pixmap types for
++    EGL, surfaces placed inside a window's scrollable work area, the use of
++    the whole screen, and two functions that let a task, which owns its
++    event loop, redraw its EGL surfaces when the Wimp asks.
++
++New Types
++
++    None
++
++New Procedures and Functions
++
++    EGLBoolean eglRedrawWindowRISCOS(EGLDisplay dpy, int *block);
++
++    EGLBoolean eglPlotSurfaceRISCOS(EGLDisplay dpy, EGLSurface surface,
++                                    const int *block);
++
++New Tokens
++
++    Accepted as the <native_window> argument of eglCreateWindowSurface
++    (the value, cast to EGLNativeWindowType):
++
++        EGL_RISCOS_SCREEN_WINDOW                ((EGLNativeWindowType) -1)
++
++    Accepted as attributes in the <attrib_list> of eglCreateWindowSurface
++    and eglCreatePlatformWindowSurface(EXT):
++
++        EGL_WORK_AREA_X_RISCOS                  0x35A0
++        EGL_WORK_AREA_Y_RISCOS                  0x35A1
++        EGL_WORK_AREA_WIDTH_RISCOS              0x35A2
++        EGL_WORK_AREA_HEIGHT_RISCOS             0x35A3
++
++    Accepted as an attribute in the <attrib_list> of
++    eglCreateWindowSurface and eglCreatePlatformWindowSurface(EXT), and as
++    the <attribute> argument of eglQuerySurface:
++
++        EGL_SCREEN_BANKS_RISCOS                 0x35A4
++
++    Returned as the EGL_NATIVE_VISUAL_ID of a config (these are the colour
++    order bits of the RISC OS ModeFlags mode variable, not EGL enums):
++
++        EGL_RISCOS_VISUAL_TBGR                  0x0000
++        EGL_RISCOS_VISUAL_TRGB                  0x4000
++
++Native types
++
++    On RISC OS (compilers define __riscos__), eglplatform.h defines:
++
++        typedef int   EGLNativeDisplayType;  /* EGL_DEFAULT_DISPLAY only */
++        typedef void *EGLNativePixmapType;   /* a sprite */
++        typedef int   EGLNativeWindowType;   /* a Wimp window handle */
++
++    A native pixmap is a pointer to the header of a sprite with 32 bits per
++    pixel, in any sprite area. Rendering goes straight into the sprite's
++    image, whose first row is the top of the image. The config used must
++    have the sprite's colour order as its EGL_NATIVE_VISUAL_ID (0x00BBGGRR
++    for EGL_RISCOS_VISUAL_TBGR, 0x00RRGGBB for EGL_RISCOS_VISUAL_TRGB).
++
++    A native window is the handle of a Wimp window owned by the calling
++    task, or EGL_RISCOS_SCREEN_WINDOW for the whole screen.
++
++Additions to Chapter 3 of the EGL 1.5 Specification (EGL Functions and
++Errors)
++
++    Add to section 3.5.1 "Creating On-Screen Rendering Surfaces":
++
++    "On RISC OS, <win> is a Wimp window handle or
++    EGL_RISCOS_SCREEN_WINDOW.
++
++    By default, a surface for a Wimp window covers the window's visible
++    area. It stays in place when the window's work area scrolls and follows
++    the window's size: after the window is resized, the next
++    eglSwapBuffers shows the finished frame at the old size, then resizes
++    the surface for the next frame. Applications query EGL_WIDTH and
++    EGL_HEIGHT to find the new size.
++
++    If EGL_WORK_AREA_WIDTH_RISCOS and EGL_WORK_AREA_HEIGHT_RISCOS (in
++    pixels, both greater than zero) are given, the surface instead has a
++    fixed size and a fixed place in the window's work area: its top left
++    corner is at EGL_WORK_AREA_X_RISCOS, EGL_WORK_AREA_Y_RISCOS (in OS
++    units, work area coordinates, so Y is usually zero or negative; both
++    default to 0). Such a surface scrolls with the work area, so a window
++    can hold other content besides it, and a window can hold several such
++    surfaces; later surfaces are drawn over earlier ones where they
++    overlap. Giving only one of the width and height, a width or height of
++    zero or less, or a width and height with EGL_RISCOS_SCREEN_WINDOW
++    generates EGL_BAD_ATTRIBUTE. EGL_WORK_AREA_X_RISCOS and
++    EGL_WORK_AREA_Y_RISCOS are ignored without a width and height.
++
++    With EGL_RISCOS_SCREEN_WINDOW the surface is the whole screen, for
++    full-screen, single-tasking programs. EGL_SCREEN_BANKS_RISCOS may be
++    given as 0 (the default), 2 or 3; other values generate
++    EGL_BAD_ATTRIBUTE, as does giving it for a Wimp window. With 0, rendering goes to an offscreen buffer that
++    eglSwapBuffers copies to the screen. With 2 or 3, the implementation
++    may render into hidden screen banks and show each on eglSwapBuffers;
++    it may use fewer banks, or none, if screen memory does not allow them.
++    Querying EGL_SCREEN_BANKS_RISCOS gives the number of banks in use (0
++    for none, and for window surfaces). A surface using screen banks has
++    EGL_SWAP_BEHAVIOR EGL_BUFFER_DESTROYED; setting EGL_BUFFER_PRESERVED
++    stops using the banks. EGL_RENDER_BUFFER EGL_SINGLE_BUFFER renders
++    straight into the visible screen."
++
++    Add to section 3.10.3 "Posting Semantics", after eglSwapInterval:
++
++    "On RISC OS, for a surface created with EGL_RISCOS_SCREEN_WINDOW,
++    eglSwapBuffers waits for the given number of vertical syncs. For a
++    surface in a Wimp window the swap interval is accepted and reported
++    but does not delay eglSwapBuffers: waiting for vertical sync would
++    stop every task on the desktop, which is cooperatively multitasked.
++    Tasks pace their frames through their event loop (Wimp_PollIdle)
++    instead."
++
++    Add a new section 3.10.4 "Redrawing RISC OS Windows":
++
++    "The implementation never calls Wimp_Poll: the calling task owns its
++    event loop. eglSwapBuffers on a window surface updates the window
++    immediately (through Wimp_UpdateWindow). When the Wimp asks the task
++    to redraw a window (a Redraw_Window_Request event), the task calls
++
++        EGLBoolean eglRedrawWindowRISCOS(EGLDisplay dpy, int *block);
++
++    with <block> the Wimp_Poll block of the event (its first word is the
++    window handle). The call runs the Wimp_RedrawWindow and
++    Wimp_GetRectangle loop for that window and draws the last frame posted
++    to every EGL window surface in it. <block> must be at least 44 bytes
++    long, and its contents are changed as by Wimp_RedrawWindow.
++
++    If the window has no EGL window surfaces, EGL_FALSE is returned, the
++    error EGL_BAD_NATIVE_WINDOW is generated, and no redraw is started, so
++    the task can run the loop itself. If <block> is NULL,
++    EGL_BAD_PARAMETER is generated. If <dpy> is not a valid initialised
++    display, EGL_BAD_DISPLAY or EGL_NOT_INITIALIZED is generated.
++
++    A task that draws other things in the same window runs the redraw loop
++    itself, and for each rectangle calls
++
++        EGLBoolean eglPlotSurfaceRISCOS(EGLDisplay dpy,
++                                        EGLSurface surface,
++                                        const int *block);
++
++    with <block> the block filled in by Wimp_RedrawWindow or
++    Wimp_GetRectangle. The last frame posted to <surface> is drawn,
++    clipped to the rectangle in words 7 to 10 of <block>. If <surface> is
++    not a window surface for a Wimp window (a pbuffer, a pixmap, or the
++    whole screen), EGL_BAD_SURFACE is generated. If <block> is NULL,
++    EGL_BAD_PARAMETER is generated."
++
++    Add to the description of EGL_NATIVE_VISUAL_ID in section 3.4:
++
++    "On RISC OS the native visual ID is the colour order of the config's
++    pixels, as the colour order bits of the ModeFlags mode variable:
++    EGL_RISCOS_VISUAL_TBGR (0x00BBGGRR words, as sprite type 6) or
++    EGL_RISCOS_VISUAL_TRGB (0x00RRGGBB words). Configs that match the
++    current screen mode have the lowest EGL_CONFIG_IDs."
++
++Errors
++
++    As described above.
++
++Issues
++
++    1. Why doesn't the implementation redraw windows by itself?
++
++       RESOLVED: on RISC OS, only the task that owns a window can respond to
++       its redraw requests, and only from its own Wimp_Poll loop. A library
++       cannot poll the Wimp on the task's behalf without taking over its
++       event loop. The two functions let the task's existing loop do it.
++
++    2. Why is the swap interval not honoured in windows?
++
++       RESOLVED: the desktop is cooperatively multitasked; a task waiting
++       for vertical sync inside eglSwapBuffers would stop all other tasks
++       for that time. Full-screen programs own the machine, so there the
++       interval is honoured. EGL 1.5 allows an implementation to clamp the
++       interval; this extension makes the behaviour explicit instead.
++
++    3. Why are work area positions in OS units but sizes in pixels?
++
++       RESOLVED: Wimp work area coordinates are in OS units, which the task
++       already uses to lay out its window; the surface size is the size of
++       the GL framebuffer, which applications think of in pixels.
++
++Revision History
++
++    Version 1, 2026-09-27 (Andrew Youll)
++        - Initial version. Before registration the implementation used the
++          provisional values 0x3FF0-0x3FF4 for the attributes above.
+diff --git a/index.php b/index.php
+index 2bb62db..70a5360 100644
+--- a/index.php
++++ b/index.php
+@@ -372,6 +372,10 @@ include_once("../../assets/static_pages/khr_page_top.php");
+ </li>
+ <li value=153> <a href="extensions/ANDROID/EGL_ANDROID_telemetry_hint.txt">EGL_ANDROID_telemetry_hint</a>
+ </li>
++<li value=156> <a href="extensions/RISCOS/EGL_RISCOS_platform_wimp.txt">EGL_RISCOS_platform_wimp</a>
++</li>
++<li value=157> <a href="extensions/RISCOS/EGL_RISCOS_wimp_window.txt">EGL_RISCOS_wimp_window</a>
++</li>
+ </ol>
+ 
+ <h6> Providing Feedback on the Registry </h6>
+diff --git a/registry.tcl b/registry.tcl
+index 25508b0..6dab33b 100644
+--- a/registry.tcl
++++ b/registry.tcl
+@@ -803,4 +803,14 @@ extension EGL_EXT_device_type {
+     flags       public
+     filename    extensions/EXT/EGL_EXT_device_type.txt
+ }
+-# Next free extension number: 156
++extension EGL_RISCOS_platform_wimp {
++    number      156
++    flags       public
++    filename    extensions/RISCOS/EGL_RISCOS_platform_wimp.txt
++}
++extension EGL_RISCOS_wimp_window {
++    number      157
++    flags       public
++    filename    extensions/RISCOS/EGL_RISCOS_wimp_window.txt
++}
++# Next free extension number: 158
+-- 
+2.43.0
+

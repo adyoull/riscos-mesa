@@ -206,11 +206,3 @@ static int pixmap_info(void *pixmap, int *w, int *h, int *layout, void **pixels)
     return 1;
 }
 
-static int bind(egl_context *ctx, egl_surface *surf)
-{
-    if (!OSMesaMakeCurrent(ctx->om, surf->pixels, GL_UNSIGNED_BYTE, surf->w, surf->h))
-        return 0;
-    OSMesaPixelStore(OSMESA_Y_UP, 0);           /* rows run top down */
-    OSMesaPixelStore(OSMESA_ROW_LENGTH, surf->stride);
-    return 1;
-}

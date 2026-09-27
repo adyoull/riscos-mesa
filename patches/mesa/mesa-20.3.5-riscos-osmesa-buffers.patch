@@ -1,0 +1,332 @@
+diff --git a/include/GL/osmesa.h b/include/GL/osmesa.h
+index 2592365..09b81bb 100644
+--- a/include/GL/osmesa.h
++++ b/include/GL/osmesa.h
+@@ -335,6 +335,46 @@ GLAPI void GLAPIENTRY
+ OSMesaSetImageLookup(OSMesaImageLookupFunc lookup);
+ 
+ 
++/*
++ * riscos-mesa: buffers owned by the caller, for EGL surfaces.
++ *
++ * An OSMesaBuffer is a drawable of its own: its colour buffer is memory
++ * the caller supplies (32-bit OSMESA_RGBA or OSMESA_BGRA pixels, as
++ * GL_UNSIGNED_BYTE), and its depth and stencil buffers belong to it rather
++ * than to a context. So several contexts drawing into it in turn share its
++ * depth buffer, as EGL requires, and a context can draw into one buffer
++ * and read (glReadPixels, glCopyTexImage...) from another.
++ *
++ *   OSMesaCreateBuffer    format, and the depth and stencil sizes (0 for
++ *                         none); NULL if not supported
++ *   OSMesaBufferStorage   the colour memory: size, pixels from one row to
++ *                         the next, and whether row 0 is the bottom (yup)
++ *                         or the top. Takes effect at the next
++ *                         OSMesaMakeCurrentBuffers; depth and stencil are
++ *                         reallocated (cleared) only when the size changes.
++ *   OSMesaMakeCurrentBuffers  bind a context to a draw and a read buffer
++ *                         (the same one for both is normal); their format
++ *                         must be the context's.
++ *   OSMesaDestroyBuffer   free it (a context it is bound to keeps it until
++ *                         it is bound to something else).
++ */
++typedef struct osmesa_buffer *OSMesaBuffer;
++
++GLAPI OSMesaBuffer GLAPIENTRY
++OSMesaCreateBuffer(GLenum format, GLint depthBits, GLint stencilBits);
++
++GLAPI void GLAPIENTRY
++OSMesaDestroyBuffer(OSMesaBuffer buffer);
++
++GLAPI GLboolean GLAPIENTRY
++OSMesaBufferStorage(OSMesaBuffer buffer, void *pixels, GLsizei width,
++                    GLsizei height, GLint rowLength, GLboolean yup);
++
++GLAPI GLboolean GLAPIENTRY
++OSMesaMakeCurrentBuffers(OSMesaContext ctx, OSMesaBuffer draw,
++                         OSMesaBuffer read);
++
++
+ /**
+  * Enable/disable color clamping, off by default.
+  * New in Mesa 6.4.2
+diff --git a/src/mesa/drivers/osmesa/osmesa.c b/src/mesa/drivers/osmesa/osmesa.c
+index 807043c..1804ca4 100644
+--- a/src/mesa/drivers/osmesa/osmesa.c
++++ b/src/mesa/drivers/osmesa/osmesa.c
+@@ -65,6 +65,7 @@
+ 
+ 
+ #define OSMESA_RENDERBUFFER_CLASS 0x053
++#define OSMESA_BUFFER_RB_CLASS    0x054   /* riscos-mesa: an OSMesaBuffer's colour */
+ 
+ 
+ /**
+@@ -86,6 +87,29 @@ struct osmesa_context
+ };
+ 
+ 
++/**
++ * riscos-mesa: a drawable of its own (OSMesaCreateBuffer, GL/osmesa.h):
++ * a framebuffer whose colour is the caller's memory and whose depth and
++ * stencil buffers belong to it, not to a context. An EGL surface has one,
++ * so several contexts drawing into it share its depth buffer, and a
++ * context can draw into one and read from another.
++ */
++struct osmesa_buffer_rb
++{
++   struct swrast_renderbuffer Base;     /* Base.Buffer = the caller's memory */
++   GLint RowLength;                     /* pixels from one row to the next */
++   GLboolean YUp;                       /* row 0 of the memory is the bottom */
++   GLenum Format;                       /* OSMESA_RGBA or OSMESA_BGRA */
++};
++
++struct osmesa_buffer
++{
++   struct gl_framebuffer *fb;
++   struct osmesa_buffer_rb *rb;         /* also referenced by fb */
++   GLint width, height;                 /* size given by OSMesaBufferStorage */
++};
++
++
+ static inline OSMesaContext
+ OSMESA_CONTEXT(struct gl_context *ctx)
+ {
+@@ -551,21 +575,12 @@ osmesa_choose_line( struct gl_context *ctx )
+  * Recompute the values of the context's rowaddr array.
+  */
+ static void
+-compute_row_addresses( OSMesaContext osmesa )
++set_row_addresses(OSMesaContext osmesa, GLubyte *origin, GLint height,
++                  GLint bytesPerRow, GLboolean yup)
+ {
+-   GLint bytesPerRow, i;
+-   GLubyte *origin = (GLubyte *) osmesa->srb->Buffer;
+-   GLint rowlength; /* in pixels */
+-   GLint height = osmesa->srb->Base.Height;
++   GLint i;
+ 
+-   if (osmesa->userRowLength)
+-      rowlength = osmesa->userRowLength;
+-   else
+-      rowlength = osmesa->srb->Base.Width;
+-
+-   bytesPerRow = rowlength * _mesa_get_format_bytes(osmesa->srb->Base.Format);
+-
+-   if (osmesa->yup) {
++   if (yup) {
+       /* Y=0 is bottom line of window */
+       for (i = 0; i < height; i++) {
+          osmesa->rowaddr[i] = (GLvoid *) ((GLubyte *) origin + i * bytesPerRow);
+@@ -580,6 +595,24 @@ compute_row_addresses( OSMesaContext osmesa )
+    }
+ }
+ 
++static void
++compute_row_addresses( OSMesaContext osmesa )
++{
++   GLint rowlength; /* in pixels */
++
++   if (!osmesa->srb)    /* riscos-mesa: an OSMesaBuffer is bound instead */
++      return;
++   if (osmesa->userRowLength)
++      rowlength = osmesa->userRowLength;
++   else
++      rowlength = osmesa->srb->Base.Width;
++
++   set_row_addresses(osmesa, (GLubyte *) osmesa->srb->Buffer,
++                     osmesa->srb->Base.Height,
++                     rowlength * _mesa_get_format_bytes(osmesa->srb->Base.Format),
++                     osmesa->yup);
++}
++
+ 
+ 
+ /**
+@@ -741,7 +774,21 @@ osmesa_MapRenderbuffer(struct gl_context *ctx,
+ {
+    const OSMesaContext osmesa = OSMESA_CONTEXT(ctx);
+ 
+-   if (rb->ClassID == OSMESA_RENDERBUFFER_CLASS) {
++   if (rb->ClassID == OSMESA_BUFFER_RB_CLASS) {
++      /* riscos-mesa: an OSMesaBuffer's colour: its own row length and order */
++      const struct osmesa_buffer_rb *brb = (const struct osmesa_buffer_rb *) rb;
++      const GLint rowStride = brb->RowLength * 4;
++
++      if (!brb->YUp) {
++         y = rb->Height - y - 1;
++         *rowStrideOut = -rowStride;
++      }
++      else {
++         *rowStrideOut = rowStride;
++      }
++      *mapOut = (GLubyte *) brb->Base.Buffer + y * rowStride + x * 4;
++   }
++   else if (rb->ClassID == OSMESA_RENDERBUFFER_CLASS) {
+       /* this is an OSMesa renderbuffer which wraps user memory */
+       struct swrast_renderbuffer *srb = swrast_renderbuffer(rb);
+       const GLuint bpp = _mesa_get_format_bytes(rb->Format);
+@@ -773,7 +820,8 @@ osmesa_MapRenderbuffer(struct gl_context *ctx,
+ static void
+ osmesa_UnmapRenderbuffer(struct gl_context *ctx, struct gl_renderbuffer *rb)
+ {
+-   if (rb->ClassID == OSMESA_RENDERBUFFER_CLASS) {
++   if (rb->ClassID == OSMESA_RENDERBUFFER_CLASS ||
++       rb->ClassID == OSMESA_BUFFER_RB_CLASS) {
+       /* no-op */
+    }
+    else {
+@@ -1326,6 +1374,143 @@ OSMesaMakeCurrent( OSMesaContext osmesa, void *buffer, GLenum type,
+ 
+ 
+ 
++/**********************************************************************/
++/*****        riscos-mesa: buffers owned by the caller (EGL surfaces)  *****/
++/**********************************************************************/
++
++static GLboolean
++osmesa_buffer_rb_storage(struct gl_context *ctx, struct gl_renderbuffer *rb,
++                         GLenum internalFormat, GLuint width, GLuint height)
++{
++   const struct osmesa_buffer_rb *brb = (const struct osmesa_buffer_rb *) rb;
++
++   (void) ctx;
++   (void) internalFormat;
++#if UTIL_ARCH_LITTLE_ENDIAN
++   rb->Format = brb->Format == OSMESA_BGRA ? MESA_FORMAT_B8G8R8A8_UNORM
++                                           : MESA_FORMAT_R8G8B8A8_UNORM;
++#else
++   rb->Format = brb->Format == OSMESA_BGRA ? MESA_FORMAT_A8R8G8B8_UNORM
++                                           : MESA_FORMAT_A8B8G8R8_UNORM;
++#endif
++   rb->Width = width;
++   rb->Height = height;
++   return GL_TRUE;
++}
++
++
++GLAPI OSMesaBuffer GLAPIENTRY
++OSMesaCreateBuffer(GLenum format, GLint depthBits, GLint stencilBits)
++{
++   struct osmesa_buffer *buf;
++   struct gl_config *visual;
++
++   if ((format != OSMESA_RGBA && format != OSMESA_BGRA) ||
++       depthBits < 0 || depthBits > 32 || stencilBits < 0 || stencilBits > 8)
++      return NULL;
++
++   buf = CALLOC_STRUCT(osmesa_buffer);
++   if (!buf)
++      return NULL;
++   visual = _mesa_create_visual(GL_FALSE, GL_FALSE, 8, 8, 8, 8,
++                                depthBits, stencilBits, 0, 0, 0, 0, 1);
++   if (visual) {
++      buf->fb = _mesa_create_framebuffer(visual);   /* copies the visual */
++      _mesa_destroy_visual(visual);
++   }
++   buf->rb = CALLOC_STRUCT(osmesa_buffer_rb);
++   if (!buf->fb || !buf->rb) {
++      _mesa_reference_framebuffer(&buf->fb, NULL);
++      free(buf->rb);
++      free(buf);
++      return NULL;
++   }
++
++   _mesa_init_renderbuffer(&buf->rb->Base.Base, 0);
++   buf->rb->Base.Base.ClassID = OSMESA_BUFFER_RB_CLASS;
++   buf->rb->Base.Base.Delete = osmesa_delete_renderbuffer;
++   buf->rb->Base.Base.AllocStorage = osmesa_buffer_rb_storage;
++   buf->rb->Base.Base.InternalFormat = GL_RGBA;
++   buf->rb->Base.Base._BaseFormat = GL_RGBA;
++   buf->rb->Format = format;
++   _mesa_attach_and_reference_rb(buf->fb, BUFFER_FRONT_LEFT,
++                                 &buf->rb->Base.Base);
++   _swrast_add_soft_renderbuffers(buf->fb, GL_FALSE, depthBits > 0,
++                                  stencilBits > 0, GL_FALSE, GL_FALSE,
++                                  GL_FALSE);
++   return buf;
++}
++
++
++GLAPI void GLAPIENTRY
++OSMesaDestroyBuffer(OSMesaBuffer buf)
++{
++   /* A context it is bound to keeps the framebuffer until it's unbound */
++   if (buf) {
++      _mesa_reference_framebuffer(&buf->fb, NULL);
++      free(buf);
++   }
++}
++
++
++GLAPI GLboolean GLAPIENTRY
++OSMesaBufferStorage(OSMesaBuffer buf, void *pixels, GLsizei width,
++                    GLsizei height, GLint rowLength, GLboolean yup)
++{
++   if (!buf || !pixels || width < 1 || height < 1 ||
++       width > SWRAST_MAX_WIDTH || height > SWRAST_MAX_HEIGHT ||
++       rowLength < width)
++      return GL_FALSE;
++   buf->rb->Base.Buffer = pixels;
++   buf->rb->RowLength = rowLength;
++   buf->rb->YUp = yup;
++   buf->width = width;
++   buf->height = height;
++   return GL_TRUE;
++}
++
++
++/* Give the framebuffer the size its storage has (reallocating its depth
++   and stencil buffers only when the size changes) */
++static void
++osmesa_buffer_update_size(struct gl_context *ctx, struct osmesa_buffer *buf)
++{
++   if (buf->fb->Width != (GLuint) buf->width ||
++       buf->fb->Height != (GLuint) buf->height) {
++      buf->rb->Base.Base.Width = buf->rb->Base.Base.Height = 0;
++      _mesa_resize_framebuffer(ctx, buf->fb, buf->width, buf->height);
++   }
++   _mesa_update_framebuffer_visual(ctx, buf->fb);
++}
++
++
++GLAPI GLboolean GLAPIENTRY
++OSMesaMakeCurrentBuffers(OSMesaContext osmesa, OSMesaBuffer draw,
++                         OSMesaBuffer read)
++{
++   if (!osmesa || !draw || !read || !draw->rb->Base.Buffer ||
++       !read->rb->Base.Buffer)
++      return GL_FALSE;
++   if (draw->rb->Format != osmesa->format || read->rb->Format != osmesa->format)
++      return GL_FALSE;
++
++   osmesa_update_state(&osmesa->mesa, 0);
++   osmesa->DataType = GL_UNSIGNED_BYTE;
++   osmesa_buffer_update_size(&osmesa->mesa, draw);
++   if (read != draw)
++      osmesa_buffer_update_size(&osmesa->mesa, read);
++
++   if (!_mesa_make_current(&osmesa->mesa, draw->fb, read->fb))
++      return GL_FALSE;
++
++   /* for OSMesa's own fast line and triangle functions */
++   set_row_addresses(osmesa, (GLubyte *) draw->rb->Base.Buffer, draw->height,
++                     draw->rb->RowLength * 4, draw->rb->YUp);
++   return GL_TRUE;
++}
++
++
++
+ GLAPI OSMesaContext GLAPIENTRY
+ OSMesaGetCurrentContext( void )
+ {
+@@ -1496,6 +1681,10 @@ static struct name_function functions[] = {
+    { "OSMesaColorClamp", (OSMESAproc) OSMesaColorClamp },
+    { "OSMesaPostprocess", (OSMESAproc) OSMesaPostprocess },
+    { "OSMesaSetImageLookup", (OSMESAproc) OSMesaSetImageLookup },
++   { "OSMesaCreateBuffer", (OSMESAproc) OSMesaCreateBuffer },
++   { "OSMesaDestroyBuffer", (OSMESAproc) OSMesaDestroyBuffer },
++   { "OSMesaBufferStorage", (OSMESAproc) OSMesaBufferStorage },
++   { "OSMesaMakeCurrentBuffers", (OSMESAproc) OSMesaMakeCurrentBuffers },
+    { NULL, NULL }
+ };
+ 

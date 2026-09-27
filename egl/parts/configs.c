@@ -24,7 +24,10 @@ static int config_attrib(const egl_config *c, EGLint attrib, EGLint *value)
     case EGL_COLOR_BUFFER_TYPE:        v = EGL_RGB_BUFFER; break;
     case EGL_CONFIG_CAVEAT:            v = EGL_NONE; break;
     case EGL_CONFIG_ID:                v = c->id; break;
-    case EGL_CONFORMANT:               v = RENDERABLE_BITS; break;
+    /* Not claimed: EGL_CONFORMANT says contexts of these APIs pass Khronos
+       conformance tests, and neither this EGL nor Mesa's classic software
+       renderer has been through them. */
+    case EGL_CONFORMANT:               v = 0; break;
     case EGL_DEPTH_SIZE:               v = c->depth; break;
     case EGL_LEVEL:                    v = 0; break;
     case EGL_MAX_PBUFFER_WIDTH:
@@ -101,6 +104,28 @@ static const struct {
     { EGL_TRANSPARENT_BLUE_VALUE, EGL_DONT_CARE,  M_EXACT },
 };
 #define NCRITERIA ((int) (sizeof criteria / sizeof criteria[0]))
+
+/* eglChooseConfig: values that aren't one of an attribute's allowed ones
+   are EGL_BAD_ATTRIBUTE (EGL 1.4 section 3.4.1.2) */
+static int config_value_ok(EGLint attrib, EGLint v)
+{
+    if (v == EGL_DONT_CARE)
+        return 1;
+    switch (attrib) {
+    case EGL_BIND_TO_TEXTURE_RGB:
+    case EGL_BIND_TO_TEXTURE_RGBA:
+    case EGL_NATIVE_RENDERABLE:
+        return v == EGL_TRUE || v == EGL_FALSE;
+    case EGL_COLOR_BUFFER_TYPE:
+        return v == EGL_RGB_BUFFER || v == EGL_LUMINANCE_BUFFER;
+    case EGL_CONFIG_CAVEAT:
+        return v == EGL_NONE || v == EGL_SLOW_CONFIG || v == EGL_NON_CONFORMANT_CONFIG;
+    case EGL_TRANSPARENT_TYPE:
+        return v == EGL_NONE || v == EGL_TRANSPARENT_RGB;
+    default:
+        return 1;
+    }
+}
 
 static int config_compare(const void *a, const void *b)
 {

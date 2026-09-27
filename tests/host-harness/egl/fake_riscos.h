@@ -24,6 +24,9 @@ extern int fake_force_redraws, fake_force_rect[5];
 extern int fake_scaled_plots;          /* OS_SpriteOp 52 */
 
 void fake_set_screen(int w, int h, int trgb, int log2bpp);
+/* The lock every fake SWI takes (recursive), for threaded callers. */
+void fake_lock(void);
+void fake_unlock(void);
 fake_window_t *fake_open_window(int handle, int x0, int y0, int x1, int y1, int sx, int sy);
 unsigned int fake_screen_pixel(int x, int y_from_top);
 unsigned int fake_bank_pixel(int bank, int x, int y_from_top);

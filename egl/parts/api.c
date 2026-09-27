@@ -10,8 +10,9 @@
 
 EGLAPI EGLint EGLAPIENTRY eglGetError(void)
 {
-    EGLint e = last_error;
-    last_error = EGL_SUCCESS;
+    egl_thread *t = thr();
+    EGLint e = t->error;
+    t->error = EGL_SUCCESS;
     return e;
 }
 
@@ -49,14 +50,15 @@ EGLAPI EGLBoolean EGLAPIENTRY eglTerminate(EGLDisplay dpy)
     ENTER();
     if (!(d = get_display(dpy, 0)))
         return EGL_FALSE;
+    /* Objects still current somewhere go when they stop being current */
     for (s = d->surfaces; s; s = sn) {
         sn = s->next;
-        if (s->current) s->destroy_pending = 1;
+        if (s->bound) s->destroy_pending = 1;
         else unlink_surface(d, s);
     }
     for (c = d->contexts; c; c = cn) {
         cn = c->next;
-        if (c->current) c->destroy_pending = 1;
+        if (c->thread) c->destroy_pending = 1;
         else unlink_context(d, c);
     }
     for (y = d->syncs; y; y = yn) {
@@ -74,12 +76,12 @@ EGLAPI const char *EGLAPIENTRY eglQueryString(EGLDisplay dpy, EGLint name)
 {
     ENTER();
     if (dpy == EGL_NO_DISPLAY && name == EGL_EXTENSIONS) {
-        last_error = EGL_SUCCESS;       /* EGL_EXT_client_extensions */
+        ok();                           /* EGL_EXT_client_extensions */
         return EGL_RISCOS_CLIENT_EXTENSIONS;
     }
     if (!get_display(dpy, 1))
         return NULL;
-    last_error = EGL_SUCCESS;
+    ok();
     switch (name) {
     case EGL_VENDOR:      return EGL_RISCOS_VENDOR;
     case EGL_VERSION:     return EGL_RISCOS_VERSION;
@@ -143,7 +145,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglChooseConfig(EGLDisplay dpy, const EGLint *attr
         for (j = 0; j < NCRITERIA; j++)
             if (criteria[j].attrib == a)
                 break;
-        if (j == NCRITERIA)
+        if (j == NCRITERIA || !config_value_ok(a, v))
             return fail(EGL_BAD_ATTRIBUTE);
         want[j] = v;
         if (a == EGL_CONFIG_ID && v != EGL_DONT_CARE) {
@@ -218,7 +220,10 @@ static egl_surface *new_surface(egl_display *d, const egl_config *c, int kind)
     s->kind = kind;
     s->cfg = c;
     s->render_buffer = EGL_BACK_BUFFER;
-    s->swap_behavior = EGL_BUFFER_PRESERVED;
+    /* The usual initial value (the spec leaves it to the implementation).
+       The contents are kept anyway (buffer age 1), but EGL_BUFFER_PRESERVED
+       has to be asked for, and rules out partial update. */
+    s->swap_behavior = EGL_BUFFER_DESTROYED;
     s->swap_interval = 1;
     s->handle = 0;
     s->n_damage = -1;
@@ -440,8 +445,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglDestroySurface(EGLDisplay dpy, EGLSurface surfa
     ENTER();
     if (!(d = get_display(dpy, 1)) || !(s = get_surface(d, surface)))
         return EGL_FALSE;
-    if (s->current)
-        s->destroy_pending = 1;
+    if (s->bound)
+        s->destroy_pending = 1;         /* when it stops being current */
     else
         unlink_surface(d, s);
     return ok();
@@ -485,7 +490,7 @@ static EGLBoolean query_surface(EGLDisplay dpy, EGLSurface surface, EGLint attri
         /* How many frames old the back buffer's contents are (0 = unknown).
            A sprite or the screen itself keeps the last frame: 1. Screen
            banks hold the frame from 'banks' swaps ago. */
-        if (s != cur_surf || !cur_ctx)
+        if (!cur_context() || cur_context()->draw != s)
             return fail(EGL_BAD_SURFACE);
         if (s->kind != SURF_WINDOW || s->swaps == 0)
             *value = 0;
@@ -570,7 +575,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSurfaceAttrib(EGLDisplay dpy, EGLSurface surfac
                 read_screen(&scr);
                 if (update_window_buffer(s, &scr) < 0)
                     return EGL_FALSE;
-                if (s == cur_surf && cur_ctx && !bind(cur_ctx, s))
+                if (!surface_changed(s))
                     return fail(EGL_BAD_ALLOC);
             }
         }
@@ -612,22 +617,28 @@ EGLAPI EGLBoolean EGLAPIENTRY eglReleaseTexImage(EGLDisplay dpy, EGLSurface surf
 EGLAPI EGLBoolean EGLAPIENTRY eglBindAPI(EGLenum api)
 {
     ENTER();
+    egl_thread *t;
     if (api != EGL_OPENGL_API && api != EGL_OPENGL_ES_API)
         return fail(EGL_BAD_PARAMETER); /* no OpenVG */
-    bound_api = api;
+    t = thr();
+    t->api = api;
+    /* GL calls now go to this API's current context, if there is one */
+    if (t->ctx[API_SLOT(api)] && t->ctx[API_SLOT(api)] != t->active &&
+        !activate(t, t->ctx[API_SLOT(api)]))
+        return fail(EGL_BAD_ALLOC);
     return ok();
 }
 
 EGLAPI EGLenum EGLAPIENTRY eglQueryAPI(void)
 {
     ENTER();
-    return bound_api;
+    return thr()->api;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglWaitClient(void)
 {
     ENTER();
-    if (cur_ctx)
+    if (thr()->active)
         glFinish();
     return ok();
 }
@@ -635,7 +646,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglWaitClient(void)
 EGLAPI EGLBoolean EGLAPIENTRY eglWaitGL(void)
 {
     ENTER();
-    if (cur_ctx)
+    if (thr()->active)
         glFinish();
     return ok();
 }
@@ -650,11 +661,14 @@ EGLAPI EGLBoolean EGLAPIENTRY eglWaitNative(EGLint engine)
 
 EGLAPI EGLBoolean EGLAPIENTRY eglReleaseThread(void)
 {
+    egl_thread *t;
     ENTER();
-    if (cur_ctx)
-        eglMakeCurrent((EGLDisplay) &display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-    bound_api = EGL_OPENGL_ES_API;
-    return ok();
+    t = thr();
+    release_slot(&display, t, 0);
+    release_slot(&display, t, 1);
+    t->api = EGL_OPENGL_ES_API;
+    t->label = NULL;
+    return ok();                        /* (the state itself goes at thread exit) */
 }
 
 EGLAPI EGLSurface EGLAPIENTRY eglCreatePbufferFromClientBuffer(EGLDisplay dpy, EGLenum buftype,
@@ -673,13 +687,13 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapInterval(EGLDisplay dpy, EGLint interval)
     ENTER();
     if (!get_display(dpy, 1))
         return EGL_FALSE;
-    if (!cur_ctx)
+    if (!cur_context())
         return fail(EGL_BAD_CONTEXT);
-    if (!cur_surf)
+    if (!cur_context()->draw)
         return fail(EGL_BAD_SURFACE);
     if (interval < 0) interval = 0;
     if (interval > MAX_SWAP_INTERVAL) interval = MAX_SWAP_INTERVAL;
-    cur_surf->swap_interval = interval;
+    cur_context()->draw->swap_interval = interval;
     return ok();
 }
 
@@ -694,17 +708,15 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
     EGLint profile = EGL_CONTEXT_OPENGL_COMPATIBILITY_PROFILE_BIT_KHR;
     int attribs[20], i, n = 0, explicit_version = 0, explicit_profile = 0;
     int release_flush = 1, es = 0;
+    EGLenum api;
 
     ENTER();
     if (!(d = get_display(dpy, 1)) || !(c = get_config(d, config)))
         return EGL_NO_CONTEXT;
-    if (bound_api != EGL_OPENGL_API && bound_api != EGL_OPENGL_ES_API) {
-        fail(EGL_BAD_MATCH);
-        return EGL_NO_CONTEXT;
-    }
+    api = thr()->api;
     if (share_context != EGL_NO_CONTEXT && !(share = get_context(d, share_context)))
         return EGL_NO_CONTEXT;
-    if (share && share->api != bound_api) {
+    if (share && share->api != api) {
         fail(EGL_BAD_MATCH);            /* can't share between GL and GLES */
         return EGL_NO_CONTEXT;
     }
@@ -754,7 +766,7 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
         fail(EGL_BAD_MATCH);
         return EGL_NO_CONTEXT;
     }
-    if (bound_api == EGL_OPENGL_ES_API) {
+    if (api == EGL_OPENGL_ES_API) {
         /* EGL_CONTEXT_CLIENT_VERSION (default 1); classic swrast gives
            ES 1.1 and ES 2.0 */
         if (explicit_profile || (flags & EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE_BIT_KHR)) {
@@ -803,7 +815,7 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
     }
     ctx->magic = MAGIC_CONTEXT;
     ctx->cfg = c;
-    ctx->api = bound_api;
+    ctx->api = api;
     ctx->es = es;
     ctx->release_flush = release_flush;
     ctx->next = d->contexts;
@@ -819,55 +831,43 @@ EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy, EGLContext conte
     ENTER();
     if (!(d = get_display(dpy, 1)) || !(c = get_context(d, context)))
         return EGL_FALSE;
-    if (c->current)
-        c->destroy_pending = 1;
+    if (c->thread)
+        c->destroy_pending = 1;         /* when it stops being current */
     else
         unlink_context(d, c);
     return ok();
 }
 
-/* EGL_KHR_context_flush_control: flush a context that stops being current
-   (unless it was created with EGL_CONTEXT_RELEASE_BEHAVIOR_NONE_KHR). */
-static void flush_on_release(egl_context *c)
+/* A surface can be current with a context if it is of the same colour
+   order and has the same depth and stencil sizes (EGL 1.4 section 2.2,
+   "compatible"), isn't locked, and isn't bound in another thread. */
+static EGLBoolean check_surface(egl_thread *t, const egl_context *c, const egl_surface *s)
 {
-    if (c && c->release_flush)
-        glFlush();
+    if (s->thread && s->thread != t)
+        return fail(EGL_BAD_ACCESS);
+    if (s->cfg->layout != c->cfg->layout || s->cfg->depth != c->cfg->depth ||
+        s->cfg->stencil != c->cfg->stencil)
+        return fail(EGL_BAD_MATCH);
+    if (s->locked)
+        return fail(EGL_BAD_ACCESS);    /* EGL_KHR_lock_surface */
+    return EGL_TRUE;
 }
-
-static void release_current(egl_display *d)
-{
-    egl_context *c = cur_ctx;
-    egl_surface *s = cur_surf;
-    flush_on_release(c);
-    cur_ctx = NULL;
-    cur_surf = NULL;
-    if (c) {
-        c->current = 0;
-        if (c->destroy_pending) unlink_context(d, c);
-    }
-    if (s) {
-        s->current = 0;
-        if (s->destroy_pending) unlink_surface(d, s);
-    }
-}
-
-/* EGL_KHR_surfaceless_context: OSMesa always needs a buffer, so a context
-   made current without a surface draws into this (framebuffer objects are
-   what such a context is for). */
-static unsigned int surfaceless_pixel;
 
 EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw,
                                              EGLSurface read, EGLContext context)
 {
     egl_display *d;
+    egl_thread *t;
     egl_context *c;
-    egl_surface *s = NULL;
+    egl_surface *ds = NULL, *rs = NULL;
 
     ENTER();
+    t = thr();
     if (context == EGL_NO_CONTEXT && draw == EGL_NO_SURFACE && read == EGL_NO_SURFACE) {
+        /* release the bound API's current context */
         if (!(d = get_display(dpy, 0)))
             return EGL_FALSE;
-        release_current(d);
+        release_slot(d, t, API_SLOT(t->api));
         return ok();
     }
     if (!(d = get_display(dpy, 1)))
@@ -876,77 +876,44 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw,
         return fail(EGL_BAD_MATCH);
     if (!(c = get_context(d, context)))
         return EGL_FALSE;
+    if (c->thread && c->thread != t)
+        return fail(EGL_BAD_ACCESS);        /* current in another thread */
     if ((draw == EGL_NO_SURFACE) != (read == EGL_NO_SURFACE))
         return fail(EGL_BAD_MATCH);
     if (draw != EGL_NO_SURFACE) {
-        if (!(s = get_surface(d, draw)) || !get_surface(d, read))
+        if (!(ds = get_surface(d, draw)) || !(rs = get_surface(d, read)))
             return EGL_FALSE;
-        if (draw != read)
-            return fail(EGL_BAD_MATCH);     /* OSMesa has one buffer per context */
-        if (s->cfg->layout != c->cfg->layout)
-            return fail(EGL_BAD_MATCH);
-        if (s->locked)
-            return fail(EGL_BAD_ACCESS);    /* EGL_KHR_lock_surface */
+        if (!check_surface(t, c, ds) || (rs != ds && !check_surface(t, c, rs)))
+            return EGL_FALSE;
     }
 
-    if (c != cur_ctx)
-        flush_on_release(cur_ctx);
-
-    if (s) {
-        if (s->kind == SURF_WINDOW) {
-            screen_info scr;
-            read_screen(&scr);
-            if (update_window_buffer(s, &scr) < 0)
-                return EGL_FALSE;
-        }
-        if (!bind(c, s))
-            return fail(EGL_BAD_ALLOC);
+    if (ds) {
+        screen_info scr;
+        read_screen(&scr);
+        if ((ds->kind == SURF_WINDOW && update_window_buffer(ds, &scr) < 0) ||
+            (rs != ds && rs->kind == SURF_WINDOW && update_window_buffer(rs, &scr) < 0))
+            return EGL_FALSE;
+    }
+    if (!make_current(d, t, c, ds, rs))
+        return fail(EGL_BAD_ALLOC);
+    if (ds) {
         if (c->surfaceless && !c->had_surface) {
             /* Mesa sizes the viewport and scissor box the first time a
                context is bound, which was to the 1x1 stand-in: fix them. */
-            glViewport(0, 0, s->w, s->h);
-            glScissor(0, 0, s->w, s->h);
+            glViewport(0, 0, ds->w, ds->h);
+            glScissor(0, 0, ds->w, ds->h);
         }
         c->had_surface = 1;
     } else {
-        if (!OSMesaMakeCurrent(c->om, &surfaceless_pixel, GL_UNSIGNED_BYTE, 1, 1))
-            return fail(EGL_BAD_ALLOC);
-        OSMesaPixelStore(OSMESA_Y_UP, 0);
-        OSMesaPixelStore(OSMESA_ROW_LENGTH, 1);
         c->surfaceless = 1;
     }
-
-    if (c != cur_ctx || s != cur_surf) {
-        egl_context *oc = cur_ctx;
-        egl_surface *os = cur_surf;
-        cur_ctx = c;
-        cur_surf = s;
-        c->current = 1;
-        if (s)
-            s->current = 1;
-        if (oc && oc != c) {
-            oc->current = 0;
-            if (oc->destroy_pending) unlink_context(d, oc);
-        }
-        if (os && os != s) {
-            os->current = 0;
-            if (os->destroy_pending) unlink_surface(d, os);
-        }
-    }
     return ok();
-}
-
-/* One context is current at a time (OSMesa has one). EGL keeps one per
-   client API, so report it only for its own API. */
-static egl_context *current_for_api(void)
-{
-    return (cur_ctx && cur_ctx->api == bound_api) ? cur_ctx : NULL;
 }
 
 EGLAPI EGLContext EGLAPIENTRY eglGetCurrentContext(void)
 {
     ENTER();
-    return current_for_api() ? (EGLContext) cur_ctx : EGL_NO_CONTEXT;
+    return cur_context() ? (EGLContext) cur_context() : EGL_NO_CONTEXT;
 }
 
 EGLAPI EGLSurface EGLAPIENTRY eglGetCurrentSurface(EGLint readdraw)
@@ -956,13 +923,15 @@ EGLAPI EGLSurface EGLAPIENTRY eglGetCurrentSurface(EGLint readdraw)
         fail(EGL_BAD_PARAMETER);
         return EGL_NO_SURFACE;
     }
-    return (current_for_api() && cur_surf) ? (EGLSurface) cur_surf : EGL_NO_SURFACE;
+    if (!cur_context())
+        return EGL_NO_SURFACE;
+    return (EGLSurface) (readdraw == EGL_DRAW ? cur_context()->draw : cur_context()->read);
 }
 
 EGLAPI EGLDisplay EGLAPIENTRY eglGetCurrentDisplay(void)
 {
     ENTER();
-    return current_for_api() ? (EGLDisplay) &display : EGL_NO_DISPLAY;
+    return cur_context() ? (EGLDisplay) &display : EGL_NO_DISPLAY;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglQueryContext(EGLDisplay dpy, EGLContext context,
@@ -980,10 +949,10 @@ EGLAPI EGLBoolean EGLAPIENTRY eglQueryContext(EGLDisplay dpy, EGLContext context
     case EGL_CONTEXT_CLIENT_TYPE:    *value = c->api; break;
     case EGL_CONTEXT_CLIENT_VERSION: *value = c->es; break;   /* ES only; 0 for GL */
     case EGL_RENDER_BUFFER:
-        if (!c->current || !cur_surf)
+        if (!c->thread || !c->draw)
             *value = EGL_NONE;
         else
-            *value = (cur_surf->kind == SURF_PIXMAP || cur_surf->direct)
+            *value = (c->draw->kind == SURF_PIXMAP || c->draw->direct)
                      ? EGL_SINGLE_BUFFER : EGL_BACK_BUFFER;
         break;
     default:
@@ -1006,10 +975,11 @@ static EGLBoolean swap(EGLDisplay dpy, EGLSurface surface, const EGLint *rects, 
         return fail(EGL_BAD_PARAMETER);
     if (s->locked)
         return fail(EGL_BAD_ACCESS);
-    is_current = (s == cur_surf && cur_ctx);
-    /* A lockable window surface written through eglLockSurfaceKHR can be
-       shown without a context current to it. */
-    if (!is_current && !(s->kind == SURF_WINDOW && s->ever_locked && !s->current))
+    /* The surface must be the draw surface of the calling thread's current
+       context. A lockable window surface written through eglLockSurfaceKHR
+       can be shown without a context current to it. */
+    is_current = cur_context() && cur_context()->draw == s;
+    if (!is_current && !(s->kind == SURF_WINDOW && s->ever_locked && !s->bound))
         return fail(EGL_BAD_SURFACE);
     if (s->kind != SURF_WINDOW)
         return ok();                    /* no effect on pbuffers/pixmaps */
@@ -1021,7 +991,7 @@ static EGLBoolean swap(EGLDisplay dpy, EGLSurface surface, const EGLint *rects, 
         n = s->n_damage;
     }
 
-    if (is_current)
+    if (is_current && thr()->active)
         glFinish();
     read_screen(&scr);
     present(d, s, &scr, n > 0 ? rects : NULL, n);
@@ -1036,7 +1006,7 @@ static EGLBoolean swap(EGLDisplay dpy, EGLSurface surface, const EGLint *rects, 
         return EGL_FALSE;
     if (s->banks)
         changed = 1;                    /* now drawing into another bank */
-    if (changed && is_current && !bind(cur_ctx, s))
+    if (changed && !surface_changed(s))
         return fail(EGL_BAD_ALLOC);
     /* DispmanX compatibility in window mode: libbcm_host polls the Wimp
        here, last, so the program multitasks (and may exit if its window is
@@ -1079,7 +1049,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglCopyBuffers(EGLDisplay dpy, EGLSurface surface,
         return EGL_FALSE;
     if (!pixmap_info(target, &w, &h, &layout, &px))
         return fail(EGL_BAD_NATIVE_PIXMAP);
-    if (s == cur_surf && cur_ctx)
+    if (thr()->active)
         glFinish();
     cw = w < s->w ? w : s->w;
     ch = h < s->h ? h : s->h;

@@ -1296,6 +1296,186 @@ static void test_debug(void)
     eglDestroySurface(dpy, pb);
 }
 
+/* ---- EGL 1.4 rules fixed after the dEQP-EGL run (see tests/host-harness/deqp) ---- */
+
+static unsigned char px_at(int x, int y)
+{
+    unsigned char px[4];
+    glReadPixels(x, y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+    return px[0] ? 'r' : px[1] ? 'g' : px[2] ? 'b' : 'k';
+}
+
+/* Different draw and read surfaces; one surface shared by two contexts
+   (its depth buffer belongs to the surface); surfaces must match the
+   context's depth and stencil; one current context per client API. */
+static void test_current_rules(void)
+{
+    EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 24, EGL_PBUFFER_BIT);
+    EGLConfig nodepth = choose(EGL_RISCOS_VISUAL_TBGR, 0, EGL_PBUFFER_BIT);
+    EGLint pa[] = { EGL_WIDTH, 16, EGL_HEIGHT, 16, EGL_NONE };
+    EGLint es2[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
+    EGLSurface a, b, c = EGL_NO_SURFACE;
+    EGLContext gl1, gl2, es;
+    GLfloat z = 1;
+    EGLint d = -1;
+
+    eglBindAPI(EGL_OPENGL_API);
+    a = eglCreatePbufferSurface(dpy, cfg, pa);
+    b = eglCreatePbufferSurface(dpy, cfg, pa);
+    gl1 = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+    gl2 = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+    CHECK(a && b && gl1 && gl2, "surfaces and contexts");
+
+    /* draw != read */
+    eglMakeCurrent(dpy, b, b, gl1);
+    clear(0, 0, 1);
+    eglMakeCurrent(dpy, a, a, gl1);
+    clear(1, 0, 0);
+    CHECK(eglMakeCurrent(dpy, a, b, gl1), "draw a, read b");
+    CHECK(eglGetCurrentSurface(EGL_DRAW) == a && eglGetCurrentSurface(EGL_READ) == b, "current draw/read");
+    CHECK(px_at(2, 2) == 'b', "reads from b (%c)", px_at(2, 2));
+    clear(0, 1, 0);                       /* draws to a */
+    CHECK(px_at(2, 2) == 'b', "b untouched by drawing");
+    eglMakeCurrent(dpy, a, a, gl1);
+    CHECK(px_at(2, 2) == 'g', "a drawn (%c)", px_at(2, 2));
+
+    /* a surface's depth buffer is shared by the contexts that use it */
+    glClearDepth(0.25);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    CHECK(eglMakeCurrent(dpy, a, a, gl2), "second context on a");
+    glReadPixels(1, 1, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &z);
+    CHECK(z > 0.24f && z < 0.26f, "depth belongs to the surface (%f)", z);
+    CHECK(px_at(2, 2) == 'g', "colour too");
+
+    /* a context current in another thread's slot is refused below;
+       here: a depthless surface does not match a depth-24 context */
+    if (nodepth) {
+        eglGetConfigAttrib(dpy, nodepth, EGL_DEPTH_SIZE, &d);
+        c = eglCreatePbufferSurface(dpy, nodepth, pa);
+    }
+    CHECK(c && d == 0, "depthless pbuffer");
+    CHECK(!eglMakeCurrent(dpy, c, c, gl1) && eglGetError() == EGL_BAD_MATCH, "depth mismatch refused");
+    CHECK(eglGetCurrentContext() == gl2, "old binding kept");
+
+    /* one current context per client API */
+    eglBindAPI(EGL_OPENGL_ES_API);
+    es = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, es2);
+    CHECK(es && eglGetCurrentContext() == EGL_NO_CONTEXT, "no ES context current yet");
+    CHECK(eglMakeCurrent(dpy, b, b, es), "ES current on b");
+    CHECK(strncmp((const char *) glGetString(GL_VERSION), "OpenGL ES", 9) == 0, "ES renders");
+    clear(1, 0, 0);
+    eglBindAPI(EGL_OPENGL_API);
+    CHECK(eglGetCurrentContext() == gl2 && eglGetCurrentSurface(EGL_DRAW) == a, "GL context still current");
+    CHECK(strncmp((const char *) glGetString(GL_VERSION), "2.1", 3) == 0, "GL renders after bind");
+    CHECK(px_at(2, 2) == 'g', "GL sees a");
+    eglBindAPI(EGL_OPENGL_ES_API);
+    CHECK(eglGetCurrentContext() == es, "ES context still current");
+    CHECK(px_at(2, 2) == 'r', "ES sees b");
+    CHECK(eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT), "release ES");
+    eglBindAPI(EGL_OPENGL_API);
+    CHECK(eglGetCurrentContext() == gl2, "releasing ES leaves GL");
+    CHECK(eglReleaseThread(), "release thread");
+    CHECK(eglGetCurrentContext() == EGL_NO_CONTEXT && eglQueryAPI() == EGL_OPENGL_ES_API,
+          "release thread: nothing current, API back to ES");
+    eglBindAPI(EGL_OPENGL_API);
+
+    eglDestroyContext(dpy, es);
+    eglDestroyContext(dpy, gl1);
+    eglDestroyContext(dpy, gl2);
+    eglDestroySurface(dpy, a);
+    eglDestroySurface(dpy, b);
+    if (c) eglDestroySurface(dpy, c);
+}
+
+/* Threads: each has its own error, API and current context; a context or
+   surface current in one thread can't be made current in another. */
+static struct { EGLConfig cfg; EGLContext busy; EGLSurface busy_surf; int ok[8]; unsigned char seen; } th;
+
+static void *thread_body(void *arg)
+{
+    EGLint pa[] = { EGL_WIDTH, 8, EGL_HEIGHT, 8, EGL_NONE };
+    EGLSurface s;
+    EGLContext c;
+    int i;
+    (void) arg;
+    th.ok[0] = eglGetError() == EGL_SUCCESS;                 /* main thread's error not seen */
+    th.ok[1] = eglQueryAPI() == EGL_OPENGL_ES_API;          /* own API, default ES */
+    th.ok[2] = eglGetCurrentContext() == EGL_NO_CONTEXT;    /* nothing current here */
+    eglBindAPI(EGL_OPENGL_API);
+    s = eglCreatePbufferSurface(dpy, th.cfg, pa);
+    th.ok[3] = !eglMakeCurrent(dpy, s, s, th.busy) && eglGetError() == EGL_BAD_ACCESS;
+    c = eglCreateContext(dpy, th.cfg, EGL_NO_CONTEXT, NULL);
+    th.ok[4] = !eglMakeCurrent(dpy, th.busy_surf, th.busy_surf, c) && eglGetError() == EGL_BAD_ACCESS;
+    th.ok[5] = eglMakeCurrent(dpy, s, s, c);
+    for (i = 0; i < 50; i++) {                               /* render alongside the main thread */
+        clear(0, 1, 0);
+        glFinish();
+    }
+    th.seen = px_at(1, 1);
+    th.ok[6] = eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroyContext(dpy, c);
+    eglDestroySurface(dpy, s);
+    th.ok[7] = eglReleaseThread();
+    return NULL;
+}
+
+/* A thread that ends with a context current: EGL releases it at exit */
+static void *leaves_current(void *arg)
+{
+    (void) arg;
+    eglBindAPI(EGL_OPENGL_API);
+    th.ok[0] = eglMakeCurrent(dpy, th.busy_surf, th.busy_surf, th.busy);
+    return NULL;
+}
+
+static void test_threads(void)
+{
+    EGLint pa[] = { EGL_WIDTH, 8, EGL_HEIGHT, 8, EGL_NONE };
+    pthread_attr_t attr;
+    pthread_t t;
+    size_t stack_size = 4 << 20;
+    void *stack;
+    int i, reds = 0;
+
+    eglBindAPI(EGL_OPENGL_API);
+    th.cfg = choose(EGL_RISCOS_VISUAL_TBGR, 24, EGL_PBUFFER_BIT);
+    th.busy_surf = eglCreatePbufferSurface(dpy, th.cfg, pa);
+    th.busy = eglCreateContext(dpy, th.cfg, EGL_NO_CONTEXT, NULL);
+    CHECK(eglMakeCurrent(dpy, th.busy_surf, th.busy_surf, th.busy), "main thread current");
+    eglQuerySurface(dpy, EGL_NO_SURFACE, EGL_WIDTH, &i);     /* leave an error in this thread */
+
+    stack = mmap((void *) 0x62000000, stack_size, PROT_READ | PROT_WRITE,
+                 MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+    CHECK(stack != MAP_FAILED, "thread stack");
+    pthread_attr_init(&attr);
+    pthread_attr_setstack(&attr, stack, stack_size);
+    pthread_create(&t, &attr, thread_body, NULL);
+    for (i = 0; i < 50; i++) {
+        clear(1, 0, 0);
+        glFinish();
+        reds += px_at(1, 1) == 'r';
+    }
+    pthread_join(t, NULL);
+
+    CHECK(eglGetError() == EGL_BAD_SURFACE, "error is per thread");
+    for (i = 0; i < 8; i++)
+        CHECK(th.ok[i], "thread check %d", i);
+    CHECK(th.seen == 'g' && reds == 50, "both threads rendered their own surfaces (%c, %d)", th.seen, reds);
+    CHECK(eglGetCurrentContext() == th.busy, "main thread's context unchanged");
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+
+    th.ok[0] = 0;
+    pthread_create(&t, &attr, leaves_current, NULL);
+    pthread_join(t, NULL);
+    CHECK(th.ok[0], "other thread made the context current");
+    CHECK(eglMakeCurrent(dpy, th.busy_surf, th.busy_surf, th.busy),
+          "usable here after that thread ended without releasing it");
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    munmap(stack, stack_size);
+    eglDestroyContext(dpy, th.busy);
+    eglDestroySurface(dpy, th.busy_surf);
+}
+
 static void *run(void *arg)
 {
     (void) arg;
@@ -1312,6 +1492,8 @@ static void *run(void *arg)
     test_damage();
     test_lock();
     test_debug();
+    test_current_rules();
+    test_threads();
     test_gles(dpy);
     test_dispmanx(dpy);
     test_eig0();

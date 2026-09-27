@@ -11,7 +11,11 @@ library (compiled as Pi code is, in harness_es.c), and the extensions: client an
 surfaceless contexts, sync objects, buffer age, swap with damage (window
 and full screen), partial update, surface locking, the debug callback, and images (a
 sprite used in place as a GL and GLES texture: EGL_KHR_image_pixmap with
-GL_OES_EGL_image).
+GL_OES_EGL_image). It also checks the EGL 1.4 rules found with dEQP-EGL
+(`../deqp`): different draw and read surfaces, a depth buffer shared by the
+contexts using a surface, a depth mismatch refused, GL and ES contexts
+current together, and two threads rendering at once (the fake SWIs take a
+lock, `fake_lock`, so threads are safe).
 
 Pointers pass through 32-bit SWI registers as on RISC OS, so everything
 must stay below 2 GB. That's why it's built with -no-pie, malloc is kept on the brk
@@ -28,7 +32,7 @@ heap in one arena, and the tests run on a thread whose stack is at 1.5 GB.
     gcc $F harness.c fake_riscos.c ../../../egl/egl_riscos.c harness_es.o bcm_host.o \
       -o harness -L$O -lOSMesa -lpthread -Wl,-rpath,$O && ./harness
 
-Expected: `308 checks, 0 failures: ALL PASS`.
+Expected: `347 checks, 0 failures: ALL PASS`.
 
 ## Running a port (docs/porting)
 

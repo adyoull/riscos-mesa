@@ -4,13 +4,16 @@
  * the visible area), OS_SpriteOp create/plot, mode and VDU variables.
  * Pointers go through 32-bit registers as on RISC OS, so everything that
  * reaches a SWI must live below 2 GB (the harness builds -no-pie, keeps
- * malloc on brk and runs its tests on a low stack).
+ * malloc on brk and runs its tests on a low stack). SWIs are serialised
+ * by a lock, so threaded tests (dEQP's multithread groups) are safe.
  */
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <pthread.h>
 #include <kernel.h>
 #include <swis.h>
 #include "fake_riscos.h"
@@ -272,7 +275,24 @@ static void log_menu(const int *m, int depth)
     }
 }
 
+static _kernel_oserror *swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out);
+
+static pthread_mutex_t swi_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+
+/* For callers that change the fake windows from threads (dEQP's platform) */
+void fake_lock(void)   { pthread_mutex_lock(&swi_lock); }
+void fake_unlock(void) { pthread_mutex_unlock(&swi_lock); }
+
 _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
+{
+    _kernel_oserror *e;
+    pthread_mutex_lock(&swi_lock);
+    e = swi(no, in, out);
+    pthread_mutex_unlock(&swi_lock);
+    return e;
+}
+
+static _kernel_oserror *swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
 {
     _kernel_swi_regs r = *in;
     _kernel_oserror *e = NULL;

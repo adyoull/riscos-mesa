@@ -18,7 +18,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSetDamageRegionKHR(EGLDisplay dpy, EGLSurface s
     ENTER();
     if (!(d = get_display(dpy, 1)) || !(s = get_surface(d, surface)))
         return EGL_FALSE;
-    if (s != cur_surf || !cur_ctx || s->kind != SURF_WINDOW)
+    if (!cur_context() || cur_context()->draw != s || s->kind != SURF_WINDOW ||
+        s->swap_behavior == EGL_BUFFER_PRESERVED)
         return fail(EGL_BAD_MATCH);
     if (n_rects < 0 || (n_rects > 0 && !rects))
         return fail(EGL_BAD_PARAMETER);
@@ -70,7 +71,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglLockSurfaceKHR(EGLDisplay dpy, EGLSurface surfa
             continue;
         return fail(EGL_BAD_ATTRIBUTE);
     }
-    if (s->locked || s->current)
+    if (s->locked || s->bound)
         return fail(EGL_BAD_ACCESS);
     if (s->kind == SURF_WINDOW) {
         screen_info scr;
@@ -132,7 +133,7 @@ EGLAPI EGLSyncKHR EGLAPIENTRY eglCreateSyncKHR(EGLDisplay dpy, EGLenum type,
         fail(EGL_BAD_ATTRIBUTE);
         return EGL_NO_SYNC_KHR;
     }
-    if (type == EGL_SYNC_FENCE_KHR && !cur_ctx) {
+    if (type == EGL_SYNC_FENCE_KHR && !cur_context()) {
         fail(EGL_BAD_MATCH);
         return EGL_NO_SYNC_KHR;
     }
@@ -181,7 +182,7 @@ EGLAPI EGLint EGLAPIENTRY eglClientWaitSyncKHR(EGLDisplay dpy, EGLSyncKHR sync,
     ENTER();
     if (!(d = get_display(dpy, 1)) || !(y = get_sync(d, sync)))
         return EGL_FALSE;
-    if ((flags & EGL_SYNC_FLUSH_COMMANDS_BIT_KHR) && cur_ctx)
+    if ((flags & EGL_SYNC_FLUSH_COMMANDS_BIT_KHR) && thr()->active)
         glFlush();
     ok();
     return y->status == EGL_SIGNALED_KHR ? EGL_CONDITION_SATISFIED_KHR : EGL_TIMEOUT_EXPIRED_KHR;
@@ -232,7 +233,7 @@ EGLAPI EGLint EGLAPIENTRY eglWaitSyncKHR(EGLDisplay dpy, EGLSyncKHR sync, EGLint
     ENTER();
     if (!(d = get_display(dpy, 1)) || !get_sync(d, sync))
         return EGL_FALSE;
-    if (!cur_ctx)
+    if (!cur_context())
         return fail(EGL_BAD_MATCH);
     if (flags != 0)
         return fail(EGL_BAD_PARAMETER);
@@ -386,7 +387,10 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreatePlatformWindowSurfaceEXT(EGLDisplay dpy, 
             fail(EGL_BAD_NATIVE_WINDOW);
         return EGL_NO_SURFACE;
     }
-    return create_window_surface(dpy, config, *(const EGLNativeWindowType *) native_window,
+    /* an int (EGLNativeWindowType is an int on RISC OS, but not in every
+       build of the headers: read exactly the int the extension documents) */
+    return create_window_surface(dpy, config,
+                                 (EGLNativeWindowType) (long) *(const int *) native_window,
                                  attrib_list);
 }
 
@@ -442,7 +446,7 @@ EGLAPI EGLint EGLAPIENTRY eglLabelObjectKHR(EGLDisplay dpy, EGLenum objectType,
     egl_display *d;
     ENTER();
     if (objectType == EGL_OBJECT_THREAD_KHR) {
-        thread_label = label;
+        thr()->label = label;
         ok();
         return EGL_SUCCESS;
     }
