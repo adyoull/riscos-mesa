@@ -5,3 +5,7 @@ dist/
 # Working notes and the assistant briefing: kept locally, never committed
 *START-HERE*.md
 CLAUDE.md
+# Handoffs to and from other ports' conversations: kept in MESA/handoffs,
+# never committed
+handoffs/
+*handoff*.md
