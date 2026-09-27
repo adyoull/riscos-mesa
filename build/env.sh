@@ -15,7 +15,10 @@ export CC=$HOST-gcc CXX=$HOST-g++ AR=$HOST-ar RANLIB=$HOST-ranlib STRIP=$HOST-st
 # Flags chosen by benchmark on a Pi 4 (Pi 4 benchmark, glbench): -O3 tuned for
 # Cortex-A72 with VFPv4 is ~14% faster at texturing/blending than -O2 VFPv3;
 # NEON added nothing. VFPv4: Pi 2 and later (as ARMv7 already requires).
-export RO_CFLAGS="-O3 -mtune=cortex-a72 -mfpu=vfpv4 -mfloat-abi=hard -fstack-clash-protection"
+# RO_FPU=vfpv3 builds for Cortex-A8/A9 machines too (no fused multiply-add).
+: "${RO_FPU:=vfpv4}"
+export RO_FPU
+export RO_CFLAGS="-O3 -mtune=cortex-a72 -mfpu=$RO_FPU -mfloat-abi=hard -fstack-clash-protection"
 # Let meson/configure find our libs (zlib etc.) and nothing from the build host.
 export PKG_CONFIG_LIBDIR="$STAGE/lib/pkgconfig:$STAGE/share/pkgconfig"
 export PKG_CONFIG_SYSROOT_DIR=

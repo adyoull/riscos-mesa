@@ -49,7 +49,7 @@ for p in $PATCHES; do
   patch -p1 < "$HERE/patches/mesa/mesa-$V-$p.patch"
   echo $p >> $STAMP
 done
-sed "s#@GCCSDK_ENV@#$GCCSDK_ENV#g" "$HERE/build/meson-riscos.txt.in" > riscos-cross.txt
+sed "s#@GCCSDK_ENV@#$GCCSDK_ENV#g; s#@RO_FPU@#$RO_FPU#g" "$HERE/build/meson-riscos.txt.in" > riscos-cross.txt
 [ -d build-ro ] || meson setup build-ro --cross-file riscos-cross.txt \
   --prefix="$STAGE" -Ddefault_library=static \
   -Dosmesa=classic -Ddri-drivers= -Dgallium-drivers= -Dvulkan-drivers= -Dplatforms= \
