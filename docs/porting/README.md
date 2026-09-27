@@ -118,6 +118,25 @@ Everything runs on the CPU:
   times slower. Keep shader programs in small windows. When full screen,
   render smaller and scale up (with DispmanX, through the source
   rectangle).
+- **Textured triangles have a fast path** in Mesa's software renderer. It
+  takes a single 2D texture (RGB or RGBA, power-of-two size) in
+  `GL_REPEAT` or `GL_CLAMP_TO_EDGE` mode, with fog or without. Games get
+  much of their speed from staying on it:
+  - Prefer `GL_CLAMP_TO_EDGE` to `GL_CLAMP` with `GL_LINEAR` filtering
+    (`GL_CLAMP` blends in the border colour at the edges, which only the
+    slow path does).
+  - Mipmaps, and different minification and magnification filters, use
+    the slow path unless the program sets
+    `glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST)`. Then riscos-mesa
+    chooses one mipmap level per triangle (close to exact when triangles
+    are small, as in terrain and models) and corrects perspective every
+    16 pixels instead of every pixel.
+  - Asking for compressed textures (`GL_COMPRESSED_RGBA` and the other
+    generic formats) costs nothing: they are stored uncompressed.
+    Explicit S3TC formats are stored compressed and decoded for every
+    texel, which is slow; avoid them.
+  - More than one texture unit, texture environment combiners, or
+    shaders use the slow path.
 
 ## Testing on a Linux host first
 

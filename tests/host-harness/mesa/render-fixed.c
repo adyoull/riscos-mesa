@@ -211,6 +211,14 @@ int main(int argc, char **argv) {
                 for (w = 0; w < 3; w++)
                     for (e = 0; e < 4; e++) {
                         texcase(fm[a][0], fm[a][1], mf[b], wr[w], ev[e]);
+                        if (getenv("GOLD_DUMP")) {
+                            char pn[128];
+                            FILE *o;
+                            sprintf(pn, "%s/tex_%d_%d_%d_%d.raw", getenv("GOLD_DUMP"), a, b, w, e);
+                            o = fopen(pn, "wb");
+                            fwrite(buf, 1, W * H * 4, o);
+                            fclose(o);
+                        }
                         printf("tex %d %d %d %d %08x err%x\n", a, b, w, e, hash(), glGetError());
                     }
     }

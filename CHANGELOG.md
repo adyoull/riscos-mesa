@@ -113,6 +113,26 @@ Hot paths (`mesa-20.3.5-riscos-span-speed.patch`, same picture):
   are copied back whole rather than packed pixel by pixel. Blend scene:
   9.3% fewer instructions.
 
+Textures as games use them (`mesa-20.3.5-riscos-uncompressed.patch`,
+`-fast-tex`, `-fast-fog`, `-fastest`), from profiling Warzone 2100, whose
+textured triangles mostly missed Mesa's fast textured-triangle code:
+
+- **Compressed textures are stored uncompressed** when a program asks for
+  a generic compressed format (`GL_COMPRESSED_RGBA` etc.), as the GL spec
+  allows. Decoding a compressed block for every texel took 44% of
+  Warzone's frame.
+- **The fast textured triangles now also take** `GL_CLAMP_TO_EDGE`
+  textures, `GL_RGB` textures, and fog. Before, only `GL_REPEAT` RGBA
+  textures without fog did. These differ from the slow path by up to
+  3/255.
+- **Opt-in faster texturing:** a program that sets
+  `glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST)` gets perspective
+  corrected every 16 pixels instead of every pixel, and mipmapped
+  textures on the fast path with one mipmap level per triangle. This isn't
+  exact; without the hint, rendering is.
+- **Fixed:** linear-filtered RGB textures in `GL_REPLACE`/`GL_DECAL` mode
+  on the fast path set alpha to 255 instead of keeping the fragment's.
+
 And in the build:
 
 - **libOSMesa is no longer position-independent** (meson's default for
@@ -136,7 +156,7 @@ And in the build:
   changes. Before those, its time moved by a couple of milliseconds
   between builds of the benchmark program itself (an A/B test on the Pi
   gave the same time with 20.3.5-6's library and an early pre-release).
-- The Mesa changes are eight new patches in `patches/mesa/`, described in
+- The Mesa changes are twelve new patches in `patches/mesa/`, described in
   `patches/mesa/README`. `build/build-mesa.sh` applies them in order and
   records them in `.riscos-patches-applied`, so an existing Mesa tree
   gets only the ones it lacks.

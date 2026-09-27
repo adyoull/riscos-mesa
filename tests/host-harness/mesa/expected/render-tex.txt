@@ -1,0 +1,77 @@
+compressed rgba 93a753cb compressed 0
+compressed compressed-rgba 93a753cb compressed 0
+compressed compressed-rgb adf57be7 compressed 0
+compressed rgb adf57be7 compressed 0
+compressed s3tc-dxt3 83caed69 compressed 1
+tex flat repeat nearest nofog 87e2541d maxdiff 1 diff 8554
+tex flat repeat nearest fog 87e2541d maxdiff 1 diff 8554
+tex flat repeat linear nofog 387aca9c maxdiff 2 diff 14900
+tex flat repeat linear fog 387aca9c maxdiff 2 diff 14900
+tex flat edge nearest nofog f185d94c maxdiff 1 diff 3322
+tex flat edge nearest fog f185d94c maxdiff 1 diff 3322
+tex flat edge linear nofog e3b63b56 maxdiff 2 diff 7588
+tex flat edge linear fog e3b63b56 maxdiff 2 diff 7588
+tex flat clamp nearest nofog f185d94c maxdiff 1 diff 3322
+tex flat clamp nearest fog f185d94c maxdiff 1 diff 3322
+tex flat clamp linear nofog 06f63c1a maxdiff 0 diff 0
+tex flat clamp linear fog 06f63c1a maxdiff 0 diff 0
+tex tilted repeat nearest nofog 8d9e04de maxdiff 1 diff 7601
+tex tilted repeat nearest fog abd73794 maxdiff 1 diff 5255
+tex tilted repeat linear nofog 93a753cb maxdiff 2 diff 11915
+tex tilted repeat linear fog 665fd19d maxdiff 2 diff 11599
+tex tilted edge nearest nofog 5ec16d4b maxdiff 1 diff 6437
+tex tilted edge nearest fog b097d40f maxdiff 1 diff 4673
+tex tilted edge linear nofog fcc6b3c8 maxdiff 2 diff 10206
+tex tilted edge linear fog d3b05e16 maxdiff 2 diff 9786
+tex tilted clamp nearest nofog 5ec16d4b maxdiff 1 diff 6437
+tex tilted clamp nearest fog b097d40f maxdiff 1 diff 4673
+tex tilted clamp linear nofog 89cdf59a maxdiff 0 diff 0
+tex tilted clamp linear fog 9993bf79 maxdiff 0 diff 0
+fastest flat repeat nearest nofog 87e2541d maxdiff 1 diff 8554
+fastest flat repeat nearest fog 87e2541d maxdiff 1 diff 8554
+fastest flat repeat linear nofog 387aca9c maxdiff 2 diff 14900
+fastest flat repeat linear fog 387aca9c maxdiff 2 diff 14900
+fastest flat edge nearest nofog f185d94c maxdiff 1 diff 3322
+fastest flat edge nearest fog f185d94c maxdiff 1 diff 3322
+fastest flat edge linear nofog e3b63b56 maxdiff 2 diff 7588
+fastest flat edge linear fog e3b63b56 maxdiff 2 diff 7588
+fastest flat clamp nearest nofog f185d94c maxdiff 1 diff 3322
+fastest flat clamp nearest fog f185d94c maxdiff 1 diff 3322
+fastest flat clamp linear nofog 06f63c1a maxdiff 0 diff 0
+fastest flat clamp linear fog 06f63c1a maxdiff 0 diff 0
+fastest tilted repeat nearest nofog 8d9e04de maxdiff 1 diff 7601
+fastest tilted repeat nearest fog abd73794 maxdiff 1 diff 5255
+fastest tilted repeat linear nofog ffdf0d7a maxdiff 2 diff 11915
+fastest tilted repeat linear fog 2187d3ca maxdiff 2 diff 11599
+fastest tilted edge nearest nofog 5ec16d4b maxdiff 1 diff 6437
+fastest tilted edge nearest fog b097d40f maxdiff 1 diff 4673
+fastest tilted edge linear nofog 8b5ffc2b maxdiff 2 diff 10205
+fastest tilted edge linear fog 31f549aa maxdiff 2 diff 9785
+fastest tilted clamp nearest nofog 5ec16d4b maxdiff 1 diff 6437
+fastest tilted clamp nearest fog b097d40f maxdiff 1 diff 4673
+fastest tilted clamp linear nofog 89cdf59a maxdiff 0 diff 0
+fastest tilted clamp linear fog 9993bf79 maxdiff 0 diff 0
+mipmap flat nearest-nearest exact 8763e3f1
+mipmap flat nearest-nearest fastest 387aca9c maxdiff 2 diff 14900 mean 27
+mipmap flat linear-nearest exact 8763e3f1
+mipmap flat linear-nearest fastest 387aca9c maxdiff 2 diff 14900 mean 27
+mipmap flat nearest-linear exact 8763e3f1
+mipmap flat nearest-linear fastest 387aca9c maxdiff 2 diff 14900 mean 27
+mipmap flat linear-linear exact 8763e3f1
+mipmap flat linear-linear fastest 387aca9c maxdiff 2 diff 14900 mean 27
+mipmap tilted nearest-nearest exact 1e865f33
+mipmap tilted nearest-nearest fastest acea44a7 maxdiff 117 diff 11716 mean 92
+mipmap tilted linear-nearest exact d802a4f0
+mipmap tilted linear-nearest fastest 1e352e42 maxdiff 103 diff 11935 mean 76
+mipmap tilted nearest-linear exact 5ba2a30b
+mipmap tilted nearest-linear fastest acea44a7 maxdiff 117 diff 11949 mean 93
+mipmap tilted linear-linear exact 2114144b
+mipmap tilted linear-linear fastest 1e352e42 maxdiff 79 diff 11988 mean 86
+mipmap grid nearest-nearest exact d5b0e159
+mipmap grid nearest-nearest fastest c50ddb21 maxdiff 124 diff 11379 mean 78
+mipmap grid linear-nearest exact 14352426
+mipmap grid linear-nearest fastest 6e1cbe81 maxdiff 79 diff 12154 mean 36
+mipmap grid nearest-linear exact ae2b2946
+mipmap grid nearest-linear fastest c50ddb21 maxdiff 121 diff 12066 mean 79
+mipmap grid linear-linear exact c92773ea
+mipmap grid linear-linear fastest 6e1cbe81 maxdiff 46 diff 12184 mean 72

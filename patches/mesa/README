@@ -130,6 +130,60 @@ mesa-20.3.5-riscos-direct-rows.patch
     case aligned and misaligned). glbench's blend scene: 9.3% fewer
     instructions.
 
+The next four came from profiling Warzone 2100, whose textured triangles
+mostly missed swrast's fast textured-triangle code (persp_textured_triangle
+and affine_textured_triangle). tests/host-harness/mesa/render-tex.c draws
+each case both ways and prints the largest difference from the general
+path.
+
+mesa-20.3.5-riscos-uncompressed.patch
+    main/texformat.c: the generic compressed internal formats
+    (GL_COMPRESSED_RGB/RGBA, _SRGB/_SRGB_ALPHA, _RED, _RG) are stored as
+    the uncompressed ones are, which the GL spec allows
+    (GL_TEXTURE_COMPRESSED reads back GL_FALSE). swrast decodes a block
+    for every texel of a compressed texture (44% of Warzone's frame), and
+    compressed textures never take the fast triangles. Explicit formats
+    (S3TC, RGTC) are still stored compressed.
+
+mesa-20.3.5-riscos-fast-tex.patch
+    More textures take the fast textured triangles (swrast/s_triangle.c,
+    main/texformat.c):
+    - GL_CLAMP_TO_EDGE, and GL_CLAMP with GL_NEAREST filtering (the same
+      texels), on either axis, as well as GL_REPEAT (fast_tex_wrap,
+      WRAP_COORD). The original loops are kept for textures that repeat
+      both ways; clamping ones get a second loop, chosen per span, so
+      repeating textures cost nothing more. GL_CLAMP with GL_LINEAR
+      blends in the border colour and stays on the general path.
+    - GL_RGB textures are stored B,G,R (BGR_UNORM8), the 24-bit layout
+      the fast triangles read, instead of R,G,B, which they didn't.
+    - That exposed a Mesa bug: linear-filtered RGB textures in GL_REPLACE
+      and GL_DECAL mode set alpha to 255 instead of keeping the
+      fragment's (LINEAR_RGB_REPLACE, as NEAREST_RGB_REPLACE already did).
+    The fast triangles round differently from the general path, by up to
+    3/255, so textures that now take them differ by that much.
+
+mesa-20.3.5-riscos-fast-fog.patch
+    swrast/s_triangle.c: fog no longer rules out the perspective fast
+    triangles. _swrast_write_rgba_span applies it to their colours, from
+    the fog coordinate they interpolate with the other attributes; the
+    affine ones don't interpolate it, so with fog GL_FASTEST uses the
+    perspective ones.
+
+mesa-20.3.5-riscos-fastest.patch
+    swrast/s_triangle.c, only when a program sets
+    GL_PERSPECTIVE_CORRECTION_HINT to GL_FASTEST (so rendering is exact
+    otherwise):
+    - Perspective is corrected every 16 pixels (PERSP_SEGMENT): texture
+      coordinates are exact at segment ends and linear in between, one
+      divide per segment instead of per pixel (fast_persp_span). Spans
+      with constant q (no perspective) are drawn exactly as before.
+    - Other filters than min == mag, mipmaps included, take the fast
+      triangles, which choose one image and filter per triangle
+      (fast_tex_image): the level of detail from the triangle's texture
+      coordinate gradients, as the general path does per pixel, and the
+      nearest mipmap level. Close to exact where triangles are small; a
+      large triangle spanning near and far gets one level for all of it.
+
 They are under the licence of the files they change: MIT (Mesa), except
 the change to include/c11/threads_posix.h, which is under the Boost
 Software License 1.0. See LICENCES.txt.

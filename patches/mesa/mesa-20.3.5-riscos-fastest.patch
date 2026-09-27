@@ -1,0 +1,279 @@
+diff --git a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
+index 42e9898..5c212b9 100644
+--- a/src/mesa/swrast/s_triangle.c
++++ b/src/mesa/swrast/s_triangle.c
+@@ -29,6 +29,7 @@
+  * functions to draw triangles.
+  */
+ 
++#include "c99_math.h"
+ #include "main/glheader.h"
+ #include "main/context.h"
+ 
+@@ -62,6 +63,96 @@ fast_tex_wrap(GLenum wrap, GLenum filter)
+ }
+ 
+ 
++/*
++ * riscos-mesa: the texture image and filter the fast textured triangles
++ * sample. Normally the base image, and the sampler's filter (the fast
++ * triangles are then only used when the minification and magnification
++ * filters are the same).
++ *
++ * Under GL_PERSPECTIVE_CORRECTION_HINT GL_FASTEST they are also used
++ * with other filters, mipmaps included, and choose one image and filter
++ * for the whole triangle. The level of detail is worked out as the
++ * general path does per pixel (log2 of the longer of the texel steps per
++ * pixel in x and in y), from the triangle's texture coordinate gradients:
++ * magnified, the base image with the magnification filter; minified, the
++ * nearest mipmap level with the minification filter's filtering within a
++ * level. The general path chooses per pixel and blends two levels for
++ * *_MIPMAP_LINEAR, so this is only right where a triangle's scale doesn't
++ * change much across it, which is what the hint allows.
++ */
++static const struct gl_texture_image *
++fast_tex_image(struct gl_context *ctx, const struct gl_texture_object *obj,
++               const SWvertex *v0, const SWvertex *v1, const SWvertex *v2,
++               GLenum *filter)
++{
++   const struct gl_sampler_object *samp = _mesa_get_samplerobj(ctx, 0);
++   const struct gl_texture_image *base = _mesa_base_tex_image(obj);
++   const GLfloat *t0 = v0->attrib[VARYING_SLOT_TEX0];
++   const GLfloat *t1 = v1->attrib[VARYING_SLOT_TEX0];
++   const GLfloat *t2 = v2->attrib[VARYING_SLOT_TEX0];
++   const GLfloat *p0 = v0->attrib[VARYING_SLOT_POS];
++   const GLfloat *p1 = v1->attrib[VARYING_SLOT_POS];
++   const GLfloat *p2 = v2->attrib[VARYING_SLOT_POS];
++   GLfloat s[3], t[3], det, dsdx, dsdy, dtdx, dtdy, rho, lod;
++   GLint level;
++
++   *filter = samp->MinFilter;
++   if (ctx->Hint.PerspectiveCorrection != GL_FASTEST ||
++       samp->MinFilter == samp->MagFilter)
++      return base;
++
++   /* texture coordinates in base level texels (s/q, t/q) */
++   s[0] = t0[0] / (t0[3] ? t0[3] : 1.0F) * base->Width;
++   t[0] = t0[1] / (t0[3] ? t0[3] : 1.0F) * base->Height;
++   s[1] = t1[0] / (t1[3] ? t1[3] : 1.0F) * base->Width;
++   t[1] = t1[1] / (t1[3] ? t1[3] : 1.0F) * base->Height;
++   s[2] = t2[0] / (t2[3] ? t2[3] : 1.0F) * base->Width;
++   t[2] = t2[1] / (t2[3] ? t2[3] : 1.0F) * base->Height;
++   /* d(s,t)/d(x,y) across the triangle */
++   det = (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p2[0] - p0[0]) * (p1[1] - p0[1]);
++   if (det == 0.0F)
++      return base;
++   dsdx = ((s[1] - s[0]) * (p2[1] - p0[1]) - (s[2] - s[0]) * (p1[1] - p0[1])) / det;
++   dtdx = ((t[1] - t[0]) * (p2[1] - p0[1]) - (t[2] - t[0]) * (p1[1] - p0[1])) / det;
++   dsdy = ((s[2] - s[0]) * (p1[0] - p0[0]) - (s[1] - s[0]) * (p2[0] - p0[0])) / det;
++   dtdy = ((t[2] - t[0]) * (p1[0] - p0[0]) - (t[1] - t[0]) * (p2[0] - p0[0])) / det;
++   rho = MAX2(sqrtf(dsdx * dsdx + dtdx * dtdx), sqrtf(dsdy * dsdy + dtdy * dtdy));
++   lod = rho > 0.0F ? log2f(rho) : 0.0F;
++   lod += samp->LodBias + ctx->Texture.Unit[0].LodBias;
++
++   if (lod <= 0.0F) {
++      *filter = samp->MagFilter;
++      return base;
++   }
++   switch (samp->MinFilter) {
++   case GL_NEAREST_MIPMAP_NEAREST:
++   case GL_NEAREST_MIPMAP_LINEAR:
++      *filter = GL_NEAREST;
++      break;
++   case GL_LINEAR_MIPMAP_NEAREST:
++   case GL_LINEAR_MIPMAP_LINEAR:
++      *filter = GL_LINEAR;
++      break;
++   default:                     /* GL_NEAREST or GL_LINEAR: no mipmaps */
++      return base;
++   }
++   level = obj->BaseLevel + (GLint) (lod + 0.5F);
++   if (level > obj->_MaxLevel)
++      level = obj->_MaxLevel;
++   {
++      /* the fast triangles need the tightly packed rows they were chosen
++         for (checked on the base image) */
++      const struct gl_texture_image *img = obj->Image[0][level];
++      if (img && img->TexFormat == base->TexFormat &&
++          swrast_texture_image_const(img)->ImageSlices &&
++          _mesa_format_row_stride(img->TexFormat, img->Width) ==
++          swrast_texture_image_const(img)->RowStride)
++         return img;
++   }
++   return base;
++}
++
++
+ /**
+  * Test if a triangle should be culled.  Used for feedback and selection mode.
+  * \return GL_TRUE if the triangle is to be culled, GL_FALSE otherwise.
+@@ -697,8 +788,9 @@ affine_span(struct gl_context *ctx, SWspan *span,
+    struct gl_fixedfunc_texture_unit *unit = ctx->Texture.FixedFuncUnit+0; \
+    const struct gl_texture_object *obj = 				\
+       ctx->Texture.Unit[0].CurrentTex[TEXTURE_2D_INDEX];		\
++   GLenum filter;							\
+    const struct gl_texture_image *texImg = 				\
+-      _mesa_base_tex_image(obj);					\
++      fast_tex_image(ctx, obj, v0, v1, v2, &filter);			\
+    const struct swrast_texture_image *swImg =				\
+       swrast_texture_image_const(texImg);				\
+    const GLfloat twidth = (GLfloat) texImg->Width;			\
+@@ -708,7 +800,7 @@ affine_span(struct gl_context *ctx, SWspan *span,
+    info.smask = texImg->Width - 1;					\
+    info.tmask = texImg->Height - 1;					\
+    info.format = texImg->TexFormat;					\
+-   info.filter = obj->Sampler.MinFilter;				\
++   info.filter = filter;						\
+    info.envmode = unit->EnvMode;					\
+    info.clamp_s = _mesa_get_samplerobj(ctx, 0)->WrapS != GL_REPEAT;	\
+    info.clamp_t = _mesa_get_samplerobj(ctx, 0)->WrapT != GL_REPEAT;	\
+@@ -762,8 +854,12 @@ struct persp_info
+    GLint tbytesline, tsize;
+    GLboolean clamp;             /* riscos-mesa: clamp_s || clamp_t */
+    GLboolean clamp_s, clamp_t;  /* riscos-mesa: axis clamped, not repeated */
++   GLboolean subdivide;         /* riscos-mesa: GL_FASTEST, see fast_persp_span */
+ };
+ 
++/* riscos-mesa: pixels per segment of a GL_FASTEST perspective span */
++#define PERSP_SEGMENT 16
++
+ 
+ static inline void
+ fast_persp_span(struct gl_context *ctx, SWspan *span,
+@@ -795,7 +891,7 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+ 	}
+ 
+ #define SPAN_NEAREST_WRAP(DO_TEX, COMP, CLAMP_S, CLAMP_T)		\
+-	for (i = 0; i < span->end; i++) {				\
++	for (i = 0; i < count; i++) {				\
+            const GLdouble invQ = PERSP_INV_Q;				\
+            GLfloat s_tmp = (GLfloat) (tex_coord[0] * invQ);		\
+            GLfloat t_tmp = (GLfloat) (tex_coord[1] * invQ);		\
+@@ -822,7 +918,7 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+ 	}
+ 
+ #define SPAN_LINEAR_CLAMP(DO_TEX,COMP)					\
+-	for (i = 0; i < span->end; i++) {				\
++	for (i = 0; i < count; i++) {				\
+            const GLdouble invQ = PERSP_INV_Q;				\
+            const GLfloat s_tmp = (GLfloat) (tex_coord[0] * invQ);	\
+            const GLfloat t_tmp = (GLfloat) (tex_coord[1] * invQ);	\
+@@ -845,7 +941,7 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+ 	}
+ 
+ #define SPAN_LINEAR_REPEAT(DO_TEX,COMP)					\
+-	for (i = 0; i < span->end; i++) {				\
++	for (i = 0; i < count; i++) {				\
+            const GLdouble invQ = PERSP_INV_Q;				\
+            const GLfloat s_tmp = (GLfloat) (tex_coord[0] * invQ);	\
+            const GLfloat t_tmp = (GLfloat) (tex_coord[1] * invQ);	\
+@@ -879,8 +975,9 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+            dest += 4;							\
+ 	}
+ 
+-   GLuint i;
++   GLuint i, count, done;
+    GLfloat tex_coord[3], tex_step[3];
++   GLfloat coord0[3], step0[3];   /* riscos-mesa: the span's own, for segments */
+    GLchan *dest = span->array->rgba[0];
+ 
+    const GLuint texEnableSave = ctx->Texture._EnabledCoordUnits;
+@@ -893,8 +990,42 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+    /* span->attrStart[VARYING_SLOT_TEX0][2] only if 3D-texturing, here only 2D */
+    tex_coord[2] = span->attrStart[VARYING_SLOT_TEX0][3];
+    tex_step[2] = span->attrStepX[VARYING_SLOT_TEX0][3];
+-   const GLboolean q_constant = (tex_step[2] == 0.0F);
+-   const GLdouble inv_q_constant = tex_coord[2] ? (1.0 / tex_coord[2]) : 1.0;
++   GLboolean q_constant = (tex_step[2] == 0.0F);
++   GLdouble inv_q_constant = tex_coord[2] ? (1.0 / tex_coord[2]) : 1.0;
++
++   /* riscos-mesa: under GL_PERSPECTIVE_CORRECTION_HINT GL_FASTEST
++    * (info->subdivide), the span is drawn in segments of PERSP_SEGMENT
++    * pixels: s/q and t/q are exact at the ends of each segment and linear
++    * in between, so there is one divide per segment instead of one per
++    * pixel. A segment is drawn by the same loops as a whole span, as a
++    * span with q = 1. Otherwise, or when q doesn't change along the span
++    * (so there's no divide to save), the whole span is one segment, drawn
++    * as before (exact).
++    */
++   COPY_3V(coord0, tex_coord);
++   COPY_3V(step0, tex_step);
++   for (done = 0; done < span->end; done += count) {
++      if (!info->subdivide || step0[2] == 0.0F) {
++         count = span->end;
++      } else {
++         const GLuint k0 = done;
++         GLuint k1;
++         GLdouble q, inv0, inv1;
++         count = MIN2(PERSP_SEGMENT, span->end - done);
++         k1 = k0 + count;
++         q = coord0[2] + k0 * step0[2];
++         inv0 = q ? 1.0 / q : 1.0;
++         q = coord0[2] + k1 * step0[2];
++         inv1 = q ? 1.0 / q : 1.0;
++         tex_coord[0] = (GLfloat) ((coord0[0] + k0 * step0[0]) * inv0);
++         tex_coord[1] = (GLfloat) ((coord0[1] + k0 * step0[1]) * inv0);
++         tex_step[0] = ((GLfloat) ((coord0[0] + k1 * step0[0]) * inv1) - tex_coord[0]) / count;
++         tex_step[1] = ((GLfloat) ((coord0[1] + k1 * step0[1]) * inv1) - tex_coord[1]) / count;
++         tex_coord[2] = 1.0F;
++         tex_step[2] = 0.0F;
++         q_constant = GL_TRUE;
++         inv_q_constant = 1.0;
++      }
+ 
+    switch (info->filter) {
+    case GL_NEAREST:
+@@ -1036,6 +1167,8 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+       break;
+    }
+ 
++   }  /* segments */
++
+    assert(span->arrayMask & SPAN_RGBA);
+    _swrast_write_rgba_span(ctx, span);
+ 
+@@ -1068,8 +1201,9 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+    const struct gl_fixedfunc_texture_unit *unit = ctx->Texture.FixedFuncUnit+0; \
+    const struct gl_texture_object *obj = 				\
+       ctx->Texture.Unit[0].CurrentTex[TEXTURE_2D_INDEX];		\
++   GLenum filter;							\
+    const struct gl_texture_image *texImg = 				\
+-      _mesa_base_tex_image(obj);					\
++      fast_tex_image(ctx, obj, v0, v1, v2, &filter);			\
+    const struct swrast_texture_image *swImg =				\
+       swrast_texture_image_const(texImg);				\
+    info.texture = (const GLchan *) swImg->ImageSlices[0];		\
+@@ -1077,11 +1211,12 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+    info.smask = texImg->Width - 1;					\
+    info.tmask = texImg->Height - 1;					\
+    info.format = texImg->TexFormat;					\
+-   info.filter = obj->Sampler.MinFilter;				\
++   info.filter = filter;						\
+    info.envmode = unit->EnvMode;					\
+    info.clamp_s = _mesa_get_samplerobj(ctx, 0)->WrapS != GL_REPEAT;	\
+    info.clamp_t = _mesa_get_samplerobj(ctx, 0)->WrapT != GL_REPEAT;	\
+    info.clamp = info.clamp_s || info.clamp_t;				\
++   info.subdivide = ctx->Hint.PerspectiveCorrection == GL_FASTEST;	\
+    info.er = 0;					\
+    info.eg = 0;					\
+    info.eb = 0;					\
+@@ -1344,7 +1479,10 @@ _swrast_choose_triangle( struct gl_context *ctx )
+                  swImg->RowStride)
+              && (format == MESA_FORMAT_BGR_UNORM8 || format == MESA_FORMAT_A8B8G8R8_UNORM ||
+                  (format == MESA_FORMAT_R8G8B8A8_UNORM && UTIL_ARCH_LITTLE_ENDIAN))
+-             && minFilter == magFilter
++             /* riscos-mesa: other filters (mipmaps too) under GL_FASTEST,
++              * one image and filter per triangle, see fast_tex_image */
++             && (minFilter == magFilter ||
++                 ctx->Hint.PerspectiveCorrection == GL_FASTEST)
+              && ctx->Light.Model.ColorControl == GL_SINGLE_COLOR
+              /* riscos-mesa: fog is allowed: _swrast_write_rgba_span
+               * applies it to the fast triangles' colours, using the fog
+@@ -1355,6 +1493,7 @@ _swrast_choose_triangle( struct gl_context *ctx )
+              && ctx->Texture.FixedFuncUnit[0].EnvMode != GL_COMBINE4_NV) {
+ 	    if (ctx->Hint.PerspectiveCorrection==GL_FASTEST) {
+ 	       if (minFilter == GL_NEAREST
++		   && magFilter == GL_NEAREST    /* riscos-mesa */
+ 		   && format == MESA_FORMAT_BGR_UNORM8
+ 		   && samp->WrapS == GL_REPEAT   /* riscos-mesa: these */
+ 		   && samp->WrapT == GL_REPEAT   /* can't clamp */

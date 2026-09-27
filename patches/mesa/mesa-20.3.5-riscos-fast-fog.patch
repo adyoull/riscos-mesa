@@ -1,0 +1,32 @@
+diff --git a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
+index e738160..42e9898 100644
+--- a/src/mesa/swrast/s_triangle.c
++++ b/src/mesa/swrast/s_triangle.c
+@@ -1346,7 +1346,11 @@ _swrast_choose_triangle( struct gl_context *ctx )
+                  (format == MESA_FORMAT_R8G8B8A8_UNORM && UTIL_ARCH_LITTLE_ENDIAN))
+              && minFilter == magFilter
+              && ctx->Light.Model.ColorControl == GL_SINGLE_COLOR
+-             && !swrast->_FogEnabled
++             /* riscos-mesa: fog is allowed: _swrast_write_rgba_span
++              * applies it to the fast triangles' colours, using the fog
++              * coordinate persp_textured_triangle interpolates (it
++              * interpolates all attributes; affine_textured_triangle
++              * doesn't, so it isn't used with fog) */
+              && ctx->Texture.FixedFuncUnit[0].EnvMode != GL_COMBINE_EXT
+              && ctx->Texture.FixedFuncUnit[0].EnvMode != GL_COMBINE4_NV) {
+ 	    if (ctx->Hint.PerspectiveCorrection==GL_FASTEST) {
+@@ -1372,11 +1376,12 @@ _swrast_choose_triangle( struct gl_context *ctx )
+ #if CHAN_BITS != 8
+                   USE(general_triangle);
+ #else
+-                  if (format == MESA_FORMAT_R8G8B8A8_UNORM) {
++                  if (format == MESA_FORMAT_R8G8B8A8_UNORM || swrast->_FogEnabled) {
+                      /* RISC OS: RGBA8 textures used to go through the
+                       * perspective-correct general path, so keep them
+                       * perspective-correct rather than start warping
+-                      * them under GL_FASTEST.
++                      * them under GL_FASTEST. With fog, the perspective
++                      * triangles, which interpolate the fog coordinate.
+                       */
+                      USE(persp_textured_triangle);
+                   }

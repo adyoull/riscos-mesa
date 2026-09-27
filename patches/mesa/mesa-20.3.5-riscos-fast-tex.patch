@@ -1,0 +1,306 @@
+diff --git a/src/mesa/main/texformat.c b/src/mesa/main/texformat.c
+index e525787..9abb846 100644
+--- a/src/mesa/main/texformat.c
++++ b/src/mesa/main/texformat.c
+@@ -133,11 +133,14 @@ _mesa_choose_tex_format(struct gl_context *ctx, GLenum target,
+       /* fallthrough */
+    case GL_RGB8:
+    case GL_COMPRESSED_RGB_ARB:
++      /* riscos-mesa: stored B,G,R (BGR_UNORM8), the 24-bit layout
++       * swrast's fast textured triangles read, rather than R,G,B, which
++       * they don't; the picture is the same. */
++      RETURN_IF_SUPPORTED(MESA_FORMAT_BGR_UNORM8);
+       RETURN_IF_SUPPORTED(MESA_FORMAT_RGB_UNORM8);
+       RETURN_IF_SUPPORTED(MESA_FORMAT_R8G8B8X8_UNORM);
+       RETURN_IF_SUPPORTED(MESA_FORMAT_R8G8B8A8_UNORM);
+ 
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_BGR_UNORM8);
+       RETURN_IF_SUPPORTED(MESA_FORMAT_B8G8R8X8_UNORM);
+       RETURN_IF_SUPPORTED(MESA_FORMAT_B8G8R8A8_UNORM);
+       break;
+diff --git a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
+index ecfc329..e738160 100644
+--- a/src/mesa/swrast/s_triangle.c
++++ b/src/mesa/swrast/s_triangle.c
+@@ -47,6 +47,21 @@
+ #include "s_triangle.h"
+ 
+ 
++/*
++ * riscos-mesa: the wrap modes the fast textured triangles (affine and
++ * perspective) handle, per axis: GL_REPEAT, GL_CLAMP_TO_EDGE, and GL_CLAMP
++ * when filtering with GL_NEAREST (it then picks the same texels as
++ * GL_CLAMP_TO_EDGE; with GL_LINEAR it blends in the border colour at the
++ * edges, which only the general path does). See WRAP_COORD.
++ */
++static inline GLboolean
++fast_tex_wrap(GLenum wrap, GLenum filter)
++{
++   return wrap == GL_REPEAT || wrap == GL_CLAMP_TO_EDGE ||
++          (wrap == GL_CLAMP && filter == GL_NEAREST);
++}
++
++
+ /**
+  * Test if a triangle should be culled.  Used for feedback and selection mode.
+  * \return GL_TRUE if the triangle is to be culled, GL_FALSE otherwise.
+@@ -245,6 +260,8 @@ struct affine_info
+    const GLchan *texture;
+    GLfixed er, eg, eb, ea;
+    GLint tbytesline, tsize;
++   GLboolean clamp;             /* riscos-mesa: clamp_s || clamp_t */
++   GLboolean clamp_s, clamp_t;  /* riscos-mesa: axis clamped, not repeated */
+ };
+ 
+ 
+@@ -263,6 +280,33 @@ ilerp_2d(GLint ia, GLint ib, GLint v00, GLint v10, GLint v01, GLint v11)
+ }
+ 
+ 
++/*
++ * riscos-mesa: wrap modes on the fast textured triangles. These used to
++ * take only GL_REPEAT (a texel coordinate masked with the power-of-two
++ * size). They now also take GL_CLAMP_TO_EDGE, and GL_CLAMP with
++ * GL_NEAREST filtering, which picks the same texels; with GL_LINEAR,
++ * GL_CLAMP blends in the border colour at the edges, so it stays on the
++ * general path (see fast_tex_wrap). Each axis is repeated or clamped on
++ * its own. The span functions below keep their original loops for
++ * textures that repeat both ways, and have a second loop, chosen per span,
++ * for textures that clamp.
++ */
++#define WRAP_COORD(c, clamp, mask) \
++   ((clamp) ? CLAMP((c), 0, (mask)) : ((c) & (mask)))
++
++/* The four texels of a bilinear sample at integer texel coordinate (s, t),
++   either axis clamped (s, t not yet wrapped) */
++#define LINEAR_TEXELS_CLAMP(COMPS)					\
++   const GLint s0 = WRAP_COORD(s, info->clamp_s, info->smask);		\
++   const GLint s1 = WRAP_COORD(s + 1, info->clamp_s, info->smask);	\
++   const GLint t0 = WRAP_COORD(t, info->clamp_t, info->tmask);		\
++   const GLint t1 = WRAP_COORD(t + 1, info->clamp_t, info->tmask);	\
++   const GLchan *tex00 = info->texture + COMPS * ((t0 << info->twidth_log2) + s0); \
++   const GLchan *tex01 = info->texture + COMPS * ((t0 << info->twidth_log2) + s1); \
++   const GLchan *tex10 = info->texture + COMPS * ((t1 << info->twidth_log2) + s0); \
++   const GLchan *tex11 = info->texture + COMPS * ((t1 << info->twidth_log2) + s1)
++
++
+ /* This function can handle GL_NEAREST or GL_LINEAR sampling of 2D RGB or RGBA
+  * textures with GL_REPLACE, GL_MODULATE, GL_BLEND, GL_DECAL or GL_ADD
+  * texture env modes.
+@@ -375,6 +419,17 @@ affine_span(struct gl_context *ctx, SWspan *span,
+    dest[2] = sample[2];			\
+    dest[3] = FixedToInt(span->alpha);
+ 
++/* riscos-mesa: an RGB texture in GL_REPLACE (and GL_DECAL) mode keeps the
++   fragment's alpha, as NEAREST_RGB_REPLACE does; LINEAR_RGB;REPLACE used
++   LINEAR_RGB's alpha of CHAN_MAX (a Mesa bug, reachable once GL_RGB
++   textures are stored BGR_UNORM8 and so take these fast triangles). */
++#define LINEAR_RGB_REPLACE		\
++   LINEAR_RGB;				\
++   dest[0] = sample[0];			\
++   dest[1] = sample[1];			\
++   dest[2] = sample[2];			\
++   dest[3] = FixedToInt(span->alpha);
++
+ #define NEAREST_RGBA_REPLACE  \
+    dest[RCOMP] = tex00[3]; \
+    dest[GCOMP] = tex00[2]; \
+@@ -382,10 +437,17 @@ affine_span(struct gl_context *ctx, SWspan *span,
+    dest[ACOMP] = tex00[0]
+ 
+ #define SPAN_NEAREST(DO_TEX, COMPS)					\
++	if (!info->clamp) {						\
++	   SPAN_NEAREST_WRAP(DO_TEX, COMPS, 0, 0);			\
++	} else {							\
++	   SPAN_NEAREST_WRAP(DO_TEX, COMPS, info->clamp_s, info->clamp_t); \
++	}
++
++#define SPAN_NEAREST_WRAP(DO_TEX, COMPS, CLAMP_S, CLAMP_T)		\
+ 	for (i = 0; i < span->end; i++) {				\
+            /* Isn't it necessary to use FixedFloor below?? */		\
+-           GLint s = FixedToInt(span->intTex[0]) & info->smask;		\
+-           GLint t = FixedToInt(span->intTex[1]) & info->tmask;		\
++           GLint s = WRAP_COORD(FixedToInt(span->intTex[0]), CLAMP_S, info->smask); \
++           GLint t = WRAP_COORD(FixedToInt(span->intTex[1]), CLAMP_T, info->tmask); \
+            GLint pos = (t << info->twidth_log2) + s;			\
+            const GLchan *tex00 = info->texture + COMPS * pos;		\
+            DO_TEX;							\
+@@ -399,6 +461,30 @@ affine_span(struct gl_context *ctx, SWspan *span,
+ 	}
+ 
+ #define SPAN_LINEAR(DO_TEX, COMPS)					\
++	if (!info->clamp) {						\
++	   SPAN_LINEAR_REPEAT(DO_TEX, COMPS);				\
++	} else {							\
++	   SPAN_LINEAR_CLAMP(DO_TEX, COMPS);				\
++	}
++
++#define SPAN_LINEAR_CLAMP(DO_TEX, COMPS)				\
++	for (i = 0; i < span->end; i++) {				\
++           const GLint s = FixedToInt(span->intTex[0]);			\
++           const GLint t = FixedToInt(span->intTex[1]);			\
++           const GLfixed sf = span->intTex[0] & FIXED_FRAC_MASK;	\
++           const GLfixed tf = span->intTex[1] & FIXED_FRAC_MASK;	\
++           LINEAR_TEXELS_CLAMP(COMPS);					\
++           DO_TEX;							\
++           span->red += span->redStep;					\
++	   span->green += span->greenStep;				\
++           span->blue += span->blueStep;				\
++	   span->alpha += span->alphaStep;				\
++	   span->intTex[0] += span->intTexStep[0];			\
++	   span->intTex[1] += span->intTexStep[1];			\
++           dest += 4;							\
++	}
++
++#define SPAN_LINEAR_REPEAT(DO_TEX, COMPS)				\
+ 	for (i = 0; i < span->end; i++) {				\
+            /* Isn't it necessary to use FixedFloor below?? */		\
+            const GLint s = FixedToInt(span->intTex[0]) & info->smask;	\
+@@ -518,7 +604,7 @@ affine_span(struct gl_context *ctx, SWspan *span,
+             break;
+          case GL_DECAL:
+          case GL_REPLACE:
+-            SPAN_LINEAR(LINEAR_RGB;REPLACE,3);
++            SPAN_LINEAR(LINEAR_RGB_REPLACE,3);
+             break;
+          case GL_BLEND:
+             SPAN_LINEAR(LINEAR_RGB;BLEND,3);
+@@ -587,7 +673,10 @@ affine_span(struct gl_context *ctx, SWspan *span,
+    ctx->Texture._EnabledCoordUnits = texEnableSave;
+ 
+ #undef SPAN_NEAREST
++#undef SPAN_NEAREST_WRAP
+ #undef SPAN_LINEAR
++#undef SPAN_LINEAR_CLAMP
++#undef SPAN_LINEAR_REPEAT
+ }
+ 
+ 
+@@ -621,6 +710,9 @@ affine_span(struct gl_context *ctx, SWspan *span,
+    info.format = texImg->TexFormat;					\
+    info.filter = obj->Sampler.MinFilter;				\
+    info.envmode = unit->EnvMode;					\
++   info.clamp_s = _mesa_get_samplerobj(ctx, 0)->WrapS != GL_REPEAT;	\
++   info.clamp_t = _mesa_get_samplerobj(ctx, 0)->WrapT != GL_REPEAT;	\
++   info.clamp = info.clamp_s || info.clamp_t;				\
+    info.er = 0;					\
+    info.eg = 0;					\
+    info.eb = 0;					\
+@@ -668,6 +760,8 @@ struct persp_info
+    const GLchan *texture;
+    GLfixed er, eg, eb, ea;   /* texture env color */
+    GLint tbytesline, tsize;
++   GLboolean clamp;             /* riscos-mesa: clamp_s || clamp_t */
++   GLboolean clamp_s, clamp_t;  /* riscos-mesa: axis clamped, not repeated */
+ };
+ 
+ 
+@@ -694,12 +788,19 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+                  (tex_coord[2] ? (1.0 / tex_coord[2]) : 1.0))
+ 
+ #define SPAN_NEAREST(DO_TEX,COMP)					\
++	if (!info->clamp) {						\
++	   SPAN_NEAREST_WRAP(DO_TEX, COMP, 0, 0);			\
++	} else {							\
++	   SPAN_NEAREST_WRAP(DO_TEX, COMP, info->clamp_s, info->clamp_t); \
++	}
++
++#define SPAN_NEAREST_WRAP(DO_TEX, COMP, CLAMP_S, CLAMP_T)		\
+ 	for (i = 0; i < span->end; i++) {				\
+            const GLdouble invQ = PERSP_INV_Q;				\
+            GLfloat s_tmp = (GLfloat) (tex_coord[0] * invQ);		\
+            GLfloat t_tmp = (GLfloat) (tex_coord[1] * invQ);		\
+-           GLint s = util_ifloor(s_tmp) & info->smask;	        	\
+-           GLint t = util_ifloor(t_tmp) & info->tmask;	        	\
++           GLint s = WRAP_COORD(util_ifloor(s_tmp), CLAMP_S, info->smask); \
++           GLint t = WRAP_COORD(util_ifloor(t_tmp), CLAMP_T, info->tmask); \
+            GLint pos = (t << info->twidth_log2) + s;			\
+            const GLchan *tex00 = info->texture + COMP * pos;		\
+            DO_TEX;							\
+@@ -714,6 +815,36 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+ 	}
+ 
+ #define SPAN_LINEAR(DO_TEX,COMP)					\
++	if (!info->clamp) {						\
++	   SPAN_LINEAR_REPEAT(DO_TEX, COMP);				\
++	} else {							\
++	   SPAN_LINEAR_CLAMP(DO_TEX, COMP);				\
++	}
++
++#define SPAN_LINEAR_CLAMP(DO_TEX,COMP)					\
++	for (i = 0; i < span->end; i++) {				\
++           const GLdouble invQ = PERSP_INV_Q;				\
++           const GLfloat s_tmp = (GLfloat) (tex_coord[0] * invQ);	\
++           const GLfloat t_tmp = (GLfloat) (tex_coord[1] * invQ);	\
++           const GLfixed s_fix = FloatToFixed(s_tmp) - FIXED_HALF;	\
++           const GLfixed t_fix = FloatToFixed(t_tmp) - FIXED_HALF;      \
++           const GLint s = FixedToInt(FixedFloor(s_fix));		\
++           const GLint t = FixedToInt(FixedFloor(t_fix));		\
++           const GLfixed sf = s_fix & FIXED_FRAC_MASK;			\
++           const GLfixed tf = t_fix & FIXED_FRAC_MASK;			\
++           LINEAR_TEXELS_CLAMP(COMP);					\
++           DO_TEX;							\
++           span->red   += span->redStep;				\
++	   span->green += span->greenStep;				\
++           span->blue  += span->blueStep;				\
++	   span->alpha += span->alphaStep;				\
++	   tex_coord[0] += tex_step[0];					\
++	   tex_coord[1] += tex_step[1];					\
++	   tex_coord[2] += tex_step[2];					\
++           dest += 4;							\
++	}
++
++#define SPAN_LINEAR_REPEAT(DO_TEX,COMP)					\
+ 	for (i = 0; i < span->end; i++) {				\
+            const GLdouble invQ = PERSP_INV_Q;				\
+            const GLfloat s_tmp = (GLfloat) (tex_coord[0] * invQ);	\
+@@ -844,7 +975,7 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+             break;
+          case GL_DECAL:
+          case GL_REPLACE:
+-            SPAN_LINEAR(LINEAR_RGB;REPLACE,3);
++            SPAN_LINEAR(LINEAR_RGB_REPLACE,3);
+             break;
+          case GL_BLEND:
+             SPAN_LINEAR(LINEAR_RGB;BLEND,3);
+@@ -909,7 +1040,10 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+    _swrast_write_rgba_span(ctx, span);
+ 
+ #undef SPAN_NEAREST
++#undef SPAN_NEAREST_WRAP
+ #undef SPAN_LINEAR
++#undef SPAN_LINEAR_CLAMP
++#undef SPAN_LINEAR_REPEAT
+ #undef PERSP_INV_Q
+ 
+    /* restore state */
+@@ -945,6 +1079,9 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+    info.format = texImg->TexFormat;					\
+    info.filter = obj->Sampler.MinFilter;				\
+    info.envmode = unit->EnvMode;					\
++   info.clamp_s = _mesa_get_samplerobj(ctx, 0)->WrapS != GL_REPEAT;	\
++   info.clamp_t = _mesa_get_samplerobj(ctx, 0)->WrapT != GL_REPEAT;	\
++   info.clamp = info.clamp_s || info.clamp_t;				\
+    info.er = 0;					\
+    info.eg = 0;					\
+    info.eb = 0;					\
+@@ -1198,8 +1335,8 @@ _swrast_choose_triangle( struct gl_context *ctx )
+              && !_mesa_ati_fragment_shader_enabled(ctx)
+              && ctx->Texture._MaxEnabledTexImageUnit == 0
+              && ctx->Texture.Unit[0]._Current->Target == GL_TEXTURE_2D
+-             && samp->WrapS == GL_REPEAT
+-             && samp->WrapT == GL_REPEAT
++             && fast_tex_wrap(samp->WrapS, minFilter)
++             && fast_tex_wrap(samp->WrapT, minFilter)
+              && texObj2D->_Swizzle == SWIZZLE_NOOP
+              && swImg->_IsPowerOfTwo
+              && texImg->Border == 0
+@@ -1215,6 +1352,8 @@ _swrast_choose_triangle( struct gl_context *ctx )
+ 	    if (ctx->Hint.PerspectiveCorrection==GL_FASTEST) {
+ 	       if (minFilter == GL_NEAREST
+ 		   && format == MESA_FORMAT_BGR_UNORM8
++		   && samp->WrapS == GL_REPEAT   /* riscos-mesa: these */
++		   && samp->WrapT == GL_REPEAT   /* can't clamp */
+ 		   && (envMode == GL_REPLACE || envMode == GL_DECAL)
+ 		   && ((swrast->_RasterMask == (DEPTH_BIT | TEXTURE_BIT)
+ 			&& ctx->Depth.Func == GL_LESS

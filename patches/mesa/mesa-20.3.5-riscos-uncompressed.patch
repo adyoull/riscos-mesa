@@ -1,0 +1,119 @@
+diff --git a/src/mesa/main/texformat.c b/src/mesa/main/texformat.c
+index c7765bc..e525787 100644
+--- a/src/mesa/main/texformat.c
++++ b/src/mesa/main/texformat.c
+@@ -82,6 +82,15 @@ _mesa_choose_tex_format(struct gl_context *ctx, GLenum target,
+       /* fallthrough */
+ 
+    case GL_RGBA8:
++   case GL_COMPRESSED_RGBA_ARB:
++      /* riscos-mesa: the generic compressed formats are stored exactly
++       * as the uncompressed ones (the GL spec allows it;
++       * GL_TEXTURE_COMPRESSED reads back GL_FALSE). swrast decodes a
++       * compressed block for every texel it fetches, which took 44% of a
++       * game's frame (Warzone 2100), and compressed textures can't use its
++       * fast textured triangles. A program that asks for an explicit
++       * format (S3TC, RGTC) still gets it stored compressed.
++       */
+       RETURN_IF_SUPPORTED(MESA_FORMAT_R8G8B8A8_UNORM);
+       RETURN_IF_SUPPORTED(MESA_FORMAT_A8B8G8R8_UNORM);
+       RETURN_IF_SUPPORTED(MESA_FORMAT_B8G8R8A8_UNORM);
+@@ -123,6 +132,7 @@ _mesa_choose_tex_format(struct gl_context *ctx, GLenum target,
+       }
+       /* fallthrough */
+    case GL_RGB8:
++   case GL_COMPRESSED_RGB_ARB:
+       RETURN_IF_SUPPORTED(MESA_FORMAT_RGB_UNORM8);
+       RETURN_IF_SUPPORTED(MESA_FORMAT_R8G8B8X8_UNORM);
+       RETURN_IF_SUPPORTED(MESA_FORMAT_R8G8B8A8_UNORM);
+@@ -244,29 +254,6 @@ _mesa_choose_tex_format(struct gl_context *ctx, GLenum target,
+    case GL_COMPRESSED_INTENSITY_ARB:
+       RETURN_IF_SUPPORTED(MESA_FORMAT_I_UNORM8);
+       break;
+-   case GL_COMPRESSED_RGB_ARB:
+-      /* We don't use texture compression for 1D and 1D array textures.
+-       * For 1D textures, compressions doesn't buy us much.
+-       * For 1D ARRAY textures, there's complicated issues with updating
+-       * sub-regions on non-block boundaries with glCopyTexSubImage, among
+-       * other issues.  FWIW, the GL_EXT_texture_array extension prohibits
+-       * 1D ARRAY textures in S3TC format.
+-       */
+-      if (target != GL_TEXTURE_1D && target != GL_TEXTURE_1D_ARRAY) {
+-         RETURN_IF_SUPPORTED(MESA_FORMAT_RGB_DXT1);
+-      }
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_BGR_UNORM8);
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_B8G8R8X8_UNORM);
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_B8G8R8A8_UNORM);
+-      break;
+-   case GL_COMPRESSED_RGBA_ARB:
+-      /* We don't use texture compression for 1D and 1D array textures. */
+-      if (target != GL_TEXTURE_1D && target != GL_TEXTURE_1D_ARRAY) {
+-         RETURN_IF_SUPPORTED(MESA_FORMAT_RGBA_DXT3); /* Not rgba_dxt1, see spec */
+-      }
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_A8B8G8R8_UNORM);
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_B8G8R8A8_UNORM);
+-      break;
+ 
+    case GL_RGB565:
+       RETURN_IF_SUPPORTED(MESA_FORMAT_B5G6R5_UNORM);
+@@ -458,6 +445,7 @@ _mesa_choose_tex_format(struct gl_context *ctx, GLenum target,
+ 
+    case GL_SRGB_EXT:
+    case GL_SRGB8_EXT:
++   case GL_COMPRESSED_SRGB_EXT:
+       /* there is no MESA_FORMAT_RGB_SRGB8 */
+       RETURN_IF_SUPPORTED(MESA_FORMAT_R8G8B8X8_SRGB);
+       RETURN_IF_SUPPORTED(MESA_FORMAT_R8G8B8A8_SRGB);
+@@ -470,6 +458,7 @@ _mesa_choose_tex_format(struct gl_context *ctx, GLenum target,
+       break;
+    case GL_SRGB_ALPHA_EXT:
+    case GL_SRGB8_ALPHA8_EXT:
++   case GL_COMPRESSED_SRGB_ALPHA_EXT:
+       RETURN_IF_SUPPORTED(MESA_FORMAT_R8G8B8A8_SRGB);
+ 
+       RETURN_IF_SUPPORTED(MESA_FORMAT_A8B8G8R8_SRGB);
+@@ -501,18 +490,6 @@ _mesa_choose_tex_format(struct gl_context *ctx, GLenum target,
+       RETURN_IF_SUPPORTED(MESA_FORMAT_B8G8R8A8_SRGB);
+       RETURN_IF_SUPPORTED(MESA_FORMAT_A8R8G8B8_SRGB);
+       break;
+-   case GL_COMPRESSED_SRGB_EXT:
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_SRGB_DXT1);
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_BGR_SRGB8);
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_B8G8R8A8_SRGB);
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_A8R8G8B8_SRGB);
+-      break;
+-   case GL_COMPRESSED_SRGB_ALPHA_EXT:
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_SRGBA_DXT3); /* Not srgba_dxt1, see spec */
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_A8B8G8R8_SRGB);
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_B8G8R8A8_SRGB);
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_A8R8G8B8_SRGB);
+-      break;
+ 
+    case GL_ALPHA8UI_EXT:
+       RETURN_IF_SUPPORTED(MESA_FORMAT_A_UINT8);
+@@ -662,12 +639,7 @@ _mesa_choose_tex_format(struct gl_context *ctx, GLenum target,
+ 
+    case GL_R8:
+    case GL_RED:
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_R_UNORM8);
+-      break;
+-
+    case GL_COMPRESSED_RED:
+-      if (target != GL_TEXTURE_1D && target != GL_TEXTURE_1D_ARRAY)
+-         RETURN_IF_SUPPORTED(MESA_FORMAT_R_RGTC1_UNORM);
+       RETURN_IF_SUPPORTED(MESA_FORMAT_R_UNORM8);
+       break;
+ 
+@@ -677,12 +649,7 @@ _mesa_choose_tex_format(struct gl_context *ctx, GLenum target,
+ 
+    case GL_RG:
+    case GL_RG8:
+-      RETURN_IF_SUPPORTED(MESA_FORMAT_RG_UNORM8);
+-      break;
+-
+    case GL_COMPRESSED_RG:
+-      if (target != GL_TEXTURE_1D && target != GL_TEXTURE_1D_ARRAY)
+-         RETURN_IF_SUPPORTED(MESA_FORMAT_RG_RGTC2_UNORM);
+       RETURN_IF_SUPPORTED(MESA_FORMAT_RG_UNORM8);
+       break;
+ 
