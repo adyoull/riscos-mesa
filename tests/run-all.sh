@@ -17,6 +17,8 @@
 #   egl             libEGL and libbcm_host against a fake RISC OS
 #                   (tests/host-harness/egl, 265 checks)
 #   sdl             SDL's GL glue with emulated SWIs (tests/host-harness)
+#   sdl-wimp        SDL's Wimp event handling: desktop quit, close icon,
+#                   icon bar menu (tests/host-harness/sdl-wimp)
 #   glut            freeglut's RISC OS back end driving freeglut's demos
 #                   (tests/host-harness/glut, 23 checks); needs GLU=<a host
 #                   libGLU.a>, otherwise skipped
@@ -97,6 +99,7 @@ else
 fi
 step egl egl_harness
 step sdl sdl_harness
+step sdl-wimp env SDL="$SRC/SDL-release-2.26.0" OUT="$OUT/sdl-wimp" "$H/sdl-wimp/run.sh"
 if [ -n "${GLU:-}" ]; then step glut glut_harness; else skip glut "set GLU=<host libGLU.a>"; fi
 if [ -n "${ARM:-}" ]; then
     step arm env OUT="$OUT/arm" "$H/mesa/arm/run-arm.sh"

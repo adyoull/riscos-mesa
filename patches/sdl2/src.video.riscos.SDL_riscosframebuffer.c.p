@@ -1,5 +1,5 @@
 diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosframebuffer.c
-index 5984199..dd2d735 100644
+index 5984199..33382a7 100644
 --- src/video/riscos/SDL_riscosframebuffer.c
 +++ src/video/riscos/SDL_riscosframebuffer.c
 @@ -40,6 +40,11 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
@@ -41,7 +41,7 @@ index 5984199..dd2d735 100644
      /* Calculate pitch */
      *pitch = (((window->w * SDL_BYTESPERPIXEL(*format)) + 3) & ~3);
  
-@@ -88,32 +113,175 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
+@@ -88,32 +113,176 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
      return 0;
  }
  
@@ -73,7 +73,7 @@ index 5984199..dd2d735 100644
 +   SDL pixel covers wscale_x x wscale_y screen pixels (2x2 in EX0 EY0
 +   modes, see RISCOS_ChooseWindowScale). */
 +void
-+RISCOS_WimpPlotWindow(_THIS, SDL_Window *window, int *block, int more)
++RISCOS_WimpPlotWindow(_THIS, SDL_Window *window, RISCOS_Redraw *redraw, int more)
  {
      SDL_WindowData *driverdata = (SDL_WindowData *) window->driverdata;
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
@@ -95,8 +95,8 @@ index 5984199..dd2d735 100644
 -    error = _kernel_swi(OS_SpriteOp, &regs, &regs);
 +    while (more) {
 +        if (driverdata && driverdata->fb_sprite) {
-+            int ox = block[1] - block[5];
-+            int oy = block[4] - block[6];
++            int ox = redraw->box.x0 - redraw->scroll_x;   /* work area origin on screen */
++            int oy = redraw->box.y1 - redraw->scroll_y;
 +            /* wanted size / the sprite's own size (it may be a 90 dpi sprite
 +               in a 180 dpi mode, which SpriteExtend already doubles) */
 +            RISCOS_SpriteEigs(driverdata->fb_sprite, xeig, yeig, &sxe, &sye);
@@ -116,7 +116,7 @@ index 5984199..dd2d735 100644
 +            }
 +            _kernel_swi(OS_SpriteOp, &regs, &regs);
 +        }
-+        regs.r[1] = (int)block;
++        regs.r[1] = (int)redraw;
 +        if (_kernel_swi(Wimp_GetRectangle, &regs, &regs) != NULL)
 +            break;
 +        more = regs.r[0];
@@ -130,7 +130,8 @@ index 5984199..dd2d735 100644
 +    int xeig = vdata->xeig, yeig = vdata->yeig;
 +    int sx = vdata->wscale_x > 0 ? vdata->wscale_x : 1;
 +    int sy = vdata->wscale_y > 0 ? vdata->wscale_y : 1;
-+    int block[11], i;
++    RISCOS_Redraw update;
++    int i;
 +    _kernel_swi_regs regs;
 +
 +    for (i = 0; i < numrects || (numrects == 0 && i == 0); i++) {
@@ -139,15 +140,15 @@ index 5984199..dd2d735 100644
 +            l = rects[i].x; t = rects[i].y; w = rects[i].w; h = rects[i].h;
 +            if (w <= 0 || h <= 0) continue;
 +        }
-+        block[0] = vdata->wimp_window;
-+        block[1] = (l * sx) << xeig;
-+        block[2] = -(((t + h) * sy) << yeig);
-+        block[3] = ((l + w) * sx) << xeig;
-+        block[4] = -((t * sy) << yeig);
-+        regs.r[1] = (int)block;
++        update.window = vdata->wimp_window;
++        update.box.x0 = (l * sx) << xeig;
++        update.box.y0 = -(((t + h) * sy) << yeig);
++        update.box.x1 = ((l + w) * sx) << xeig;
++        update.box.y1 = -((t * sy) << yeig);
++        regs.r[1] = (int)&update;
 +        if (_kernel_swi(Wimp_UpdateWindow, &regs, &regs) != NULL)
 +            continue;
-+        RISCOS_WimpPlotWindow(_this, window, block, regs.r[0]);
++        RISCOS_WimpPlotWindow(_this, window, &update, regs.r[0]);
 +    }
 +    return 0;
 +}

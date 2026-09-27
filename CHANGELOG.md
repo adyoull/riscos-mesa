@@ -139,6 +139,14 @@ And in the build:
 
 ### Other changes
 
+- **SDL2 programs quit properly from the desktop:** a desktop shutdown
+  or the Task Manager's Quit now asks the program to quit (SDL_QUIT), so it
+  can confirm or save first, and the shutdown carries on once it has quit;
+  before, the program only got SDL_QUIT and the desktop shut down around
+  it. The close icon sends SDL's window-close event
+  (SDL_WINDOWEVENT_CLOSE), as on other platforms; programs that don't
+  handle it still quit. SDL_ShowWindow/SDL_HideWindow work on desktop
+  windows. Requested by riscos-openttd, which takes its SDL from here.
 - **SDL2 mouse clicks in a window are no longer lost:** the window's
   buttons were read once per `SDL_PumpEvents`, so a click pressed and
   released between two frames (easy at the 5-10 frames a second of a busy

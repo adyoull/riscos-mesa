@@ -87,6 +87,31 @@ It contains:
   `src.audio.SDL_sysaudio.h.p`; configure reports
   `Audio drivers : disk dummy oss riscos`. Programs' `!Run` files should
   RMEnsure SSound, StreamMan and SSBuffer (see ports/sdl2-tests `!LoopWave`).
+- Quitting from the desktop (2026-09-27, requested by riscos-openttd;
+  written from the PRM/ROOL documentation):
+  - Message_PreQuit (the Task Manager's Quit, or a desktop shutdown) is
+    acknowledged, which stops the quit, and SDL_QUIT is posted so the
+    program can quit its own way (confirm, save). For a desktop shutdown
+    (flag bit 0 clear), when the program then quits, the shutdown is
+    restarted with a Ctrl-Shift-F12 key press (Wimp_ProcessKey), before
+    Wimp_CloseDown or at exit. Only if it quits within 30 s of the PreQuit
+    and not by the icon bar menu or close icon, since SDL can't say
+    whether the user answered "yes": quitting later, after "no", must not
+    shut the desktop down.
+  - Message_Quit posts SDL_APP_TERMINATING and SDL_QUIT; if the program
+    takes them and carries on, the driver calls SDL_Quit and exits, as the
+    Wimp requires.
+  - The close icon sends SDL_WINDOWEVENT_CLOSE (SDL posts SDL_QUIT for the
+    last window unless SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE is 0); the icon
+    bar menu's Quit still sends SDL_QUIT.
+  - SDL_ShowWindow / SDL_HideWindow open and close the desktop window
+    (it reopens where it was); SDL_WINDOW_HIDDEN leaves it closed.
+  - `SDL_riscoswimp.h`: the Wimp blocks the driver uses as structures
+    (window state, redraw, pointer, caret/key, message...), from the PRM
+    layouts with compile-time size checks, instead of int arrays with
+    numeric offsets. The conversion changes no code (checked on the
+    compiled objects).
+  - Tested by `tests/host-harness/sdl-wimp`.
 - `sdl2-configure.ac.host.p`: OpenTTD's triplet fix (arm-riscos-gnueabihf
   is not Linux). `sdl2-configure.ac.osmesa.p`: the OSMesa option.
 

@@ -1,20 +1,112 @@
 diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents.c
-index fcca470..b7bd5af 100644
+index fcca470..256bace 100644
 --- src/video/riscos/SDL_riscosevents.c
 +++ src/video/riscos/SDL_riscosevents.c
-@@ -27,9 +27,11 @@
+@@ -23,15 +23,103 @@
+ #if SDL_VIDEO_DRIVER_RISCOS
+ 
+ #include "../../events/SDL_events_c.h"
++#include "../../events/SDL_windowevents_c.h"
+ 
++#include "SDL.h"
  #include "SDL_log.h"
++#include "SDL_timer.h"
  #include "SDL_riscosvideo.h"
  #include "SDL_riscosevents_c.h"
 +#include "SDL_riscoswindow.h"
  #include "scancodes_riscos.h"
  
  #include <kernel.h>
++#include <stdlib.h>
 +#include <time.h>
  #include <swis.h>
  
++/* 2026: quitting from the desktop.
++
++   Message_PreQuit (8) is sent to a task that the user quits from the Task
++   Manager, and broadcast to all tasks when the desktop is being shut down.
++   A task that doesn't object is then sent Message_Quit (0), and must exit.
++   We always object (by acknowledging the PreQuit), and post SDL_QUIT, so
++   the program can quit its own way: ask "are you sure?", save, clean up.
++   Bit 0 of the flag word at +20 is set when only this task is being quit;
++   it is clear (or the word is missing) for a desktop shutdown, and then,
++   once the program has quit, the shutdown has to be restarted: a
++   Ctrl-Shift-F12 key press through Wimp_ProcessKey
++   (RISCOS_RestartShutdown). If the program doesn't quit (the user said no),
++   the shutdown stays cancelled. SDL can't tell us which answer was given,
++   so the shutdown is only restarted if the program quits within
++   RISCOS_SHUTDOWN_ANSWER_MS of the PreQuit, and not if the user quits it
++   another way in the meantime (icon bar menu, close icon): after "no",
++   quitting the program later must not shut the desktop down.
++
++   Message_Quit means the task must go. We post SDL_APP_TERMINATING and
++   SDL_QUIT, and give the program the chance to act on them; if it takes
++   them and asks for more events instead of quitting, the driver quits
++   for it (SDL_Quit and exit). */
++#define RISCOS_SHUTDOWN_ANSWER_MS 30000
++
++static struct
++{
++    SDL_bool shutdown_pending;  /* we objected to a desktop shutdown */
++    Uint32 shutdown_ticks;      /* when (SDL_GetTicks) */
++    SDL_bool quit_received;     /* Message_Quit arrived: the task must exit */
++} riscos_quit;
++
++/* Restart a desktop shutdown that we objected to, if the program is now
++   quitting in answer to it. Called before Wimp_CloseDown, and at exit for
++   programs that exit without SDL_Quit. */
++void
++RISCOS_RestartShutdown(void)
++{
++    if (riscos_quit.shutdown_pending &&
++        SDL_GetTicks() - riscos_quit.shutdown_ticks < RISCOS_SHUTDOWN_ANSWER_MS) {
++        _kernel_swi_regs regs;
++        regs.r[0] = 0x1FC;      /* Ctrl-Shift-F12 */
++        _kernel_swi(Wimp_ProcessKey, &regs, &regs);
++    }
++    riscos_quit.shutdown_pending = SDL_FALSE;
++}
++
++/* The user asked to quit just the program (icon bar menu, close icon): a
++   desktop shutdown they said no to earlier must not restart. */
++static void
++RISCOS_ForgetShutdown(void)
++{
++    riscos_quit.shutdown_pending = SDL_FALSE;
++}
++
++static void
++RISCOS_WimpMessage(RISCOS_Message *message)
++{
++    _kernel_swi_regs regs;
++
++    switch (message->action) {
++    case 8:  /* Message_PreQuit */
++        riscos_quit.shutdown_pending =
++            (message->size < 24 || (message->data[0] & 1) == 0) ? SDL_TRUE : SDL_FALSE;
++        riscos_quit.shutdown_ticks = SDL_GetTicks();
++        message->your_ref = message->my_ref;    /* object: acknowledge it */
++        regs.r[0] = 19;                          /* User_Message_Acknowledge */
++        regs.r[1] = (int)message;
++        regs.r[2] = message->sender;
++        _kernel_swi(Wimp_SendMessage, &regs, &regs);
++        SDL_SendQuit();
++        break;
++    case 0:  /* Message_Quit */
++        riscos_quit.shutdown_pending = SDL_FALSE;
++        riscos_quit.quit_received = SDL_TRUE;
++        SDL_SendAppEvent(SDL_APP_TERMINATING);
++        SDL_SendQuit();
++        break;
++    default:
++        break;
++    }
++}
++
  static SDL_Scancode
-@@ -50,6 +52,44 @@ SDL_RISCOS_translate_keycode(int keycode)
+ SDL_RISCOS_translate_keycode(int keycode)
+ {
+@@ -50,6 +138,44 @@ SDL_RISCOS_translate_keycode(int keycode)
      return scancode;
  }
  
@@ -59,7 +151,7 @@ index fcca470..b7bd5af 100644
  void
  RISCOS_PollKeyboard(_THIS)
  {
-@@ -57,6 +97,17 @@ RISCOS_PollKeyboard(_THIS)
+@@ -57,6 +183,17 @@ RISCOS_PollKeyboard(_THIS)
      Uint8 key = 2;
      int i;
  
@@ -77,7 +169,7 @@ index fcca470..b7bd5af 100644
      /* Check for key releases */
      for (i = 0; i < RISCOS_MAX_KEYS_PRESSED; i++) {
          if (driverdata->key_pressed[i] != 255) {
-@@ -67,6 +118,10 @@ RISCOS_PollKeyboard(_THIS)
+@@ -67,6 +204,10 @@ RISCOS_PollKeyboard(_THIS)
          }
      }
  
@@ -88,7 +180,7 @@ index fcca470..b7bd5af 100644
      /* Check for key presses */
      while (key < 0xff) {
          key = _kernel_osbyte(121, key + 1, 0) & 0xff;
-@@ -111,36 +166,151 @@ static const Uint8 mouse_button_map[] = {
+@@ -111,36 +252,153 @@ static const Uint8 mouse_button_map[] = {
      SDL_BUTTON_X2 + 3
  };
  
@@ -102,20 +194,22 @@ index fcca470..b7bd5af 100644
 +    SDL_Mouse *mouse = SDL_GetMouse();
 +    SDL_Window *window = driverdata->wimp_sdl_window;
 +    int xeig = driverdata->xeig, yeig = driverdata->yeig;
-+    int state[9], ptr[5], i, x, y, buttons;
++    RISCOS_WindowState state;
++    RISCOS_Pointer ptr;
++    int i, x, y, buttons;
 +    SDL_bool inside;
 +    _kernel_swi_regs regs;
 +
-+    regs.r[1] = (int)ptr;
++    regs.r[1] = (int)&ptr;
 +    if (_kernel_swi(Wimp_GetPointerInfo, &regs, &regs) != NULL)
 +        return;
-+    state[0] = driverdata->wimp_window;
-+    regs.r[1] = (int)state;
++    state.open.window = driverdata->wimp_window;
++    regs.r[1] = (int)&state;
 +    if (_kernel_swi(Wimp_GetWindowState, &regs, &regs) != NULL)
 +        return;
 +
-+    buttons = ptr[2] & 7;
-+    inside = (ptr[3] == driverdata->wimp_window) ? SDL_TRUE : SDL_FALSE;
++    buttons = ptr.buttons & 7;
++    inside = (ptr.window == driverdata->wimp_window) ? SDL_TRUE : SDL_FALSE;
 +    /* 2026: a click that was pressed and released between two polls (easy
 +       when a frame takes 100 ms or more, as with software OpenGL) was never
 +       seen. The Wimp's Mouse_Click event records it: report the press now
@@ -128,16 +222,16 @@ index fcca470..b7bd5af 100644
 +            inside = SDL_TRUE;
 +            /* report the press where it happened (the pointer may have
 +               moved on since); the next poll moves it back */
-+            ptr[0] = driverdata->pending_click_x;
-+            ptr[1] = driverdata->pending_click_y;
++            ptr.x = driverdata->pending_click_x;
++            ptr.y = driverdata->pending_click_y;
 +        }
 +    }
 +    /* Keep reporting while a button pressed inside the window is held (drags). */
 +    if (!inside && driverdata->buttons_inside != 0 && buttons != 0)
 +        inside = SDL_TRUE;
 +
-+    x = (ptr[0] - (state[1] - state[5])) >> xeig;
-+    y = ((state[4] - state[6]) - ptr[1]) >> yeig;
++    x = (ptr.x - (state.open.visible.x0 - state.open.scroll_x)) >> xeig;
++    y = ((state.open.visible.y1 - state.open.scroll_y) - ptr.y) >> yeig;
 +    if (driverdata->wscale_x > 1) x /= driverdata->wscale_x;   /* scaled window */
 +    if (driverdata->wscale_y > 1) y /= driverdata->wscale_y;
 +    if (x < 0) x = 0;
@@ -247,7 +341,7 @@ index fcca470..b7bd5af 100644
  int
  RISCOS_InitEvents(_THIS)
  {
-@@ -165,10 +335,303 @@ RISCOS_InitEvents(_THIS)
+@@ -165,10 +423,316 @@ RISCOS_InitEvents(_THIS)
      return 0;
  }
  
@@ -281,7 +375,7 @@ index fcca470..b7bd5af 100644
 +
 +/* 2026: handle one Wimp event. Returns 0 for a null event, 1 otherwise. */
 +static int
-+RISCOS_WimpHandleEvent(_THIS, int reason, int *block)
++RISCOS_WimpHandleEvent(_THIS, int reason, RISCOS_PollBlock *event)
 +{
 +    SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
 +    _kernel_swi_regs regs;
@@ -294,69 +388,74 @@ index fcca470..b7bd5af 100644
 +            *driverdata->wakeup_pollword = 0;
 +        break;
 +    case 1:  /* Redraw_Window_Request */
-+        if (block[0] == driverdata->wimp_window && driverdata->wimp_sdl_window) {
-+            regs.r[1] = (int)block;
++        if (event->window == driverdata->wimp_window && driverdata->wimp_sdl_window) {
++            regs.r[1] = (int)&event->redraw;
 +            if (_kernel_swi(Wimp_RedrawWindow, &regs, &regs) == NULL)
-+                RISCOS_WimpPlotWindow(_this, driverdata->wimp_sdl_window, block, regs.r[0]);
++                RISCOS_WimpPlotWindow(_this, driverdata->wimp_sdl_window, &event->redraw, regs.r[0]);
 +        }
 +        break;
 +    case 2:  /* Open_Window_Request */
-+        regs.r[1] = (int)block;
++        regs.r[1] = (int)&event->open;
 +        _kernel_swi(Wimp_OpenWindow, &regs, &regs);
 +        break;
 +    case 6:  /* Mouse_Click: the window's buttons are polled, but a short click
 +                can come and go between two polls, so remember it */
-+        if (block[3] == driverdata->wimp_window && driverdata->wimp_window != 0) {
-+            driverdata->pending_clicks |= block[2] & 7;
-+            driverdata->pending_click_x = block[0];
-+            driverdata->pending_click_y = block[1];
-+        } else if (block[3] == -2 && block[4] == driverdata->iconbar_icon) {
-+            if (block[2] & 2) {
-+                RISCOS_IconbarMenu(block[0]);
++        if (event->click.window == driverdata->wimp_window && driverdata->wimp_window != 0) {
++            driverdata->pending_clicks |= event->click.buttons & 7;
++            driverdata->pending_click_x = event->click.x;
++            driverdata->pending_click_y = event->click.y;
++        } else if (event->click.window == -2 && event->click.icon == driverdata->iconbar_icon) {
++            if (event->click.buttons & 2) {
++                RISCOS_IconbarMenu(event->click.x);
 +            } else if (driverdata->wimp_window != 0) {
 +                /* Select/Adjust: bring the game window to the front. */
-+                int state[9];
-+                state[0] = driverdata->wimp_window;
-+                regs.r[1] = (int)state;
++                RISCOS_WindowState state;
++                state.open.window = driverdata->wimp_window;
++                regs.r[1] = (int)&state;
 +                if (_kernel_swi(Wimp_GetWindowState, &regs, &regs) == NULL) {
-+                    state[7] = -1;
-+                    regs.r[1] = (int)state;
++                    state.open.behind = -1;
++                    regs.r[1] = (int)&state;
 +                    _kernel_swi(Wimp_OpenWindow, &regs, &regs);
 +                }
 +            }
 +        }
 +        break;
-+    case 9:  /* Menu_Selection */
-+        if (block[0] == 0)
++    case 9:  /* Menu_Selection: the icon bar menu's Quit quits the program */
++        if (event->menu[0] == 0) {
++            RISCOS_ForgetShutdown();
 +            SDL_SendQuit();
++        }
 +        break;
-+    case 3:  /* Close_Window_Request */
-+        if (block[0] == driverdata->wimp_window)
-+            SDL_SendQuit();
++    case 3:  /* Close_Window_Request: SDL sends SDL_QUIT when the last
++                window is closed (unless SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE
++                is 0); a program can also handle the close itself */
++        if (event->window == driverdata->wimp_window && driverdata->wimp_sdl_window) {
++            RISCOS_ForgetShutdown();
++            SDL_SendWindowEvent(driverdata->wimp_sdl_window, SDL_WINDOWEVENT_CLOSE, 0, 0);
++        }
 +        break;
 +    case 8:  /* Key_Pressed: key up/down are scanned directly; typed characters become text */
-+        if (block[0] == driverdata->wimp_window)
-+            RISCOS_SendTextChar(block[6]);
-+        if (block[6] >= 0x180 && block[6] <= 0x1FF && block[6] != 0x18B) {
++        if (event->key.caret.window == driverdata->wimp_window)
++            RISCOS_SendTextChar(event->key.code);
++        if (event->key.code >= 0x180 && event->key.code <= 0x1FF && event->key.code != 0x18B) {
 +            /* function keys etc. that we might not want: hand F12 and friends to the Wimp */
-+            if (block[6] == 0x1CC || block[6] == 0x1DC || block[6] == 0x1EC || block[6] == 0x1FC) {
-+                regs.r[0] = block[6];
++            if (event->key.code == 0x1CC || event->key.code == 0x1DC || event->key.code == 0x1EC || event->key.code == 0x1FC) {
++                regs.r[0] = event->key.code;
 +                _kernel_swi(Wimp_ProcessKey, &regs, &regs);
 +            }
 +        }
 +        break;
 +    case 11: /* Lose_Caret */
-+        if (block[0] == driverdata->wimp_window)
++        if (event->caret.window == driverdata->wimp_window)
 +            driverdata->has_caret = SDL_FALSE;
 +        break;
 +    case 12: /* Gain_Caret */
-+        if (block[0] == driverdata->wimp_window)
++        if (event->caret.window == driverdata->wimp_window)
 +            driverdata->has_caret = SDL_TRUE;
 +        break;
 +    case 17: /* User_Message */
 +    case 18: /* User_Message_Recorded */
-+        if (block[4] == 0) /* Message_Quit */
-+            SDL_SendQuit();
++        RISCOS_WimpMessage(&event->message);
 +        break;
 +    default:
 +        break;
@@ -375,17 +474,18 @@ index fcca470..b7bd5af 100644
 +RISCOS_PollWimpUntil(_THIS, SDL_bool wait, unsigned int until_cs)
 +{
 +    SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
-+    int block[64], n;
++    RISCOS_PollBlock event;
++    int n;
 +    _kernel_swi_regs regs;
 +
 +    for (n = 0; wait || n < 32; n++) {
 +        regs.r[0] = (1 << 4) | (1 << 5);  /* pointer leaving/entering are polled directly */
-+        regs.r[1] = (int)block;
++        regs.r[1] = (int)&event;
 +        regs.r[2] = (int)until_cs;
 +        regs.r[3] = 0;
 +        if (_kernel_swi(wait ? Wimp_PollIdle : Wimp_Poll, &regs, &regs) != NULL)
 +            return;
-+        if (RISCOS_WimpHandleEvent(_this, regs.r[0], block) == 0)
++        if (RISCOS_WimpHandleEvent(_this, regs.r[0], &event) == 0)
 +            return;                         /* null event: done (or time is up) */
 +        if (wait && driverdata->wimp_window == 0)
 +            wait = SDL_FALSE;               /* went full screen while waiting */
@@ -496,7 +596,7 @@ index fcca470..b7bd5af 100644
 +{
 +    SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
 +    unsigned int now, until = 0, deadline = 0;
-+    int block[64];
++    RISCOS_PollBlock event;
 +    _kernel_swi_regs regs;
 +
 +    if (driverdata->wimp_task == 0 || driverdata->wimp_window == 0 ||
@@ -516,13 +616,13 @@ index fcca470..b7bd5af 100644
 +    } else {
 +        regs.r[0] |= 1;                   /* no null events: sleep until an event */
 +    }
-+    regs.r[1] = (int)block;
++    regs.r[1] = (int)&event;
 +    regs.r[2] = (int)until;
 +    regs.r[3] = (int)driverdata->wakeup_pollword;
 +    if (_kernel_swi(Wimp_PollIdle, &regs, &regs) != NULL)
 +        return -1;
 +
-+    if (RISCOS_WimpHandleEvent(_this, regs.r[0], block) == 0) {
++    if (RISCOS_WimpHandleEvent(_this, regs.r[0], &event) == 0) {
 +        /* Null event: our timeout, or a 2 cs wake to sample the mouse. */
 +        if (timeout >= 0 && (int)(RISCOS_MonotonicCs() - deadline) >= 0)
 +            return 0;
@@ -542,6 +642,13 @@ index fcca470..b7bd5af 100644
  void
  RISCOS_PumpEvents(_THIS)
  {
++    /* Message_Quit: the program has taken SDL_APP_TERMINATING and SDL_QUIT
++       and carried on instead of quitting, but the task must go. */
++    if (riscos_quit.quit_received &&
++        !SDL_HasEvent(SDL_QUIT) && !SDL_HasEvent(SDL_APP_TERMINATING)) {
++        SDL_Quit();
++        exit(0);
++    }
 +    /* Only multitask while we have a desktop window; full screen owns the machine. */
 +    if (((SDL_VideoData *)_this->driverdata)->wimp_window != 0) {
 +        RISCOS_PollWimp(_this);

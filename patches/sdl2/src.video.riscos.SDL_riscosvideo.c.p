@@ -1,5 +1,5 @@
 diff --git src/video/riscos/SDL_riscosvideo.c src/video/riscos/SDL_riscosvideo.c
-index 4763011..574bda2 100644
+index 4763011..faaabd4 100644
 --- src/video/riscos/SDL_riscosvideo.c
 +++ src/video/riscos/SDL_riscosvideo.c
 @@ -34,9 +34,23 @@
@@ -26,7 +26,7 @@ index 4763011..574bda2 100644
  /* Initialization/Query functions */
  static int RISCOS_VideoInit(_THIS);
  static void RISCOS_VideoQuit(_THIS);
-@@ -77,18 +91,36 @@ RISCOS_CreateDevice(void)
+@@ -77,18 +91,38 @@ RISCOS_CreateDevice(void)
      device->VideoInit = RISCOS_VideoInit;
      device->VideoQuit = RISCOS_VideoQuit;
      device->PumpEvents = RISCOS_PumpEvents;
@@ -41,6 +41,8 @@ index 4763011..574bda2 100644
 +    device->SetWindowSize = RISCOS_SetWindowSize;
 +    device->SetWindowFullscreen = RISCOS_SetWindowFullscreen;
 +    device->SetWindowTitle = RISCOS_SetWindowTitle;
++    device->ShowWindow = RISCOS_ShowWindow;
++    device->HideWindow = RISCOS_HideWindow;
      device->GetWindowWMInfo = RISCOS_GetWindowWMInfo;
  
      device->CreateWindowFramebuffer = RISCOS_CreateWindowFramebuffer;
@@ -63,7 +65,7 @@ index 4763011..574bda2 100644
      device->free = RISCOS_DeleteDevice;
  
      return device;
-@@ -113,6 +145,34 @@ RISCOS_VideoInit(_THIS)
+@@ -113,6 +147,34 @@ RISCOS_VideoInit(_THIS)
      if (RISCOS_InitModes(_this) < 0) {
          return -1;
      }
@@ -98,7 +100,7 @@ index 4763011..574bda2 100644
  
      /* We're done! */
      return 0;
-@@ -121,7 +181,16 @@ RISCOS_VideoInit(_THIS)
+@@ -121,7 +183,16 @@ RISCOS_VideoInit(_THIS)
  static void
  RISCOS_VideoQuit(_THIS)
  {

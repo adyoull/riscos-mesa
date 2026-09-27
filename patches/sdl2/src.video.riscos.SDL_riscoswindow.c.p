@@ -1,8 +1,8 @@
 diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow.c
-index f47d33a..ac221c7 100644
+index f47d33a..92833f1 100644
 --- src/video/riscos/SDL_riscoswindow.c
 +++ src/video/riscos/SDL_riscoswindow.c
-@@ -24,16 +24,301 @@
+@@ -24,16 +24,334 @@
  
  #include "SDL_version.h"
  #include "SDL_syswm.h"
@@ -13,6 +13,7 @@ index f47d33a..ac221c7 100644
  
  #include "SDL_riscosvideo.h"
  #include "SDL_riscoswindow.h"
++#include "SDL_riscosevents_c.h"
 +#include "SDL_riscosopengl.h"
 +
 +/* 2026: windowed mode.  A window created without SDL_WINDOW_FULLSCREEN is
@@ -20,10 +21,13 @@ index f47d33a..ac221c7 100644
 +   full screen windows keep the original behaviour of owning the screen.  */
 +
 +#include <kernel.h>
++#include <stdlib.h>
 +#include <swis.h>
 +
 +static char riscos_window_title[128] = "SDL";
-+static int riscos_wimp_messages[] = { 0 };
++/* Messages we want besides Message_Quit, which every task gets: Message_PreQuit
++   (see SDL_riscosevents.c). */
++static int riscos_wimp_messages[] = { 8 /* Message_PreQuit */, 0 };
 +
 +/* 2026: the program's own name (task name, icon bar menu title) and icon
 +   bar sprite, found from its application directory: a program run as
@@ -175,6 +179,15 @@ index f47d33a..ac221c7 100644
 +    if (err != NULL)
 +        return SDL_SetError("Wimp_Initialise failed: %s", err->errmess);
 +    vdata->wimp_task = regs.r[1];
++    {
++        /* A program may exit without SDL_Quit: restart a desktop shutdown
++           from there too (while we are still a Wimp task). */
++        static SDL_bool registered = SDL_FALSE;
++        if (!registered) {
++            atexit(RISCOS_RestartShutdown);
++            registered = SDL_TRUE;
++        }
++    }
 +
 +    /* Put the program's icon on the icon bar: its own sprite (!App, loaded
 +       by the Filer or IconSprites in !Run) or the generic "application". */
@@ -182,14 +195,14 @@ index f47d33a..ac221c7 100644
 +    {
 +        const char *sprite = riscos_app_sprite;
 +        if (sprite && *sprite) {
-+            int block[9];
-+            SDL_memset(block, 0, sizeof(block));
-+            block[0] = -1;                 /* right hand side of the icon bar */
-+            block[1] = 0; block[2] = 0; block[3] = 68; block[4] = 68;
-+            block[5] = 0x0000301A;         /* sprite, centred, button type click */
-+            SDL_strlcpy((char *)&block[6], sprite, 12);
++            RISCOS_IconCreate icon;
++            SDL_memset(&icon, 0, sizeof(icon));
++            icon.window = -1;              /* right hand side of the icon bar */
++            icon.box.x0 = 0; icon.box.y0 = 0; icon.box.x1 = 68; icon.box.y1 = 68;
++            icon.flags = 0x0000301A;       /* sprite, centred, button type click */
++            SDL_strlcpy(icon.data, sprite, sizeof(icon.data));
 +            regs.r[0] = 0;
-+            regs.r[1] = (int)block;
++            regs.r[1] = (int)&icon;
 +            if (_kernel_swi(Wimp_CreateIcon, &regs, &regs) == NULL)
 +                vdata->iconbar_icon = regs.r[0];
 +        }
@@ -200,19 +213,41 @@ index f47d33a..ac221c7 100644
 +static void
 +RISCOS_WimpOpenAt(int handle, int minx, int maxy, int w_os, int h_os)
 +{
-+    int block[8];
++    RISCOS_WindowOpen open;
 +    _kernel_swi_regs regs;
 +
-+    block[0] = handle;
-+    block[1] = minx;
-+    block[2] = maxy - h_os;
-+    block[3] = minx + w_os;
-+    block[4] = maxy;
-+    block[5] = 0;
-+    block[6] = 0;
-+    block[7] = -1;             /* open on top */
-+    regs.r[1] = (int)block;
++    open.window = handle;
++    open.visible.x0 = minx;
++    open.visible.y0 = maxy - h_os;
++    open.visible.x1 = minx + w_os;
++    open.visible.y1 = maxy;
++    open.scroll_x = 0;
++    open.scroll_y = 0;
++    open.behind = -1;          /* open on top */
++    regs.r[1] = (int)&open;
 +    _kernel_swi(Wimp_OpenWindow, &regs, &regs);
++}
++
++/* Open the desktop window at its remembered position (wimp_open_x/y, the
++   top left corner) and take the input focus. */
++static void
++RISCOS_WimpShowWindow(_THIS, SDL_Window * window)
++{
++    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
++    int xeig = RISCOS_WimpReadEig(4), yeig = RISCOS_WimpReadEig(5);
++    int w_os = (window->w * vdata->wscale_x) << xeig;
++    int h_os = (window->h * vdata->wscale_y) << yeig;
++    _kernel_swi_regs regs;
++
++    RISCOS_WimpOpenAt(vdata->wimp_window, vdata->wimp_open_x, vdata->wimp_open_y, w_os, h_os);
++
++    regs.r[0] = vdata->wimp_window;
++    regs.r[1] = -1;
++    regs.r[2] = 0;
++    regs.r[3] = 0;
++    regs.r[4] = 1 << 25;   /* invisible caret */
++    regs.r[5] = -1;
++    _kernel_swi(Wimp_SetCaretPosition, &regs, &regs);
 +}
 +
 +static int
@@ -222,8 +257,7 @@ index f47d33a..ac221c7 100644
 +    int xeig = RISCOS_WimpReadEig(4), yeig = RISCOS_WimpReadEig(5);
 +    int w_os, h_os;
 +    int scr_w = RISCOS_WimpScreenSize(11) << xeig, scr_h = RISCOS_WimpScreenSize(12) << yeig;
-+    int block[23];
-+    unsigned char *b = (unsigned char *)block;
++    RISCOS_WindowDef def;
 +    _kernel_swi_regs regs;
 +    _kernel_oserror *err;
 +    int minx, maxy;
@@ -238,30 +272,32 @@ index f47d33a..ac221c7 100644
 +    if (window->title)
 +        SDL_strlcpy(riscos_window_title, window->title, sizeof(riscos_window_title));
 +
-+    SDL_memset(block, 0, sizeof(block));
-+    block[0] = 0; block[1] = 0; block[2] = w_os; block[3] = h_os;  /* visible area (set when opened) */
-+    block[4] = 0; block[5] = 0;                                    /* scroll offsets */
-+    block[6] = -1;                                                 /* behind */
-+    block[7] = 0x80000002 | 0x01000000 | 0x02000000 | 0x04000000;  /* new format, moveable, back, close, title */
-+    b[32] = 7;    /* title foreground */
-+    b[33] = 2;    /* title background */
-+    b[34] = 7;    /* work area foreground */
-+    b[35] = 255;  /* work area background: transparent, we draw it all */
-+    b[36] = 3;    /* scroll bar outer */
-+    b[37] = 1;    /* scroll bar inner */
-+    b[38] = 12;   /* title background when focused */
-+    b[39] = 0;
-+    block[10] = 0; block[11] = -h_os; block[12] = w_os; block[13] = 0;  /* work area extent */
-+    block[14] = 0x0700013D;        /* title bar icon flags: indirected text, centred, filled */
-+    block[15] = 3 << 12;           /* work area button type: click */
-+    block[16] = 1;                 /* sprite area: Wimp */
-+    block[17] = 0;                 /* minimum size */
-+    block[18] = (int)riscos_window_title;
-+    block[19] = -1;
-+    block[20] = sizeof(riscos_window_title);
-+    block[21] = 0;                 /* no icons */
++    SDL_memset(&def, 0, sizeof(def));
++    def.visible.x0 = 0; def.visible.y0 = 0;                   /* visible area (set when opened) */
++    def.visible.x1 = w_os; def.visible.y1 = h_os;
++    def.scroll_x = 0; def.scroll_y = 0;
++    def.behind = -1;
++    def.flags = 0x80000002 | 0x01000000 | 0x02000000 | 0x04000000;  /* new format, moveable, back, close, title */
++    def.title_fg = 7;
++    def.title_bg = 2;
++    def.work_fg = 7;
++    def.work_bg = 255;             /* transparent: we draw it all */
++    def.scroll_outer = 3;
++    def.scroll_inner = 1;
++    def.title_focus_bg = 12;
++    def.extra_flags = 0;
++    def.extent.x0 = 0; def.extent.y0 = -h_os;                 /* work area extent */
++    def.extent.x1 = w_os; def.extent.y1 = 0;
++    def.title_flags = 0x0700013D;  /* indirected text, centred, filled */
++    def.work_flags = 3 << 12;      /* work area button type: click */
++    def.sprite_area = 1;           /* the Wimp sprite area */
++    def.min_width = 0; def.min_height = 0;
++    def.title_data[0] = (int)riscos_window_title;
++    def.title_data[1] = -1;
++    def.title_data[2] = sizeof(riscos_window_title);
++    def.icon_count = 0;
 +
-+    regs.r[1] = (int)block;
++    regs.r[1] = (int)&def;
 +    err = _kernel_swi(Wimp_CreateWindow, &regs, &regs);
 +    if (err != NULL)
 +        return SDL_SetError("Wimp_CreateWindow failed: %s", err->errmess);
@@ -279,20 +315,17 @@ index f47d33a..ac221c7 100644
 +    regs.r[4] = scr_h;
 +    _kernel_swi(Wimp_ForceRedraw, &regs, &regs);
 +
++    /* Centred on the screen, below the top edge. SDL creates windows hidden
++       and then shows them (RISCOS_ShowWindow) unless the program asked for
++       SDL_WINDOW_HIDDEN; coming back from full screen, show it now. */
 +    minx = (scr_w - w_os) / 2;
 +    if (minx < 0) minx = 0;
 +    maxy = scr_h - (scr_h - h_os) / 2;
 +    if (maxy > scr_h - 40) maxy = scr_h - 40;
-+    RISCOS_WimpOpenAt(vdata->wimp_window, minx, maxy, w_os, h_os);
-+
-+    /* Take the input focus straight away. */
-+    regs.r[0] = vdata->wimp_window;
-+    regs.r[1] = -1;
-+    regs.r[2] = 0;
-+    regs.r[3] = 0;
-+    regs.r[4] = 1 << 25;   /* invisible caret */
-+    regs.r[5] = -1;
-+    _kernel_swi(Wimp_SetCaretPosition, &regs, &regs);
++    vdata->wimp_open_x = minx;
++    vdata->wimp_open_y = maxy;
++    if (!(window->flags & SDL_WINDOW_HIDDEN) && !window->is_hiding)
++        RISCOS_WimpShowWindow(_this, window);
 +
 +    return 0;
 +}
@@ -304,7 +337,7 @@ index f47d33a..ac221c7 100644
      SDL_WindowData *driverdata;
  
      driverdata = (SDL_WindowData *) SDL_calloc(1, sizeof(*driverdata));
-@@ -42,27 +327,164 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
+@@ -42,27 +360,212 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
      }
      driverdata->window = window;
  
@@ -337,12 +370,12 @@ index f47d33a..ac221c7 100644
 +{
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +    _kernel_swi_regs regs;
-+    int block[1];
++    int handle;
 +
 +    if (vdata->wimp_window == 0)
 +        return;
-+    block[0] = vdata->wimp_window;
-+    regs.r[1] = (int)block;
++    handle = vdata->wimp_window;
++    regs.r[1] = (int)&handle;
 +    _kernel_swi(Wimp_DeleteWindow, &regs, &regs);
 +    vdata->wimp_window = 0;
 +    vdata->wimp_sdl_window = NULL;
@@ -382,7 +415,9 @@ index f47d33a..ac221c7 100644
 +RISCOS_SetWindowSize(_THIS, SDL_Window * window)
 +{
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
-+    int xeig, yeig, w_os, h_os, state[9], extent[4];
++    int xeig, yeig, w_os, h_os;
++    RISCOS_WindowState state;
++    RISCOS_Box extent;
 +    _kernel_swi_regs regs;
 +
 +    if (vdata->wimp_window == 0 || vdata->wimp_sdl_window != window)
@@ -394,17 +429,63 @@ index f47d33a..ac221c7 100644
 +    w_os = (window->w * vdata->wscale_x) << xeig;
 +    h_os = (window->h * vdata->wscale_y) << yeig;
 +
-+    extent[0] = 0; extent[1] = -h_os; extent[2] = w_os; extent[3] = 0;
++    extent.x0 = 0; extent.y0 = -h_os; extent.x1 = w_os; extent.y1 = 0;
 +    regs.r[0] = vdata->wimp_window;
-+    regs.r[1] = (int)extent;
++    regs.r[1] = (int)&extent;
 +    _kernel_swi(Wimp_SetExtent, &regs, &regs);
 +
++    /* A hidden window opens at its remembered place when it is shown. */
++    if (window->flags & SDL_WINDOW_HIDDEN)
++        return;
++
 +    /* Keep the top left corner where it is. */
-+    state[0] = vdata->wimp_window;
-+    regs.r[1] = (int)state;
++    state.open.window = vdata->wimp_window;
++    regs.r[1] = (int)&state;
 +    if (_kernel_swi(Wimp_GetWindowState, &regs, &regs) == NULL) {
-+        RISCOS_WimpOpenAt(vdata->wimp_window, state[1], state[4], w_os, h_os);
++        RISCOS_WimpOpenAt(vdata->wimp_window, state.open.visible.x0, state.open.visible.y1, w_os, h_os);
 +    }
++}
++
++/* 2026: SDL_ShowWindow / SDL_HideWindow for a desktop window. A full screen
++   window is always shown. */
++void
++RISCOS_ShowWindow(_THIS, SDL_Window * window)
++{
++    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
++
++    if (vdata->wimp_window == 0 || vdata->wimp_sdl_window != window)
++        return;
++    RISCOS_WimpShowWindow(_this, window);
++}
++
++void
++RISCOS_HideWindow(_THIS, SDL_Window * window)
++{
++    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
++    RISCOS_WindowState state;
++    _kernel_swi_regs regs;
++    int handle;
++
++    if (vdata->wimp_window == 0 || vdata->wimp_sdl_window != window)
++        return;
++
++    /* Remember where it was, to open it there again. */
++    state.open.window = vdata->wimp_window;
++    regs.r[1] = (int)&state;
++    if (_kernel_swi(Wimp_GetWindowState, &regs, &regs) == NULL) {
++        vdata->wimp_open_x = state.open.visible.x0;
++        vdata->wimp_open_y = state.open.visible.y1;
++    }
++    handle = vdata->wimp_window;
++    regs.r[1] = (int)&handle;
++    _kernel_swi(Wimp_CloseWindow, &regs, &regs);
++
++    if (vdata->pointer_in) {
++        vdata->pointer_in = SDL_FALSE;
++        SDL_SetMouseFocus(NULL);
++        RISCOS_ApplyPointerVisibility(_this);
++    }
++    vdata->has_caret = SDL_FALSE;
 +}
 +
 +void
@@ -433,9 +514,8 @@ index f47d33a..ac221c7 100644
  
 +    if (vdata->wimp_window != 0 && vdata->wimp_sdl_window == window) {
 +        _kernel_swi_regs regs;
-+        int block[1];
-+        block[0] = vdata->wimp_window;
-+        regs.r[1] = (int)block;
++        int handle = vdata->wimp_window;
++        regs.r[1] = (int)&handle;
 +        _kernel_swi(Wimp_DeleteWindow, &regs, &regs);
 +        vdata->wimp_window = 0;
 +        vdata->wimp_sdl_window = NULL;
@@ -461,6 +541,7 @@ index f47d33a..ac221c7 100644
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +    if (vdata->wimp_task != 0) {
 +        _kernel_swi_regs regs;
++        RISCOS_RestartShutdown();   /* while we are still a Wimp task */
 +        regs.r[0] = vdata->wimp_task;
 +        regs.r[1] = 0x4B534154;
 +        _kernel_swi(Wimp_CloseDown, &regs, &regs);

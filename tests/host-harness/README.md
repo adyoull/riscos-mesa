@@ -10,3 +10,18 @@ allocator uses MAP_32BIT and the binary is built -no-pie.
       -I$S/src -Ifake -I$M/include -include $S/src/SDL_internal.h \
       harness.c $S/src/video/riscos/SDL_riscosopengl.c -o harness \
       libOSMesa.a -lstdc++ -lz -lm -lpthread && ./harness
+
+## `sdl-wimp/`: the driver's Wimp event handling
+
+`sdl-wimp/run.sh` compiles `SDL_riscosevents.c` into `wimp-events.c`, which
+hands it Wimp_Poll blocks and records the SWIs it calls and the SDL events
+it sends: Message_PreQuit (acknowledged; the desktop shutdown restarted with
+Ctrl-Shift-F12 only when the program quits in answer to it), Message_Quit
+(SDL_APP_TERMINATING and SDL_QUIT, then the driver quits for a program that
+carries on), the close icon (SDL_WINDOWEVENT_CLOSE), the icon bar menu's
+Quit, and the keys passed on to the Wimp. Like the GL harness it runs on a
+stack below 2 GB and is built -no-pie, as the driver passes blocks to SWIs
+as 32-bit addresses.
+
+    SDL=<patched SDL-release-2.26.0> tests/host-harness/sdl-wimp/run.sh
+
