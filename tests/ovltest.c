@@ -273,6 +273,8 @@ static const char *type_name(int t)
 
 static int win;                 /* window handle */
 static int vis[4], scx, scy;    /* visible area (screen OS units), scroll */
+static int behind;              /* the window it's behind (-1 = at the front) */
+static int open_requests, open_requests_front;   /* Open_Window_Requests; ones asking for the front */
 static int xeig, yeig;
 static int fit_scale = 1;       /* scale the overlay to the area (else 1:1) */
 static int crop_px;             /* T8: pixels cropped off the left edge */
@@ -342,7 +344,7 @@ static void read_state(void)
     b[0] = win; r.r[1] = (int) b;
     swi(Wimp_GetWindowState, &r);
     vis[0] = b[1]; vis[1] = b[2]; vis[2] = b[3]; vis[3] = b[4];
-    scx = b[5]; scy = b[6];
+    scx = b[5]; scy = b[6]; behind = b[7];
 }
 
 static void force_redraw(int all)
@@ -473,6 +475,8 @@ static int poll_once(int idle_cs)
     switch (reason) {
     case 1: redraw(block); break;
     case 2:
+        open_requests++;
+        if (block[7] == -1) open_requests_front++;
         r.r[1] = (int) block; swi(Wimp_OpenWindow, &r);
         read_state();
         note("window at %d,%d to %d,%d (OS units)%s", vis[0], vis[1], vis[2], vis[3],
@@ -1257,26 +1261,56 @@ static void desk_mode_change(void)
 static void t_desk(void)
 {
     _kernel_oserror *e;
-    int k;
+    int k = 0;
     say("T7: the sweeping bar in a normal window. While it runs, please:");
     say(" 1 open a menu over it (Menu on the icon bar), 2 drag another");
     say("   window across it, 3 move this window partly off the screen,");
     say(" 4 iconise it (Shift+close) and back, 5 change mode (*WimpMode or");
     say("   Display manager) and back. Note what you see. Q = done.");
+    say(" H hides the overlay (and shows it again): does dragging a window");
+    say("   over this one still bring this one to the front when it's hidden?");
     open_window(640, 360);
     describe_mode();
     if ((e = sweep_create_most(&desk, 1920, 1080)) != NULL) { say("Create: %s", err_text(e)); return; }
     say("Overlay: %s", type_name(desk.o.type));
     attach(&desk.o);
     on_mode_change = desk_mode_change;
+    {
+    int hidden = 0, last_behind, last_opens = open_requests, raised = 0, n = 0;
+    read_state();
+    last_behind = behind;
     while (!quit_request) {
-        if (!desk_lost && desk.o.id && !desk.failed) sweep_frame(&desk, 1);
+        /* Who raises this window? Look at its place in the window stack
+           every few polls: a change with no Open_Window_Request between
+           is someone else calling Wimp_OpenWindow on it. */
+        if (++n % 4 == 0) {
+            read_state();
+            if (behind != last_behind) {
+                if (open_requests == last_opens) {
+                    raised++;
+                    if (raised <= 10)
+                        say("Moved in the stack (behind &%X -> &%X) with no Open_Window_Request%s",
+                            last_behind, behind, hidden ? " (overlay hidden)" : "");
+                }
+                last_behind = behind;
+            }
+            last_opens = open_requests;
+        }
+        if (k == 'h') {
+            hidden = !hidden;
+            if (hidden && desk.o.id) ovl_call2(OV_DISPLAY, desk.o.id, -1);
+            say(hidden ? "Overlay hidden (DisplayBuffer -1)." : "Overlay shown again.");
+        }
+        if (!hidden && !desk_lost && desk.o.id && !desk.failed) sweep_frame(&desk, 1);
         else if (desk.failed && !desk_lost) {
             say("A buffer failed: the overlay is stopped (see above).");
             desk_lost = 1;
         }
         poll_once(0);
         if ((k = key_waiting()) == 'q' || k == 27) break;
+    }
+    say("Stack moves with no Open_Window_Request: %d; Open_Window_Requests: %d, %d of them asking for the front.",
+        raised, open_requests, open_requests_front);
     }
     on_mode_change = NULL;
     say("%ld frames; %d errors; %d mode changes; %d iconise messages.", desk.frames, desk.errors,

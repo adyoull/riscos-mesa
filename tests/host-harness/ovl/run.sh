@@ -62,10 +62,12 @@ expect "T6 scale: follows a resize"            grep -q "area now 500x250 px" sca
 expect "T6 scale: all four formats made"       test "$(grep -cE '^(TBGR32|YV12|YV16|NV12) .*640x360, Basic' scale.results)" = 5
 expect "T6 scale: RedrawWindow in redraws"     grep -qE "fake-ovl: .* [1-9][0-9]* redraws" scale.out
 
-run desk n100,D,M,n100,q,n20 FAKE_OVL_STALE_OK=1
+run desk n100,D,M,n100,h,n20,h,n20,q,n20 FAKE_OVL_STALE_OK=1
 expect "T7 desk: runs cleanly"                 clean desk
 expect "T7 desk: old ID refused after a mode change" grep -q "old ID: error" desk.results
 expect "T7 desk: overlay made again"           grep -q "Created again" desk.results
+expect "T7 desk: H hides and shows it"         grep -q "Overlay shown again" desk.results
+expect "T7 desk: window stack watched"         grep -q "Stack moves with no Open_Window_Request: 0" desk.results
 
 run yuv n20,D,c,n5,c,t,n5,v,n5,v,n5,v,n5,v,q,n20 FAKE_OVL_BARS=1
 expect "T8 yuv: runs cleanly"                  clean yuv
