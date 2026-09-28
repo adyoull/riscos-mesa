@@ -50,8 +50,22 @@ int main(void)
     EGLSurface surface;
     EGLContext context;
     EGLint count, width, height;
-    int frame;
+    int frame, task = 0;
+    static const int messages[] = { 0 };
     _kernel_swi_regs r;
+
+    /* Step 0, for the desktop: become a desktop task for a moment. We
+     * won't open a window, but when we finish we need to ask the Window
+     * Manager to repaint the desktop we drew over, and it only acts
+     * reliably on that request from a task. If this fails (no desktop,
+     * or started from a TaskWindow), carry on anyway: full screen works
+     * there too. */
+    r.r[0] = 380;
+    r.r[1] = 0x4B534154;                 /* "TASK" */
+    r.r[2] = (int) "Spinning triangle, full screen";
+    r.r[3] = (int) messages;
+    if (_kernel_swi(Wimp_Initialise, &r, &r) == NULL)
+        task = r.r[1];
 
     /* Step 1: the display. RISC OS has one screen, so this is always the
      * "default display". eglInitialize wakes the library up. */
@@ -120,10 +134,16 @@ int main(void)
     eglDestroySurface(display, surface);
     eglTerminate(display);
 
-    /* We drew straight over the desktop. Ask the Window Manager to repaint
-     * the whole screen (window -1), so the user gets their desktop back. */
-    r.r[0] = -1;
-    r.r[1] = 0; r.r[2] = 0; r.r[3] = 16384; r.r[4] = 16384;   /* big enough for any mode */
-    _kernel_swi(Wimp_ForceRedraw, &r, &r);
+    /* We drew straight over the desktop. As a task, ask the Window Manager
+     * to repaint the whole screen (window -1), then leave the desktop: it
+     * repaints everything, and the user gets their desktop back. */
+    if (task) {
+        r.r[0] = -1;
+        r.r[1] = 0; r.r[2] = 0; r.r[3] = 0x7FFF; r.r[4] = 0x7FFF;   /* all of it */
+        _kernel_swi(Wimp_ForceRedraw, &r, &r);
+        r.r[0] = task;
+        r.r[1] = 0x4B534154;
+        _kernel_swi(Wimp_CloseDown, &r, &r);
+    }
     return 0;
 }

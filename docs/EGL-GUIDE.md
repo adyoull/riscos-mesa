@@ -137,7 +137,7 @@ Points to note:
 
 - **Ask for `EGL_OPENGL_BIT`.** EGL's default `EGL_RENDERABLE_TYPE` is OpenGL ES. This library's configs support both, but other EGL implementations may not, so desktop GL code should say what it needs.
 - **The swap shows the frame.** GL draws into an off-screen sprite; `eglSwapBuffers` waits for vsync (if the swap interval is 1 or more) and copies it to the screen.
-- **From the desktop,** this draws over it and doesn't redraw it afterwards. A desktop program should either use a window (next section) or call `Wimp_ForceRedraw` with window handle -1 on exit.
+- **From the desktop,** this draws over it and doesn't redraw it afterwards. A desktop program should either use a window (next section) or repaint the desktop when it finishes: call `Wimp_Initialise` at the start (it needn't open a window), then `Wimp_ForceRedraw` with window handle -1 and `Wimp_CloseDown` at the end. The request has to come from a task: from a plain program the desktop is left half-repainted. The devkit's example 1 does exactly this.
 
 ## Desktop programs: GL in a Wimp window
 
@@ -264,7 +264,7 @@ eglQuerySurface(dpy, surf, EGL_RENDER_BUFFER, &rb);   /* what you actually got *
 - **Direct and banks need** a 32bpp mode in the config's colour order; otherwise the library falls back to the sprite plot. Check `EGL_RENDER_BUFFER` or `EGL_SCREEN_BANKS_RISCOS` to see what you got.
 - **Bank surfaces don't keep their contents** between frames (`EGL_SWAP_BEHAVIOR` is `EGL_BUFFER_DESTROYED`). Setting `EGL_BUFFER_PRESERVED` with `eglSurfaceAttrib` switches back to the sprite plot. The library returns the display to bank 1 when the surface is destroyed and at exit.
 - **Mode changes** are picked up at the next swap: the surface takes the new size.
-- **From the desktop:** a full screen program started in the desktop draws over it. While it runs the desktop is frozen (unless you poll), and afterwards you should repaint it with `Wimp_ForceRedraw` (window -1, the whole screen). Running as a Wimp task and changing mode with `Wimp_SetMode` is kinder still.
+- **From the desktop:** a full screen program started in the desktop draws over it. While it runs the desktop is frozen (unless you poll), and afterwards you should repaint it: as a Wimp task (`Wimp_Initialise` first), `Wimp_ForceRedraw` with window -1, then `Wimp_CloseDown`. Running as a Wimp task and changing mode with `Wimp_SetMode` is kinder still.
 
 ## Off-screen rendering
 
@@ -664,7 +664,7 @@ The window and full screen figures are from the 20.3.5-4 tests; rendering has go
 | Image in a window doesn't come back after another window covers it | Call `eglRedrawWindowRISCOS` on Redraw_Window_Request |
 | Colours swapped (red and blue) | A sprite or config in the other colour order: use `EGL_MATCH_NATIVE_PIXMAP`, or check `EGL_NATIVE_VISUAL_ID` |
 | Full screen tears | Use the default sprite plot with a swap interval of 1; direct rendering and (on the Pi 4) screen banks tear |
-| Desktop left covered after a full screen run | `Wimp_ForceRedraw` with window -1 before exiting |
+| Desktop left covered after a full screen run | Be a Wimp task (`Wimp_Initialise`), then `Wimp_ForceRedraw` with window -1 and `Wimp_CloseDown` before exiting |
 | "Window Manager is currently in use" | The program was started in a TaskWindow, which is already its Wimp task: start it with `*WimpTask` or from the Filer |
 | Printing from a Wimp task pops up a window | Normal for UnixLib programs: write results to a file instead |
 | Textured drawing much slower than expected | The textures miss the fast path: see "Getting speed out of the renderer" above (usually `GL_CLAMP`, mipmaps without the `GL_FASTEST` hint, or sizes that aren't powers of two) |

@@ -406,9 +406,12 @@ redraw (reason code 1 from `Wimp_Poll`), call `eglRedrawWindowRISCOS`;
 EGL keeps your last frame and repaints it. See example 2.
 
 **My full-screen program leaves a mess on the desktop.** Full-screen
-drawing goes over the desktop. When you finish, ask the Window Manager
-to repaint the whole screen with `Wimp_ForceRedraw` on window -1, as
-example 1 does.
+drawing goes over the desktop, and the desktop doesn't know. Make the
+program a desktop task for its run (`Wimp_Initialise` at the start: it
+needn't open a window), and when it finishes, ask the Window Manager to
+repaint the whole screen (`Wimp_ForceRedraw` on window -1), then leave
+with `Wimp_CloseDown`. Example 1 shows how. The request must come from a
+task: a plain program asking leaves parts of the old picture behind.
 
 **No vsync in a window.** In a desktop window, `eglSwapBuffers` shows
 the frame straight away and never waits for the screen's refresh.
