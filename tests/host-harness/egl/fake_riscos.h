@@ -62,6 +62,8 @@ extern void (*fake_wimp_hook)(int reason);
 /* Called for SWIs the fake doesn't know; returns 1 if it handled the SWI
    (setting *e for an error), 0 for "SWI not faked". */
 extern int (*fake_swi_hook)(int no, _kernel_swi_regs *r, _kernel_oserror **e);
+/* What Wimp_GetWindowState reports as the window in front (-1 = none). */
+extern int fake_window_behind;
 extern const char *fake_wimp_title;      /* the newest window's indirected title */
 extern int fake_wimp_desktop;           /* Wimp_ReadSysInfo 0 reports a desktop */
 #define FAKE_MOVE    100

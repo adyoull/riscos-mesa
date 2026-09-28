@@ -31,6 +31,7 @@ static int wimp_null_due, fake_wimp_title_window;
 int fake_wimp_polls, fake_wimp_keys_passed, fake_wimp_tasks;
 void (*fake_wimp_hook)(int reason);
 int (*fake_swi_hook)(int no, _kernel_swi_regs *r, _kernel_oserror **e);
+int fake_window_behind = -1;
 const char *fake_wimp_title;
 int fake_wimp_desktop;
 static int wimp_next_handle = 0x7000, wimp_last_window, wimp_stage, wimp_step;
@@ -473,7 +474,7 @@ static _kernel_oserror *swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
         block = (int *) (long) r.r[1];
         if (!(w = find_window(block[0]))) { e = error("Illegal window handle"); break; }
         block[1] = w->x0; block[2] = w->y0; block[3] = w->x1; block[4] = w->y1;
-        block[5] = w->sx; block[6] = w->sy; block[7] = -1; block[8] = 1 << 16;
+        block[5] = w->sx; block[6] = w->sy; block[7] = fake_window_behind; block[8] = 1 << 16;
         break;
     case 0x400C8:   /* Wimp_RedrawWindow */
         block = (int *) (long) r.r[1];

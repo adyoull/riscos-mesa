@@ -346,6 +346,13 @@ static void wimp_hook(int reason)
             if (ovls[i].id) { destroy(&ovls[i]); fake_ovl_destroys--; }
         fprintf(stderr, "fake-ovl: mode change, every overlay destroyed\n");
     }
+    if (reason == 201) {                         /* the script's "B": a window in front, or not */
+        int j;
+        if (fake_window_behind != -1) fake_window_behind = -1;
+        else for (j = 0; j < FAKE_MAX_WINDOWS; j++)
+            if (fake_windows[j].handle) { fake_window_behind = fake_windows[j].handle; break; }
+        fprintf(stderr, "fake-ovl: window in front: %d\n", fake_window_behind);
+    }
     if (chained) chained(reason);
 }
 

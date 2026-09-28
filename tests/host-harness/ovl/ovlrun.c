@@ -8,6 +8,7 @@
  *   r<w>x<h>   the window resized to w x h OS units
  *   M          Message_ModeChange (the fake destroys every overlay)
  *   D          a Redraw_Window_Request for the window
+ *   B          a window in front of this one (Wimp_GetWindowState), or not
  * then a close request, which ends the test.
  */
 #include <stdio.h>
@@ -52,6 +53,9 @@ static void *run(void *x)
             int w = (int) strtol(k + 1, &end, 10), h = (int) strtol(end + 1, &end, 10);
             add(2, w | (h << 16));
             k = end;
+        } else if (*k == 'B') {
+            add(201, 0);                        /* another window in front of ours, or not */
+            k++;
         } else if (*k == 'D') {
             add(1, 0);                          /* Redraw_Window_Request */
             k++;

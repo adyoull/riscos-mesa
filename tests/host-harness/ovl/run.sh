@@ -94,6 +94,12 @@ expect "mode change, old overlay kept: destroyed" test "$(grep -c 'Destroy with 
 expect "mode change, old overlay kept: 3 buffers every time" test "$(grep -c "can't be mapped" desk.results)" = 0
 expect "mode change, old overlay kept: nothing left over" clean desk
 
+# auto-hide: a window in front hides the overlay, both modes
+run desk n30,a,n10,B,n10,B,n10,a,n10,B,n10,B,n10,q,n20
+expect "auto-hide: hides and shows again, twice" test "$(grep -c 'Auto-hide: hidden' desk.results)" = 2
+expect "auto-hide: shown again each time"      test "$(grep -c 'Auto-hide: shown again' desk.results)" = 2
+expect "auto-hide: runs cleanly"               clean desk
+
 run vet n20 FAKE_OVL_MISSING=1
 expect "no VideoOverlay: says so and quits"    grep -q "VideoOverlay isn't loaded" vet.results
 

@@ -276,6 +276,7 @@ static int vis[4], scx, scy;    /* visible area (screen OS units), scroll */
 static int behind;              /* the window it's behind (-1 = at the front) */
 static int open_requests, open_requests_front;   /* Open_Window_Requests; ones asking for the front */
 static int xeig, yeig;
+static int overlay_hidden;      /* hidden by the program: draw a stand-in */
 static int fit_scale = 1;       /* scale the overlay to the area (else 1:1) */
 static int crop_px;             /* T8: pixels cropped off the left edge */
 static int quit_request, mode_changes, iconised;
@@ -413,11 +414,20 @@ static void draw_panel(const int *rb)
     int ox = rb[1] - rb[5], oy = rb[4] - rb[6];      /* screen position of work area 0,0 */
     int top = scy - (vis[3] - vis[1] - PANEL_H);     /* panel top, work area */
     int i;
-    /* the overlay area when no overlay is attached: black */
-    if (!attached) {
-        r.r[0] = 7; swi(Wimp_SetColour, &r);
+    /* the overlay area when no overlay is attached (black), or while the
+       overlay is hidden (dark grey, with a note: a real program would draw
+       its picture the ordinary way here) */
+    if (!attached || overlay_hidden) {
+        r.r[0] = overlay_hidden ? 5 : 7; swi(Wimp_SetColour, &r);
         r.r[0] = 4; r.r[1] = ox + scx; r.r[2] = oy + top; swi(OS_Plot, &r);
         r.r[0] = 101; r.r[1] = ox + scx + (vis[2] - vis[0]); r.r[2] = oy + scy; swi(OS_Plot, &r);
+        if (overlay_hidden) {
+            r.r[0] = 0; swi(Wimp_SetColour, &r);
+            _kernel_oswrch(5);
+            r.r[0] = 4; r.r[1] = ox + scx + 16; r.r[2] = oy + scy - 16; swi(OS_Plot, &r);
+            r.r[0] = (int) "Overlay hidden"; swi(OS_Write0, &r);
+            _kernel_oswrch(4);
+        }
     }
     r.r[0] = 1; swi(Wimp_SetColour, &r);             /* light grey panel */
     r.r[0] = 4; r.r[1] = ox + scx; r.r[2] = oy + top - PANEL_H; swi(OS_Plot, &r);
@@ -440,7 +450,7 @@ static void redraw(int *block)
     swi(Wimp_RedrawWindow, &r);
     more = r.r[0];
     while (more) {
-        if (attached && attached->id) {
+        if (attached && attached->id && !overlay_hidden) {
             r.r[0] = attached->id; r.r[1] = (int) block;
             swi(ov_swi[OV_REDRAW].no, &r);
         }
@@ -1268,6 +1278,28 @@ static void desk_mode_change(void)
     attach(&desk.o);
 }
 
+/* Is anything above this window in the stack? mode 1: any window at all;
+   mode 2: only windows (menus included) that overlap the overlay area.
+   The stack is followed through each window's "behind" word, which gives
+   the window just in front of it (-1 at the top). */
+static int window_in_front(int mode, int *which)
+{
+    _kernel_swi_regs r;
+    int b[9], h, n = 0;
+    int ox0 = vis[0], oy0 = vis[3] - (area_h() << yeig), ox1 = vis[2], oy1 = vis[3];
+    read_state();
+    *which = behind;
+    if (behind == -1) return 0;
+    if (mode == 1) return 1;
+    for (h = behind; h != -1 && n < 64; n++) {
+        b[0] = h; r.r[1] = (int) b;
+        if (swi(Wimp_GetWindowState, &r)) return 1;          /* can't tell: be safe */
+        if (b[1] < ox1 && b[3] > ox0 && b[2] < oy1 && b[4] > oy0) { *which = h; return 1; }
+        h = b[7];
+    }
+    return 0;
+}
+
 static void t_desk(void)
 {
     _kernel_oserror *e;
@@ -1278,7 +1310,8 @@ static void t_desk(void)
     say(" 4 iconise it (Shift+close) and back, 5 change mode (*WimpMode or");
     say("   Display manager) and back. Note what you see. Q = done.");
     say(" H hides the overlay (and shows it again). F freezes it: still shown,");
-    say("   but no new frames (no DisplayBuffer). Can a window cover it then?");
+    say("   but no new frames (no DisplayBuffer). A = auto-hide: off, then hide");
+    say("   when any window is in front, then only when one overlaps it.");
     open_window(640, 360);
     describe_mode();
     if ((e = sweep_create_most(&desk, 1920, 1080)) != NULL) { say("Create: %s", err_text(e)); return; }
@@ -1286,6 +1319,10 @@ static void t_desk(void)
     attach(&desk.o);
     on_mode_change = desk_mode_change;
     {
+    static const char *auto_names[3] = { "off", "when any window is in front",
+                                         "when a window or menu overlaps the picture" };
+    int autohide = 0, auto_hidden = 0, auto_switches = 0, in_front;
+    double hidden_ms = 0, t_hide = 0;
     int hidden = 0, frozen = 0, last_behind, last_opens = open_requests, raised = 0, n = 0;
     read_state();
     last_behind = behind;
@@ -1310,12 +1347,34 @@ static void t_desk(void)
             hidden = !hidden;
             if (hidden && desk.o.id) ovl_call2(OV_DISPLAY, desk.o.id, -1);
             say(hidden ? "Overlay hidden (DisplayBuffer -1)." : "Overlay shown again.");
+            overlay_hidden = hidden || auto_hidden;
+            force_redraw(1);
         }
+        if (k == 'a') {
+            autohide = (autohide + 1) % 3;
+            say("Auto-hide %s.", auto_names[autohide]);
+        }
+        if (autohide || auto_hidden) {
+            int cover = autohide ? window_in_front(autohide, &in_front) : 0;
+            if (cover != auto_hidden) {
+                auto_hidden = cover;
+                auto_switches++;
+                if (cover) t_hide = now_ms(); else hidden_ms += now_ms() - t_hide;
+                if (auto_switches <= 20) {
+                    if (cover) say("Auto-hide: hidden (window &%X in front)", in_front);
+                    else say("Auto-hide: shown again");
+                }
+                if (cover && desk.o.id) ovl_call2(OV_DISPLAY, desk.o.id, -1);
+                overlay_hidden = hidden || auto_hidden;
+                force_redraw(1);
+            }
+        }
+        overlay_hidden = hidden || auto_hidden;
         if (k == 'f') {
             frozen = !frozen;
             say(frozen ? "Frozen: the overlay stays shown, no more DisplayBuffer calls." : "Running again.");
         }
-        if (!hidden && !frozen && !desk_lost && desk.o.id && !desk.failed) sweep_frame(&desk, 1);
+        if (!hidden && !auto_hidden && !frozen && !desk_lost && desk.o.id && !desk.failed) sweep_frame(&desk, 1);
         else if (desk.failed && !desk_lost) {
             say("A buffer failed: the overlay is stopped (see above).");
             desk_lost = 1;
@@ -1325,6 +1384,9 @@ static void t_desk(void)
     }
     say("Stack moves with no Open_Window_Request: %d; Open_Window_Requests: %d, %d of them asking for the front.",
         raised, open_requests, open_requests_front);
+    if (auto_hidden) hidden_ms += now_ms() - t_hide;
+    say("Auto-hide switched %d times; hidden for %.1f s in all.", auto_switches, hidden_ms / 1000);
+    overlay_hidden = 0;
     }
     on_mode_change = NULL;
     say("%ld frames; %d errors; %d mode changes; %d iconise messages.", desk.frames, desk.errors,
