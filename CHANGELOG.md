@@ -10,8 +10,8 @@ The EGL library was run against Khronos's own EGL tests (dEQP-EGL, from
 the conformance suite) on the host test harness, and the places where it
 differed from the EGL 1.4 specification were fixed: 858 of the tests pass
 (842 before), and the 12 that fail are one test's use of an empty pbuffer
-(see `tests/host-harness/deqp/README.md`). None of this has been tested on
-a Pi yet.
+(see `tests/host-harness/deqp/README.md`). On a Pi 4 the devkit's six
+example programs run with it; threads haven't been tried there yet.
 
 - **Depth and stencil belong to surfaces**, as EGL says: two contexts
   drawing into one surface share its depth buffer. A new OSMesa patch
@@ -66,7 +66,8 @@ a Pi yet.
   ready-to-run application and a zip that keeps RISC OS filetypes, plus
   `sdl2-config` and pkg-config files that work wherever the devkit is
   unpacked. `tests/run-all.sh` runs the examples on the host harness and
-  checks what they draw and play. The devkit also carries the EGL
+  checks what they draw and play. All six run on a Raspberry Pi 4 (the
+  first Pi run of this release's EGL, VFPv3 build and OSMesa buffers). The devkit also carries the EGL
   programming guide and the porting guides in `docs/`. The EGL guide is
   brought up to date (threads and per-API contexts, swap behaviour,
   180 dpi desktops, VFPv3) and points newcomers to the devkit guide;
