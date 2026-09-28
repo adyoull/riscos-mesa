@@ -86,6 +86,13 @@ expect "GPU full: 2-buffer runs still happen"   test "$(grep -c 'DisplayBuffer .
 run desk n100,q,n20 FAKE_OVL_GPU_BYTES=20000000
 expect "GPU full: T7 falls back to 2 buffers"   grep -q "Using 2 buffers" desk.results
 
+# as on the Pi: the old overlay survives a mode change; without destroying
+# it, the third change ran out of GPU memory
+run desk n50,M,n20,M,n20,M,n20,q,n20 FAKE_OVL_MODE_KEEPS=1 FAKE_OVL_GPU_BYTES=60000000
+expect "mode change, old overlay kept: destroyed" test "$(grep -c 'Destroy with the old ID: ok' desk.results)" = 3
+expect "mode change, old overlay kept: 3 buffers every time" test "$(grep -c "can't be mapped" desk.results)" = 0
+expect "mode change, old overlay kept: nothing left over" clean desk
+
 run vet n20 FAKE_OVL_MISSING=1
 expect "no VideoOverlay: says so and quits"    grep -q "VideoOverlay isn't loaded" vet.results
 

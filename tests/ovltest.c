@@ -1244,13 +1244,23 @@ static void desk_mode_change(void)
 {
     _kernel_oserror *e;
     ovl_t o;
-    e = ovl_call2(OV_DISPLAY, desk.o.id, 0);
+    int old = desk.o.id;
+    e = ovl_call2(OV_DISPLAY, old, 0);
     say("After the mode change, DisplayBuffer with the old ID: %s", err_text(e));
+    /* On the Pi (VideoOverlay 0.02) the old ID still worked after a mode
+       change, and without destroying it the third change ran out of GPU
+       memory: so see whether its buffers are still there, then destroy
+       it before making a new one. */
+    e = ovl_call2(OV_MAP, old, 0);
+    say("  MapBuffer with the old ID: %s", err_text(e));
+    if (!e) ovl_call2(OV_UNMAP, old, 0);
+    e = ovl_call2(OV_DESTROY, old, 0);
+    say("  Destroy with the old ID: %s", err_text(e));
     e = ovl_vet_create(&o, &fmt_tbgr, 1920, 1080, 3, 1, 0);
     if (e) say("Vet in the new mode: %s", err_text(e));
     else say("Vet in the new mode: yes, %s", type_name(o.type));
     detach();
-    desk.o.id = 0;                                  /* gone with the mode */
+    desk.o.id = 0;
     e = sweep_create_most(&desk, 1920, 1080);
     if (e) { say("Create in the new mode: %s", err_text(e)); desk_lost = 1; return; }
     say("Created again (%s).", type_name(desk.o.type));

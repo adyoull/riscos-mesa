@@ -17,6 +17,8 @@
  * FAKE_OVL_VET_BROKEN=1: every Vet fails, as on the Pi (VideoOverlay 0.02).
  * FAKE_OVL_GPU_BYTES=<n>: MapBuffer fails once the buffers would need more
  * (the Pi with Geminus loaded couldn't map a third 1920x1080 buffer).
+ * FAKE_OVL_MODE_KEEPS=1: a mode change leaves the overlays alive (as the
+ * Pi did), so the program has to destroy the old one itself.
  * FAKE_OVL_STALE_OK=1: a call with an unknown ID fails quietly (T7 tries
  * the old ID after a mode change on purpose).
  * FAKE_OVL_BARS=1: at each DisplayBuffer of a YUV overlay, the eight
@@ -336,7 +338,10 @@ static void wimp_hook(int reason)
                 if (ovls[i].id && ovls[i].mapped[b] > 0) {
                     if (!polls_mapped++) protocol("Wimp_Poll returned while a buffer was mapped", b);
                 }
-    if (reason == 17) {                          /* the script's mode change */
+    if (reason == 17 && getenv("FAKE_OVL_MODE_KEEPS")) {
+        /* as VideoOverlay 0.02 on the Pi: old IDs still work afterwards */
+        fprintf(stderr, "fake-ovl: mode change, overlays kept\n");
+    } else if (reason == 17) {                   /* the script's mode change */
         for (i = 0; i < MAXOVL; i++)
             if (ovls[i].id) { destroy(&ovls[i]); fake_ovl_destroys--; }
         fprintf(stderr, "fake-ovl: mode change, every overlay destroyed\n");
