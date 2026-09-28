@@ -2,8 +2,10 @@
 
 Software OpenGL for RISC OS 5: **OpenGL 2.1, OpenGL ES 1.1 and OpenGL ES
 2.0**, rendered on the CPU by Mesa 20.3.5, with a native RISC OS **EGL**
-to set them up. It runs on RISC OS 5 machines with an ARMv7 CPU and VFPv4
-(Raspberry Pi 2, 3 and 4, and similar).
+to set them up. It runs on RISC OS 5 machines with an ARMv7 or later CPU
+and VFPv3 floating point: Raspberry Pi 2, 3 and 4, and Cortex-A8/A9/A15
+machines such as the BeagleBoard-xM, PandaBoard, ARMini, i.MX6 boards and
+Titanium. Not on the Pi 1 or Zero (ARMv6).
 
 **Tested on a Raspberry Pi 4 (RISC OS 5):** release 20.3.5-5 passes all
 its tests. That covers EGL in desktop windows and full screen, OpenGL ES
@@ -106,6 +108,12 @@ filetypes. Releases are numbered after the Mesa version they contain
     for 320x240 to 640x480.
   - Shaders (GLSL, ES 2.0) run through Mesa's interpreter and are several
     times slower.
+- **Processors:** ARMv7 or later with VFPv3 (from 20.3.5-8; 20.3.5-7 and
+  earlier need VFPv4, so a Pi 2 or later). Pi 2, 3 and 4 and Cortex-A15
+  boards should work; tested on a Pi 4. Cortex-A8/A9 boards run the same
+  code (checked under an emulated Cortex-A8, not yet on real hardware),
+  but their FPUs are much slower, the A8's especially. Not the Pi 1 or
+  Zero: they're ARMv6.
 - **Not available:** multisampling, OpenVG, OpenMAX.
 - **Screen modes:** best in a 16M-colour mode, where the GL image plots
   with no conversion. EX0 EY0 (180 dpi) desktops are handled.

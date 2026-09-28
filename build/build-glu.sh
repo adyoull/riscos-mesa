@@ -9,7 +9,7 @@ cd "$SRC"
   || { echo "glu-9.0.1 is not the pinned commit dd4e18eb" >&2; exit 1; }
 cd glu-9.0.1
 [ -x configure ] || NOCONFIGURE=1 ./autogen.sh
-mkdir -p build-ro && cd build-ro
+fresh_build_dir build-ro && cd build-ro
 # -L/-l (not a path to the .a) so libtool doesn't copy OSMesa into libGLU.a
 OSMESA_CFLAGS="-I$STAGE/include" OSMESA_LIBS="-L$STAGE/lib -lOSMesa -lstdc++ -lz -lm" \
 CFLAGS="$RO_CFLAGS" CXXFLAGS="$RO_CFLAGS" \

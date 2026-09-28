@@ -7,19 +7,19 @@ For riscos-mesa v20.3.5-7 (September 2026). Andrew Youll.
 `libEGL` gives RISC OS programs the standard Khronos way to set up OpenGL: EGL 1.4 on top of Mesa's software renderer (OSMesa), with desktop OpenGL 2.1 (GLSL 1.20), OpenGL ES 1.1 and OpenGL ES 2.0. You write ordinary EGL and GL code; the library handles Wimp windows, full screen and sprites. Code written for the Raspberry Pi's Khronos stack can keep its DispmanX window code through a compatibility library.
 
 - **Where it comes from:** riscos-mesa, release v20.3.5-3 or later; the standard extensions need v20.3.5-4, OpenGL ES and DispmanX compatibility v20.3.5-5, and images (sprites as textures) v20.3.5-7. The devkit (`riscos-mesa-devkit-VERSION.tgz`) has `lib/libEGL.a`, `lib/libOSMesa.a`, `lib/libbcm_host.a` and the headers: `include/EGL/`, `include/GL/`, `include/GLES/`, `include/GLES2/`.
-- **Runs on:** RISC OS 5 on ARMv7 with VFP (Raspberry Pi 2, 3, 4), with SharedUnixLibrary and ARMEABISupport loaded. Tested on a Pi 4.
+- **Runs on:** RISC OS 5 on ARMv7 or later with VFPv3 (Raspberry Pi 2, 3, 4; Cortex-A8/A9/A15 boards such as the BeagleBoard-xM, PandaBoard, ARMini and Titanium), with SharedUnixLibrary and ARMEABISupport loaded. Not the Pi 1 or Zero (ARMv6). Tested on a Pi 4.
 - **Toolchain:** GCCSDK GCC 10 (`arm-riscos-gnueabihf`), static ELF programs.
 
 Compile and link:
 
 ```
-arm-riscos-gnueabihf-gcc -O2 -mfpu=vfpv4 -mfloat-abi=hard -fstack-clash-protection \
+arm-riscos-gnueabihf-gcc -O2 -mfpu=vfpv3 -mfloat-abi=hard -fstack-clash-protection \
     -I<devkit>/include -c myprog.c
 arm-riscos-gnueabihf-gcc -static myprog.o -o myprog,e1f \
     -L<devkit>/lib -lEGL -lOSMesa -lstdc++ -lz -lm
 ```
 
-`-lEGL` must come before `-lOSMesa`. Always use `-fstack-clash-protection`: GCC 10 programs on RISC OS crash seemingly at random without it. Never pass `-pthread`.
+`-mfpu=vfpv3` keeps your program runnable everywhere the libraries run; `-mfpu=vfpv4` (fused multiply-add) would limit it to the Pi 2 and later for no measurable gain. `-lEGL` must come before `-lOSMesa`. Always use `-fstack-clash-protection`: GCC 10 programs on RISC OS crash seemingly at random without it. Never pass `-pthread`.
 
 Headers to include:
 

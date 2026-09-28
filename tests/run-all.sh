@@ -28,7 +28,8 @@
 #                   (tests/host-harness/glut, 23 checks); needs GLU=<a host
 #                   libGLU.a>, otherwise skipped
 #   arm             the rendering checks on the RISC OS build of Mesa under
-#                   qemu-arm (tests/host-harness/mesa/arm); only with ARM=1,
+#                   qemu-arm emulating a Cortex-A8, the oldest CPU supported
+#                   (tests/host-harness/mesa/arm); only with ARM=1,
 #                   as it takes a few minutes
 #
 # Not run here, as it takes a long first build: Khronos's dEQP-EGL tests
@@ -112,7 +113,8 @@ step sdl-wimp env SDL="$SRC/SDL-release-2.26.0" OUT="$OUT/sdl-wimp" "$H/sdl-wimp
 step openal env SRC="$SRC" OUT="$OUT/openal" "$H/openal/run.sh"
 if [ -n "${GLU:-}" ]; then step glut glut_harness; else skip glut "set GLU=<host libGLU.a>"; fi
 if [ -n "${ARM:-}" ]; then
-    step arm env OUT="$OUT/arm" "$H/mesa/arm/run-arm.sh"
+    # on an emulated Cortex-A8 (VFPv3), the oldest CPU the build supports
+    step arm env OUT="$OUT/arm" QEMU_CPU="${QEMU_CPU:-cortex-a8}" "$H/mesa/arm/run-arm.sh"
 else
     skip arm "set ARM=1 (needs qemu-user and an ARM Linux cross compiler)"
 fi

@@ -15,8 +15,8 @@
 #   STAGE=<riscos-mesa stage dir with lib/libOSMesa.a, lib/libz.a and
 #          include/>  tests/host-harness/mesa/arm/run-arm.sh
 # OUT=<dir> sets the work directory (default /tmp/mesa-check-arm).
-# For a build made with RO_FPU=vfpv3 (Cortex-A8/A9), set RO_FPU=vfpv3 here
-# too; QEMU_CPU=cortex-a8 then checks that it really runs on one.
+# Set RO_FPU as for the build (default vfpv3). QEMU_CPU=cortex-a8 checks
+# that a VFPv3 build really runs on a Cortex-A8.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 : "${STAGE:?STAGE=<riscos-mesa stage directory>}"
@@ -39,7 +39,7 @@ $CC -c -O2 -mfloat-abi=hard "$HERE/shim.c" -o "$OUT/shim.o"
 
 CHECKS="render-fixed render-rows render-tex render-image glsl-basic glsl-control glsl-edge"
 for c in $CHECKS; do
-    $CC -c -O2 -w -mfpu=${RO_FPU:-vfpv4} -mfloat-abi=hard -I"$STAGE/include" "$HERE/../$c.c" -o "$OUT/$c.o"
+    $CC -c -O2 -w -mfpu=${RO_FPU:-vfpv3} -mfloat-abi=hard -I"$STAGE/include" "$HERE/../$c.c" -o "$OUT/$c.o"
     $CXX -static -o "$OUT/$c" "$OUT/$c.o" "$OUT/shim.o" "$OUT/libOSMesa.a" \
         "$STAGE/lib/libz.a" -lm -lpthread 2>&1 | grep -v "warning:\|NOTE:" || true
 done

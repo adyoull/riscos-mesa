@@ -29,8 +29,9 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
 **Build**
 
 - Use GCCSDK GCC 10 (`arm-riscos-gnueabihf-gcc`) with riscos-mesa's
-  flags: `-O3 -mtune=cortex-a72 -mfpu=vfpv4 -mfloat-abi=hard
-  -fstack-clash-protection`. **`-fstack-clash-protection` is essential:**
+  flags: `-O3 -mtune=cortex-a72 -mfpu=vfpv3 -mfloat-abi=hard
+  -fstack-clash-protection` (VFPv3 so the program also runs on
+  Cortex-A8/A9 machines; VFPv4 measured no faster on a Pi 4). **`-fstack-clash-protection` is essential:**
   the ELF stack grows a page at a time behind a guard page, and without
   probing, functions with big stack frames jump past it and crash
   seemingly at random (`tools/check-stack-probes.py` checks a binary).

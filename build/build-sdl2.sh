@@ -14,7 +14,7 @@ if [ ! -d SDL-release-2.26.0 ]; then
   tar xzf SDL-2.26.0.tgz
   (cd SDL-release-2.26.0 && for p in "$HERE"/patches/sdl2/*.p; do patch -s -p0 < "$p"; done && ./autogen.sh)
 fi
-mkdir -p SDL-release-2.26.0/build-ro && cd SDL-release-2.26.0/build-ro
+fresh_build_dir SDL-release-2.26.0/build-ro && cd SDL-release-2.26.0/build-ro
 CFLAGS="$RO_CFLAGS -I$STAGE/include" LDFLAGS="-L$STAGE/lib" \
   ../configure --host=$HOST --prefix="$STAGE" --disable-shared --enable-static \
   --enable-video-riscos-osmesa --disable-video-opengles --disable-video-rpi

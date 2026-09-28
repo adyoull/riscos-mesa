@@ -32,7 +32,8 @@ Adjust the right one, as on the mouse.
 Text the programs print goes to the file Output inside each application.
 
 The programs need SharedUnixLibrary and ARMEABISupport (from PackMan) and a
-machine with VFPv4 (Raspberry Pi 2 or later and similar). Each application
+machine with an ARMv7 or later CPU and VFPv3 (Raspberry Pi 2, 3 or 4, or a
+Cortex-A8/A9/A15 board; not a Pi 1 or Zero). Each application
 includes freeglut's licence (MIT/X style).
 
 To build your own GLUT programs, see docs/porting/glut.md in riscos-mesa.

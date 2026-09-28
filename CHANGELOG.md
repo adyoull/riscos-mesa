@@ -46,6 +46,16 @@ a Pi yet.
   depth check, GL and ES current together, two threads rendering at once,
   a thread ending with a context current);
   the fake RISC OS serialises SWIs so threaded tests are safe.
+- **Runs on Cortex-A8/A9 machines too:** everything is now built for VFPv3
+  instead of VFPv4 (`build/env.sh`; `RO_FPU=vfpv4` gives the old build).
+  The only VFPv4 instruction the compiler used was fused multiply-add, in
+  2 of Mesa's 18,557 functions (the GLSL compiler's constant folding); an
+  interleaved glbench A/B on the Pi 4 measured every scene within 0.5%.
+  The VFPv4 build died on an emulated Cortex-A8 (in the GLSL compiler);
+  the VFPv3 build passes every ARM rendering check there, which
+  `tests/run-all.sh` ARM=1 now runs on an emulated Cortex-A8. Not yet
+  tried on a real A8/A9 board. Build directories now start afresh when the
+  FPU setting changes.
 - **Docs:** the EGL guide, `egl/README.md` and the porting guide describe
   the new rules; the swap interval in desktop windows (accepted, doesn't
   wait, so other tasks keep running) is now documented as a deliberate

@@ -12,17 +12,31 @@ export CC=$HOST-gcc CXX=$HOST-g++ AR=$HOST-ar RANLIB=$HOST-ranlib STRIP=$HOST-st
 # with a frame > 4 KB (Mesa has 19, up to 135 KB) must probe page by page or
 # it jumps past the guard page and dies with "abort on data transfer"/SIGEMT.
 # (The GCCSDK "NEON builds die with SIGEMT" warning is most likely this.)
-# Flags chosen by benchmark on a Pi 4 (Pi 4 benchmark, glbench): -O3 tuned for
-# Cortex-A72 with VFPv4 is ~14% faster at texturing/blending than -O2 VFPv3;
-# NEON added nothing. VFPv4: Pi 2 and later (as ARMv7 already requires).
-# RO_FPU=vfpv3 builds for Cortex-A8/A9 machines too (no fused multiply-add).
-: "${RO_FPU:=vfpv4}"
+# Flags chosen by benchmark on a Pi 4 (glbench): -O3 tuned for Cortex-A72;
+# NEON added nothing. VFPv3, not VFPv4 (2026-09-28): the only VFPv4
+# instruction GCC used was fused multiply-add, in 2 of Mesa's 18557
+# functions (GLSL constant folding), and an interleaved A/B on the Pi 4
+# measured every glbench scene within 0.5%. VFPv3 also runs on Cortex-A8/A9
+# machines (BeagleBoard-xM, PandaBoard, ARMini, i.MX6); RO_FPU=vfpv4 gives
+# the old Pi 2-and-later build.
+: "${RO_FPU:=vfpv3}"
 export RO_FPU
 export RO_CFLAGS="-O3 -mtune=cortex-a72 -mfpu=$RO_FPU -mfloat-abi=hard -fstack-clash-protection"
 # Let meson/configure find our libs (zlib etc.) and nothing from the build host.
 export PKG_CONFIG_LIBDIR="$STAGE/lib/pkgconfig:$STAGE/share/pkgconfig"
 export PKG_CONFIG_SYSROOT_DIR=
 mkdir -p "$STAGE" "$SRC"
+
+# Build directories remember the FPU they were configured for: autotools and
+# meson don't notice a flags change, so a different RO_FPU starts afresh.
+fresh_build_dir() {   # dir
+  if [ -d "$1" ] && [ "$(cat "$1/.ro-fpu" 2>/dev/null)" != "$RO_FPU" ]; then
+    echo "$1: built for another FPU (or before RO_FPU existed), starting afresh"
+    rm -rf "$1"
+  fi
+  mkdir -p "$1"
+  echo "$RO_FPU" > "$1/.ro-fpu"
+}
 
 # Download a source tarball and refuse to use it unless its SHA-256 matches.
 # The Mesa/SDL/zlib tarballs are GitHub-generated archives; GitHub has very
