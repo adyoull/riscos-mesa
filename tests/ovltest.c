@@ -691,37 +691,53 @@ static void describe_mode(void)
 static void t_vet(void)
 {
     static const int sizes[][2] = { {320, 240}, {640, 360}, {1280, 720}, {1920, 1080}, {2560, 1440} };
-    int f, s, banks, sc, ok = 0, tried = 0;
-    say("T1: asking VideoOverlay_Vet about %d formats x 5 sizes x 1/3 banks x scaling.", NFORMATS);
-    note("format          size       banks scale  result");
+    int f, s, banks, sc, ok = 0, tried = 0, vet_agrees = 0;
+    /* VideoOverlay 0.02 with BCMVideo (Pi, 2026-09-28) fails every Vet
+       with "GraphicsV call failed", and "accepts" BGR565 with nonsense
+       limits, while Create works: so each row is a real Create (then
+       Destroy), and Vet's answer is shown beside it for comparison. */
+    say("T1: creating (and destroying) %d formats x 5 sizes x 1/3 banks x scaling;", NFORMATS);
+    say("Vet's answer is logged beside each, for comparison.");
+    note("format          size       banks scale  result (Create)                          Vet");
     for (f = 0; f < NFORMATS && !quit_request; f++) {
         for (s = 0; s < 5; s++)
             for (banks = 1; banks <= 3; banks += 2)
                 for (sc = 0; sc <= 1; sc++) {
-                    ovl_t o;
-                    _kernel_oserror *e = ovl_vet_create(&o, &formats[f], sizes[s][0], sizes[s][1],
-                                                        banks, sc, 0);
+                    ovl_t o, v;
+                    _kernel_oserror *ve = ovl_vet_create(&v, &formats[f], sizes[s][0], sizes[s][1],
+                                                         banks, sc, 0);
+                    char vet[80];
+                    _kernel_oserror *e;
+                    snprintf(vet, sizeof vet, "%s", ve ? ve->errmess : "yes");
+                    e = ovl_vet_create(&o, &formats[f], sizes[s][0], sizes[s][1], banks, sc, 1);
                     tried++;
-                    if (e) note("%-15s %4dx%-4d  %d     %-5s  no: %s", formats[f].name, sizes[s][0],
-                                sizes[s][1], banks, sc ? "must" : "-", err_text(e));
+                    if (e) note("%-15s %4dx%-4d  %d     %-5s  no: %-36s %s", formats[f].name, sizes[s][0],
+                                sizes[s][1], banks, sc ? "must" : "-", err_text(e), vet);
                     else {
+                        char res[80];
                         ok++;
-                        note("%-15s %4dx%-4d  %d     %-5s  yes: %s, scale %dx%d to %dx%d",
-                             formats[f].name, sizes[s][0], sizes[s][1], banks, sc ? "must" : "-",
-                             type_name(o.type), o.minw, o.minh, o.maxw, o.maxh);
+                        snprintf(res, sizeof res, "%s, scale %dx%d to %dx%d", type_name(o.type),
+                                 o.minw, o.minh, o.maxw, o.maxh);
+                        note("%-15s %4dx%-4d  %d     %-5s  yes: %-35s %s", formats[f].name, sizes[s][0],
+                             sizes[s][1], banks, sc ? "must" : "-", res, vet);
+                        ovl_destroy(&o);
                     }
+                    if ((ve == NULL) == (e == NULL)) vet_agrees++;
                 }
         pump(20);
     }
     /* a summary per format for the panel */
     for (f = 0; f < NFORMATS; f++) {
         ovl_t o;
-        _kernel_oserror *e = ovl_vet_create(&o, &formats[f], 1280, 720, 3, 1, 0);
+        _kernel_oserror *e = ovl_vet_create(&o, &formats[f], 1280, 720, 3, 1, 1);
         if (e) say("%-15s 1280x720 x3: no (%s)", formats[f].name, e->errmess);
-        else say("%-15s 1280x720 x3: %s, %dx%d..%dx%d", formats[f].name, type_name(o.type),
-                 o.minw, o.minh, o.maxw, o.maxh);
+        else {
+            say("%-15s 1280x720 x3: %s, %dx%d..%dx%d", formats[f].name, type_name(o.type),
+                o.minw, o.minh, o.maxw, o.maxh);
+            ovl_destroy(&o);
+        }
     }
-    say("T1 done: %d of %d accepted. The full table is in ovlresults.", ok, tried);
+    say("T1 done: %d of %d created; Vet agreed with Create %d times.", ok, tried, vet_agrees);
 }
 
 /* ------------------------------------------------------------------ */
@@ -996,7 +1012,7 @@ typedef struct {
     int x, next;
     long frames;
     double disp_min, disp_max, disp_sum, map_sum;
-    int errors;
+    int errors, failed;         /* failed: a buffer couldn't be mapped or shown */
 } sweep_t;
 
 #define BAR_W  32
@@ -1005,11 +1021,39 @@ typedef struct {
 static _kernel_oserror *sweep_create(sweep_t *s, int w, int h, int banks)
 {
     _kernel_oserror *e;
+    int b;
     memset(s, 0, sizeof *s);
     s->bar[0] = s->bar[1] = s->bar[2] = -1;
     s->disp_min = 1e9;
     if ((e = ovl_vet_create(&s->o, &fmt_tbgr, w, h, banks, 1, 1)) != NULL) return e;
+    /* map and clear every buffer now, so a buffer that can't be had (the
+       GPU out of memory: with Geminus loaded, the third 1920x1080 buffer
+       failed) shows up here rather than in the middle of a run */
+    for (b = 0; b < banks; b++) {
+        if ((e = ovl_map(&s->o, b)) != NULL) {
+            say("Buffer %d of %d can't be mapped: %s", b + 1, banks, err_text(e));
+            ovl_destroy(&s->o);
+            return e;
+        }
+        fill_rect32(&s->o, 0, 0, s->o.w, s->o.h, rgb_word(&s->o.fmt, 0, 0, 0));
+        s->bar[b] = -2;                 /* cleared, no bar yet */
+        ovl_unmap(&s->o);
+    }
     return NULL;
+}
+
+/* 3 buffers, else 2, else 1 (the GPU may not have room for three). */
+static _kernel_oserror *sweep_create_most(sweep_t *s, int w, int h)
+{
+    _kernel_oserror *e = NULL;
+    int banks;
+    for (banks = 3; banks >= 1; banks--) {
+        if ((e = sweep_create(s, w, h, banks)) == NULL) {
+            if (banks < 3) say("Using %d buffer%s.", banks, banks > 1 ? "s" : "");
+            return NULL;
+        }
+    }
+    return e;
 }
 
 /* Draw the next frame and show it. paced: wait for vsync first. */
@@ -1023,9 +1067,9 @@ static void sweep_frame(sweep_t *s, int paced)
     t0 = hr_seconds();
     e = ovl_map(o, b);
     s->map_sum += hr_seconds() - t0;
-    if (e) { if (s->errors++ < 5) say("MapBuffer %d: %s", b, err_text(e)); return; }
-    if (s->bar[b] < 0) fill_rect32(o, 0, 0, o->w, o->h, black);
-    else fill_rect32(o, s->bar[b], 0, s->bar[b] + BAR_W, o->h, black);
+    if (e) { if (s->errors++ < 5) say("MapBuffer %d: %s", b, err_text(e)); s->failed = 1; return; }
+    if (s->bar[b] == -1) fill_rect32(o, 0, 0, o->w, o->h, black);
+    else if (s->bar[b] >= 0) fill_rect32(o, s->bar[b], 0, s->bar[b] + BAR_W, o->h, black);
     fill_rect32(o, s->x, 0, s->x + BAR_W, o->h, white);
     s->bar[b] = s->x;
     ovl_unmap(o);
@@ -1033,7 +1077,7 @@ static void sweep_frame(sweep_t *s, int paced)
     t0 = hr_seconds();
     e = ovl_display(o, b);
     t = hr_seconds() - t0;
-    if (e) { if (s->errors++ < 5) say("DisplayBuffer %d: %s", b, err_text(e)); return; }
+    if (e) { if (s->errors++ < 5) say("DisplayBuffer %d: %s", b, err_text(e)); s->failed = 1; return; }
     if (t < s->disp_min) s->disp_min = t;
     if (t > s->disp_max) s->disp_max = t;
     s->disp_sum += t;
@@ -1060,9 +1104,15 @@ static void t_tear(void)
         say("Run %d: %d buffers, %s.", run + 1, runs[run][0],
             runs[run][1] ? "waiting for vsync (OS_Byte 19) before each switch" : "flat out");
         t0 = now_ms();
-        while (!quit_request && now_ms() - t0 < 10000) {
+        while (!quit_request && now_ms() - t0 < 10000 && !s.failed) {
             sweep_frame(&s, runs[run][1]);
             poll_once(0);
+        }
+        if (s.failed) {
+            say("  Run stopped after %ld frames: a buffer failed.", s.frames);
+            detach();
+            ovl_destroy(&s.o);
+            continue;
         }
         t = (now_ms() - t0) / 1000.0;
         if (s.frames)
@@ -1197,7 +1247,7 @@ static void desk_mode_change(void)
     else say("Vet in the new mode: yes, %s", type_name(o.type));
     detach();
     desk.o.id = 0;                                  /* gone with the mode */
-    e = sweep_create(&desk, 1920, 1080, 3);
+    e = sweep_create_most(&desk, 1920, 1080);
     if (e) { say("Create in the new mode: %s", err_text(e)); desk_lost = 1; return; }
     say("Created again (%s).", type_name(desk.o.type));
     desk_lost = 0;
@@ -1215,12 +1265,16 @@ static void t_desk(void)
     say("   Display manager) and back. Note what you see. Q = done.");
     open_window(640, 360);
     describe_mode();
-    if ((e = sweep_create(&desk, 1920, 1080, 3)) != NULL) { say("Create: %s", err_text(e)); return; }
+    if ((e = sweep_create_most(&desk, 1920, 1080)) != NULL) { say("Create: %s", err_text(e)); return; }
     say("Overlay: %s", type_name(desk.o.type));
     attach(&desk.o);
     on_mode_change = desk_mode_change;
     while (!quit_request) {
-        if (!desk_lost && desk.o.id) sweep_frame(&desk, 1);
+        if (!desk_lost && desk.o.id && !desk.failed) sweep_frame(&desk, 1);
+        else if (desk.failed && !desk_lost) {
+            say("A buffer failed: the overlay is stopped (see above).");
+            desk_lost = 1;
+        }
         poll_once(0);
         if ((k = key_waiting()) == 'q' || k == 27) break;
     }

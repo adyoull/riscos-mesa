@@ -73,6 +73,17 @@ expect "T8 yuv: bars right in all four colour spaces" \
   test "$(grep -c 'bars read back correctly' yuv.out)" -ge 5
 expect "T8 yuv: copy timed"                    grep -q "map + copy + unmap:" yuv.results
 
+# as on the Pi: Vet always fails, and with Geminus the GPU has room for
+# only two 1920x1080 buffers
+run vet n100 FAKE_OVL_VET_BROKEN=1
+expect "Pi's broken Vet: Create still finds the formats" grep -q "YV12 709 video  1280x720 x3: Basic" vet.results
+expect "Pi's broken Vet: logged beside Create"  grep -q "1280x720   3     must   yes: .*GraphicsV call failed" vet.results
+run tear n20,n520,0,n520,1,n30 FAKE_OVL_GPU_BYTES=20000000
+expect "GPU full: 3-buffer runs refused up front" grep -q "Buffer 3 of 3 can't be mapped" tear.results
+expect "GPU full: 2-buffer runs still happen"   test "$(grep -c 'DisplayBuffer .* us (min/avg/max)' tear.results)" = 2
+run desk n100,q,n20 FAKE_OVL_GPU_BYTES=20000000
+expect "GPU full: T7 falls back to 2 buffers"   grep -q "Using 2 buffers" desk.results
+
 run vet n20 FAKE_OVL_MISSING=1
 expect "no VideoOverlay: says so and quits"    grep -q "VideoOverlay isn't loaded" vet.results
 

@@ -14,6 +14,9 @@
  * (not BGR565), YV12, YV16, NV12; plane strides are wider than a row, to
  * catch code that ignores them. A mode change (User_Message 0x400C1 in
  * the script) destroys every overlay, as the driver does.
+ * FAKE_OVL_VET_BROKEN=1: every Vet fails, as on the Pi (VideoOverlay 0.02).
+ * FAKE_OVL_GPU_BYTES=<n>: MapBuffer fails once the buffers would need more
+ * (the Pi with Geminus loaded couldn't map a third 1920x1080 buffer).
  * FAKE_OVL_STALE_OK=1: a call with an unknown ID fails quietly (T7 tries
  * the old ID after a mode change on purpose).
  * FAKE_OVL_BARS=1: at each DisplayBuffer of a YUV overlay, the eight
@@ -230,7 +233,12 @@ static int hook(int no, _kernel_swi_regs *r, _kernel_oserror **e)
         if (r->r[3] != 0x4A00) protocol("Create/Vet without the task handle", r->r[3]);
         tmp.type = getenv("FAKE_OVL_TYPE") ? atoi(getenv("FAKE_OVL_TYPE")) : 1;
         limits(&tmp, r);
-        if (no == BASE + 6) { fake_ovl_vets++; return 1; }
+        if (no == BASE + 6) {
+            fake_ovl_vets++;
+            /* like VideoOverlay 0.02 + BCMVideo on the Pi: Vet always fails */
+            if (getenv("FAKE_OVL_VET_BROKEN")) *e = ferr(0x820D03, "GraphicsV call failed");
+            return 1;
+        }
         for (i = 0; i < MAXOVL && ovls[i].id; i++) ;
         if (i == MAXOVL) { *e = ferr(5, "No free overlays"); return 1; }
         o = &ovls[i];
@@ -260,7 +268,20 @@ static int hook(int no, _kernel_swi_regs *r, _kernel_oserror **e)
         int b = r->r[1], p;
         uint8_t *m;
         if (b < 0 || b >= o->banks) { *e = ferr(7, "Bad buffer"); break; }
-        if (!o->mem[b]) o->mem[b] = malloc(bank_bytes(o));
+        if (!o->mem[b]) {
+            /* FAKE_OVL_GPU_BYTES: the GPU memory for buffers (with Geminus
+               loaded, the Pi ran out at the third 1920x1080 buffer) */
+            static size_t used;
+            const char *lim = getenv("FAKE_OVL_GPU_BYTES");
+            size_t i2, live = 0;
+            for (i2 = 0; i2 < MAXOVL; i2++) {
+                int b2;
+                for (b2 = 0; b2 < 3; b2++) if (ovls[i2].id && ovls[i2].mem[b2]) live += bank_bytes(&ovls[i2]);
+            }
+            used = live;
+            if (lim && used + bank_bytes(o) > (size_t) atol(lim)) { *e = ferr(0x820D03, "GraphicsV call failed"); break; }
+            o->mem[b] = malloc(bank_bytes(o));
+        }
         m = o->mem[b];
         for (p = 0; p < o->planes; p++) {
             o->words[b][2 * p] = (int) (long) m;
