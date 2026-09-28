@@ -7,6 +7,11 @@ the scripts in `build/`, so every step in the guides has been done for
 real. The ports in the release zips (the Mesa demos, SDL's GL tests and the
 Pi's hello_pi examples) all work on a Raspberry Pi 4.
 
+If you haven't built anything with the devkit yet, do its beginner's guide
+first (`README.md` at the top of the devkit, `devkit/README.md` in the
+repository): it covers the compiler, the build flags and how a RISC OS
+application is put together, which these guides take as read.
+
 | Where the program comes from | How it gets a window | Guide | Worked port |
 | --- | --- | --- | --- |
 | Mesa's demos, or anything using a small window library over EGL (eglut, esUtil, your own) | replace the library's window code with a Wimp window | [mesa-demos.md](mesa-demos.md) | `ports/mesa-demos`: eglgears, es1 gears, torus, es2gears, egltri |

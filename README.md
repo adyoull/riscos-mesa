@@ -22,8 +22,9 @@ GL programs multitask properly.
      (GL draws into them) and images (textures that read them in place,
      for video), and pbuffers are supported.
    - Your program runs its own Wimp_Poll loop, and EGL does the plotting.
-   - See the [programming guide](docs/EGL-GUIDE.md) and
-     [egl/README.md](egl/README.md).
+   - New to it? Start with the devkit's [beginner's guide](devkit/README.md)
+     and [examples](devkit/examples). The [programming guide](docs/EGL-GUIDE.md)
+     is the full reference.
 2. **SDL2.** SDL 2.26's RISC OS video driver gains OpenGL and OpenGL ES
    contexts (`SDL_GL_CreateContext`). SDL programs port without RISC OS
    specific GL code. The driver uses OSMesa directly and multitasks in a

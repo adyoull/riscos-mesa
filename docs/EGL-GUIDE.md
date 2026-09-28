@@ -1,12 +1,19 @@
 # RISC OS EGL programming guide
 
-For riscos-mesa v20.3.5-7 (September 2026). Andrew Youll.
+For riscos-mesa v20.3.5-8 (September 2026). Andrew Youll.
+
+> **New to OpenGL, EGL or cross-compiling?** Start with the devkit's
+> beginner's guide (`README.md` at the top of the devkit, `devkit/README.md`
+> in the repository) and its six commented example programs
+> (`examples/`). They go from nothing to a running RISC OS application and
+> explain why each step is done. This guide is the full reference: come
+> back to it when you need a feature the examples don't show.
 
 ## Overview
 
 `libEGL` gives RISC OS programs the standard Khronos way to set up OpenGL: EGL 1.4 on top of Mesa's software renderer (OSMesa), with desktop OpenGL 2.1 (GLSL 1.20), OpenGL ES 1.1 and OpenGL ES 2.0. You write ordinary EGL and GL code; the library handles Wimp windows, full screen and sprites. Code written for the Raspberry Pi's Khronos stack can keep its DispmanX window code through a compatibility library.
 
-- **Where it comes from:** riscos-mesa, release v20.3.5-3 or later; the standard extensions need v20.3.5-4, OpenGL ES and DispmanX compatibility v20.3.5-5, and images (sprites as textures) v20.3.5-7. The devkit (`riscos-mesa-devkit-VERSION.tgz`) has `lib/libEGL.a`, `lib/libOSMesa.a`, `lib/libbcm_host.a` and the headers: `include/EGL/`, `include/GL/`, `include/GLES/`, `include/GLES2/`.
+- **Where it comes from:** riscos-mesa, release v20.3.5-3 or later; the standard extensions need v20.3.5-4, OpenGL ES and DispmanX compatibility v20.3.5-5, images (sprites as textures) v20.3.5-7, and the EGL 1.4 thread and context rules (see [Choosing configs and creating contexts](#choosing-configs-and-creating-contexts)) v20.3.5-8. The devkit (`riscos-mesa-devkit-VERSION.tgz`) has `lib/libEGL.a`, `lib/libOSMesa.a`, `lib/libbcm_host.a` and the headers: `include/EGL/`, `include/GL/`, `include/GLES/`, `include/GLES2/`, with this guide and the porting guides in `docs/`.
 - **Runs on:** RISC OS 5 on ARMv7 or later with VFPv3 (Raspberry Pi 2, 3, 4; Cortex-A8/A9/A15 boards such as the BeagleBoard-xM, PandaBoard, ARMini and Titanium), with SharedUnixLibrary and ARMEABISupport loaded. Not the Pi 1 or Zero (ARMv6). Tested on a Pi 4.
 - **Toolchain:** GCCSDK GCC 10 (`arm-riscos-gnueabihf`), static ELF programs.
 
@@ -19,7 +26,7 @@ arm-riscos-gnueabihf-gcc -static myprog.o -o myprog,e1f \
     -L<devkit>/lib -lEGL -lOSMesa -lstdc++ -lz -lm
 ```
 
-`-mfpu=vfpv3` keeps your program runnable everywhere the libraries run; `-mfpu=vfpv4` (fused multiply-add) would limit it to the Pi 2 and later for no measurable gain. `-lEGL` must come before `-lOSMesa`. Always use `-fstack-clash-protection`: GCC 10 programs on RISC OS crash seemingly at random without it. Never pass `-pthread`.
+`-mfpu=vfpv3` keeps your program runnable everywhere the libraries run; `-mfpu=vfpv4` (fused multiply-add) would stop it running on the Cortex-A8 and A9 boards, and measured no faster on a Pi 4. `-lEGL` must come before `-lOSMesa`. Always use `-fstack-clash-protection`: GCC 10 programs on RISC OS crash seemingly at random without it. Never pass `-pthread`.
 
 Headers to include:
 
@@ -185,6 +192,8 @@ for (;;) {
 - Give the window a **background colour** (not transparent). The Wimp then clears any part of the window the GL image doesn't cover, for example just after a resize.
 - A plain GL window doesn't need scroll bars. Without them, the scroll wheel is free for your program (the wheel position is `OS_Pointer 2`).
 
+**High resolution desktops (EX0 EY0).** In a "180 dpi" mode, where one OS unit is one pixel, a window surface is the window's visible area in real screen pixels, and it plots pixel for pixel: GL output is as sharp as the rest of the desktop. Size your window in OS units as usual, and read `EGL_WIDTH` and `EGL_HEIGHT` for its size in pixels.
+
 **Redraws.** When another window is dragged over yours, the Wimp sends Redraw_Window_Request. `eglRedrawWindowRISCOS(dpy, block)` runs the whole `Wimp_RedrawWindow` / `Wimp_GetRectangle` loop and plots the last finished frame of every EGL surface in that window. It returns `EGL_FALSE`, without starting a redraw, if the window has no EGL surfaces.
 
 **Quitting.** Message_Quit (0) means the desktop is closing down or the Task Manager quit the task: tidy up and exit, as the loop above does. To ask the user about unsaved work first, answer Message_PreQuit (8), which comes as a recorded message (reason 18) before a shutdown: acknowledge it (send it back to the sender as reason 19 with your_ref set to its my_ref) to stop the shutdown, then restart it once you're done with `Wimp_ProcessKey` &1FC (Ctrl-Shift-F12) if bit 0 of the flags at block+20 was clear.
@@ -331,6 +340,7 @@ ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, want_21);
 - **Draw and read can differ:** `eglMakeCurrent(dpy, draw, read, ctx)` renders into `draw`, while `glReadPixels` and `glCopyTexImage2D` read from `read`.
 - **One current context per API:** a thread can have a GL context and an ES context current at the same time. `eglBindAPI` chooses which one `eglGetCurrentContext` reports and which one GL calls go to.
 - **Threads:** each thread has its own current context, error and bound API. A context or surface can be current in only one thread at a time; making it current in another gives `EGL_BAD_ACCESS`. EGL calls are serialised by one lock. The rendering itself isn't faster with threads: Mesa renders on the CPU, and RISC OS runs one thread at a time. Link threaded programs with a UnixLib that has the pthread ticker fix (see the porting guide).
+- **Swap behaviour:** a new surface reports `EGL_SWAP_BEHAVIOR` as `EGL_BUFFER_DESTROYED`, EGL's default. Window, sprite and pbuffer surfaces do keep their contents from frame to frame (the buffer age is 1), but only screen banks rely on the difference. If your program depends on the last frame still being there, say so with `eglSurfaceAttrib(dpy, surf, EGL_SWAP_BEHAVIOR, EGL_BUFFER_PRESERVED)`; `eglSetDamageRegionKHR` (partial update) is then refused, as that extension requires.
 
 **Function pointers.** `eglGetProcAddress` returns every EGL function (including the RISC OS ones) and every GL function, including core GL 1.x/2.x entry points (`EGL_KHR_get_all_proc_addresses`).
 
@@ -355,7 +365,7 @@ eglMakeCurrent(dpy, surf, surf, ctx);
 - Link as for desktop GL: `-lEGL -lOSMesa -lstdc++ -lz -lm`. The ES functions (including ES 1.1's `glOrthof`, `glFrustumf` and fixed-point calls) are in libOSMesa.
 - ES 3.x gives `EGL_BAD_MATCH`: the renderer lacks what ES 3.0 needs.
 - A desktop GL context and an ES context can't share objects.
-- One context is current at a time. Making an ES context current releases a desktop GL one, and the other way round.
+- A thread can have one desktop GL context and one ES context current at the same time (EGL keeps one per API). `eglBindAPI` chooses which one `eglGetCurrentContext` reports and which one GL calls go to.
 - **Speed:** ES 1.1 is fixed function and runs as fast as desktop GL. ES 2.0 is all shaders, and shaders run through Mesa's GLSL interpreter, several times slower for the same scene. Keep ES 2.0 programs small, or render at a low resolution and scale up.
 - With SDL2, ask for ES the usual way: `SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES)` and a major version of 1 or 2.
 
@@ -664,4 +674,4 @@ The window and full screen figures are from the 20.3.5-4 tests; rendering has go
 
 **Licences.** Programs built with the devkit contain Mesa, UnixLib and the GCC runtime (and SDL, GLU, zlib, freeglut or OpenAL if used). Ship `LICENCES.txt` from the devkit with them. UnixLib (in part) and OpenAL are LGPL v2: open source programs are fine as they are; a closed source program must offer its object files so it can be relinked.
 
-Further reading: `egl/README.md` in the riscos-mesa repository; `tests/egltest.c`, a complete example of every surface type and of a sprite used as a texture; `tests/glestest.c` for OpenGL ES; and the [porting guides](porting/README.md).
+Further reading: the devkit's `examples/` (six small commented programs, from a full screen triangle to shaders, SDL2, GLUT and OpenAL); `tests/egltest.c` in the riscos-mesa repository, a complete example of every surface type and of a sprite used as a texture; `tests/glestest.c` for OpenGL ES; the [porting guides](porting/README.md); and `egl/README.md`, for how the library itself is put together.

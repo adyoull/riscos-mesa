@@ -61,6 +61,7 @@ GLUT can do EGL's job for you; see
 | --- | --- |
 | `README.md`, `ReadMe` | This guide (the same text; `ReadMe` is for reading on RISC OS) |
 | `examples/` | Six small, fully commented programs, and a Makefile that builds them into RISC OS applications |
+| `docs/` | The EGL programming guide (the full reference) and the porting guides |
 | `include/` | The header files (`GL/gl.h`, `EGL/egl.h`, `SDL2/SDL.h`, `AL/al.h`...) |
 | `lib/` | The libraries, ready to link into your programs |
 | `lib/pkgconfig/` | Files that tell `pkg-config` how to use each library |
@@ -449,7 +450,7 @@ The drawing is done by the processor, so every pixel costs time.
   [Which way should I draw?](#which-way-should-i-draw)).
 - **Textures:** power-of-two sizes (64, 128, 256...), `GL_CLAMP_TO_EDGE`
   rather than `GL_CLAMP`, and `GL_LINEAR` or `GL_NEAREST` filtering use
-  the fast paths. The EGL guide lists the rest.
+  the fast paths. The EGL guide (`docs/EGL-GUIDE.md`) lists the rest.
 - **Don't draw frames nobody sees.** Pace with `Wimp_PollIdle` (about
   50 frames a second is plenty), and draw only when something changes if
   the picture is still.
@@ -466,15 +467,16 @@ The drawing is done by the processor, so every pixel costs time.
   editions cover 2.1), or WebGL tutorials for ES 2.0. The drawing code
   is the same on every system; only the window setup differs, and that's
   what these examples show.
-- **The riscos-mesa documentation** (in the project's repository,
-  github.com/adyoull/riscos-mesa):
-  - `docs/EGL-GUIDE.md`: everything about EGL on RISC OS: full screen
+- **In this devkit's `docs/` folder:**
+  - `EGL-GUIDE.md`: everything about EGL on RISC OS: full screen
     options, views inside windows, sprites, pbuffers, video textures,
-    extensions and the complete troubleshooting table.
-  - `docs/porting/`: step-by-step guides to porting Raspberry Pi
-    programs, SDL programs, GLUT programs and Mesa's demos, with worked
-    examples.
-  - `README.md` and `CHANGELOG.md`: what's in each release.
+    threads, extensions and the complete troubleshooting table.
+  - `porting/`: step-by-step guides to porting Raspberry Pi programs,
+    SDL programs, GLUT programs and Mesa's demos. Their worked examples'
+    source is in the riscos-mesa repository (github.com/adyoull/riscos-mesa,
+    `ports/`), and the built programs are in the release's ports zip.
+- **In the repository:** `README.md` and `CHANGELOG.md` (what's in each
+  release), and the test programs' source (`tests/`).
 
 ---
 

@@ -66,7 +66,12 @@ a Pi yet.
   ready-to-run application and a zip that keeps RISC OS filetypes, plus
   `sdl2-config` and pkg-config files that work wherever the devkit is
   unpacked. `tests/run-all.sh` runs the examples on the host harness and
-  checks what they draw and play.
+  checks what they draw and play. The devkit also carries the EGL
+  programming guide and the porting guides in `docs/`. The EGL guide is
+  brought up to date (threads and per-API contexts, swap behaviour,
+  180 dpi desktops, VFPv3) and points newcomers to the devkit guide;
+  `egl/README.md` is now a short note on how the library is built and
+  tested, so usage is described in one place.
 - **GLUT: programs with a menu drew nothing after their first frame**
   when they set the viewport only in their reshape callback. A GLUT menu
   is a window to freeglut; on RISC OS it's a Wimp menu with no GL
