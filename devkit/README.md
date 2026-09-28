@@ -120,7 +120,7 @@ they're missing.
 
 For sound, install **SharedSoundBuffer** and **StreamManager** (John
 Duffell's freeware: the `ssb.zip` download on Andrew Sellors' RDPClient
-site, orac.co.uk) into `!System`. They mix your program's sound with
+page, <https://orac.co.uk/software/rdpclient/rdpclient.html>) into `!System`. They mix your program's sound with
 everyone else's. Without them, SDL falls back to DigitalRenderer.
 
 ---
