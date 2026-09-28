@@ -23,6 +23,7 @@
  * SWI numbers) and includes the rest, which is in egl/parts/ by topic:
  *   screen.c      the screen, Wimp windows, plotting frames (swap/present)
  *   buffers.c     sprites, screen banks, pbuffer memory, pixmaps
+ *   overlay.c     window surfaces shown through a hardware overlay
  *   validation.c  checking handles and attribute lists
  *   configs.c     the configs and eglChooseConfig matching
  *   current.c     per-thread state, the lock, binding contexts and
@@ -45,6 +46,7 @@
  * buffers belong to the surface, not to a context, so contexts can share a
  * surface, and draw into one surface while reading from another.
  */
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
@@ -79,7 +81,7 @@
     "EGL_KHR_image_pixmap EGL_KHR_lock_surface EGL_KHR_lock_surface2 " \
     "EGL_KHR_lock_surface3 EGL_KHR_partial_update EGL_KHR_reusable_sync " \
     "EGL_KHR_surfaceless_context EGL_KHR_swap_buffers_with_damage EGL_KHR_wait_sync " \
-    "EGL_RISCOS_wimp_window"
+    "EGL_RISCOS_overlay EGL_RISCOS_wimp_window"
 /* Client extensions: eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS) */
 #define EGL_RISCOS_CLIENT_EXTENSIONS \
     "EGL_EXT_client_extensions EGL_EXT_platform_base " \
@@ -136,6 +138,12 @@
 #ifndef OS_ScreenMode
 #define OS_ScreenMode       0x65
 #endif
+#ifndef OS_SWINumberFromString
+#define OS_SWINumberFromString 0x39
+#endif
+#ifndef Wimp_ReadSysInfo
+#define Wimp_ReadSysInfo    0x400F2
+#endif
 
 /* ------------------------------------------------------------------ */
 /* Objects                                                             */
@@ -173,6 +181,16 @@ typedef struct egl_surface {
     int *sprite;                /* sprite in it */
     int sprite_mode;            /* mode word / selector used to make it */
     int sprite_h;               /* rows in the sprite: > h when padded (see MIN_SPRITE_BYTES) */
+    /* hardware overlay (parts/overlay.c) */
+    int ovl_want;               /* EGL_OVERLAY_RISCOS: 1 = use one when possible */
+    int ovl_state;              /* OVL_OFF, OVL_ON, OVL_FAILED */
+    int ovl_id, ovl_type;       /* VideoOverlay ID (0 = none); 0 Z-Order, 1 Basic */
+    int ovl_banks, ovl_next, ovl_last;  /* buffers; next to write; last shown (-1 none) */
+    int ovl_shown;              /* the overlay is showing the surface */
+    int ovl_w, ovl_h, ovl_mode; /* the size and screen mode it was made for */
+    int ovl_placed[4];          /* scroll x/y and size last given to SetPosition/SetScale */
+    int ovl_vsync;              /* the vsync counter at the last buffer switch */
+    int ovl_run, ovl_swap_cs;   /* swaps in a row (each soon after the last), time of the last */
     /* pbuffer */
     void *mem;
     /* buffer age (EGL_EXT_buffer_age), partial update, locking */
@@ -369,6 +387,7 @@ static EGLBoolean ok(void)
 
 #include "parts/screen.c"
 #include "parts/buffers.c"
+#include "parts/overlay.c"
 #include "parts/validation.c"
 #include "parts/configs.c"
 #include "parts/current.c"

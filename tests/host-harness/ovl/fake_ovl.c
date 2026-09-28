@@ -42,6 +42,7 @@ typedef struct {
     uint8_t *mem[3];                  /* per bank */
     int stride[3], plane_h[3];
     int mapped[3], map_calls, displays, redraws, scales, positions, window;
+    int last_display, scale_w, scale_h;
     int words[3][6];                  /* MapBuffer's array, per bank */
 } fovl_t;
 
@@ -223,6 +224,7 @@ static int hook(int no, _kernel_swi_regs *r, _kernel_oserror **e)
         else r->r[3] = (int) (long) &module;
         return 1;
     case OS_SWINumberFromString:
+        if (getenv("FAKE_OVL_MISSING")) { *e = ferr(0x1E6, "SWI name not known"); return 1; }
         for (i = 0; i < 11; i++)
             if (strcmp((const char *) (long) r->r[1], names[i]) == 0) { r->r[0] = BASE + i; return 1; }
         *e = ferr(0x1E6, "SWI name not known");
@@ -246,6 +248,7 @@ static int hook(int no, _kernel_swi_regs *r, _kernel_oserror **e)
         o = &ovls[i];
         *o = tmp;
         o->id = next_id++;
+        o->last_display = -2;
         plane_geometry(o);
         r->r[0] = o->id;
         fake_ovl_creates++;
@@ -263,6 +266,7 @@ static int hook(int no, _kernel_swi_regs *r, _kernel_oserror **e)
         if (r->r[1] >= o->banks) { protocol("DisplayBuffer past the last bank", r->r[1]); *e = ferr(7, "Bad buffer"); break; }
         if (r->r[1] >= 0 && !o->mem[r->r[1]]) protocol("DisplayBuffer of a buffer never mapped", r->r[1]);
         o->displays++; fake_ovl_displays++;
+        o->last_display = r->r[1] < 0 ? -1 : r->r[1];
         if (r->r[1] >= 0 && o->log2bpp == 7 && getenv("FAKE_OVL_BARS") && o->mem[r->r[1]])
             check_bars(o, r->r[1]);
         break;
@@ -306,6 +310,7 @@ static int hook(int no, _kernel_swi_regs *r, _kernel_oserror **e)
         break;
     case 7:                                      /* SetScale */
         o->scales++; fake_ovl_scales++;
+        o->scale_w = r->r[1]; o->scale_h = r->r[2];
         if (r->r[1] < 16) r->r[1] = 16;
         if (r->r[2] < 16) r->r[2] = 16;
         if (r->r[1] > 2048) r->r[1] = 2048;
@@ -347,10 +352,9 @@ static void wimp_hook(int reason)
         fprintf(stderr, "fake-ovl: mode change, every overlay destroyed\n");
     }
     if (reason == 201) {                         /* the script's "B": a window in front, or not */
-        int j;
+        /* another window over the whole screen, in front of everything */
         if (fake_window_behind != -1) fake_window_behind = -1;
-        else for (j = 0; j < FAKE_MAX_WINDOWS; j++)
-            if (fake_windows[j].handle) { fake_window_behind = fake_windows[j].handle; break; }
+        else if (fake_open_window(0x7777, 0, 0, 8192, 8192, 0, 0)) fake_window_behind = 0x7777;
         fprintf(stderr, "fake-ovl: window in front: %d\n", fake_window_behind);
     }
     if (chained) chained(reason);
@@ -362,6 +366,44 @@ void fake_ovl_init(void)
     allow_mapped = getenv("FAKE_OVL_ALLOW_MAPPED") != NULL;
     chained = fake_wimp_hook;
     fake_wimp_hook = wimp_hook;
+}
+
+/* For the EGL harness: the newest live overlay. */
+static fovl_t *newest(void)
+{
+    int i;
+    fovl_t *o = NULL;
+    for (i = 0; i < MAXOVL; i++)
+        if (ovls[i].id && (!o || ovls[i].id > o->id)) o = &ovls[i];
+    return o;
+}
+int fake_ovl_live(void)
+{
+    int i, n = 0;
+    for (i = 0; i < MAXOVL; i++) if (ovls[i].id) n++;
+    return n;
+}
+int fake_ovl_errors(void) { return errors; }
+/* size, banks, ModeFlags and the last DisplayBuffer (-1 hidden, -2 none) of the newest */
+int fake_ovl_info(int *w, int *h, int *banks, int *flags, int *shown, int *scale_w, int *scale_h)
+{
+    fovl_t *o = newest();
+    if (!o) return 0;
+    if (w) *w = o->w;
+    if (h) *h = o->h;
+    if (banks) *banks = o->banks;
+    if (flags) *flags = o->flags;
+    if (shown) *shown = o->last_display;
+    if (scale_w) *scale_w = o->scale_w;
+    if (scale_h) *scale_h = o->scale_h;
+    return o->id;
+}
+/* a pixel (32bpp) of bank b of the newest overlay, row y from the top */
+unsigned int fake_ovl_pixel(int b, int x, int y)
+{
+    fovl_t *o = newest();
+    if (!o || b < 0 || b >= o->banks || !o->mem[b]) return 0xDEADBEEF;
+    return *(unsigned int *) (o->mem[b] + (size_t) y * o->stride[0] + (size_t) x * 4);
 }
 
 void fake_ovl_report(void)

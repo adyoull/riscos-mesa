@@ -3,7 +3,7 @@
  *
  * Part of riscos-mesa. MIT licence (see LICENCES.txt).
  */
-#define EGL_EGLEXT_PROTOTYPES 1     /* eglRedrawWindowRISCOS */
+#define EGL_EGLEXT_PROTOTYPES 1     /* eglRedrawWindowRISCOS, eglCheckOverlaysRISCOS */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -103,10 +103,27 @@ int rw_poll(rw_window *w, EGLDisplay dpy, int want_idle, int *key)
     int block[64];
     _kernel_swi_regs r;
 
-    r.r[0] = want_idle ? 0 : 1;                  /* mask null events when not animating */
-    r.r[1] = (int) block;
-    if (_kernel_swi(Wimp_Poll, &r, &r) != NULL)
-        return RW_CLOSE;
+    if (want_idle || dpy == EGL_NO_DISPLAY) {
+        r.r[0] = want_idle ? 0 : 1;              /* mask null events when not animating */
+        r.r[1] = (int) block;
+        if (_kernel_swi(Wimp_Poll, &r, &r) != NULL)
+            return RW_CLOSE;
+    } else {
+        /* Not animating: wake up ten times a second anyway, so a window
+           shown through a hardware overlay (EGL_RISCOS_overlay) hides it
+           under menus and windows opened over it. */
+        _kernel_swi_regs t;
+        _kernel_swi(OS_ReadMonotonicTime, &t, &t);
+        r.r[0] = 0;
+        r.r[1] = (int) block;
+        r.r[2] = t.r[0] + 10;
+        if (_kernel_swi(Wimp_PollIdle, &r, &r) != NULL)
+            return RW_CLOSE;
+        if (r.r[0] == 0) {
+            eglCheckOverlaysRISCOS(dpy);
+            return RW_NONE;
+        }
+    }
     switch (r.r[0]) {
     case 0:                                      /* Null_Reason_Code */
         return RW_IDLE;

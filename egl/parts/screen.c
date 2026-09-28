@@ -91,6 +91,10 @@ typedef struct window_state {
     int behind, flags;
 } window_state;
 
+/* parts/overlay.c */
+static int ovl_update(egl_display *d, egl_surface *surf, const screen_info *s, int new_frame);
+static void ovl_redraw_rectangle(egl_surface *surf, int *block);
+
 static int get_window_state(int handle, window_state *ws)
 {
     _kernel_swi_regs r;
@@ -241,6 +245,10 @@ static void plot_loop(egl_display *d, int handle, egl_surface *only, int *block,
             if (surf->kind != SURF_WINDOW || surf->handle != handle ||
                 surf->destroy_pending || surf->fixed || (only && only != surf))
                 continue;
+            if (surf->ovl_shown) {
+                ovl_redraw_rectangle(surf, block);  /* the overlay shows it */
+                continue;
+            }
             pieces[0] = clip;
             n = 1;
             for (f = d->surfaces; f; f = f->next) {
@@ -488,6 +496,17 @@ static void present(egl_display *d, egl_surface *surf, const screen_info *s,
             set_graphics_window(&all);
         }
         return;
+    }
+
+    /* A visible-area surface shown through a hardware overlay: the frame
+       is copied into it instead of being plotted (parts/overlay.c). If the
+       overlay was showing and now isn't, plot the whole surface. */
+    if (!surf->fixed) {
+        int was_shown = surf->ovl_shown;
+        if (ovl_update(d, surf, s, 1))
+            return;
+        if (was_shown)
+            nd = -1;
     }
 
     /* Update the part of the work area the surface covers (or each damaged

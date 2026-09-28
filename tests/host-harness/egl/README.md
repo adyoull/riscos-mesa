@@ -29,10 +29,11 @@ heap in one arena, and the tests run on a thread whose stack is at 1.5 GB.
     O=$M/build/src/mesa/drivers/osmesa; X=../../../dispmanx
     F="-no-pie -O1 -w -std=gnu99 -Ifake -I$X/include -I$X -I../../../egl/include -I$M/include"
     gcc $F -D__riscos__ -c harness_es.c $X/bcm_host.c
-    gcc $F harness.c fake_riscos.c ../../../egl/egl_riscos.c harness_es.o bcm_host.o \
+    gcc -no-pie -O1 -w -std=gnu99 -I../ovl/fake -I. -Ifake -c ../ovl/fake_ovl.c
+    gcc $F harness.c harness_ovl.c fake_riscos.c fake_ovl.o ../../../egl/egl_riscos.c harness_es.o bcm_host.o \
       -o harness -L$O -lOSMesa -lpthread -Wl,-rpath,$O && ./harness
 
-Expected: `347 checks, 0 failures: ALL PASS`.
+Expected: `401 checks, 0 failures: ALL PASS`.
 
 ## Running a port (docs/porting)
 

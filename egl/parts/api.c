@@ -227,6 +227,8 @@ static egl_surface *new_surface(egl_display *d, const egl_config *c, int kind)
     s->swap_interval = 1;
     s->handle = 0;
     s->n_damage = -1;
+    s->ovl_want = 1;            /* hardware overlay when possible (window surfaces) */
+    s->ovl_last = -1;
     return s;
 }
 
@@ -290,6 +292,11 @@ static EGLSurface create_window_surface(EGLDisplay dpy, EGLConfig config,
             if (s->handle != -1 || v < 0 || v == 1 || v > MAX_BANKS)
                 goto bad_attr;
             s->want_banks = v;
+            break;
+        case EGL_OVERLAY_RISCOS:
+            if (v != EGL_TRUE && v != EGL_FALSE)
+                goto bad_attr;
+            s->ovl_want = v == EGL_TRUE;
             break;
         case EGL_WORK_AREA_X_RISCOS:      s->wa_x = v; break;
         case EGL_WORK_AREA_Y_RISCOS:      s->wa_y = v; break;
@@ -475,6 +482,11 @@ static EGLBoolean query_surface(EGLDisplay dpy, EGLSurface surface, EGLint attri
         break;
     case EGL_SWAP_BEHAVIOR:    *value = s->swap_behavior; break;
     case EGL_SCREEN_BANKS_RISCOS: *value = s->banks; break;
+    case EGL_OVERLAY_RISCOS:
+        /* 0 not using one, 1 shown through it, 2 one exists but it's hidden
+           (something overlaps the window) */
+        *value = s->ovl_shown ? 1 : s->ovl_id ? 2 : 0;
+        break;
     case EGL_MULTISAMPLE_RESOLVE: *value = EGL_MULTISAMPLE_RESOLVE_DEFAULT; break;
     case EGL_HORIZONTAL_RESOLUTION:
     case EGL_VERTICAL_RESOLUTION:
@@ -581,6 +593,19 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSurfaceAttrib(EGLDisplay dpy, EGLSurface surfac
         }
         break;
     case EGL_MIPMAP_LEVEL:
+        break;
+    case EGL_OVERLAY_RISCOS:
+        /* a program's "hardware acceleration" setting, at any time */
+        if (value != EGL_TRUE && value != EGL_FALSE)
+            return fail(EGL_BAD_PARAMETER);
+        s->ovl_want = value == EGL_TRUE;
+        if (s->kind == SURF_WINDOW) {
+            screen_info scr;
+            read_screen(&scr);
+            if (s->ovl_want && s->ovl_state == OVL_FAILED)
+                s->ovl_state = OVL_OFF;         /* try again at the next swap */
+            ovl_update(d, s, &scr, 0);          /* off: hide it and plot the sprite */
+        }
         break;
     case EGL_MULTISAMPLE_RESOLVE:
         if (value != EGL_MULTISAMPLE_RESOLVE_DEFAULT)

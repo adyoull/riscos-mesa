@@ -459,7 +459,8 @@ static _kernel_oserror *swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
         r.r[0] = reason;
         break;
     }
-    case 0x400F2:   /* Wimp_ReadSysInfo 0: active tasks (0 = no desktop) */
+    case 0x400F2:   /* Wimp_ReadSysInfo 0: active tasks (0 = no desktop); 5: current task */
+        if (r.r[0] == 5) { r.r[0] = 0x4A00; break; }
         if (r.r[0] != 0) { e = error("ReadSysInfo reason not faked"); break; }
         r.r[0] = fake_wimp_desktop ? 1 + fake_wimp_tasks : 0;
         break;
@@ -474,7 +475,8 @@ static _kernel_oserror *swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
         block = (int *) (long) r.r[1];
         if (!(w = find_window(block[0]))) { e = error("Illegal window handle"); break; }
         block[1] = w->x0; block[2] = w->y0; block[3] = w->x1; block[4] = w->y1;
-        block[5] = w->sx; block[6] = w->sy; block[7] = fake_window_behind; block[8] = 1 << 16;
+        block[5] = w->sx; block[6] = w->sy; block[7] = w->handle == fake_window_behind ? -1 : fake_window_behind;
+        block[8] = 1 << 16;
         break;
     case 0x400C8:   /* Wimp_RedrawWindow */
         block = (int *) (long) r.r[1];
@@ -561,6 +563,7 @@ int _kernel_osbyte(int op, int x, int y)
     (void) y;
     int banks = fake_screen.da_size / (fake_screen.w * fake_screen.h * 4);
     if (op == 19) fake_vsyncs++;
+    if (op == 176) return (-fake_vsyncs) & 0xFF;        /* the vsync counter counts down */
     if (op == 106) { fake_pointer_shape = x; return 0; }
     if (op == 121) {                     /* keyboard scan / test one key */
         int k;

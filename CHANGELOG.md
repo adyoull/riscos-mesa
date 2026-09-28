@@ -6,18 +6,41 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-9 (in development)
 
-- **Hardware overlay tests (`ovltest`).** Before EGL window surfaces can
-  use the display hardware's overlays (the VideoOverlay module: free
-  scaling, no plot on each frame, switches at vsync), a Pi has to answer
-  some questions: which formats and sizes it offers, how fast overlay
-  memory is, whether cached writes show, whether buffers can stay mapped
-  across Wimp_Poll, whether switches tear, how scaling looks, how an
-  overlay copes with menus, other windows and mode changes, and whether
-  YV12 colours come out right. `ovltest` measures each (tests zip, Obey
-  files `ovl-*`; results go to `ovlresults`). Asked for by riscos-ffmpeg,
-  whose Reel player will use overlays for video. `tests/host-harness/ovl`
+- **EGL window surfaces use hardware overlays** (`EGL_RISCOS_overlay`).
+  When the VideoOverlay module is loaded, a window surface covering the
+  visible area is shown through a display overlay: `eglSwapBuffers`
+  copies the frame into an overlay buffer (three, else two) and the
+  hardware shows it at the next vsync, instead of plotting the sprite.
+  Automatic, with fallbacks to plotting for every problem (no module, no
+  overlay of that size, GPU memory short, any error). While a window or
+  menu overlaps the surface the overlay is hidden and the frame plotted
+  (the Pi's overlays sit on top of everything); `eglCheckOverlaysRISCOS`
+  does that check for a program that has stopped swapping (a paused
+  video). Opting out: `EGL_OVERLAY_RISCOS` = `EGL_FALSE` when creating
+  the surface or with `eglSurfaceAttrib` at any time (a "Hardware
+  acceleration" menu item), or `*Set EGL$Overlay off` for every program.
+  `eglQuerySurface(EGL_OVERLAY_RISCOS)` says whether it's in use. Only
+  once a program is animating (three swaps in a row, each within a
+  quarter of a second), so a window redrawn now and then is plotted as
+  before. freeglut and the ports' Wimp helper call
+  `eglCheckOverlaysRISCOS` while idle. Tested
+  on the host harness (about 50 new checks against a fake VideoOverlay);
+  **not yet tried on a Pi**: `egl-overlay` and `egl-no-overlay` in the
+  tests zip (egltest `-n`; keys H and P).
+- **Hardware overlay tests (`ovltest`).** Before EGL could use the
+  display hardware's overlays, a Pi had to answer some questions: which
+  formats and sizes it offers, how fast overlay memory is, whether cached
+  writes show, whether buffers can stay mapped across Wimp_Poll, whether
+  switches tear, how scaling looks, how an overlay copes with menus,
+  other windows and mode changes, and whether YV12 colours come out
+  right. `ovltest` measures each (tests zip, Obey files `ovl-*`; results
+  go to `ovlresults`). Asked for by riscos-ffmpeg, whose Reel player will
+  use overlays for video. Run on a Pi 4 (VideoOverlay 0.02): Vet doesn't
+  work there (probe with Create), overlay memory is uncached (fast to
+  write, very slow to read), switches take effect at vsync (three
+  buffers and a vsync wait don't tear), YV12 colours are right, and the
+  overlay stays on top of every window and menu. `tests/host-harness/ovl`
   runs it on the host against a fake VideoOverlay (in `run-all.sh`).
-  Nothing in EGL has changed yet; not yet run on a Pi.
 
 ## 20.3.5-8: EGL follows the Khronos rules, Cortex-A8/A9, a devkit guide
 

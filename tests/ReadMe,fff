@@ -188,6 +188,20 @@ Run in this order and note the output:
                    T = time a frame copy): is grey grey, and are red and
                    blue the right way round?
 
+      egl-overlay    EGL itself using an overlay (new in 20.3.5-9):
+                   egltest's spinning cube window, shown through a
+                   hardware overlay when VideoOverlay is loaded. The title
+                   ends "overlay", "overlay hidden" or "plotted". Please:
+                   open a menu over it and drag another window across it
+                   (it should say "overlay hidden" and still look right,
+                   then "overlay" again); resize it; change mode; click in
+                   it and press H (overlay off: "plotted"; H again: back),
+                   and P (pause: then drag a window over it and away, the
+                   paused frame should stay right). Close it: "egloverlay"
+                   has the present times with and without the overlay.
+        egl-no-overlay the same without the overlay (egltest -n), to
+                   compare the fps and present times
+
    l) More programs, in separate zips, each with its own ReadMe:
       riscos-mesa-hello_pi   the Raspberry Pi's hello_triangle,
                              hello_triangle2 and hello_teapot, rebuilt

@@ -85,7 +85,8 @@ egl_harness() {
     local F="-no-pie -O1 -w -std=gnu99 -Ifake -I$X/include -I$X -I$R/egl/include -I$M/include"
     gcc $F -D__riscos__ -c harness_es.c -o "$OUT/harness_es.o" &&
     gcc $F -D__riscos__ -c "$X/bcm_host.c" -o "$OUT/bcm_host.o" &&
-    gcc $F harness.c fake_riscos.c "$R/egl/egl_riscos.c" "$OUT/harness_es.o" "$OUT/bcm_host.o" \
+    gcc -no-pie -O1 -w -std=gnu99 -I"$H/ovl/fake" -I. -Ifake -c "$H/ovl/fake_ovl.c" -o "$OUT/fake_ovl.o" &&
+    gcc $F harness.c harness_ovl.c fake_riscos.c "$OUT/fake_ovl.o" "$R/egl/egl_riscos.c" "$OUT/harness_es.o" "$OUT/bcm_host.o" \
         -o "$OUT/egl-harness" -L"$O" -lOSMesa -lpthread -Wl,-rpath,"$O" &&
     "$OUT/egl-harness" | tee "$OUT/egl.out" | tail -1 && grep -q "ALL PASS" "$OUT/egl.out"
 }

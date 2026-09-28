@@ -1,0 +1,3 @@
+| riscos-mesa EGL test: the same window as egl-overlay, but plotted (no overlay).
+Dir <Obey$Dir>
+Run egltest -w -n -o eglnooverlay

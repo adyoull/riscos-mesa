@@ -22,6 +22,7 @@
 int failures, checks;
 void test_gles(EGLDisplay dpy);
 void test_dispmanx(EGLDisplay dpy);
+void test_overlay(EGLDisplay dpy);
 
 #define CHECK(cond, ...) do { checks++; if (!(cond)) { failures++; \
     printf("FAIL %s:%d: ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); } } while (0)
@@ -1498,6 +1499,7 @@ static void *run(void *arg)
     test_dispmanx(dpy);
     test_eig0();
     test_trgb_screen();
+    test_overlay(dpy);          /* last: hooks in the fake VideoOverlay */
     return NULL;
 }
 

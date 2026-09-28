@@ -20,10 +20,10 @@ This file is for people working on the library itself.
 
 | | |
 |---|---|
-| API | EGL 1.4, plus the extensions listed in the guide, `EGL_RISCOS_wimp_window` and `EGL_RISCOS_platform_wimp` |
+| API | EGL 1.4, plus the extensions listed in the guide, `EGL_RISCOS_wimp_window`, `EGL_RISCOS_platform_wimp` and `EGL_RISCOS_overlay` |
 | Client APIs | OpenGL 2.1 compatibility (GLSL 1.20); OpenGL ES 1.1 and 2.0 (GLSL ES 1.00), through riscos-mesa's OSMesa ES profile patch |
 | Configs | 8: RGBA 8888 with depth/stencil 0/0, 16/0, 24/0, 24/8, in each of the two RISC OS 32bpp colour orders |
-| Surfaces | Wimp window (visible area or a work area rectangle), the whole screen (sprite plot, direct, or screen banks), pbuffer, sprite pixmap; up to 4096x4096. Each surface owns its buffers, including depth and stencil (OSMesa buffers, `patches/mesa/*-riscos-osmesa-buffers.patch`) |
+| Surfaces | Wimp window (visible area or a work area rectangle), the whole screen (sprite plot, direct, or screen banks), pbuffer, sprite pixmap; up to 4096x4096. Visible-area window surfaces are shown through a hardware overlay (VideoOverlay) when there is one, falling back to plotting. Each surface owns its buffers, including depth and stencil (OSMesa buffers, `patches/mesa/*-riscos-osmesa-buffers.patch`) |
 | Threads | EGL 1.4's rules: per-thread error, API and current context (one per API); a recursive lock around every call |
 | Conformance | Checked with Khronos's dEQP-EGL tests on the host (`tests/host-harness/deqp`); not certified, so `EGL_CONFORMANT` is 0 |
 | Registration | The RISC OS extensions' enum values are provisional; `docs/khronos/` has the registration ready to submit |
@@ -38,6 +38,7 @@ which it `#include`s in this order:
 | `egl_riscos.c` | Headers, limits, the display/config/context/surface types, per-thread state and the lock (`ENTER()`), globals |
 | `parts/screen.c` | Screen mode and window state, plotting a frame (window, full screen, damage rectangles, DispmanX) |
 | `parts/buffers.c` | Surface buffers, screen banks, pixmap sprites |
+| `parts/overlay.c` | Window surfaces shown through a VideoOverlay overlay: creating it, copying frames in, hiding it under other windows, fallbacks |
 | `parts/validation.c` | Looking up and checking display, config, surface and context handles |
 | `parts/configs.c` | Building the configs, and matching and sorting them for `eglChooseConfig` |
 | `parts/current.c` | Binding contexts to surfaces: OSMesa buffers, the current context per thread and API, releasing |
@@ -57,8 +58,9 @@ After changing anything here, run `tests/run-all.sh` (see its header for
 the settings). The parts that exercise EGL are:
 
 - `tests/host-harness/egl`: the library against a host-built OSMesa and a
-  fake RISC OS (screen, Wimp, OS_SpriteOp), with over 300 checks of what
-  reaches the "screen";
+  fake RISC OS (screen, Wimp, OS_SpriteOp), with about 400 checks of what
+  reaches the "screen" (the overlay checks, `harness_ovl.c`, use the fake
+  VideoOverlay in `tests/host-harness/ovl/fake_ovl.c`);
 - `tests/host-harness/examples`: the devkit's examples, run on the same
   fake;
 - `tests/host-harness/glut`: freeglut's RISC OS back end, which uses EGL.

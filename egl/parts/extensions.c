@@ -531,10 +531,24 @@ EGLAPI EGLBoolean EGLAPIENTRY eglRedrawWindowRISCOS(EGLDisplay dpy, int *block)
             while (r.r[0]) { r.r[1] = (int) block; _kernel_swi(Wimp_GetRectangle, &r, &r); }
         return ok();
     }
+    ovl_check_all(d);                   /* overlays: something may cover them now */
     r.r[1] = (int) block;
     if (_kernel_swi(Wimp_RedrawWindow, &r, &r) != NULL)
         return fail(EGL_BAD_NATIVE_WINDOW);
     plot_loop(d, block[0], NULL, block, r.r[0]);
+    return ok();
+}
+
+/* EGL_RISCOS_overlay: a program that stops calling eglSwapBuffers (a
+   paused video) calls this on null events, so its overlays still hide
+   when a window or menu covers them and come back afterwards. */
+EGLAPI EGLBoolean EGLAPIENTRY eglCheckOverlaysRISCOS(EGLDisplay dpy)
+{
+    egl_display *d;
+    ENTER();
+    if (!(d = get_display(dpy, 1)))
+        return EGL_FALSE;
+    ovl_check_all(d);
     return ok();
 }
 
@@ -553,6 +567,10 @@ EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS(EGLDisplay dpy, EGLSurface su
     if (s->kind != SURF_WINDOW || s->handle < 0)
         return fail(EGL_BAD_SURFACE);
     read_screen(&scr);
+    if (s->ovl_shown) {
+        ovl_redraw_rectangle(s, (int *) block);   /* shown through its overlay */
+        return ok();
+    }
     {
         os_rect clip;
         clip.x0 = block[7]; clip.y0 = block[8]; clip.x1 = block[9]; clip.y1 = block[10];
@@ -589,7 +607,7 @@ static const struct {
     F(eglQueryDebugKHR), F(eglQuerySurface64KHR), F(eglSetDamageRegionKHR),
     F(eglSignalSyncKHR), F(eglSwapBuffersWithDamageEXT), F(eglSwapBuffersWithDamageKHR),
     F(eglUnlockSurfaceKHR), F(eglWaitSyncKHR),
-    F(eglRedrawWindowRISCOS), F(eglPlotSurfaceRISCOS),
+    F(eglRedrawWindowRISCOS), F(eglPlotSurfaceRISCOS), F(eglCheckOverlaysRISCOS),
 };
 #undef F
 

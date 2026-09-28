@@ -186,8 +186,9 @@ int main(void)
      * "wake me with a null event at this time, or sooner if something
      * happens". Asking for a frame every 2 centiseconds (50 a second)
      * leaves the rest of the time to other programs. (In a window,
-     * eglSwapBuffers never waits for vsync: waiting would freeze every
-     * other task, so the pacing is done here instead.) */
+     * eglSwapBuffers doesn't wait for vsync: waiting would freeze every
+     * other task, so the pacing is done here instead. Through a hardware
+     * overlay it waits at most until the next one.) */
     _kernel_swi(OS_ReadMonotonicTime, &r, &r);
     next_frame = r.r[0];
     while (running) {

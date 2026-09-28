@@ -21,6 +21,14 @@
  *                                (makes tearing easy to see).
  *   egltest -w -R                 as -r, but the second surface has its own
  *                                GL context.
+ *   egltest -w [-n]              the window is shown through a hardware overlay
+ *                                (EGL_RISCOS_overlay) when VideoOverlay is
+ *                                loaded; -n: not (EGL_OVERLAY_RISCOS false).
+ *                                Click in the window, then H switches the
+ *                                overlay off and on, P pauses (the paused
+ *                                frame stays; eglCheckOverlaysRISCOS on null
+ *                                events hides it under windows and menus).
+ *                                The title and summary show which is used.
  *   egltest -w -D                 damage demo: after the first frame only the
  *                                middle of the window is redrawn and shown
  *                                (EGL_EXT_buffer_age and
@@ -540,9 +548,23 @@ static void app_plot_copy(int handle, EGLSurface fx)
     }
 }
 
+static int no_overlay;                                        /* -n */
+
+/* EGL_OVERLAY_RISCOS: 0 plotted, 1 shown through the overlay, 2 hidden */
+static int overlay_state(EGLSurface s)
+{
+    EGLint v = 0;
+    eglQuerySurface(dpy, s, EGL_OVERLAY_RISCOS, &v);
+    return v;
+}
+
 static int run_window(int second, double limit)
 {
-    static char title[96] = "egltest";
+    static char title[128] = "egltest";
+    static const char *const ovl_names[] = { "plotted", "overlay", "overlay hidden" };
+    double ovl_present[3] = { 0, 0, 0 };
+    long ovl_frames[3] = { 0, 0, 0 };
+    int ovl_want = !no_overlay, paused = 0, toggles = 0, ovl_now = 0, ovl_changes = 0;
     int wb[23], block[64], handle;
     _kernel_swi_regs r;
     EGLConfig cfg;
@@ -570,7 +592,7 @@ static int run_window(int second, double limit)
     wb[9] = 3 | (1 << 8) | (12 << 16);
     wb[10] = 0; wb[11] = -2400; wb[12] = 3840; wb[13] = 0;
     wb[14] = 0x07000119;                    /* title: text, centred, indirected */
-    wb[15] = 0;
+    wb[15] = 3 << 12;                       /* clicks (to give it the caret: H, P keys) */
     wb[16] = 1;
     wb[17] = 0;
     wb[18] = (int) title; wb[19] = -1; wb[20] = sizeof title;
@@ -585,8 +607,10 @@ static int run_window(int second, double limit)
 
     cfg = pick_config(EGL_WINDOW_BIT, 16);
     ctx = cfg ? eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL) : EGL_NO_CONTEXT;
-    if (!fx_first) {
-        ws = cfg ? eglCreateWindowSurface(dpy, cfg, handle, NULL) : EGL_NO_SURFACE;
+    {
+        EGLint oa[] = { EGL_OVERLAY_RISCOS, EGL_FALSE, EGL_NONE };
+        if (!fx_first)
+            ws = cfg ? eglCreateWindowSurface(dpy, cfg, handle, no_overlay ? oa : NULL) : EGL_NO_SURFACE;
     }
     fx_ctx = ctx;
     if (second == 2 && ctx != EGL_NO_CONTEXT)
@@ -613,6 +637,14 @@ static int run_window(int second, double limit)
     }
     say("GL_RENDERER %s, GL_VERSION %s\n", (const char *) glGetString(GL_RENDERER),
         (const char *) glGetString(GL_VERSION));
+    {
+        _kernel_swi_regs m;
+        m.r[1] = (int) "VideoOverlay_Create";
+        say("EGL_RISCOS_overlay %s; VideoOverlay %s; overlay %s\n",
+            strstr(eglQueryString(dpy, EGL_EXTENSIONS), "EGL_RISCOS_overlay") ? "listed" : "NOT listed",
+            _kernel_swi(OS_SWINumberFromString, &m, &m) == NULL ? "loaded" : "not loaded",
+            no_overlay ? "off (-n)" : "wanted");
+    }
 
     tstart = last_title = hr_seconds();
     while (!quit) {
@@ -621,6 +653,18 @@ static int run_window(int second, double limit)
         if (_kernel_swi(Wimp_Poll, &r, &r) != NULL) break;
         switch (r.r[0]) {
         case 0:                             /* null: draw a frame */
+            if (paused) {                   /* a paused video: keep the overlay right */
+                eglCheckOverlaysRISCOS(dpy);
+                if (overlay_state(ws) != ovl_now) {
+                    ovl_now = overlay_state(ws);
+                    ovl_changes++;
+                    snprintf(title, sizeof title, "egltest paused  %s", ovl_names[ovl_now]);
+                    r.r[0] = handle; r.r[1] = TASK; r.r[2] = 3;
+                    _kernel_swi(Wimp_ForceRedraw, &r, &r);
+                }
+                if (limit > 0 && hr_seconds() - tstart >= limit) quit = 1;
+                break;
+            }
             eglQuerySurface(dpy, ws, EGL_WIDTH, &w);
             eglQuerySurface(dpy, ws, EGL_HEIGHT, &h);
             t0 = hr_seconds();
@@ -675,15 +719,22 @@ static int run_window(int second, double limit)
             }
             wheel_zoom(handle, second);
             t2 = hr_seconds();
+            {
+                int st = overlay_state(ws);
+                if (st != ovl_now) ovl_changes++;
+                ovl_now = st;
+                ovl_present[st] += t2 - t1;
+                ovl_frames[st]++;
+            }
             render += t1 - t0;
             present += t2 - t1;
             frames++;
             title_frames++;
             a += 2;
             if (t2 - last_title >= 1.0) {
-                snprintf(title, sizeof title, "egltest %dx%d  %.1f fps  render %.1f ms  present %.1f ms",
+                snprintf(title, sizeof title, "egltest %dx%d  %.1f fps  render %.1f ms  present %.1f ms  %s",
                          w, h, title_frames / (t2 - last_title),
-                         1000 * render / frames, 1000 * present / frames);
+                         1000 * render / frames, 1000 * present / frames, ovl_names[ovl_now]);
                 r.r[0] = handle; r.r[1] = TASK; r.r[2] = 3;    /* redraw title bar */
                 _kernel_swi(Wimp_ForceRedraw, &r, &r);
                 title_frames = 0;
@@ -705,6 +756,30 @@ static int run_window(int second, double limit)
         case 3:                             /* close */
             quit = 1;
             break;
+        case 6:                             /* click: take the caret for H and P */
+            r.r[0] = handle; r.r[1] = -1; r.r[2] = 0; r.r[3] = 0;
+            r.r[4] = (1 << 25) | 40; r.r[5] = -1;          /* invisible */
+            _kernel_swi(Wimp_SetCaretPosition, &r, &r);
+            break;
+        case 8:                             /* key */
+            if (block[6] == 'h' || block[6] == 'H') {
+                ovl_want = !ovl_want;
+                toggles++;
+                eglSurfaceAttrib(dpy, ws, EGL_OVERLAY_RISCOS, ovl_want ? EGL_TRUE : EGL_FALSE);
+                say("H: overlay %s\n", ovl_want ? "on" : "off");
+            } else if (block[6] == 'p' || block[6] == 'P') {
+                paused = !paused;
+                say("P: %s\n", paused ? "paused" : "running");
+                if (paused) {
+                    snprintf(title, sizeof title, "egltest paused  %s", ovl_names[overlay_state(ws)]);
+                    r.r[0] = handle; r.r[1] = TASK; r.r[2] = 3;
+                    _kernel_swi(Wimp_ForceRedraw, &r, &r);
+                }
+            } else {
+                r.r[0] = block[6];
+                _kernel_swi(Wimp_ProcessKey, &r, &r);
+            }
+            break;
         case 17: case 18:
             if (block[4] == 0) quit = 1;    /* Message_Quit */
             break;
@@ -712,9 +787,15 @@ static int run_window(int second, double limit)
     }
     {
         double t = hr_seconds() - tstart;
+        int i;
         say("window %dx%d: %ld frames in %.1f s = %.1f fps; render %.2f ms, present %.2f ms per frame%s\n",
             w, h, frames, t, frames / (t > 0 ? t : 1), frames ? 1000 * render / frames : 0,
             frames ? 1000 * present / frames : 0, fx != EGL_NO_SURFACE ? " (incl. the second surface)" : "");
+        for (i = 0; i < 3; i++)
+            if (ovl_frames[i])
+                say("  %s: %ld frames, present %.2f ms per frame\n", ovl_names[i], ovl_frames[i],
+                    1000 * ovl_present[i] / ovl_frames[i]);
+        say("overlay state changes %d, H pressed %d times\n", ovl_changes, toggles);
         if (fx != EGL_NO_SURFACE)
             say("second surface: %d errors%s (last EGL error 0x%04x)\n", fx_errors,
                 fx_errors ? " - it wasn't drawn" : "", fx_last_error);
@@ -836,6 +917,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-A")) fx_appcopy = 1;
         else if (!strcmp(argv[i], "-O")) fx_first = 1;
         else if (!strcmp(argv[i], "-D")) damage_demo = 1;
+        else if (!strcmp(argv[i], "-n")) no_overlay = 1;
         else if (!strcmp(argv[i], "-F") && i + 1 < argc)
             sscanf(argv[++i], "%d,%d,%d,%d", &fx_x, &fx_y, &fx_w, &fx_h);
         else if (!strcmp(argv[i], "-d")) direct = 1;
@@ -847,7 +929,7 @@ int main(int argc, char **argv)
             outf = fopen(argv[++i], "w");
             if (!outf) printf("can't write %s\n", argv[i]);
         } else {
-            printf("usage: egltest [-o file] | -w [-r|-R] [-D] [-t secs] [-o file] | "
+            printf("usage: egltest [-o file] | -w [-r|-R] [-D] [-n] [-t secs] [-o file] | "
                    "-f [-d] [-b n] [-v n] [-p] [-t secs] [-o file]\n");
             return 1;
         }

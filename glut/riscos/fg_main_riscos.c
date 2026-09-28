@@ -52,6 +52,10 @@
 #include "../fg_internal.h"
 
 EGLAPI EGLBoolean EGLAPIENTRY eglRedrawWindowRISCOS( EGLDisplay dpy, int *block );
+EGLAPI EGLBoolean EGLAPIENTRY eglCheckOverlaysRISCOS( EGLDisplay dpy );
+#ifndef EGL_OVERLAY_RISCOS
+#define EGL_OVERLAY_RISCOS      0x3FF6
+#endif
 
 #define Wimp_Poll_              0x400C7
 #define Wimp_PollIdle_          0x400E1
@@ -780,15 +784,39 @@ void fgPlatformProcessSingleEvent( void )
             fghPresentDirty( window );
 }
 
+/*
+ * Is a window shown through a hardware overlay (EGL_RISCOS_overlay)? The
+ * overlay covers menus and windows opened over it unless EGL is told to
+ * look (eglCheckOverlaysRISCOS): a program that isn't redrawing has to
+ * wake up for that a few times a second.
+ */
+static int fghOverlaysInUse( void )
+{
+    SFG_Window *window;
+    EGLint v;
+    for( window = (SFG_Window *) fgStructure.Windows.First; window;
+         window = (SFG_Window *) window->Node.Next )
+        if( !window->IsMenu && window->Window.pContext.Surface != EGL_NO_SURFACE &&
+            eglQuerySurface( fgDisplay.pDisplay.Display, window->Window.pContext.Surface,
+                             EGL_OVERLAY_RISCOS, &v ) && v != 0 )
+            return 1;
+    return 0;
+}
+
+#define OVERLAY_CHECK_MS        100
+
 void fgPlatformSleepForEvents( fg_time_t msec )
 {
-    int mask = 0;
+    int mask = 0, overlays;
     _kernel_swi_regs r;
 
     if( fghPendingReason >= 0 )
         return;
     if( fghWatching( ) && msec > FAST_POLL_MS )
         msec = FAST_POLL_MS;
+    overlays = fghOverlaysInUse( );
+    if( overlays && msec > OVERLAY_CHECK_MS )
+        msec = OVERLAY_CHECK_MS;
 
     r.r[1] = (int) fghPendingBlock;
     if( msec >= INT_MAX / 2 )
@@ -809,6 +837,8 @@ void fgPlatformSleepForEvents( fg_time_t msec )
     }
     if( r.r[0] != 0 )
         fghPendingReason = r.r[0];
+    if( overlays )
+        eglCheckOverlaysRISCOS( fgDisplay.pDisplay.Display );
 }
 
 void fgPlatformMainLoopPreliminaryWork( void )

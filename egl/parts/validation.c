@@ -65,6 +65,7 @@ static void unlink_surface(egl_display *d, egl_surface *surf)
             *p = surf->next;
             break;
         }
+    ovl_destroy(surf);
     free_buffers(surf);
     OSMesaDestroyBuffer(surf->buf);
     surf->magic = 0;
