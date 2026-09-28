@@ -1277,8 +1277,8 @@ static void t_desk(void)
     say("   window across it, 3 move this window partly off the screen,");
     say(" 4 iconise it (Shift+close) and back, 5 change mode (*WimpMode or");
     say("   Display manager) and back. Note what you see. Q = done.");
-    say(" H hides the overlay (and shows it again): does dragging a window");
-    say("   over this one still bring this one to the front when it's hidden?");
+    say(" H hides the overlay (and shows it again). F freezes it: still shown,");
+    say("   but no new frames (no DisplayBuffer). Can a window cover it then?");
     open_window(640, 360);
     describe_mode();
     if ((e = sweep_create_most(&desk, 1920, 1080)) != NULL) { say("Create: %s", err_text(e)); return; }
@@ -1286,7 +1286,7 @@ static void t_desk(void)
     attach(&desk.o);
     on_mode_change = desk_mode_change;
     {
-    int hidden = 0, last_behind, last_opens = open_requests, raised = 0, n = 0;
+    int hidden = 0, frozen = 0, last_behind, last_opens = open_requests, raised = 0, n = 0;
     read_state();
     last_behind = behind;
     while (!quit_request) {
@@ -1311,7 +1311,11 @@ static void t_desk(void)
             if (hidden && desk.o.id) ovl_call2(OV_DISPLAY, desk.o.id, -1);
             say(hidden ? "Overlay hidden (DisplayBuffer -1)." : "Overlay shown again.");
         }
-        if (!hidden && !desk_lost && desk.o.id && !desk.failed) sweep_frame(&desk, 1);
+        if (k == 'f') {
+            frozen = !frozen;
+            say(frozen ? "Frozen: the overlay stays shown, no more DisplayBuffer calls." : "Running again.");
+        }
+        if (!hidden && !frozen && !desk_lost && desk.o.id && !desk.failed) sweep_frame(&desk, 1);
         else if (desk.failed && !desk_lost) {
             say("A buffer failed: the overlay is stopped (see above).");
             desk_lost = 1;
