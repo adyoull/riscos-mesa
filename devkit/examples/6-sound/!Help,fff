@@ -1,0 +1,16 @@
+!Tune
+=====
+
+Example 6: plays three notes, left, middle and right, through OpenAL. No window; it takes about two seconds.
+
+Built from sound.c in the riscos-mesa devkit's examples folder; read the
+comments in that file to see how it works.
+
+Needs: RISC OS 5, an ARMv7 or later processor (Raspberry Pi 2, 3 or 4,
+or a Cortex-A8/A9/A15 board), and SharedUnixLibrary and ARMEABISupport
+from PackMan. For sound: SharedSoundBuffer and StreamManager (ssb.zip from
+the RDPClient site, orac.co.uk), or else DigitalRenderer.
+
+Licence: MIT (see LICENCES.txt in the devkit). Mesa, UnixLib and the
+other parts linked into the program have their own licences, listed in
+the same file.

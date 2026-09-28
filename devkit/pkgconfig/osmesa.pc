@@ -1,0 +1,12 @@
+# riscos-mesa devkit. The paths are worked out from where this file is,
+# so the devkit works wherever you unpack it. Everything is linked
+# statically, so Libs lists every library needed, in order.
+prefix=${pcfiledir}/../..
+includedir=${prefix}/include
+libdir=${prefix}/lib
+
+Name: Mesa OSMesa
+Description: OpenGL 2.1, OpenGL ES 1.1 and 2.0 rendered in software (Mesa 20.3.5)
+Version: 20.3.5
+Libs: -L${libdir} -lOSMesa -lstdc++ -lz -lm
+Cflags: -I${includedir}

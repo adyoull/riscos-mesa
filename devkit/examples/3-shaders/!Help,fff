@@ -1,0 +1,15 @@
+!GLShaders
+==========
+
+Example 3: the spinning triangle drawn with OpenGL ES 2.0 shaders, in a desktop window.
+
+Built from shaders.c in the riscos-mesa devkit's examples folder; read the
+comments in that file to see how it works.
+
+Needs: RISC OS 5, an ARMv7 or later processor (Raspberry Pi 2, 3 or 4,
+or a Cortex-A8/A9/A15 board), and SharedUnixLibrary and ARMEABISupport
+from PackMan.
+
+Licence: MIT (see LICENCES.txt in the devkit). Mesa, UnixLib and the
+other parts linked into the program have their own licences, listed in
+the same file.

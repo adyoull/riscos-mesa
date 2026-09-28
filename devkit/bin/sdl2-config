@@ -1,0 +1,19 @@
+#!/bin/sh
+# sdl2-config for the riscos-mesa devkit. Many SDL programs' build scripts
+# run "sdl2-config --cflags --libs" to find SDL; this one answers for the
+# devkit, wherever it's unpacked. Put this bin folder on your PATH.
+prefix=$(cd "$(dirname "$0")/.." && pwd)
+usage="Usage: sdl2-config [--prefix] [--exec-prefix] [--version] [--cflags] [--libs] [--static-libs]"
+[ $# -eq 0 ] && { echo "$usage" >&2; exit 1; }
+out=""
+for arg in "$@"; do
+  case $arg in
+    --prefix|--exec-prefix) out="$out $prefix" ;;
+    --prefix=*|--exec-prefix=*) ;;       # ignored: the devkit knows where it is
+    --version) out="$out 2.26.0" ;;
+    --cflags) out="$out -I$prefix/include/SDL2 -I$prefix/include -D_REENTRANT" ;;
+    --libs|--static-libs) out="$out -L$prefix/lib -lSDL2 -lGLU -lOSMesa -lstdc++ -lz -lm" ;;
+    *) echo "$usage" >&2; exit 1 ;;
+  esac
+done
+echo $out

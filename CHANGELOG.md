@@ -56,6 +56,23 @@ a Pi yet.
   `tests/run-all.sh` ARM=1 now runs on an emulated Cortex-A8. Not yet
   tried on a real A8/A9 board. Build directories now start afresh when the
   FPU setting changes.
+- **The devkit is easier to start with.** It now includes a beginner's
+  guide (`README.md`, also as `ReadMe` for RISC OS): what each part is
+  for, a first program in ten minutes, which API to choose, every build
+  flag and why it's there, how a RISC OS application is put together, and
+  the usual pitfalls. Six small, heavily commented example programs come
+  with it (EGL full screen, EGL in a desktop window, OpenGL ES 2.0
+  shaders, SDL2, GLUT, OpenAL), with a Makefile that builds each into a
+  ready-to-run application and a zip that keeps RISC OS filetypes, plus
+  `sdl2-config` and pkg-config files that work wherever the devkit is
+  unpacked. `tests/run-all.sh` runs the examples on the host harness and
+  checks what they draw and play.
+- **GLUT: programs with a menu drew nothing after their first frame**
+  when they set the viewport only in their reshape callback. A GLUT menu
+  is a window to freeglut; on RISC OS it's a Wimp menu with no GL
+  context, and freeglut's default reshape ran for it with size 0x0 on
+  the program's context (`glViewport(0, 0, 0, 0)`). Fixed in
+  `glut/riscos/fg_main_riscos.c`; found by the new teapot example.
 - **Docs:** the EGL guide, `egl/README.md` and the porting guide describe
   the new rules; the swap interval in desktop windows (accepted, doesn't
   wait, so other tasks keep running) is now documented as a deliberate

@@ -1,0 +1,15 @@
+| !Run for !GLFull, example 1 of the riscos-mesa devkit.
+| Lines starting with | are comments.
+|
+| The program is a static ELF file (everything it needs is inside it),
+| but it relies on two modules that RISC OS loads from !System: UnixLib's
+| SharedUnixLibrary and ARMEABISupport (both from PackMan). RMEnsure
+| loads each one if it isn't already running, and stops with a clear
+| message if it can't be found, rather than letting the program crash.
+Set GLFull$Dir <Obey$Dir>
+RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
+RMEnsure SharedUnixLibrary 1.16 Error !GLFull needs SharedUnixLibrary 1.16 or later (from PackMan)
+RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
+RMEnsure ARMEABISupport 0.00 Error !GLFull needs ARMEABISupport (from PackMan)
+| Start the program. Always "Run" it by its full path.
+Run <GLFull$Dir>.!RunImage

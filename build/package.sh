@@ -48,11 +48,23 @@ if [ -d "$STAGE/ports/freeglut" ]; then
   ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-glut-$V.zip" riscos-mesa-glut )
   rm -rf "$TMP"
 fi
-( cd "$STAGE/.." && tar czf "$HERE/dist/riscos-mesa-devkit-$V.tgz" \
-    --transform "s#^stage#riscos-mesa-devkit-$V#" stage/lib/libOSMesa.a stage/lib/libGLU.a \
-    stage/lib/libSDL2.a stage/lib/libSDL2main.a stage/lib/libz.a stage/lib/libEGL.a \
-    stage/lib/libbcm_host.a stage/lib/libGLESv2.a stage/lib/libGLESv1_CM.a stage/lib/libvcos.a \
-    stage/lib/libvchiq_arm.a stage/lib/libglut.a stage/lib/libfreeglut-gles.a stage/lib/libopenal.a \
-    stage/include \
-    --transform "s#^LICENCES.txt#riscos-mesa-devkit-$V/LICENCES.txt#" -C "$HERE" LICENCES.txt )
+# The devkit: libraries and headers, plus the beginner's guide, the
+# examples (devkit/examples), sdl2-config, pkg-config files and mkrozip.
+TMP=$(mktemp -d); K=$TMP/riscos-mesa-devkit-$V
+mkdir -p "$K/lib/pkgconfig" "$K/bin"
+for l in libOSMesa libGLU libSDL2 libSDL2main libz libEGL libbcm_host libGLESv2 libGLESv1_CM \
+         libvcos libvchiq_arm libglut libfreeglut-gles libopenal; do
+  cp "$STAGE/lib/$l.a" "$K/lib/"
+done
+cp -r "$STAGE/include" "$K/include"
+cp "$HERE/LICENCES.txt" "$HERE/devkit/README.md" "$K/"
+cp "$HERE/devkit/README.md" "$K/ReadMe,fff"            # the same guide, for RISC OS
+cp "$HERE/devkit/pkgconfig/"*.pc "$K/lib/pkgconfig/"
+cp "$HERE/devkit/bin/sdl2-config" "$HERE/devkit/bin/mkrozip.py" "$K/bin/"
+cp -r "$HERE/devkit/examples" "$K/examples"
+rm -rf "$K/examples/build"
+echo "riscos-mesa devkit $V" > "$K/VERSION"
+rm -f "$HERE/dist/riscos-mesa-devkit-$V.tgz"
+( cd "$TMP" && tar czf "$HERE/dist/riscos-mesa-devkit-$V.tgz" "riscos-mesa-devkit-$V" )
+rm -rf "$TMP"
 ls -la "$HERE/dist"

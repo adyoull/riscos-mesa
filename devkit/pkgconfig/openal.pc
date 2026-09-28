@@ -1,0 +1,12 @@
+# riscos-mesa devkit. The paths are worked out from where this file is,
+# so the devkit works wherever you unpack it. Everything is linked
+# statically, so Libs lists every library needed, in order.
+prefix=${pcfiledir}/../..
+includedir=${prefix}/include
+libdir=${prefix}/lib
+
+Name: OpenAL
+Description: OpenAL Soft 1.19.1, playing through SDL2
+Version: 1.19.1
+Libs: -L${libdir} -lopenal -lSDL2 -lOSMesa -lstdc++ -lz -lm
+Cflags: -I${includedir} -I${includedir}/AL -DAL_LIBTYPE_STATIC

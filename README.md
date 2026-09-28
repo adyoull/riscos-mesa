@@ -86,7 +86,7 @@ The GitHub [Releases](../../releases) page has, for each release:
 
 | File | Contents |
 | --- | --- |
-| `riscos-mesa-devkit-VERSION.tgz` | the static libraries, headers and `LICENCES.txt`, for building your own programs |
+| `riscos-mesa-devkit-VERSION.tgz` | everything for building your own programs: the static libraries and headers, a beginner's guide, six commented example programs with a Makefile, `sdl2-config`, pkg-config files and `LICENCES.txt` |
 | `riscos-mesa-tests-VERSION.zip` | the test programs and their Obey files, with a ReadMe |
 | `riscos-mesa-hello_pi-VERSION.zip` | the Raspberry Pi's `hello_triangle`, `hello_triangle2` and `hello_teapot`, rebuilt |
 | `riscos-mesa-ports-VERSION.zip` | Mesa's EGL demos (gears, torus, ...) and SDL's GL test programs, in desktop windows, and SDL's loopwave sound test |
@@ -146,6 +146,10 @@ python3-mako, bison, flex, autoconf, automake, libtool and cmake.
 
 ## Using it from another port
 
+- **New to this?** Start with the devkit's beginner's guide,
+  [devkit/README.md](devkit/README.md), and its example programs in
+  [devkit/examples](devkit/examples): from an empty folder to a running
+  RISC OS application, with the reasons for every step.
 - **Stack probes:** compile your own code with `-fstack-clash-protection`
   too (see `build/env.sh` for the full flags). Large stack frames can
   otherwise crash on RISC OS, and `tools/check-stack-probes.py yourprog`

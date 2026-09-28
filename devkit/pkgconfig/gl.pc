@@ -1,0 +1,12 @@
+# riscos-mesa devkit. The paths are worked out from where this file is,
+# so the devkit works wherever you unpack it. Everything is linked
+# statically, so Libs lists every library needed, in order.
+prefix=${pcfiledir}/../..
+includedir=${prefix}/include
+libdir=${prefix}/lib
+
+Name: GL
+Description: OpenGL 2.1 (Mesa OSMesa); use together with egl, sdl2 or glut to get a window
+Version: 20.3.5
+Libs: -L${libdir} -lOSMesa -lstdc++ -lz -lm
+Cflags: -I${includedir}

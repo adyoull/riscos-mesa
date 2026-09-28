@@ -817,6 +817,12 @@ void fgPlatformMainLoopPreliminaryWork( void )
 
 void fgPlatformInitWork( SFG_Window* window )
 {
+    /* GLUT menus are Wimp menus here: their SFG_Window has no surface and
+       no context of its own. Reshaping one would run the default reshape
+       (glViewport(0, 0, 0, 0)) on whatever context is current - the
+       program's window, whose drawing then vanished. */
+    if( window->IsMenu )
+        return;
     /* The first display is next: tell the program where the window is and
        how big (GLUT calls these before the first display callback). */
     fghOnPositionNotify( window, window->State.Xpos, window->State.Ypos, GL_TRUE );
