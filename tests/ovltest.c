@@ -92,6 +92,7 @@ static const char *err_text(_kernel_oserror *e)
    milliseconds, so the scripted runs don't depend on the host's speed.
    Measurements always use hr_seconds(). */
 static int virtual_ms, polls;
+static int start_autohide;      /* "ovltest desk auto": T7 starts with auto-hide on */
 static double now_ms(void)
 {
     if (virtual_ms) return (double) polls * virtual_ms;
@@ -1321,11 +1322,12 @@ static void t_desk(void)
     {
     static const char *auto_names[3] = { "off", "when any window is in front",
                                          "when a window or menu overlaps the picture" };
-    int autohide = 0, auto_hidden = 0, auto_switches = 0, in_front;
+    int autohide = start_autohide, auto_hidden = 0, auto_switches = 0, in_front;
     double hidden_ms = 0, t_hide = 0;
     int hidden = 0, frozen = 0, last_behind, last_opens = open_requests, raised = 0, n = 0;
     read_state();
     last_behind = behind;
+    if (autohide) say("Auto-hide is on: %s. A changes it.", auto_names[autohide]);
     while (!quit_request) {
         /* Who raises this window? Look at its place in the window stack
            every few polls: a change with no Open_Window_Request between
@@ -1528,6 +1530,7 @@ int main(int argc, char **argv)
         return 1;
     }
     if ((v = getenv("OVLTEST_VIRTUAL_MS")) != NULL) virtual_ms = atoi(v);
+    if (argc > 2 && strcmp(argv[2], "auto") == 0) start_autohide = 2;
     logfile = fopen("ovlresults", "a");
     snprintf(title, sizeof title, "ovltest: %s", tests[t].what);
     r.r[0] = 380; r.r[1] = 0x4B534154; r.r[2] = (int) title; r.r[3] = (int) messages;

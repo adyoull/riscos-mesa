@@ -100,6 +100,13 @@ expect "auto-hide: hides and shows again, twice" test "$(grep -c 'Auto-hide: hid
 expect "auto-hide: shown again each time"      test "$(grep -c 'Auto-hide: shown again' desk.results)" = 2
 expect "auto-hide: runs cleanly"               clean desk
 
+# "ovltest desk auto" (ovl-desk-auto): auto-hide on from the start
+rm -f ovlresults
+env OVLTEST_VIRTUAL_MS=20 KEYS=n20,B,n10,B,n10,q,n20 ./ovltest desk auto > deskauto.out 2>&1 || true
+cp ovlresults deskauto.results
+expect "desk auto: starts with auto-hide on"   grep -q "Auto-hide is on: when a window or menu overlaps" deskauto.results
+expect "desk auto: hides and shows"            grep -q "Auto-hide: shown again" deskauto.results
+
 run vet n20 FAKE_OVL_MISSING=1
 expect "no VideoOverlay: says so and quits"    grep -q "VideoOverlay isn't loaded" vet.results
 

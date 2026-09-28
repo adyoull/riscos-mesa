@@ -179,7 +179,11 @@ Run in this order and note the output:
                    dragged across, partly off-screen, iconised, and a mode
                    change; note what you see. Also try it in an alpha
                    desktop mode (framebuffer_ignore_alpha=0 in config.txt,
-                   then an LARGB mode)
+                   then an LARGB mode). Keys: H hide, F freeze,
+                   A auto-hide (off / any window in front / only an
+                   overlapping window or menu)
+        ovl-desk-auto  T7 with auto-hide on from the start: the overlay
+                   hides while a window or menu overlaps it
         ovl-yuv    T8 YV12 colour bars (V = next colour space, C = crop,
                    T = time a frame copy): is grey grey, and are red and
                    blue the right way round?

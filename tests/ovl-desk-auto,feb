@@ -1,0 +1,7 @@
+| riscos-mesa VideoOverlay test T7 with auto-hide: the overlay hides itself
+| whenever a window or menu overlaps it, and comes back when nothing does.
+| Drag other windows across it and open menus over it. Results go to
+| "ovlresults".
+Dir <Obey$Dir>
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+Run ovltest desk auto
