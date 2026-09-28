@@ -49,6 +49,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <pthread.h>
 
 #define EGL_EGLEXT_PROTOTYPES 1
@@ -182,7 +183,7 @@ typedef struct egl_surface {
     int sprite_mode;            /* mode word / selector used to make it */
     int sprite_h;               /* rows in the sprite: > h when padded (see MIN_SPRITE_BYTES) */
     /* hardware overlay (parts/overlay.c) */
-    int ovl_want;               /* EGL_OVERLAY_RISCOS: 1 = use one when possible */
+    int ovl_want;               /* EGL_OVERLAY_RISCOS: 1 program asked, 0 program refused, -1 unset (EGL$Overlay decides) */
     int ovl_state;              /* OVL_OFF, OVL_ON, OVL_FAILED */
     int ovl_id, ovl_type;       /* VideoOverlay ID (0 = none); 0 Z-Order, 1 Basic */
     int ovl_banks, ovl_next, ovl_last;  /* buffers; next to write; last shown (-1 none) */

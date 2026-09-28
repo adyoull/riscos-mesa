@@ -103,7 +103,10 @@ void test_overlay(EGLDisplay d)
     /* Window 0x5000: 100x80 pixels, top left pixel (100, 250) */
     fake_open_window(0x5000, 200, 300, 400, 460, 0, 0);
     fake_window_behind = -1;
-    ws = eglCreateWindowSurface(dpy, cfg, 0x5000, NULL);
+    {
+        EGLint on[] = { EGL_OVERLAY_RISCOS, EGL_TRUE, EGL_NONE };  /* opt-in */
+        ws = eglCreateWindowSurface(dpy, cfg, 0x5000, on);
+    }
     CHECK(ws != EGL_NO_SURFACE && eglMakeCurrent(dpy, ws, ws, ctx), "window surface");
     CHECK(query(ws) == 0, "no overlay before the first swap");
 
@@ -191,6 +194,23 @@ void test_overlay(EGLDisplay d)
     fake_open_window(0x5001, 800, 100, 1000, 200, 0, 0);
     eglCheckOverlaysRISCOS(dpy);
     CHECK(shown() >= 0 && query(ws) == 1, "check: uncovered, shown again");
+
+    /* paused (no swap for 40 cs): the check goes back to plotting, keeps
+       the overlay, and the next swap shows through it at once */
+    fake_window_behind = -1;
+    fake_open_window(0x5001, 800, 100, 1000, 200, 0, 0);
+    n = fake_ovl_creates;
+    b = fake_update_calls;
+    wipe();
+    fake_wimp_polls += 20;
+    eglCheckOverlaysRISCOS(dpy);
+    CHECK(shown() == -1 && query(ws) == 2 && fake_update_calls == b + 1 && box_is(100, 250, 100, 80, BLUE),
+          "paused: overlay hidden, last frame plotted (%d, %d)", shown(), query(ws));
+    eglCheckOverlaysRISCOS(dpy);
+    CHECK(shown() == -1 && fake_update_calls == b + 1, "paused: stays plotted, no more work");
+    eglSwapBuffers(dpy, ws);
+    CHECK(shown() >= 0 && query(ws) == 1 && fake_ovl_creates == n, "resumed: shown at once, same overlay");
+    fake_window_behind = 0x5001;
     fake_window_behind = -1;
 
     /* redraw requests: VideoOverlay_RedrawWindow instead of a plot */
@@ -299,7 +319,10 @@ void test_overlay(EGLDisplay d)
         CHECK(fake_ovl_live() == 1 && query(s2) == 0, "created with EGL_FALSE: no overlay");
         eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         eglDestroySurface(dpy, s2);
-        s2 = eglCreateWindowSurface(dpy, trgb, 0x5002, NULL);
+        {
+            EGLint on[] = { EGL_OVERLAY_RISCOS, EGL_TRUE, EGL_NONE };
+            s2 = eglCreateWindowSurface(dpy, trgb, 0x5002, on);
+        }
         eglMakeCurrent(dpy, s2, s2, c2);
         clear(1, 0, 0);
         eglSwapBuffers(dpy, s2);
@@ -331,6 +354,34 @@ void test_overlay(EGLDisplay d)
     CHECK(query(ws) == 1 && shown() >= 0, "Z-Order: stays shown when covered");
     fake_window_behind = -1;
     unsetenv("FAKE_OVL_TYPE");
+
+    /* Opt-in: a surface that didn't ask gets none, unless EGL$Overlay on */
+    {
+        EGLint off[] = { EGL_OVERLAY_RISCOS, EGL_FALSE, EGL_NONE };
+        EGLSurface s3;
+        fake_open_window(0x5003, 700, 400, 900, 560, 0, 0);
+        s3 = eglCreateWindowSurface(dpy, cfg, 0x5003, NULL);
+        eglMakeCurrent(dpy, s3, s3, ctx);
+        n = fake_ovl_live();
+        eglSwapBuffers(dpy, s3); eglSwapBuffers(dpy, s3); eglSwapBuffers(dpy, s3); eglSwapBuffers(dpy, s3);
+        CHECK(fake_ovl_live() == n && query(s3) == 0, "not asked for: no overlay");
+        setenv("EGL$Overlay", "On", 1);
+        eglSwapBuffers(dpy, s3);
+        CHECK(fake_ovl_live() == n + 1 && query(s3) == 1, "EGL$Overlay On: overlay for it too");
+        eglSurfaceAttrib(dpy, s3, EGL_OVERLAY_RISCOS, EGL_FALSE);
+        eglSwapBuffers(dpy, s3);
+        CHECK(fake_ovl_live() == n && query(s3) == 0, "EGL$Overlay on, program said EGL_FALSE: none");
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(dpy, s3);
+        s3 = eglCreateWindowSurface(dpy, cfg, 0x5003, off);
+        eglMakeCurrent(dpy, s3, s3, ctx);
+        eglSwapBuffers(dpy, s3); eglSwapBuffers(dpy, s3); eglSwapBuffers(dpy, s3);
+        CHECK(fake_ovl_live() == n && query(s3) == 0, "EGL$Overlay on, created with EGL_FALSE: none");
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(dpy, s3);
+        unsetenv("EGL$Overlay");
+        eglMakeCurrent(dpy, ws, ws, ctx);
+    }
 
     /* destroying the surface destroys the overlay */
     eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);

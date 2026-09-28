@@ -227,7 +227,7 @@ static egl_surface *new_surface(egl_display *d, const egl_config *c, int kind)
     s->swap_interval = 1;
     s->handle = 0;
     s->n_damage = -1;
-    s->ovl_want = 1;            /* hardware overlay when possible (window surfaces) */
+    s->ovl_want = -1;           /* hardware overlay only if asked for (or EGL$Overlay on) */
     s->ovl_last = -1;
     return s;
 }

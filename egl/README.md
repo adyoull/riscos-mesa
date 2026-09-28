@@ -23,7 +23,7 @@ This file is for people working on the library itself.
 | API | EGL 1.4, plus the extensions listed in the guide, `EGL_RISCOS_wimp_window`, `EGL_RISCOS_platform_wimp` and `EGL_RISCOS_overlay` |
 | Client APIs | OpenGL 2.1 compatibility (GLSL 1.20); OpenGL ES 1.1 and 2.0 (GLSL ES 1.00), through riscos-mesa's OSMesa ES profile patch |
 | Configs | 8: RGBA 8888 with depth/stencil 0/0, 16/0, 24/0, 24/8, in each of the two RISC OS 32bpp colour orders |
-| Surfaces | Wimp window (visible area or a work area rectangle), the whole screen (sprite plot, direct, or screen banks), pbuffer, sprite pixmap; up to 4096x4096. Visible-area window surfaces are shown through a hardware overlay (VideoOverlay) when there is one, falling back to plotting. Each surface owns its buffers, including depth and stencil (OSMesa buffers, `patches/mesa/*-riscos-osmesa-buffers.patch`) |
+| Surfaces | Wimp window (visible area or a work area rectangle), the whole screen (sprite plot, direct, or screen banks), pbuffer, sprite pixmap; up to 4096x4096. Visible-area window surfaces can be shown through a hardware overlay (VideoOverlay; opt-in with `EGL_OVERLAY_RISCOS`), falling back to plotting. Each surface owns its buffers, including depth and stencil (OSMesa buffers, `patches/mesa/*-riscos-osmesa-buffers.patch`) |
 | Threads | EGL 1.4's rules: per-thread error, API and current context (one per API); a recursive lock around every call |
 | Conformance | Checked with Khronos's dEQP-EGL tests on the host (`tests/host-harness/deqp`); not certified, so `EGL_CONFORMANT` is 0 |
 | Registration | The RISC OS extensions' enum values are provisional; `docs/khronos/` has the registration ready to submit |

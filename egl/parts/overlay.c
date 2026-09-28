@@ -11,15 +11,19 @@
  * plotting the sprite into the window. That saves the plot (about 3 ms a
  * frame for a 640x480 window on a Pi 4) and switches buffers at vsync.
  *
- * When. Visible-area window surfaces only (not work area surfaces, full
- * screen or DispmanX), once the program is animating (OVL_WARMUP swaps in
- * a row, each within OVL_GAP_CS of the last: a window redrawn now and then
- * gains nothing, and an overlay left over a menu until the next swap would
- * be worse), unless the program or the user opts out:
- *   - EGL_OVERLAY_RISCOS = EGL_FALSE when creating the surface, or later
- *     with eglSurfaceAttrib (a program's "hardware acceleration" option);
- *   - the system variable EGL$Overlay set to "off" (or "no", "0"): no
- *     overlays for any program.
+ * When. Opt-in: only for a surface whose program asked for one
+ * (EGL_OVERLAY_RISCOS = EGL_TRUE when creating it, or later with
+ * eglSurfaceAttrib: a program's "hardware acceleration" option), or for
+ * every program that hasn't refused (EGL_FALSE) when the user sets the
+ * system variable EGL$Overlay to "on" ("yes", "1"). EGL$Overlay "off"
+ * ("no", "0") turns them off for every program, whatever it asked for.
+ * Opt-in because an overlay changes things a program may not expect: it
+ * covers menus until the program swaps or calls eglCheckOverlaysRISCOS,
+ * swaps can wait for a vsync, screen grabs don't see it, and it takes GPU
+ * memory. Then only visible-area window surfaces (not work area surfaces,
+ * full screen or DispmanX), once the program is animating (OVL_WARMUP swaps
+ * in a row, each within OVL_GAP_CS of the last: a window redrawn now and
+ * then gains nothing).
  * Every problem falls back to plotting the sprite, as without overlays:
  * VideoOverlay not loaded, Create refusing, a buffer that can't be mapped
  * (the GPU out of memory), any error while showing a frame. After a
@@ -41,7 +45,10 @@
  *     sprite is plotted instead; it comes back when nothing overlaps.
  *     This is checked at every swap, in eglRedrawWindowRISCOS, and in
  *     eglCheckOverlaysRISCOS, which a program that stops swapping (a
- *     paused video) calls on null events.
+ *     paused video) calls on null events. Once it hasn't swapped for
+ *     OVL_GAP_CS, those checks hide the overlay and plot the last frame,
+ *     and leave it plotted (the Wimp then looks after menus and windows
+ *     over it); the overlay is kept, and the next swap shows through it.
  *   - A mode change doesn't free the old overlay (its ID keeps working), so
  *     we destroy it ourselves and make a new one.
  *   - Buffers stay valid across Wimp_Poll, but we map a buffer only while
@@ -53,7 +60,9 @@
 #define OVL_FAILED   2          /* gave up until the size or mode changes */
 #define OVL_WARMUP   3          /* swaps in a row before an overlay is made */
 #define OVL_GAP_CS   25         /* ... each at most this long after the last */
+#ifndef OS_ReadMonotonicTime
 #define OS_ReadMonotonicTime 0x42
+#endif
 
 enum { OV_CREATE, OV_DESTROY, OV_DISPLAY, OV_MAP, OV_UNMAP, OV_COUNT_ };
 static struct { const char *name; int no; } ovl_swi[] = {
@@ -91,14 +100,29 @@ static int ovl_available(void)
     return 1;
 }
 
-/* EGL$Overlay: "off", "no" or "0" turns overlays off for every program. */
-static int ovl_allowed_by_user(void)
+/* EGL$Overlay: "off" (or "no", "0") turns overlays off for every program;
+   "on" (or "yes", "1") turns them on for every program that hasn't said
+   EGL_FALSE. Returns -1 off, 1 on, 0 unset (the program decides). */
+static int ovl_user_setting(void)
 {
     const char *v = getenv("EGL$Overlay");
     if (!v)
+        return 0;
+    if (strcasecmp(v, "off") == 0 || strcasecmp(v, "no") == 0 || strcmp(v, "0") == 0)
+        return -1;
+    if (strcasecmp(v, "on") == 0 || strcasecmp(v, "yes") == 0 || strcmp(v, "1") == 0)
         return 1;
-    return !(strcmp(v, "off") == 0 || strcmp(v, "Off") == 0 || strcmp(v, "OFF") == 0 ||
-             strcmp(v, "no") == 0 || strcmp(v, "No") == 0 || strcmp(v, "0") == 0);
+    return 0;
+}
+
+/* Does this surface want an overlay? Opt-in: the program asks with
+   EGL_OVERLAY_RISCOS = EGL_TRUE, or the user sets EGL$Overlay on. */
+static int ovl_wanted(const egl_surface *surf)
+{
+    int user = ovl_user_setting();
+    if (user < 0 || surf->ovl_want == 0)
+        return 0;
+    return surf->ovl_want > 0 || user > 0;
 }
 
 static int ovl_task_handle(void)
@@ -256,7 +280,7 @@ static int ovl_candidate(egl_display *d, egl_surface *surf)
 {
     egl_surface *o;
     if (surf->kind != SURF_WINDOW || surf->handle < 0 || surf->fixed || surf->dmx ||
-        !surf->ovl_want || !surf->sprite || surf->destroy_pending)
+        !ovl_wanted(surf) || !surf->sprite || surf->destroy_pending)
         return 0;
     /* work area surfaces in the same window would be under the overlay */
     for (o = d->surfaces; o; o = o->next)
@@ -304,18 +328,20 @@ static void ovl_just_shown(egl_surface *surf, const window_state *ws, const scre
 static int ovl_update(egl_display *d, egl_surface *surf, const screen_info *s, int new_frame)
 {
     window_state ws;
-    int b, y, covered;
+    int b, y, covered, now;
     _kernel_oserror *e;
 
-    if (new_frame) {
+    {
         _kernel_swi_regs r;
-        int now = _kernel_swi(OS_ReadMonotonicTime, &r, &r) == NULL ? r.r[0] : 0;
+        now = _kernel_swi(OS_ReadMonotonicTime, &r, &r) == NULL ? r.r[0] : 0;
+    }
+    if (new_frame) {
         surf->ovl_run = surf->ovl_run > 0 && now - surf->ovl_swap_cs <= OVL_GAP_CS ? surf->ovl_run + 1 : 1;
         surf->ovl_swap_cs = now;
     }
     if (!get_window_state(surf->handle, &ws))
         return 0;
-    if (!ovl_candidate(d, surf) || !ovl_allowed_by_user()) {
+    if (!ovl_candidate(d, surf)) {
         if (surf->ovl_id) {
             int was_shown = surf->ovl_shown;
             ovl_destroy(surf);
@@ -335,7 +361,13 @@ static int ovl_update(egl_display *d, egl_surface *surf, const screen_info *s, i
     }
     if (surf->ovl_state == OVL_FAILED)
         return 0;
-    covered = surf->ovl_type == 1 && ovl_covered(&ws);  /* Basic overlays only */
+    /* Stopped swapping (a paused video): back to the plotted sprite, which
+       the Wimp keeps right under menus and windows with no help. The
+       overlay and its buffers are kept, so the next swap shows through it
+       again at once. */
+    covered = !new_frame && now - surf->ovl_swap_cs > OVL_GAP_CS;
+    if (!covered)
+        covered = surf->ovl_type == 1 && ovl_covered(&ws);  /* Basic overlays only */
     if (covered) {
         if (surf->ovl_shown) {
             ovl_call(ovl_swi[OV_DISPLAY].no, surf->ovl_id, -1);

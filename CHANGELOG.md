@@ -6,27 +6,33 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-9 (in development)
 
-- **EGL window surfaces use hardware overlays** (`EGL_RISCOS_overlay`).
-  When the VideoOverlay module is loaded, a window surface covering the
-  visible area is shown through a display overlay: `eglSwapBuffers`
+- **EGL window surfaces can use hardware overlays** (`EGL_RISCOS_overlay`),
+  opt-in. A program asks with `EGL_OVERLAY_RISCOS` = `EGL_TRUE` (when
+  creating the surface, or with `eglSurfaceAttrib` at any time: a
+  "Hardware acceleration" menu item); `*Set EGL$Overlay on` gives one to
+  every program that hasn't refused, `off` to none. Then, when the
+  VideoOverlay module is loaded, a window surface covering the visible
+  area is shown through a display overlay: `eglSwapBuffers`
   copies the frame into an overlay buffer (three, else two) and the
   hardware shows it at the next vsync, instead of plotting the sprite.
-  Automatic, with fallbacks to plotting for every problem (no module, no
+  Fallbacks to plotting for every problem (no module, no
   overlay of that size, GPU memory short, any error). While a window or
   menu overlaps the surface the overlay is hidden and the frame plotted
-  (the Pi's overlays sit on top of everything); `eglCheckOverlaysRISCOS`
-  does that check for a program that has stopped swapping (a paused
-  video). Opting out: `EGL_OVERLAY_RISCOS` = `EGL_FALSE` when creating
-  the surface or with `eglSurfaceAttrib` at any time (a "Hardware
-  acceleration" menu item), or `*Set EGL$Overlay off` for every program.
+  (the Pi's overlays sit on top of everything). A program that stops
+  swapping (a paused video) calls `eglCheckOverlaysRISCOS` on null
+  events: a quarter of a second after the last swap it goes back to the
+  plotted frame, keeping the overlay for the next swap. Opt-in rather than automatic because an overlay covers menus
+  over a program that stops swapping without telling EGL, can make
+  swaps wait for a vsync, isn't in screen grabs and takes GPU memory;
+  the default may change once it has been tried on Pis.
   `eglQuerySurface(EGL_OVERLAY_RISCOS)` says whether it's in use. Only
   once a program is animating (three swaps in a row, each within a
   quarter of a second), so a window redrawn now and then is plotted as
   before. freeglut and the ports' Wimp helper call
-  `eglCheckOverlaysRISCOS` while idle. Tested
-  on the host harness (about 50 new checks against a fake VideoOverlay);
+  `eglCheckOverlaysRISCOS` while idle when overlays may be in use. Tested
+  on the host harness (about 60 new checks against a fake VideoOverlay);
   **not yet tried on a Pi**: `egl-overlay` and `egl-no-overlay` in the
-  tests zip (egltest `-n`; keys H and P).
+  tests zip (egltest `-V` / `-n`; keys H and P).
 - **Hardware overlay tests (`ovltest`).** Before EGL could use the
   display hardware's overlays, a Pi had to answer some questions: which
   formats and sizes it offers, how fast overlay memory is, whether cached

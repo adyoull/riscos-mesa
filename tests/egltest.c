@@ -21,9 +21,12 @@
  *                                (makes tearing easy to see).
  *   egltest -w -R                 as -r, but the second surface has its own
  *                                GL context.
- *   egltest -w [-n]              the window is shown through a hardware overlay
- *                                (EGL_RISCOS_overlay) when VideoOverlay is
- *                                loaded; -n: not (EGL_OVERLAY_RISCOS false).
+ *   egltest -w -V|-n             -V asks for a hardware overlay
+ *                                (EGL_RISCOS_overlay: EGL_OVERLAY_RISCOS
+ *                                true), used when VideoOverlay is loaded;
+ *                                -n refuses one (false, beats EGL$Overlay
+ *                                on). Neither: EGL$Overlay decides (off
+ *                                unless it's "on").
  *                                Click in the window, then H switches the
  *                                overlay off and on, P pauses (the paused
  *                                frame stays; eglCheckOverlaysRISCOS on null
@@ -548,7 +551,7 @@ static void app_plot_copy(int handle, EGLSurface fx)
     }
 }
 
-static int no_overlay;                                        /* -n */
+static int overlay_opt;                           /* -V 1, -n -1, neither 0 */
 
 /* EGL_OVERLAY_RISCOS: 0 plotted, 1 shown through the overlay, 2 hidden */
 static int overlay_state(EGLSurface s)
@@ -564,7 +567,10 @@ static int run_window(int second, double limit)
     static const char *const ovl_names[] = { "plotted", "overlay", "overlay hidden" };
     double ovl_present[3] = { 0, 0, 0 };
     long ovl_frames[3] = { 0, 0, 0 };
-    int ovl_want = !no_overlay, paused = 0, toggles = 0, ovl_now = 0, ovl_changes = 0;
+    const char *ev = getenv("EGL$Overlay");
+    int ovl_want = overlay_opt > 0 || (overlay_opt == 0 && ev &&
+                   (!strcmp(ev, "on") || !strcmp(ev, "On") || !strcmp(ev, "yes") || !strcmp(ev, "1")));
+    int paused = 0, toggles = 0, ovl_now = 0, ovl_changes = 0;
     int wb[23], block[64], handle;
     _kernel_swi_regs r;
     EGLConfig cfg;
@@ -608,9 +614,9 @@ static int run_window(int second, double limit)
     cfg = pick_config(EGL_WINDOW_BIT, 16);
     ctx = cfg ? eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL) : EGL_NO_CONTEXT;
     {
-        EGLint oa[] = { EGL_OVERLAY_RISCOS, EGL_FALSE, EGL_NONE };
+        EGLint oa[] = { EGL_OVERLAY_RISCOS, overlay_opt > 0 ? EGL_TRUE : EGL_FALSE, EGL_NONE };
         if (!fx_first)
-            ws = cfg ? eglCreateWindowSurface(dpy, cfg, handle, no_overlay ? oa : NULL) : EGL_NO_SURFACE;
+            ws = cfg ? eglCreateWindowSurface(dpy, cfg, handle, overlay_opt ? oa : NULL) : EGL_NO_SURFACE;
     }
     fx_ctx = ctx;
     if (second == 2 && ctx != EGL_NO_CONTEXT)
@@ -643,7 +649,8 @@ static int run_window(int second, double limit)
         say("EGL_RISCOS_overlay %s; VideoOverlay %s; overlay %s\n",
             strstr(eglQueryString(dpy, EGL_EXTENSIONS), "EGL_RISCOS_overlay") ? "listed" : "NOT listed",
             _kernel_swi(OS_SWINumberFromString, &m, &m) == NULL ? "loaded" : "not loaded",
-            no_overlay ? "off (-n)" : "wanted");
+            overlay_opt > 0 ? "asked for (-V)" : overlay_opt < 0 ? "refused (-n)" :
+            ovl_want ? "on (EGL$Overlay)" : "not asked for");
     }
 
     tstart = last_title = hr_seconds();
@@ -917,7 +924,8 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-A")) fx_appcopy = 1;
         else if (!strcmp(argv[i], "-O")) fx_first = 1;
         else if (!strcmp(argv[i], "-D")) damage_demo = 1;
-        else if (!strcmp(argv[i], "-n")) no_overlay = 1;
+        else if (!strcmp(argv[i], "-n")) overlay_opt = -1;
+        else if (!strcmp(argv[i], "-V")) overlay_opt = 1;
         else if (!strcmp(argv[i], "-F") && i + 1 < argc)
             sscanf(argv[++i], "%d,%d,%d,%d", &fx_x, &fx_y, &fx_w, &fx_h);
         else if (!strcmp(argv[i], "-d")) direct = 1;
@@ -929,7 +937,7 @@ int main(int argc, char **argv)
             outf = fopen(argv[++i], "w");
             if (!outf) printf("can't write %s\n", argv[i]);
         } else {
-            printf("usage: egltest [-o file] | -w [-r|-R] [-D] [-n] [-t secs] [-o file] | "
+            printf("usage: egltest [-o file] | -w [-r|-R] [-D] [-V|-n] [-t secs] [-o file] | "
                    "-f [-d] [-b n] [-v n] [-p] [-t secs] [-o file]\n");
             return 1;
         }

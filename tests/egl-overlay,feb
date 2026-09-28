@@ -1,5 +1,5 @@
-| riscos-mesa EGL test: the window shown through a hardware overlay (VideoOverlay).
+| riscos-mesa EGL test: the window shown through a hardware overlay (VideoOverlay; egltest -V asks for one).
 | Click in it: H overlay off/on, P pause. Results are also saved in this directory.
 RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
 Dir <Obey$Dir>
-Run egltest -w -o egloverlay
+Run egltest -w -V -o egloverlay

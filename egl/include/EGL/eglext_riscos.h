@@ -88,13 +88,14 @@ EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS (EGLDisplay dpy, EGLSurface s
 
 /*
  * EGL_RISCOS_overlay
- *   Window surfaces that cover a window's visible area are shown through a
- *   hardware overlay (the VideoOverlay module) when one can be had:
+ *   A window surface that covers a window's visible area can be shown
+ *   through a hardware overlay (the VideoOverlay module). Opt-in: the
+ *   program asks for it (EGL_OVERLAY_RISCOS, below), or the user sets
+ *   EGL$Overlay on. Then, when one can be had,
  *   eglSwapBuffers copies the finished frame into an overlay buffer and the
  *   display hardware shows it, switching buffers at vsync, instead of the
  *   frame being plotted into the window. GL still renders into ordinary
- *   memory. This is automatic; everything else falls back to plotting, as
- *   before: VideoOverlay not loaded (load it in !Run with
+ *   memory. Everything else falls back to plotting, as before: VideoOverlay not loaded (load it in !Run with
  *     RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
  *   ), no overlay of that size or format, the GPU short of memory, any
  *   error, work area surfaces, full screen and DispmanX surfaces. The
@@ -106,18 +107,25 @@ EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS (EGLDisplay dpy, EGLSurface s
  *   frame is plotted instead; it comes back when nothing overlaps. This is
  *   checked at every eglSwapBuffers and eglRedrawWindowRISCOS. A program
  *   that stops swapping for a while (a paused video) should call
- *   eglCheckOverlaysRISCOS(dpy) on null events (a few times a second).
+ *   eglCheckOverlaysRISCOS(dpy) on null events (a few times a second):
+ *   a quarter of a second after the last swap it hides the overlay and
+ *   plots the last frame instead, as without an overlay, until the next
+ *   eglSwapBuffers, which shows through the overlay again at once.
  *
  *   With an overlay, eglSwapBuffers waits for a vsync when the previous
  *   frame was shown less than a frame ago (the switch happens at the next
  *   vsync, and writing sooner would tear), unless the swap interval is 0.
  *
- *   Opting out ("hardware acceleration" off):
- *     program:  EGL_OVERLAY_RISCOS = EGL_FALSE in eglCreateWindowSurface's
+ *   Turning it on and off ("hardware acceleration"):
+ *     program:  EGL_OVERLAY_RISCOS = EGL_TRUE in eglCreateWindowSurface's
  *               attributes, or eglSurfaceAttrib(dpy, surface,
- *               EGL_OVERLAY_RISCOS, EGL_FALSE) at any time (EGL_TRUE turns
- *               it back on), e.g. from a menu option;
- *     user:     *Set EGL$Overlay off   (all programs; "no" and "0" too).
+ *               EGL_OVERLAY_RISCOS, EGL_TRUE / EGL_FALSE) at any time,
+ *               e.g. from a menu option. Without either, no overlay
+ *               (unless the user turns them on).
+ *     user:     *Set EGL$Overlay on    every program that hasn't said
+ *                                      EGL_FALSE ("yes" and "1" too);
+ *               *Set EGL$Overlay off   no program, whatever it asked for
+ *                                      ("no" and "0" too).
  *   eglQuerySurface(EGL_OVERLAY_RISCOS): 0 not using an overlay, 1 shown
  *   through one, 2 has one but it's hidden (something overlaps the window).
  */

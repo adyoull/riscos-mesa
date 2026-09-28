@@ -359,14 +359,6 @@ The same for ARMEABISupport, which provides memory and support routines
 that GCC 10's programs rely on.
 
 ```
-RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
-```
-Optional: loads the VideoOverlay module if the machine has one (a
-Raspberry Pi does). EGL then shows an animating window through a
-hardware overlay, which saves drawing each frame into the window. There
-is no error line: without the module the window is plotted as usual.
-
-```
 Run <GLWindow$Dir>.!RunImage
 ```
 Starts the program. Always start a program with `Run` and its full path:
@@ -434,9 +426,9 @@ task: a plain program asking leaves parts of the old picture behind.
 **No vsync in a window.** In a desktop window, `eglSwapBuffers` shows
 the frame straight away and never waits for the screen's refresh.
 Waiting would stop every other program. Full screen, it waits (set how
-often with `eglSwapInterval`). The exception is a window shown through
-a hardware overlay (see the EGL guide), which waits at most until the
-next refresh so the picture doesn't tear.
+often with `eglSwapInterval`). The exception is a window a program has
+asked to show through a hardware overlay (see the EGL guide), which
+waits at most until the next refresh so the picture doesn't tear.
 
 **`eglMakeCurrent` fails with `EGL_BAD_MATCH`.** The surface and the
 context were made from different configs: the colour order, depth or

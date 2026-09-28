@@ -103,15 +103,22 @@ int rw_poll(rw_window *w, EGLDisplay dpy, int want_idle, int *key)
     int block[64];
     _kernel_swi_regs r;
 
-    if (want_idle || dpy == EGL_NO_DISPLAY) {
+    static int overlays = -1;                    /* EGL$Overlay on: overlays may be in use */
+    if (overlays < 0) {
+        const char *v = getenv("EGL$Overlay");
+        overlays = v && (!strcmp(v, "on") || !strcmp(v, "On") || !strcmp(v, "yes") || !strcmp(v, "1"));
+    }
+    if (want_idle || dpy == EGL_NO_DISPLAY || !overlays) {
         r.r[0] = want_idle ? 0 : 1;              /* mask null events when not animating */
         r.r[1] = (int) block;
         if (_kernel_swi(Wimp_Poll, &r, &r) != NULL)
             return RW_CLOSE;
     } else {
-        /* Not animating: wake up ten times a second anyway, so a window
-           shown through a hardware overlay (EGL_RISCOS_overlay) hides it
-           under menus and windows opened over it. */
+        /* Not animating, and the user turned overlays on for every
+           program (the ports don't ask for one): wake up ten times a
+           second anyway, so a window shown through a hardware overlay
+           (EGL_RISCOS_overlay) hides it under menus and windows opened
+           over it. */
         _kernel_swi_regs t;
         _kernel_swi(OS_ReadMonotonicTime, &t, &t);
         r.r[0] = 0;

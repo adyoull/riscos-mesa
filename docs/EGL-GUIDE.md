@@ -202,21 +202,33 @@ for (;;) {
 
 ### Hardware overlays (EGL_RISCOS_overlay)
 
-When the VideoOverlay module is loaded (RISC OS 5 on a Raspberry Pi has it in `!System`), a window surface is shown through a **hardware overlay** instead of being plotted: `eglSwapBuffers` copies the finished frame into an overlay buffer and the display hardware shows it at the next vsync. This is automatic, and nothing in your program changes; it saves the plot (about 3 ms a frame for a 640x480 window on a Pi 4) and doesn't tear.
+A window surface can be shown through a **hardware overlay** instead of being plotted, when the VideoOverlay module is loaded (RISC OS 5 on a Raspberry Pi has it in `!System`): `eglSwapBuffers` copies the finished frame into an overlay buffer and the display hardware shows it at the next vsync. It saves the plot (about 3 ms a frame for a 640x480 window on a Pi 4) and doesn't tear. It suits video and other programs that show ready-made frames; for most GL programs rendering costs far more than the plot.
+
+**It is opt-in.** An overlay changes things a program may not expect: it covers menus opened over a window that has stopped swapping, `eglSwapBuffers` can wait for a vsync, screen grabs don't see it, and it takes GPU memory. So a surface only gets one when the program asks:
+
+```c
+EGLint attrs[] = { EGL_OVERLAY_RISCOS, EGL_TRUE, EGL_NONE };
+surf = eglCreateWindowSurface(dpy, cfg, window_handle, attrs);
+/* or at any time, e.g. from a "Hardware acceleration" menu item: */
+eglSurfaceAttrib(dpy, surf, EGL_OVERLAY_RISCOS, hw_accel ? EGL_TRUE : EGL_FALSE);
+```
+
+Users can override it: `*Set EGL$Overlay on` gives an overlay to every program that hasn't said `EGL_FALSE` (to try it with programs that don't know about it), and `*Set EGL$Overlay off` turns overlays off for every program, whatever it asked for.
+
+Once asked for:
 
 - **Which surfaces.** A window surface that covers the visible area (the default), when it's the only EGL surface in its window, once the program is animating: three `eglSwapBuffers` in a row, each within a quarter of a second of the last. A window redrawn now and then keeps being plotted. Work area surfaces (`EGL_WORK_AREA_*_RISCOS`), full screen surfaces and DispmanX windows are plotted as before, and so is a visible-area surface while a work area surface shares its window.
 - **Fallbacks.** Every problem falls back to plotting, with no error: VideoOverlay not loaded, no overlay of that size, the GPU out of memory for the buffers (three buffers, else two), an error while showing a frame. After a failure the surface tries again when its size or the screen mode changes. A mode change gets a new overlay.
-- **Windows and menus in front.** On the Pi the overlay is "Basic": it would sit on top of everything. So while any window or menu overlaps your surface, EGL hides the overlay and plots the frame; when nothing overlaps, the overlay comes back. This is checked at every `eglSwapBuffers` and every `eglRedrawWindowRISCOS`. **A program that stops swapping** (a paused video, a finished render) should call `eglCheckOverlaysRISCOS(dpy)` on null events (a few times a second is enough) so a menu opened over the paused frame still hides the overlay. freeglut (from the devkit) does this for you: while a window has an overlay it wakes ten times a second to check.
+- **Windows and menus in front.** On the Pi the overlay is "Basic": it would sit on top of everything. So while any window or menu overlaps your surface, EGL hides the overlay and plots the frame; when nothing overlaps, the overlay comes back. This is checked at every `eglSwapBuffers` and every `eglRedrawWindowRISCOS`. **A program that stops swapping** (a paused video, a finished render) should call `eglCheckOverlaysRISCOS(dpy)` on null events (a few times a second is enough). A quarter of a second after the last swap it hides the overlay and plots the last frame, so a paused window is an ordinary plotted window, and menus and windows over it behave as usual; the next `eglSwapBuffers` shows through the overlay again at once (it is kept, with its buffers). To free the GPU memory during a long pause as well, turn the overlay off with `eglSurfaceAttrib` and back on when playing resumes. freeglut (from the devkit) does this for you: while a window has an overlay (with `EGL$Overlay on`) it wakes ten times a second to check.
 - **Pacing.** With an overlay, `eglSwapBuffers` waits for a vsync only when none has passed since the previous frame was shown (swap interval 1, the default; 0 never waits). Writing into a buffer that is still being switched to would tear.
-- **Turning it off.** Programs: pass `EGL_OVERLAY_RISCOS, EGL_FALSE` to `eglCreateWindowSurface`, or call `eglSurfaceAttrib(dpy, surf, EGL_OVERLAY_RISCOS, EGL_FALSE)` at any time (for a "Hardware acceleration" menu item; `EGL_TRUE` turns it back on and retries after a failure). Users: `*Set EGL$Overlay off` turns overlays off for every program.
+- **Turning it off again.** `eglSurfaceAttrib(dpy, surf, EGL_OVERLAY_RISCOS, EGL_FALSE)` hides and frees the overlay at once and plots the last frame; `EGL_TRUE` turns it back on and retries after a failure.
 - **Is it in use?** `eglQuerySurface(dpy, surf, EGL_OVERLAY_RISCOS, &v)`: 1 shown through an overlay, 2 an overlay exists but is hidden (something overlaps), 0 plotted.
 - **Screen grabs** (Snapper, `*ScreenSave`) don't include the overlay: they show what's plotted underneath. Turn the overlay off to grab the window.
+- **`!Run`.** Load the module if it's there (programs run without it):
 
-In your `!Run` file, load the module if it's there (programs run without it):
-
-```
-RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
-```
+  ```
+  RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+  ```
 
 ## GL views inside a window
 
@@ -448,7 +460,7 @@ All of these are in `EGL/eglext_riscos.h`, under the extension name `EGL_RISCOS_
 | `EGL_WORK_AREA_WIDTH_RISCOS` | 0x3FF2 | Window surface attribute: width in pixels |
 | `EGL_WORK_AREA_HEIGHT_RISCOS` | 0x3FF3 | Window surface attribute: height in pixels |
 | `EGL_SCREEN_BANKS_RISCOS` | 0x3FF4 | Full screen: banks wanted (0, 2, 3) at creation; banks in use when queried. Experimental |
-| `EGL_OVERLAY_RISCOS` | 0x3FF6 | Window surface attribute and `eglSurfaceAttrib`: `EGL_FALSE` stops it using a hardware overlay (default `EGL_TRUE`). Queried: 0 plotted, 1 shown through an overlay, 2 overlay hidden. Extension `EGL_RISCOS_overlay` |
+| `EGL_OVERLAY_RISCOS` | 0x3FF6 | Window surface attribute and `eglSurfaceAttrib`: `EGL_TRUE` asks for a hardware overlay, `EGL_FALSE` refuses one (default: none, unless `EGL$Overlay` is `on`). Queried: 0 plotted, 1 shown through an overlay, 2 overlay hidden. Extension `EGL_RISCOS_overlay` |
 | `EGL_RISCOS_VISUAL_TBGR` | 0x0000 | `EGL_NATIVE_VISUAL_ID` of `0x00BBGGRR` configs |
 | `EGL_RISCOS_VISUAL_TRGB` | 0x4000 | `EGL_NATIVE_VISUAL_ID` of `0x00RRGGBB` configs |
 
@@ -470,7 +482,7 @@ Plots one window surface's last frame for the current rectangle of a redraw or u
 EGLBoolean eglCheckOverlaysRISCOS(EGLDisplay dpy);
 ```
 
-Re-checks every surface shown through a hardware overlay: hides the overlay (and plots the last frame) while a window or menu overlaps the surface, shows it again when nothing does. Only needed while a program isn't calling `eglSwapBuffers` (a paused video): call it on null events. Extension `EGL_RISCOS_overlay`.
+Re-checks every surface shown through a hardware overlay: hides the overlay (and plots the last frame) while a window or menu overlaps the surface, shows it again when nothing does, and goes back to plotting for good once the surface hasn't been swapped for a quarter of a second (until its next `eglSwapBuffers`). Only needed while a program isn't calling `eglSwapBuffers` (a paused video): call it on null events. Extension `EGL_RISCOS_overlay`.
 
 All three are also available through `eglGetProcAddress` (`PFNEGLREDRAWWINDOWRISCOSPROC`, `PFNEGLPLOTSURFACERISCOSPROC`, `PFNEGLCHECKOVERLAYSRISCOSPROC`).
 
@@ -688,7 +700,7 @@ The window and full screen figures are from the 20.3.5-4 tests; rendering has go
 | Random crashes (abort on data transfer, illegal instruction) | Compile everything with `-fstack-clash-protection` |
 | Image in a window doesn't come back after another window covers it | Call `eglRedrawWindowRISCOS` on Redraw_Window_Request |
 | Colours swapped (red and blue) | A sprite or config in the other colour order: use `EGL_MATCH_NATIVE_PIXMAP`, or check `EGL_NATIVE_VISUAL_ID` |
-| A window's image is missing from a screen grab, or sits over a menu | It's shown through a hardware overlay: grabs don't see overlays; over a menu, call `eglCheckOverlaysRISCOS` on null events while not swapping. `*Set EGL$Overlay off` to rule overlays out |
+| A window's image is missing from a screen grab, or sits over a menu | It's shown through a hardware overlay (the program asked, or `EGL$Overlay` is `on`): grabs don't see overlays; over a menu, call `eglCheckOverlaysRISCOS` on null events while not swapping. `*Set EGL$Overlay off` to rule overlays out |
 | Full screen tears | Use the default sprite plot with a swap interval of 1; direct rendering and (on the Pi 4) screen banks tear |
 | Desktop left covered after a full screen run | Be a Wimp task (`Wimp_Initialise`), then `Wimp_ForceRedraw` with window -1 and `Wimp_CloseDown` before exiting |
 | "Window Manager is currently in use" | The program was started in a TaskWindow, which is already its Wimp task: start it with `*WimpTask` or from the Filer |

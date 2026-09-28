@@ -11,9 +11,5 @@ RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
 RMEnsure SharedUnixLibrary 1.16 Error !GLWindow needs SharedUnixLibrary 1.16 or later (from PackMan)
 RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
 RMEnsure ARMEABISupport 0.00 Error !GLWindow needs ARMEABISupport (from PackMan)
-| Optional: the VideoOverlay module (in !System on a Raspberry Pi) lets
-| EGL show the window through a hardware overlay. Load it if it's there;
-| without it the window is plotted as usual.
-RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
 | Start the program. Always "Run" it by its full path.
 Run <GLWindow$Dir>.!RunImage

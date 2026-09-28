@@ -189,18 +189,23 @@ Run in this order and note the output:
                    blue the right way round?
 
       egl-overlay    EGL itself using an overlay (new in 20.3.5-9):
-                   egltest's spinning cube window, shown through a
-                   hardware overlay when VideoOverlay is loaded. The title
+                   egltest's spinning cube window, asking for a hardware
+                   overlay (egltest -V; programs have to ask), shown
+                   through one when VideoOverlay is loaded. The title
                    ends "overlay", "overlay hidden" or "plotted". Please:
                    open a menu over it and drag another window across it
                    (it should say "overlay hidden" and still look right,
                    then "overlay" again); resize it; change mode; click in
                    it and press H (overlay off: "plotted"; H again: back),
-                   and P (pause: then drag a window over it and away, the
-                   paused frame should stay right). Close it: "egloverlay"
+                   and P (pause: within a quarter of a second the title
+                   says "overlay hidden" and the paused frame is plotted;
+                   a menu or window over it should behave as over any
+                   window; P again: "overlay"). Close it: "egloverlay"
                    has the present times with and without the overlay.
         egl-no-overlay the same without the overlay (egltest -n), to
-                   compare the fps and present times
+                   compare the fps and present times. To try overlays in
+                   other EGL programs (freeglut, the ports), which don't
+                   ask for one: *Set EGL$Overlay on first
 
    l) More programs, in separate zips, each with its own ReadMe:
       riscos-mesa-hello_pi   the Raspberry Pi's hello_triangle,
