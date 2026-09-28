@@ -19,6 +19,16 @@ Needs SharedUnixLibrary and ARMEABISupport.
             SDL plays sound from a second thread, so its !Run loads
             UnixLib's PThreadTicker module (PThrTicker, inside it) first.
 
+For sound, install SharedSoundBuffer and StreamManager (without them SDL
+falls back to DigitalRenderer). SharedSound is part of RISC OS; only these
+two need installing.
+  Download: the ssb.zip download on Andrew Sellors' RDPClient page,
+    https://orac.co.uk/software/rdpclient/rdpclient.html
+    Merge its !System into yours.
+  Background: John Duffell's own site (now on the Internet Archive) has
+    more details:
+    https://web.archive.org/web/20110920080106/http://www.duffell.riscos.me.uk/
+
 Escape or the close icon quits. SDL's test options work too if you run the
 !RunImage from a command line, for example --fullscreen, --vsync or
 --info all.

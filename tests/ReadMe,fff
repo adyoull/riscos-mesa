@@ -138,6 +138,15 @@ Run in this order and note the output:
       "altone" (OpenAL and SDL details, how long each tone took, PASS or
       FAIL). Please check the tones come from the middle, the left and the
       right, and send altone.
+      For sound, install SharedSoundBuffer and StreamManager (without
+      them the sound goes through DigitalRenderer). SharedSound is part
+      of RISC OS; only these two need installing.
+        Download: the ssb.zip download on Andrew Sellors' RDPClient page,
+          https://orac.co.uk/software/rdpclient/rdpclient.html
+          Merge its !System into yours.
+        Background: John Duffell's own site (now on the Internet Archive)
+          has more details:
+          https://web.archive.org/web/20110920080106/http://www.duffell.riscos.me.uk/
       From 20.3.5-8 the programs are linked with UnixLib 5.0.1, and
       al-tone first loads UnixLib's PThreadTicker module (PThrTicker, in
       this directory), which keeps the thread switcher safe while altest's

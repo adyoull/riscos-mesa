@@ -77,7 +77,11 @@ It contains:
     happened before any window title was set.
 - Sound (2026-09-26, from riscos-openttd commit a34e9bd): a RISC OS audio
   driver, `src/audio/riscos/SDL_riscosaudio.[ch]`, playing through the
-  RISC OS 5 SharedSoundBuffer and StreamManager modules (over SharedSound),
+  SharedSoundBuffer and StreamManager modules (over SharedSound, which is
+  part of RISC OS; the other two are John Duffell's freeware, in the
+  `ssb.zip` download on Andrew Sellors' RDPClient page,
+  <https://orac.co.uk/software/rdpclient/rdpclient.html>; John Duffell's own site, now on the Internet Archive, has more
+  details: <https://web.archive.org/web/20110920080106/http://www.duffell.riscos.me.uk/>),
   so SDL programs' sound mixes with other programs'. S16 stereo at the
   program's rate (SharedSoundBuffer resamples); about 60 ms queued; the
   audio thread sleeps rather than spins while the queue drains. It comes

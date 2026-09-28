@@ -47,7 +47,14 @@ its window and context from SDL has no window code to change.
   a release where it happened.
 - **Sound:** `SDL_OpenAudioDevice` / `SDL_OpenAudio` play through the RISC
   OS audio driver, over SharedSoundBuffer (it mixes with other programs'
-  sound and resamples to the hardware rate). Load the modules in `!Run`:
+  sound and resamples to the hardware rate). SharedSound is part of RISC
+  OS; users install SharedSoundBuffer and StreamManager themselves:
+  - **Download:** the `ssb.zip` download on Andrew Sellors' RDPClient
+    page, <https://orac.co.uk/software/rdpclient/rdpclient.html>. Merge its `!System` into yours.
+  - **Background:** John Duffell's own site (now on the Internet Archive)
+    has more details: <https://web.archive.org/web/20110920080106/http://www.duffell.riscos.me.uk/>
+
+  Load the modules in `!Run`:
 
   ```
   RMEnsure SharedSound 1.07 IfThere System:Modules.SSound Then RMLoad System:Modules.SSound

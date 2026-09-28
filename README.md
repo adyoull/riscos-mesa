@@ -98,8 +98,16 @@ The GitHub [Releases](../../releases) page has, for each release:
 | `riscos-mesa-glut-VERSION.zip` | freeglut's demos (shapes, Lorenz, fractals, subwindows, menus, game mode...) over riscos-mesa's freeglut |
 
 The programs are ELF (&E1F) and need SharedUnixLibrary and ARMEABISupport
-(and SharedLibs for the test programs) from PackMan. The zips store RISC OS
-filetypes. Releases are numbered after the Mesa version they contain
+(and SharedLibs for the test programs) from PackMan. For sound, install
+SharedSoundBuffer and StreamManager (SharedSound is part of RISC OS; only
+these two need installing):
+
+- **Download:** the `ssb.zip` download on Andrew Sellors' RDPClient page,
+  <https://orac.co.uk/software/rdpclient/rdpclient.html>. Merge its `!System` into yours.
+- **Background:** John Duffell's own site (now on the Internet Archive)
+  has more details: <https://web.archive.org/web/20110920080106/http://www.duffell.riscos.me.uk/>
+
+The zips store RISC OS filetypes. Releases are numbered after the Mesa version they contain
 (`v20.3.5`, then `v20.3.5-2` for the next build of it, and so on). See
 [CHANGELOG.md](CHANGELOG.md).
 

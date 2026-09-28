@@ -18,11 +18,12 @@ RMEnsure ARMEABISupport 0.00 Error !Tune needs ARMEABISupport (from PackMan)
 | running. It must be loaded before the program starts.
 RMEnsure PThreadTicker 0.01 RMLoad <Tune$Dir>.PThrTicker
 | Sound goes through SharedSoundBuffer, which mixes it with other
-| programs' sound. It and StreamManager are John Duffell's freeware (the
-| ssb.zip download on Andrew Sellors' RDPClient page,
-| https://orac.co.uk/software/rdpclient/rdpclient.html); put them in
-| !System. These lines load them if they're there. Without them, the last
-| line falls back to DigitalRenderer, which plays sound on its own.
+| programs' sound. It and StreamManager are John Duffell's freeware:
+| download ssb.zip from Andrew Sellors' RDPClient page,
+| https://orac.co.uk/software/rdpclient/rdpclient.html
+| and merge its !System into yours. SharedSound is part of RISC OS. These
+| lines load them if they're there. Without them, the last line falls back
+| to DigitalRenderer, which plays sound on its own.
 RMEnsure SharedSound 1.07 IfThere System:Modules.SSound Then RMLoad System:Modules.SSound
 RMEnsure StreamManager 0.03 IfThere System:Modules.StreamMan Then RMLoad System:Modules.StreamMan
 RMEnsure SharedSoundBuffer 0.07 IfThere System:Modules.SSBuffer Then RMLoad System:Modules.SSBuffer

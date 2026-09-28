@@ -8,9 +8,16 @@ comments in that file to see how it works.
 
 Needs: RISC OS 5, an ARMv7 or later processor (Raspberry Pi 2, 3 or 4,
 or a Cortex-A8/A9/A15 board), and SharedUnixLibrary and ARMEABISupport
-from PackMan. For sound: SharedSoundBuffer and StreamManager (ssb.zip from
-the RDPClient page, https://orac.co.uk/software/rdpclient/rdpclient.html),
-or else DigitalRenderer.
+from PackMan.
+
+For sound: SharedSoundBuffer and StreamManager, or else DigitalRenderer.
+(SharedSound is part of RISC OS; only these two need installing.)
+  Download: the ssb.zip download on Andrew Sellors' RDPClient page,
+    https://orac.co.uk/software/rdpclient/rdpclient.html
+    Merge its !System into yours.
+  Background: John Duffell's own site (now on the Internet Archive) has
+    more details:
+    https://web.archive.org/web/20110920080106/http://www.duffell.riscos.me.uk/
 
 Licence: MIT (see LICENCES.txt in the devkit). Mesa, UnixLib and the
 other parts linked into the program have their own licences, listed in

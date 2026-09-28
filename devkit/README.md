@@ -118,10 +118,18 @@ UnixLib, the C library programs are built with) and **ARMEABISupport**
 examples' `!Run` files load them, and stop with a clear message if
 they're missing.
 
-For sound, install **SharedSoundBuffer** and **StreamManager** (John
-Duffell's freeware: the `ssb.zip` download on Andrew Sellors' RDPClient
-page, <https://orac.co.uk/software/rdpclient/rdpclient.html>) into `!System`. They mix your program's sound with
-everyone else's. Without them, SDL falls back to DigitalRenderer.
+For sound, install **SharedSoundBuffer** and **StreamManager**. They mix
+your program's sound with everyone else's. Without them, SDL falls back to
+DigitalRenderer.
+
+- **Download:** the `ssb.zip` download on Andrew Sellors' RDPClient page,
+  <https://orac.co.uk/software/rdpclient/rdpclient.html>. Merge its `!System` into yours.
+- **Background:** they're John Duffell's freeware. John Duffell's own
+  site (now on the Internet Archive) has more details:
+  <https://web.archive.org/web/20110920080106/http://www.duffell.riscos.me.uk/>
+
+SharedSound, which they build on, is part of RISC OS, so it doesn't need
+installing; only SharedSoundBuffer and StreamManager come from `ssb.zip`.
 
 ---
 
