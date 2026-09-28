@@ -91,6 +91,7 @@ The GitHub [Releases](../../releases) page has, for each release:
 | File | Contents |
 | --- | --- |
 | `riscos-mesa-devkit-VERSION.tgz` | everything for building your own programs: the static libraries and headers, a beginner's guide, six commented example programs with a Makefile, `sdl2-config`, pkg-config files and `LICENCES.txt` |
+| `riscos-mesa-examples-VERSION.zip` | the devkit's six example programs, built and ready to run (`!GLFull`, `!GLWindow`, `!GLShaders`, `!SDLSpin`, `!Teapot`, `!Tune`) |
 | `riscos-mesa-tests-VERSION.zip` | the test programs and their Obey files, with a ReadMe |
 | `riscos-mesa-hello_pi-VERSION.zip` | the Raspberry Pi's `hello_triangle`, `hello_triangle2` and `hello_teapot`, rebuilt |
 | `riscos-mesa-ports-VERSION.zip` | Mesa's EGL demos (gears, torus, ...) and SDL's GL test programs, in desktop windows, and SDL's loopwave sound test |

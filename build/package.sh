@@ -7,6 +7,7 @@
 #                                  dist/riscos-mesa-ports-VERSION.zip
 #                                  dist/riscos-mesa-glut-VERSION.zip
 #                                  dist/riscos-mesa-devkit-VERSION.tgz
+#                                  dist/riscos-mesa-examples-VERSION.zip
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 HERE=$(cd "$(dirname "$0")/.." && pwd)
@@ -71,5 +72,9 @@ rm -rf "$K/examples/build"
 echo "riscos-mesa devkit $V" > "$K/VERSION"
 rm -f "$HERE/dist/riscos-mesa-devkit-$V.tgz"
 ( cd "$TMP" && tar czf "$HERE/dist/riscos-mesa-devkit-$V.tgz" "riscos-mesa-devkit-$V" )
+# The examples, built from the packaged devkit exactly as a user would
+# (make zip): -> dist/riscos-mesa-examples-VERSION.zip
+make -s -C "$K/examples" GCCSDK_ENV="$GCCSDK_ENV" zip
+cp "$K/examples/build/examples.zip" "$HERE/dist/riscos-mesa-examples-$V.zip"
 rm -rf "$TMP"
 ls -la "$HERE/dist"

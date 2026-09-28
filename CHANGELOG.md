@@ -4,14 +4,17 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## 20.3.5-8 (in development): EGL follows the Khronos rules
+## 20.3.5-8: EGL follows the Khronos rules, Cortex-A8/A9, a devkit guide
 
 The EGL library was run against Khronos's own EGL tests (dEQP-EGL, from
 the conformance suite) on the host test harness, and the places where it
 differed from the EGL 1.4 specification were fixed: 858 of the tests pass
 (842 before), and the 12 that fail are one test's use of an empty pbuffer
 (see `tests/host-harness/deqp/README.md`). On a Pi 4 the devkit's six
-example programs run with it; threads haven't been tried there yet.
+example programs run with it; threads haven't been tried there yet. The
+release also runs on Cortex-A8/A9 machines (VFPv3), comes with a
+beginner's guide and six example programs in the devkit, and links every
+program with UnixLib 5.0.1 and its PThreadTicker module.
 
 - **Depth and stencil belong to surfaces**, as EGL says: two contexts
   drawing into one surface share its depth buffer. A new OSMesa patch

@@ -1,7 +1,7 @@
-riscos-mesa 20.3.5-7 test programs (static ELF, GCCSDK GCC 10.2.0)
+riscos-mesa 20.3.5-8 test programs (static ELF, GCCSDK GCC 10.2.0)
 ===========================================================
 
-Needs: RISC OS 5, ARMv7 with VFP (Pi 2/3/4), SharedUnixLibrary and
+Needs: RISC OS 5, ARMv7 with VFPv3 (Pi 2/3/4, Cortex-A8/A9 boards), SharedUnixLibrary and
 ARMEABISupport loaded (same as the OpenTTD build). Best in a 16M-colour
 screen mode. Run from a TaskWindow or F12 command line, in this directory.
 Programs that open a desktop window (egltest -w, glestest, sdlgltest, and
