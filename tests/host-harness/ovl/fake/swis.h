@@ -1,0 +1,37 @@
+/* Host stand-in for UnixLib's swis.h: the EGL harness's SWIs plus the
+   ones ovltest uses (VideoOverlay host harness). */
+#ifndef FAKE_SWIS_H
+#define FAKE_SWIS_H
+#define OS_Write0           0x02
+#define OS_CLI              0x05
+#define OS_Byte             0x06
+#define OS_Module           0x1E
+#define OS_FSControl        0x29
+#define OS_SpriteOp         0x2E
+#define OS_ReadVduVariables 0x31
+#define OS_ReadModeVariable 0x35
+#define OS_SWINumberFromString 0x39
+#define OS_ValidateAddress  0x3A
+#define OS_ReadMonotonicTime 0x42
+#define OS_Plot             0x45
+#define OS_ScreenMode       0x65
+#define OS_SynchroniseCodeAreas 0x6E
+#define OS_Hardware         0x7A
+#define Wimp_Initialise     0x400C0
+#define Wimp_CreateWindow   0x400C1
+#define Wimp_DeleteWindow   0x400C3
+#define Wimp_OpenWindow     0x400C5
+#define Wimp_CloseWindow    0x400C6
+#define Wimp_Poll           0x400C7
+#define Wimp_RedrawWindow   0x400C8
+#define Wimp_UpdateWindow   0x400C9
+#define Wimp_GetRectangle   0x400CA
+#define Wimp_GetWindowState 0x400CB
+#define Wimp_ForceRedraw    0x400D1
+#define Wimp_SetCaretPosition 0x400D2
+#define Wimp_ProcessKey     0x400DC
+#define Wimp_CloseDown      0x400DD
+#define Wimp_PollIdle       0x400E1
+#define Wimp_SetColour      0x400E6
+#define Wimp_ReadSysInfo    0x400F2
+#endif

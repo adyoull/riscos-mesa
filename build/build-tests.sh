@@ -25,8 +25,10 @@ $CC $RO_CFLAGS $GL -static "$T/prof.c"       -o "$STAGE/tests/prof,e1f"       $L
 # OpenAL (libopenal.a) playing through SDL2's audio
 [ -f "$STAGE/lib/libopenal.a" ] && $CC $RO_CFLAGS $GL -I"$STAGE/include/SDL2" -static "$T/altest.c" \
     -o "$STAGE/tests/altest,e1f" -lopenal -lSDL2 $LIBS
+# VideoOverlay (hardware overlay) tests for the Pi: plain C, no GL
+$CC $RO_CFLAGS -static "$T/ovltest.c" "$T/hrtime.c" -o "$STAGE/tests/ovltest,e1f"
 for f in "$STAGE"/tests/*,e1f; do $STRIP "$f"; done
-cp "$T/ReadMe,fff" "$T"/egl-*,feb "$T"/dmx-*,feb "$T"/gles-*,feb "$T"/al-*,feb "$STAGE/tests/"
+cp "$T/ReadMe,fff" "$T"/egl-*,feb "$T"/dmx-*,feb "$T"/gles-*,feb "$T"/al-*,feb "$T"/ovl-*,feb "$STAGE/tests/"
 # UnixLib 5.0.1's PThreadTicker module, which al-tone loads for altest's
 # threads (OpenAL mixes in SDL's audio thread)
 cp "$T/../devkit/riscos/PThrTicker,ffa" "$STAGE/tests/"

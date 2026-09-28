@@ -155,7 +155,36 @@ Run in this order and note the output:
       before double-clicking al-tone: the line altest adds to that file
       should end via=module.
 
-   k) More programs, in separate zips, each with its own ReadMe:
+   k) ovltest: hardware overlays (VideoOverlay), new in 20.3.5-9
+      Measurements for using the display hardware's overlays in EGL and
+      in riscos-ffmpeg's Reel. Needs the VideoOverlay module in !System
+      (the Obey files load it from there). Each ovl-* Obey file runs one
+      test in a window: the overlay at the top, instructions and results
+      below. Everything is also added to "ovlresults" in this directory:
+      please send that file back.
+        ovl-vet    T1 which formats and sizes are offered (a few seconds)
+        ovl-bw     T2 memory speed of overlay buffers (about a minute;
+                   the screen flickers while screen memory is timed)
+        ovl-cache  T3 whether a frame written through the cache shows:
+                   answer Y or N at each of 8 steps
+        ovl-map    T4 buffers left mapped for 30 s: move other windows
+                   about meanwhile, then answer Y or N
+        ovl-tear   T5 a bar sweeping across a screen-sized overlay, four
+                   runs: press 0 (no tearing), 1 (a line that stays put),
+                   2 (a line that moves) or 3 (other) after each
+        ovl-scale  T6 a test card at 1x, 2x, 3x and the smallest size
+                   (keys 1 2 3 M), in four formats (F); also resize the
+                   window by hand; note how it looks
+        ovl-desk   T7 the overlay with a menu over it, another window
+                   dragged across, partly off-screen, iconised, and a mode
+                   change; note what you see. Also try it in an alpha
+                   desktop mode (framebuffer_ignore_alpha=0 in config.txt,
+                   then an LARGB mode)
+        ovl-yuv    T8 YV12 colour bars (V = next colour space, C = crop,
+                   T = time a frame copy): is grey grey, and are red and
+                   blue the right way round?
+
+   l) More programs, in separate zips, each with its own ReadMe:
       riscos-mesa-hello_pi   the Raspberry Pi's hello_triangle,
                              hello_triangle2 and hello_teapot, rebuilt
       riscos-mesa-ports      Mesa's EGL demos (gears etc.) and SDL 2's

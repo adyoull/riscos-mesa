@@ -1,6 +1,8 @@
 #ifndef FAKE_RISCOS_H
 #define FAKE_RISCOS_H
 
+#include <kernel.h>
+
 #define FAKE_MAX_WINDOWS 16
 
 typedef struct {
@@ -46,15 +48,20 @@ extern int fake_watch[4], fake_watch_value, fake_watch_hits;
          the buttons stay held (Wimp_GetPointerInfo) until an FAKE_RELEASE
      2 = Open_Window_Request (a = width | height << 16, OS units, same top left)
      9 = Menu_Selection (a, b, c = item indices, -1 ends)
+    17 = User_Message (a = message action, e.g. 0x400C1 ModeChange)
      FAKE_MOVE = pointer to pixel a, b (null event only)
      FAKE_RELEASE = buttons released (null event only)
      FAKE_WHEEL = scroll wheel moved by a (null event only)
      FAKE_NULL = a null event
    then Close_Window_Request.
    fake_wimp_hook, if set, is called before each Poll returns (a frame). */
-extern int fake_wimp_nulls, fake_wimp_script[64][4], fake_wimp_script_len;
+#define FAKE_SCRIPT_MAX 8192
+extern int fake_wimp_nulls, fake_wimp_script[FAKE_SCRIPT_MAX][4], fake_wimp_script_len;
 extern int fake_wimp_polls, fake_wimp_keys_passed, fake_wimp_tasks;
 extern void (*fake_wimp_hook)(int reason);
+/* Called for SWIs the fake doesn't know; returns 1 if it handled the SWI
+   (setting *e for an error), 0 for "SWI not faked". */
+extern int (*fake_swi_hook)(int no, _kernel_swi_regs *r, _kernel_oserror **e);
 extern const char *fake_wimp_title;      /* the newest window's indirected title */
 extern int fake_wimp_desktop;           /* Wimp_ReadSysInfo 0 reports a desktop */
 #define FAKE_MOVE    100

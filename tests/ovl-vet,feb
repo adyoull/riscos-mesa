@@ -1,0 +1,6 @@
+| riscos-mesa VideoOverlay test T1: which overlay formats and sizes this
+| machine offers. Takes a few seconds. Results are added to "ovlresults" in
+| this directory.
+Dir <Obey$Dir>
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+Run ovltest vet

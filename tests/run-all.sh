@@ -31,6 +31,9 @@
 #                   fake RISC OS: what reaches the screen, and the tune
 #                   (tests/host-harness/examples; needs GLU, after glut
 #                   and openal)
+#   ovl             tests/ovltest.c (the Pi VideoOverlay tests) with scripted
+#                   keys on the fake RISC OS and a fake VideoOverlay module
+#                   (tests/host-harness/ovl)
 #   arm             the rendering checks on the RISC OS build of Mesa under
 #                   qemu-arm emulating a Cortex-A8, the oldest CPU supported
 #                   (tests/host-harness/mesa/arm); only with ARM=1,
@@ -122,6 +125,7 @@ if [ -n "${GLU:-}" ]; then
 else
     skip examples "set GLU=<host libGLU.a>"
 fi
+step ovl env OUT="$OUT/ovl" "$H/ovl/run.sh"
 if [ -n "${ARM:-}" ]; then
     # on an emulated Cortex-A8 (VFPv3), the oldest CPU the build supports
     step arm env OUT="$OUT/arm" QEMU_CPU="${QEMU_CPU:-cortex-a8}" "$H/mesa/arm/run-arm.sh"

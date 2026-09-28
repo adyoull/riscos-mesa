@@ -4,6 +4,21 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## 20.3.5-9 (in development)
+
+- **Hardware overlay tests (`ovltest`).** Before EGL window surfaces can
+  use the display hardware's overlays (the VideoOverlay module: free
+  scaling, no plot on each frame, switches at vsync), a Pi has to answer
+  some questions: which formats and sizes it offers, how fast overlay
+  memory is, whether cached writes show, whether buffers can stay mapped
+  across Wimp_Poll, whether switches tear, how scaling looks, how an
+  overlay copes with menus, other windows and mode changes, and whether
+  YV12 colours come out right. `ovltest` measures each (tests zip, Obey
+  files `ovl-*`; results go to `ovlresults`). Asked for by riscos-ffmpeg,
+  whose Reel player will use overlays for video. `tests/host-harness/ovl`
+  runs it on the host against a fake VideoOverlay (in `run-all.sh`).
+  Nothing in EGL has changed yet; not yet run on a Pi.
+
 ## 20.3.5-8: EGL follows the Khronos rules, Cortex-A8/A9, a devkit guide
 
 The EGL library was run against Khronos's own EGL tests (dEQP-EGL, from

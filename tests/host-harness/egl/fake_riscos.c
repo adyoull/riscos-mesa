@@ -22,7 +22,7 @@ fake_screen_t fake_screen;
 fake_window_t fake_windows[FAKE_MAX_WINDOWS];
 int fake_vsyncs, fake_update_calls, fake_redraw_calls, fake_plots;
 int fake_force_redraws, fake_force_rect[5], fake_scaled_plots;
-int fake_wimp_nulls, fake_wimp_script[64][4], fake_wimp_script_len;
+int fake_wimp_nulls, fake_wimp_script[FAKE_SCRIPT_MAX][4], fake_wimp_script_len;
 int fake_pointer[3], fake_wheel, fake_menus_opened, fake_pointer_shape = 1;
 const int *fake_menu;
 unsigned char fake_keys_down[128];
@@ -30,6 +30,7 @@ int fake_log_menus;
 static int wimp_null_due, fake_wimp_title_window;
 int fake_wimp_polls, fake_wimp_keys_passed, fake_wimp_tasks;
 void (*fake_wimp_hook)(int reason);
+int (*fake_swi_hook)(int no, _kernel_swi_regs *r, _kernel_oserror **e);
 const char *fake_wimp_title;
 int fake_wimp_desktop;
 static int wimp_next_handle = 0x7000, wimp_last_window, wimp_stage, wimp_step;
@@ -443,6 +444,9 @@ static _kernel_oserror *swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
                 case 9:                      /* Menu_Selection */
                     block[0] = e[1]; block[1] = e[2]; block[2] = e[3]; block[3] = -1;
                     break;
+                case 17:                     /* User_Message: a = message action */
+                    block[0] = 20; block[4] = e[1];
+                    break;
                 case FAKE_MOVE:    pointer_to(e[1], e[2]); reason = 0; wimp_null_due = 0; break;
                 case FAKE_RELEASE: fake_pointer[2] = 0;    reason = 0; wimp_null_due = 0; break;
                 case FAKE_WHEEL:   fake_wheel += e[1];     reason = 0; wimp_null_due = 0; break;
@@ -526,6 +530,7 @@ static _kernel_oserror *swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
         full_clip();
         break;
     default:
+        if (fake_swi_hook && fake_swi_hook(no, &r, &e)) break;
         e = error("SWI not faked");
     }
     if (out) *out = r;

@@ -1,0 +1,6 @@
+| riscos-mesa VideoOverlay test T5: a white bar sweeping across a
+| screen-sized overlay, 4 runs of 10 s: report tearing with 0-3. Results go
+| to "ovlresults".
+Dir <Obey$Dir>
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+Run ovltest tear

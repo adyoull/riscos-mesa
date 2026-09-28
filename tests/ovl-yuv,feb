@@ -1,0 +1,5 @@
+| riscos-mesa VideoOverlay test T8: YV12 colour bars in four colour spaces,
+| cropping, and the per-frame copy time. Results go to "ovlresults".
+Dir <Obey$Dir>
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+Run ovltest yuv

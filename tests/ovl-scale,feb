@@ -1,0 +1,5 @@
+| riscos-mesa VideoOverlay test T6: a test card scaled 1x to 3x and to the
+| smallest size, in four formats. Results go to "ovlresults".
+Dir <Obey$Dir>
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+Run ovltest scale

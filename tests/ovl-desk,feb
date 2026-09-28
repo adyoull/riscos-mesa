@@ -1,0 +1,5 @@
+| riscos-mesa VideoOverlay test T7: the overlay among other windows, menus,
+| iconising and a mode change. Results go to "ovlresults".
+Dir <Obey$Dir>
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+Run ovltest desk

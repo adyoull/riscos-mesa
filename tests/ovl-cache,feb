@@ -1,0 +1,5 @@
+| riscos-mesa VideoOverlay test T3: whether a frame written through a cached
+| mapping shows. Answer Y or N at each step. Results go to "ovlresults".
+Dir <Obey$Dir>
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+Run ovltest cache

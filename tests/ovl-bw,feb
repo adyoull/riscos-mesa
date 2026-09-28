@@ -1,0 +1,6 @@
+| riscos-mesa VideoOverlay test T2: how fast overlay memory is (about a
+| minute; the screen flickers while screen memory is measured). Results go
+| to "ovlresults".
+Dir <Obey$Dir>
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+Run ovltest bw
