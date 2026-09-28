@@ -16,6 +16,8 @@ Needs SharedUnixLibrary and ARMEABISupport.
             (it mixes with other programs' sound). It has no window, so it
             runs single-tasking; press Escape to stop it. Its Output file
             says which audio driver was used ("riscos" is the new one).
+            SDL plays sound from a second thread, so its !Run loads
+            UnixLib's PThreadTicker module (PThrTicker, inside it) first.
 
 Escape or the close icon quits. SDL's test options work too if you run the
 !RunImage from a command line, for example --fullscreen, --vsync or

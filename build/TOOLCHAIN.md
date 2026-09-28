@@ -33,15 +33,36 @@ On a 1-CPU container this took about 30 minutes after the source was ready.
 The ld-riscos dynamic linker and the native (runs-on-RISC-OS) compiler steps
 of the recipe were skipped; static linking doesn't need them.
 
-## UnixLib fixes for ported programs
+## UnixLib 5.0.1 (riscos-unixlib)
 
-Apply riscos-openttd's UnixLib patch
-(`patches/unixlib/unixlib-riscos-openttd.diff` in
-github.com/adyoull/riscos-openttd) to the GCCSDK source before building
-UnixLib. Without it, any C++ program whose `std::locale` set-up runs (many
-games do) aborts at start with "wctype not implemented": UnixLib's
-`wctype()` is only a stub. The patch also fixes `nanosleep`/`clock_gettime`
-timing and some allocator details. riscos-mesa's own libraries don't need
-it, but programs you link with them may. To rebuild just UnixLib, apply the
-patch, run `make` in the cross-build tree's `arm-riscos-gnueabihf/libunixlib`
-and copy `.libs/libunixlib.a` into the installed toolchain.
+riscos-mesa's release programs (tests, ports, examples) are linked with
+**UnixLib 5.0.1** from github.com/adyoull/riscos-unixlib: GCCSDK's UnixLib
+with the fixes the ports needed. The ones that matter here:
+
+- the **pthread ticker fix**: the thread switcher's code runs from the
+  PThreadTicker module (or a copy in the RMA), so a threaded program (SDL
+  sound, OpenAL) no longer crashes other tasks while it multitasks;
+- `wctype()` and friends implemented: without them any C++ program whose
+  `std::locale` set-up runs aborts at start with "wctype not implemented";
+- sub-centisecond `clock_gettime(CLOCK_MONOTONIC)` and `nanosleep`;
+- `sched_get_priority_min/max`, `fdatasync`; sound fixes for `/dev/dsp`.
+
+riscos-mesa's own libraries (`libOSMesa.a` etc.) don't contain UnixLib, so
+they work with any UnixLib; it's the programs linked with them that need
+5.0.1. Either:
+
+- patch the GCCSDK source before building the toolchain
+  (`patch -d riscos-gccsdk -p1 < patches/unixlib-riscos.diff` from that
+  repository), or
+- replace an installed toolchain's library: copy the release's
+  `libunixlib.a` over the one `arm-riscos-gnueabihf-gcc
+  -print-file-name=libunixlib.a` names (keep the old one), and the
+  repository's `libunixlib/include/sched.h` and `unistd.h` into the
+  `include/` directory next to that `lib/`; or run `make sources install`
+  in that repository, which does the same from source.
+
+Check: `arm-riscos-gnueabihf-nm <that libunixlib.a> | grep
+sched_get_priority_min` prints a `T` line. Then relink your programs, and
+ship the **PThreadTicker** module (`devkit/riscos/PThrTicker`) with any
+threaded one, loaded from `!Run` with
+`RMEnsure PThreadTicker 0.01 RMLoad <App$Dir>.PThrTicker`.

@@ -61,8 +61,8 @@ its window and context from SDL has no window code to change.
 - **OpenAL:** programs that use OpenAL (games with 3D sound) link the
   devkit's `libopenal.a` (OpenAL Soft 1.19.1): `-lopenal -lSDL2 -lOSMesa
   -lstdc++ -lz -lm`. It plays through SDL's sound, so the modules above
-  are needed the same way. OpenAL mixes in SDL's audio thread: link with a
-  UnixLib that has the pthread ticker fix (see the README). OpenAL's error
+  are needed the same way. OpenAL mixes in SDL's audio thread: link with
+  UnixLib 5.0.1 or later and load PThreadTicker (see the README). OpenAL's error
   messages go to stderr, which opens a command window in the desktop; set
   `ALSOFT_LOGFILE` to a file in `!Run` to catch them there. `tests/altest.c`
   is a small complete example.
@@ -132,8 +132,8 @@ its window and context from SDL has no window code to change.
   - Textures: see "Speed" in [README.md](README.md). `GL_CLAMP_TO_EDGE`
     instead of `GL_CLAMP`, and `glHint(GL_PERSPECTIVE_CORRECTION_HINT,
     GL_FASTEST)` for mipmapped scenes, keep games on the fast path.
-- **Threads:** SDL's sound runs in a thread. Link with a UnixLib that has
-  the pthread ticker fix (see [README.md](README.md)).
+- **Threads:** SDL's sound runs in a thread. Link with UnixLib 5.0.1 or
+  later and load the PThreadTicker module (see [README.md](README.md)).
 - **SDL's GL renderer:** riscos-mesa's SDL deliberately leaves SDL's
   OpenGL *renderer* out. `SDL_CreateRenderer` programs use SDL's faster
   software renderer, and only programs that call GL themselves use Mesa.

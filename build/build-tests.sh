@@ -27,6 +27,9 @@ $CC $RO_CFLAGS $GL -static "$T/prof.c"       -o "$STAGE/tests/prof,e1f"       $L
     -o "$STAGE/tests/altest,e1f" -lopenal -lSDL2 $LIBS
 for f in "$STAGE"/tests/*,e1f; do $STRIP "$f"; done
 cp "$T/ReadMe,fff" "$T"/egl-*,feb "$T"/dmx-*,feb "$T"/gles-*,feb "$T"/al-*,feb "$STAGE/tests/"
+# UnixLib 5.0.1's PThreadTicker module, which al-tone loads for altest's
+# threads (OpenAL mixes in SDL's audio thread)
+cp "$T/../devkit/riscos/PThrTicker,ffa" "$STAGE/tests/"
 # Left as ELF (&E1F), same as the OpenTTD build: needs SharedUnixLibrary
 # and ARMEABISupport loaded on the Pi.
 ls -la "$STAGE/tests"

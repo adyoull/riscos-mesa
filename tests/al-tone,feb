@@ -2,6 +2,10 @@
 | left, right) through OpenAL and SDL's sound driver and saves the results
 | in "altone" in this directory. It has no window: it takes about 4 seconds.
 Dir <Obey$Dir>
+| OpenAL mixes in SDL's audio thread: load UnixLib's PThreadTicker module
+| (PThrTicker, here) first, which keeps the thread switcher safe in the
+| desktop.
+RMEnsure PThreadTicker 0.01 RMLoad PThrTicker
 RMEnsure SharedSound 1.07 IfThere System:Modules.SSound Then RMLoad System:Modules.SSound
 RMEnsure StreamManager 0.03 IfThere System:Modules.StreamMan Then RMLoad System:Modules.StreamMan
 RMEnsure SharedSoundBuffer 0.07 IfThere System:Modules.SSBuffer Then RMLoad System:Modules.SSBuffer

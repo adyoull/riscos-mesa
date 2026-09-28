@@ -67,6 +67,7 @@ GLUT can do EGL's job for you; see
 | `lib/pkgconfig/` | Files that tell `pkg-config` how to use each library |
 | `bin/sdl2-config` | Tells SDL programs' build scripts how to use SDL |
 | `bin/mkrozip.py` | Makes zip files that keep RISC OS filetypes |
+| `riscos/PThrTicker` | The PThreadTicker module, for programs with threads (see [Programs with threads](#threads)); copy it into your application |
 | `LICENCES.txt` | The licences of everything here. Ship it with your programs |
 | `VERSION` | Which release this is |
 
@@ -356,8 +357,9 @@ Starts the program. Always start a program with `Run` and its full path:
 in an Obey file, a bare path can be misread as an abbreviated command
 (`A.MyProg` would run `*Append`).
 
-The sound example adds lines that load the sound modules. Look at
-`6-sound/!Run,feb`.
+The sound example adds lines that load the sound modules, and the
+PThreadTicker module that programs with threads need (see [Programs
+with threads](#threads)). Look at `6-sound/!Run,feb`.
 
 ### Moving files to RISC OS
 
@@ -432,14 +434,35 @@ after your transforms, since anything outside is cut off.
 always a missing `-fstack-clash-protection` somewhere. Every file of
 your program needs it, including libraries you build yourself.
 
+<a id="threads"></a>
 **Programs with threads (including any using SDL sound or OpenAL, such
 as example 6).** UnixLib switches between a program's threads with a
-timer, called the "ticker". In UnixLib before 0.1.1, the ticker could
-fire while *another* program was in memory and crash that program. The
-fix is in riscos-unixlib 0.1.1 (github.com/adyoull/riscos-unixlib);
-build your GCCSDK with it, or ask whoever supplied your GCCSDK which
-UnixLib it has. Single-threaded programs (examples 1 to 5) aren't
-affected.
+timer, called the "ticker". The desktop swaps programs in and out of
+memory, and the timer can go off while *another* program is in memory.
+In UnixLib before 5.0.1, the ticker's code lived inside your program,
+so at that moment it wasn't there, and the other program crashed.
+Two things put that right:
+
+1. **Link with UnixLib 5.0.1 or later** (github.com/adyoull/riscos-unixlib).
+   It keeps the ticker's code where it's always in memory. Build your
+   GCCSDK with it, or copy its `libunixlib.a` into your GCCSDK (that
+   project's README says how), or ask whoever supplied your GCCSDK
+   which UnixLib it has.
+2. **Ship the PThreadTicker module with your application** and load it
+   in `!Run` before the program starts, as example 6 does:
+
+   ```
+   RMEnsure PThreadTicker 0.01 RMLoad <MyGame$Dir>.PThrTicker
+   ```
+
+   The module is in this devkit's `riscos/` folder (648 bytes, BSD
+   licence; its ReadMe and Licence are there too). A module is always
+   in memory, which makes it the proper home for the ticker's code.
+   Without it, UnixLib 5.0.1 copies the code into a block of the module
+   area and runs it from there. That works too, but running code from a
+   data block is the more fragile of the two, so ship the module.
+
+Single-threaded programs (examples 1 to 5) aren't affected.
 
 ---
 
@@ -493,4 +516,6 @@ Ship that file with your programs. In short: Mesa, GLU, SDL, freeglut
 and zlib are permissive (MIT-style). OpenAL Soft and parts of UnixLib
 are LGPL: open source programs are fine as they are, while a closed
 source program must offer its object files so that users can relink it
-with a newer library.
+with a newer library. The PThreadTicker module is under a BSD licence:
+put its `PThreadTicker-Licence` file next to it in your application, as
+the Makefile does for example 6.

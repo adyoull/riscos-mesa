@@ -10,6 +10,9 @@ RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
 RMEnsure SharedUnixLibrary 1.16 Error !LoopWave needs SharedUnixLibrary 1.16 or later
 RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
 RMEnsure ARMEABISupport 0.00 Error !LoopWave needs ARMEABISupport
+| SDL plays sound from a second thread: UnixLib's PThreadTicker module keeps
+| the thread switcher safe in the desktop
+RMEnsure PThreadTicker 0.01 RMLoad <LoopWave$Dir>.PThrTicker
 | Sound: SharedSoundBuffer (with RISC OS 5), else DigitalRenderer (SDL's
 | dsp driver)
 RMEnsure SharedSound 1.07 IfThere System:Modules.SSound Then RMLoad System:Modules.SSound

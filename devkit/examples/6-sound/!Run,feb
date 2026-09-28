@@ -11,6 +11,12 @@ RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
 RMEnsure SharedUnixLibrary 1.16 Error !Tune needs SharedUnixLibrary 1.16 or later (from PackMan)
 RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
 RMEnsure ARMEABISupport 0.00 Error !Tune needs ARMEABISupport (from PackMan)
+| The sound plays from a second thread. UnixLib switches between threads
+| with a timer, and the PThreadTicker module keeps that timer's code
+| safe in memory while other desktop programs run. The module comes with
+| this application (PThrTicker); this line loads it unless it's already
+| running. It must be loaded before the program starts.
+RMEnsure PThreadTicker 0.01 RMLoad <Tune$Dir>.PThrTicker
 | Sound goes through SharedSoundBuffer, which mixes it with other
 | programs' sound. It and StreamManager are John Duffell's freeware (the
 | ssb.zip download on Andrew Sellors' RDPClient site, orac.co.uk); put

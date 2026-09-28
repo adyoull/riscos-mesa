@@ -77,9 +77,12 @@ Headers: `EGL/` (with `EGL/eglext_riscos.h` for the RISC OS additions),
 `SDL2/`, `AL/`, `bcm_host.h` and `interface/`.
 
 OpenAL mixes in SDL's audio thread, so a program using it has more than
-one thread: link it with a UnixLib that has the pthread ticker fix
-(riscos-unixlib 214412f or later), or it can crash other tasks when it
+one thread: link it with UnixLib 5.0.1 or later
+([riscos-unixlib](https://github.com/adyoull/riscos-unixlib)), which has the
+pthread ticker fix, and load the PThreadTicker module (`riscos/PThrTicker`
+in the devkit) from its `!Run`, or it can crash other tasks when it
 multitasks. (That applies to any threaded program, SDL sound included.)
+Everything riscos-mesa ships is linked with UnixLib 5.0.1 from 20.3.5-8.
 
 ## Download
 

@@ -138,6 +138,13 @@ Run in this order and note the output:
       "altone" (OpenAL and SDL details, how long each tone took, PASS or
       FAIL). Please check the tones come from the middle, the left and the
       right, and send altone.
+      From 20.3.5-8 the programs are linked with UnixLib 5.0.1, and
+      al-tone first loads UnixLib's PThreadTicker module (PThrTicker, in
+      this directory), which keeps the thread switcher safe while altest's
+      sound thread runs. To check it's used, type
+        *Set UnixLib$TickerStats <Wimp$ScrapDir>.TickerStats
+      before double-clicking al-tone: the line altest adds to that file
+      should end via=module.
 
    k) More programs, in separate zips, each with its own ReadMe:
       riscos-mesa-hello_pi   the Raspberry Pi's hello_triangle,

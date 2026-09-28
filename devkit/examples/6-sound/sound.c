@@ -13,9 +13,10 @@
  *
  * Why a separate thread matters: OpenAL mixes in the background, in a
  * second thread that SDL starts. Programs with more than one thread
- * should be linked with a UnixLib that has the pthread ticker fix
- * (riscos-unixlib 0.1.1 or later); older ones can crash other programs
- * while this one runs in the desktop. See ../README.md.
+ * should be linked with UnixLib 5.0.1 or later (older ones can crash
+ * other programs while this one runs in the desktop) and load the
+ * PThreadTicker module first, as this example's !Run does. See
+ * ../README.md.
  *
  * There's no window: it plays for about two seconds and exits. It isn't a
  * desktop task either (it never calls Wimp_Initialise), so the desktop

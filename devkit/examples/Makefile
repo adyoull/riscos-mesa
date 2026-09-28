@@ -60,6 +60,8 @@ endef
 4-sdl2:       ; $(call build,$@,sdl2.c,$(SDL_LIBS),-I$(DEVKIT)/include/SDL2)
 5-glut:       ; $(call build,$@,glut.c,$(GLUT_LIBS))
 6-sound:      ; $(call build,$@,sound.c,$(SOUND_LIBS),-I$(DEVKIT)/include/SDL2)
+	cp "$(DEVKIT)/riscos/PThrTicker,ffa" "$(DEVKIT)/riscos/PThreadTicker-Licence,fff" \
+	   "build/!$(call app,$@)/"          # it has threads: see ../README.md
 
 # A zip that keeps the RISC OS filetypes (,e1f = ELF program, ,feb = Obey
 # file, ,fff = Text): unzip it on RISC OS with SparkFS or unzip.

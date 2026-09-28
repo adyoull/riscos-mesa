@@ -105,9 +105,13 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
 
 - Threads work (UnixLib has pthreads), but they share one CPU core and
   switch on a timer. A program with more than one thread, including any
-  that uses SDL sound or OpenAL, should be linked with a UnixLib that has
-  the pthread ticker fix (riscos-unixlib 214412f or later): without it the
-  thread switcher can crash other tasks while the program multitasks.
+  that uses SDL sound or OpenAL, should be linked with UnixLib 5.0.1 or
+  later (github.com/adyoull/riscos-unixlib), which has the pthread ticker
+  fix, and load the PThreadTicker module from its `!Run`:
+  `RMEnsure PThreadTicker 0.01 RMLoad <App$Dir>.PThrTicker` (the module is
+  in the devkit's `riscos/` folder; copy it into the application). Without
+  the fix the thread switcher can crash other tasks while the program
+  multitasks.
 - Long-lived worker threads buy nothing on one core; running the work in
   the main loop is often simpler.
 - EGL follows EGL 1.4's thread rules (from 20.3.5-8): each thread has

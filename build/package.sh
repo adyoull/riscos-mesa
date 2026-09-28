@@ -62,6 +62,7 @@ cp "$HERE/devkit/README.md" "$K/ReadMe,fff"            # the same guide, for RIS
 cp "$HERE/devkit/pkgconfig/"*.pc "$K/lib/pkgconfig/"
 cp "$HERE/devkit/bin/sdl2-config" "$HERE/devkit/bin/mkrozip.py" "$K/bin/"
 cp -r "$HERE/devkit/examples" "$K/examples"
+cp -r "$HERE/devkit/riscos" "$K/riscos"              # PThreadTicker (UnixLib 5.0.1)
 mkdir -p "$K/docs/porting"
 cp "$HERE/docs/EGL-GUIDE.md" "$K/docs/"
 cp "$HERE/docs/porting/"*.md "$K/docs/porting/"

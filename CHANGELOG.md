@@ -46,6 +46,17 @@ example programs run with it; threads haven't been tried there yet.
   depth check, GL and ES current together, two threads rendering at once,
   a thread ending with a context current);
   the fake RISC OS serialises SWIs so threaded tests are safe.
+- **Linked with UnixLib 5.0.1, and PThreadTicker included.** Every program
+  riscos-mesa ships (tests, ports, the devkit's examples) is now linked
+  with UnixLib 5.0.1 from riscos-unixlib, whose pthread ticker fix stops a
+  threaded program (SDL sound, OpenAL) crashing other desktop tasks. The
+  threaded ones (`altest` via `al-tone`, `!LoopWave`, example 6 `!Tune`)
+  load UnixLib's **PThreadTicker** module from their own folder before
+  they start; the devkit carries it in `riscos/` with its ReadMe and
+  licence, and the guide explains what it's for and how to ship it. The
+  libraries themselves don't contain UnixLib, so they were only rebuilt
+  from clean for tidiness. `build/TOOLCHAIN.md` says how to put 5.0.1 in
+  a GCCSDK. Not yet run on a Pi with this build.
 - **Runs on Cortex-A8/A9 machines too:** everything is now built for VFPv3
   instead of VFPv4 (`build/env.sh`; `RO_FPU=vfpv4` gives the old build).
   The only VFPv4 instruction the compiler used was fused multiply-add, in

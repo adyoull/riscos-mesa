@@ -55,6 +55,10 @@ for spec in "TestGL2 testgl2 HAVE_OPENGL" "TestGLES testgles HAVE_OPENGLES" "Tes
   cp "$SRC/SDL-release-2.26.0/LICENSE.txt" "$OUT/sdl2-tests/!$1/Licence,fff"
 done
 cp "$T/sample.wav" "$OUT/sdl2-tests/!LoopWave/sample.wav,fb1"
+# loopwave plays from SDL's audio thread: its !Run loads UnixLib's
+# PThreadTicker module from the application
+cp "$HERE/devkit/riscos/PThrTicker,ffa" "$HERE/devkit/riscos/PThreadTicker-Licence,fff" \
+   "$OUT/sdl2-tests/!LoopWave/"
 cp "$P/sdl2-tests/riscos/ReadMe,fff" "$OUT/sdl2-tests/"
 
 # --- freeglut 3.8.0's demos (progs/demos in the source build-freeglut.sh
