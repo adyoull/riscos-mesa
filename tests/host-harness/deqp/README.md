@@ -80,5 +80,12 @@ runs them as well.
   Extensions we don't have (robustness, ES 3, mutable render buffer,
   frame timestamps, and so on) are also counted here.
 
+**Re-run 2026-09-29, riscos-mesa 20.3.5-10 in development** (after the
+hardware overlay, render size and screen bank changes of 20.3.5-9 and
+-10): the same 858 Pass, 12 Fail, 5 QualityWarning and 1796 NotSupported,
+with no case changed. (`riscos.cmake` now also adds the fake `kernel.h`
+and `swis.h`, which `fake_riscos.h` has needed since the VideoOverlay
+work.)
+
 Threads were stress-tested: the `functional.multithread` group ran 150
 times in a row (3600 cases) without a failure.

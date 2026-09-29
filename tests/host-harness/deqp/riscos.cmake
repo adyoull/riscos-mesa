@@ -6,7 +6,8 @@ set(DEQP_TARGET_NAME "RISC OS (fake, host)")
 
 set(DEQP_EGL_LIBRARIES ${RISCOS_EGL_LIB} -L${RISCOS_OSMESA_DIR} -lOSMesa -Wl,-rpath,${RISCOS_OSMESA_DIR})
 set(DEQP_PLATFORM_LIBRARIES ${DEQP_EGL_LIBRARIES} pthread)
-include_directories(${RISCOS_FAKE_INCLUDE})
+# fake/ has the stand-in kernel.h and swis.h that fake_riscos.h includes
+include_directories(${RISCOS_FAKE_INCLUDE} ${RISCOS_FAKE_INCLUDE}/fake)
 
 # Below 2 GB (see tcuRiscosMain.cpp)
 set(CMAKE_POSITION_INDEPENDENT_CODE OFF)

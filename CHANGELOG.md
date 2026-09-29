@@ -46,6 +46,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     menu.
   - SDL's core has one small hook (`src.video.SDL_video.c.p`) so full
     screen keeps the render size.
+  - Khronos's dEQP-EGL tests re-run against this release: 858 pass, 12
+    fail (one known pbuffer-copy case), no change from 20.3.5-8. Their
+    build needed an include path fix.
 
 ## 20.3.5-9: hardware overlays and a scaled render size for EGL
 
