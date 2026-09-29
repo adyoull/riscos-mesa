@@ -147,7 +147,8 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
     }
 
     mode = sprite_mode_for(surf->cfg->layout, s);
-    if (surf->sprite && surf->w == w && surf->h == h && surf->sprite_mode == mode)
+    if (surf->sprite && surf->w == w && surf->h == h && surf->sprite_mode == mode &&
+        surf->sprite_eig == (s->xeig << 4 | s->yeig))
         return 0;
 
     free_buffers(surf);
@@ -181,6 +182,7 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
     surf->sprite_h = sprite_h;
     surf->stride = w;
     surf->sprite_mode = mode;
+    surf->sprite_eig = s->xeig << 4 | s->yeig;
     surf->swaps = 0;
     return 1;
 }

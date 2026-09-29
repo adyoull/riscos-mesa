@@ -36,7 +36,20 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   with the two hints as code. The README, the devkit's beginner's guide
   and `egl/README.md` cover both options. New: a draft Khronos-style spec,
   `docs/khronos/EGL_RISCOS_overlay.txt`.
-- **Smaller changes:**
+- **Fixes found by a code review:**
+  - EGL: a TRGB config on a TBGR screen now remakes its sprite when the
+    screen changes between 90 and 180 dpi at the same pixel size (it kept
+    plotting at the old scale).
+  - EGL: looking up a sprite image for a texture takes the lock, so another
+    thread creating or destroying images can't race it.
+  - EGL: `EGL_LARGEST_PBUFFER` reads back as given; invalid sprite modes
+    for pixmaps are refused (the SWI's error flag is now checked); an
+    overlay forgets its last buffer when it's destroyed.
+  - SDL: the driver listens for Message_ModeChange, so mouse positions
+    and plotting follow a desktop mode change between 90 and 180 dpi.
+  - Ported programs (the eglut and esUtil helpers) ask EGL whether their
+    window has an overlay instead of reading `EGL$Overlay` themselves,
+    which missed "ON".
   - EGL: a surface whose render size equals the size it's shown at uses
     the ordinary plot, not a scaled one.
   - sdlgltest: `-S WxH`, `-V`/`-N` and key D (desktop-size full screen),

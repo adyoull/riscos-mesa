@@ -214,7 +214,7 @@ python3-mako, bison, flex, autoconf, automake, libtool and cmake.
 | `sdlgltest` | SDL2 GL in a desktop window: fps in the title, F full screen, D desktop-size full screen, Space vsync; `-S WxH` render size and `-V` overlay (`sdl-scaled`, `sdl-scaled-plot`, `sdl-plain`) |
 | `hello_pi`, `ports` and `glut` zips | real programs: the Pi examples, Mesa's demos, SDL's GL tests, freeglut's demos |
 | `tests/host-harness` | SDL's GL windows on Linux with emulated SWIs: the sprite path and the EGL path, with a render size and a fake VideoOverlay; `sdl-wimp` checks the driver's Wimp events and mouse scaling |
-| `tests/host-harness/egl` | libEGL and libbcm_host on Linux against a fake screen, Wimp and SpriteOp (436 checks, including hardware overlays against a fake VideoOverlay); `portrun.c` runs whole ported programs |
+| `tests/host-harness/egl` | libEGL and libbcm_host on Linux against a fake screen, Wimp and SpriteOp (over 400 checks, including hardware overlays against a fake VideoOverlay); `portrun.c` runs whole ported programs |
 | `tests/host-harness/glut` | freeglut's RISC OS back end on Linux: freeglut's demos driven by scripted keys, clicks, drags, menus, the wheel and resizing (23 checks) |
 | `tests/host-harness/mesa` | the Mesa patches: a hash of every image in a few thousand rendering cases, on the host and on the RISC OS build under qemu-arm; instructions per frame for glbench's scenes (performance regressions) |
 

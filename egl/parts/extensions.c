@@ -100,9 +100,11 @@ EGLAPI EGLBoolean EGLAPIENTRY eglUnlockSurfaceKHR(EGLDisplay dpy, EGLSurface sur
 /* ------------------------------------------------------------------ */
 /* EGL_KHR_fence_sync, EGL_KHR_reusable_sync, EGL_KHR_wait_sync         */
 /* Rendering is done by the CPU, in order: a fence is signalled as soon as
-   it's made (after glFinish). There is one thread, so nothing can signal
-   a reusable sync while eglClientWaitSyncKHR waits for it: waiting on an
-   unsignalled one returns EGL_TIMEOUT_EXPIRED_KHR at once. */
+   it's made (after glFinish). eglClientWaitSyncKHR doesn't wait: on an
+   unsignalled reusable sync it returns EGL_TIMEOUT_EXPIRED_KHR at once,
+   whatever the timeout. (Another thread could signal it meanwhile; a
+   program that relies on that has to poll. Blocking would also stop the
+   whole desktop, which is cooperatively multitasked.) */
 
 static egl_sync *get_sync(egl_display *d, EGLSyncKHR sync)
 {
@@ -263,10 +265,13 @@ static egl_image *get_image(egl_display *d, EGLImageKHR image)
     return NULL;
 }
 
-/* OSMesaImageLookupFunc: called by Mesa from glEGLImageTargetTexture2DOES */
+/* OSMesaImageLookupFunc: called by Mesa from glEGLImageTargetTexture2DOES,
+   on the GL thread, so it takes the lock: another thread may be creating or
+   destroying images at the same time. */
 static GLboolean image_lookup(void *image, OSMesaImage *desc)
 {
     egl_image *m;
+    LOCK();
     if (!display.initialised)
         return GL_FALSE;
     for (m = display.images; m; m = m->next)

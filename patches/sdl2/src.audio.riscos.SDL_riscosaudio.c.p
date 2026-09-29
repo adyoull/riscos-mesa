@@ -1,9 +1,9 @@
 diff --git src/audio/riscos/SDL_riscosaudio.c src/audio/riscos/SDL_riscosaudio.c
 new file mode 100644
-index 0000000..2bfcd5b
+index 0000000..b8de289
 --- /dev/null
 +++ src/audio/riscos/SDL_riscosaudio.c
-@@ -0,0 +1,263 @@
+@@ -0,0 +1,265 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -36,8 +36,10 @@ index 0000000..2bfcd5b
 + * paged in: this is plain user-mode code with no interrupt handlers.
 + * (It's the same interface RDPClient uses.)
 + *
-+ * The modules (SharedSound 1.07+, StreamManager 0.03+, SharedSoundBuffer
-+ * 0.07+) come with RISC OS 5. If they aren't loaded, this driver isn't
++ * The modules: SharedSound 1.07+ is part of RISC OS 5; StreamManager 0.03+
++ * and SharedSoundBuffer 0.07+ are John Duffell's freeware and have to be
++ * installed (the program's !Run loads them). If they aren't loaded, this
++ * driver isn't
 + * available and SDL falls back to the next one (dsp, via UnixLib's
 + * DigitalRenderer /dev/dsp emulation).
 + */

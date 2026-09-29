@@ -42,6 +42,8 @@
  *   Swap interval: full screen, eglSwapBuffers waits for vertical sync
  *   (OS_Byte 19) that many times. In a desktop window it doesn't wait
  *   (that would stop every task); pace frames with Wimp_PollIdle instead.
+ *   (A window shown through a hardware overlay is the exception: see
+ *   EGL_RISCOS_overlay below.)
  *
  *   EGL_NATIVE_VISUAL_ID of a config is the RISC OS ModeFlags colour order
  *   of its pixels: 0 (0x00BBGGRR, as sprite type 6) or 0x4000 (0x00RRGGBB).

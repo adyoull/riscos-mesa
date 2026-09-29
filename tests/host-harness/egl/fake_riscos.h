@@ -21,6 +21,7 @@ typedef struct {
 extern fake_screen_t fake_screen;
 extern fake_window_t fake_windows[FAKE_MAX_WINDOWS];
 extern int fake_vsyncs, fake_update_calls, fake_redraw_calls, fake_plots;
+extern int fake_sprite_creates;           /* OS_SpriteOp 15 calls */
 /* Wimp_ForceRedraw calls and the last rectangle (window, x0, y0, x1, y1) */
 extern int fake_force_redraws, fake_force_rect[5];
 extern int fake_scaled_plots;          /* OS_SpriteOp 52 */

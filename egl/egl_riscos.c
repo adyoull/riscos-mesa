@@ -172,6 +172,8 @@ typedef struct egl_surface {
     int dmx;                    /* DispmanX element (handle -3) */
     int fixed;                  /* work area rectangle given */
     int wa_x, wa_y;             /* its top left, OS units */
+    int pb_w, pb_h;             /* pbuffer: the size asked for (0x0 is kept as 1x1) */
+    int pb_largest;             /* pbuffer: EGL_LARGEST_PBUFFER as given */
     int direct;                 /* rendering into screen memory */
     int banks;                  /* > 0: flipping between this many screen banks */
     int draw_bank;              /* bank being drawn (1..banks) */
@@ -183,6 +185,8 @@ typedef struct egl_surface {
     int *area;                  /* malloc'd sprite area */
     int *sprite;                /* sprite in it */
     int sprite_mode;            /* mode word / selector used to make it */
+    int sprite_eig;             /* the screen's xeig << 4 | yeig then (a selector's
+                                   address stays the same when its eigs change) */
     int sprite_h;               /* rows in the sprite: > h when padded (see MIN_SPRITE_BYTES) */
     /* hardware overlay (parts/overlay.c) */
     int ovl_want;               /* EGL_OVERLAY_RISCOS: 1 program asked, 0 program refused, -1 unset (EGL$Overlay decides) */
@@ -352,6 +356,17 @@ static void egl_leave(int *entered)
 }
 
 #define ENTER() int egl_entered __attribute__((cleanup(egl_leave), unused)) = egl_enter(__func__)
+
+/* The lock alone, for code that Mesa calls rather than the program (so it
+   isn't an EGL command for EGL_KHR_debug). Released on return, as ENTER(). */
+static int egl_lock(void)
+{
+    pthread_once(&egl_once, egl_once_init);
+    pthread_mutex_lock(&egl_mutex);
+    return 1;
+}
+
+#define LOCK() int egl_locked __attribute__((cleanup(egl_leave), unused)) = egl_lock()
 
 static const char *error_name(EGLint e)
 {

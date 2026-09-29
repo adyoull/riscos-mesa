@@ -58,7 +58,7 @@ After changing anything here, run `tests/run-all.sh` (see its header for
 the settings). The parts that exercise EGL are:
 
 - `tests/host-harness/egl`: the library against a host-built OSMesa and a
-  fake RISC OS (screen, Wimp, OS_SpriteOp), with 436 checks of what
+  fake RISC OS (screen, Wimp, OS_SpriteOp), with over 400 checks of what
   reaches the "screen" (the overlay checks, `harness_ovl.c`, use the fake
   VideoOverlay in `tests/host-harness/ovl/fake_ovl.c`);
 - `tests/host-harness/examples`: the devkit's examples, run on the same

@@ -157,6 +157,7 @@ static void ovl_destroy(egl_surface *surf)
     }
     surf->ovl_id = 0;
     surf->ovl_shown = 0;
+    surf->ovl_last = -1;                /* a new overlay starts with nothing to show */
     if (surf->ovl_state == OVL_ON)
         surf->ovl_state = OVL_OFF;
 }

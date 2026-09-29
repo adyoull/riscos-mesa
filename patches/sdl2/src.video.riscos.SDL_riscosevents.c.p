@@ -1,8 +1,8 @@
 diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents.c
-index fcca470..441b945 100644
+index fcca470..679b5bf 100644
 --- src/video/riscos/SDL_riscosevents.c
 +++ src/video/riscos/SDL_riscosevents.c
-@@ -23,15 +23,104 @@
+@@ -23,15 +23,107 @@
  #if SDL_VIDEO_DRIVER_RISCOS
  
  #include "../../events/SDL_events_c.h"
@@ -77,7 +77,7 @@ index fcca470..441b945 100644
 +}
 +
 +static void
-+RISCOS_WimpMessage(RISCOS_Message *message)
++RISCOS_WimpMessage(_THIS, RISCOS_Message *message)
 +{
 +    _kernel_swi_regs regs;
 +
@@ -93,6 +93,9 @@ index fcca470..441b945 100644
 +        _kernel_swi(Wimp_SendMessage, &regs, &regs);
 +        SDL_SendQuit();
 +        break;
++    case 0x400C1: /* Message_ModeChange: the desktop's screen mode changed */
++        RISCOS_UpdateEigs(_this);                /* OS units per pixel may have too */
++        break;
 +    case 0:  /* Message_Quit */
 +        riscos_quit.shutdown_pending = SDL_FALSE;
 +        riscos_quit.quit_received = SDL_TRUE;
@@ -107,7 +110,7 @@ index fcca470..441b945 100644
  static SDL_Scancode
  SDL_RISCOS_translate_keycode(int keycode)
  {
-@@ -50,6 +139,44 @@ SDL_RISCOS_translate_keycode(int keycode)
+@@ -50,6 +142,44 @@ SDL_RISCOS_translate_keycode(int keycode)
      return scancode;
  }
  
@@ -152,7 +155,7 @@ index fcca470..441b945 100644
  void
  RISCOS_PollKeyboard(_THIS)
  {
-@@ -57,6 +184,17 @@ RISCOS_PollKeyboard(_THIS)
+@@ -57,6 +187,17 @@ RISCOS_PollKeyboard(_THIS)
      Uint8 key = 2;
      int i;
  
@@ -170,7 +173,7 @@ index fcca470..441b945 100644
      /* Check for key releases */
      for (i = 0; i < RISCOS_MAX_KEYS_PRESSED; i++) {
          if (driverdata->key_pressed[i] != 255) {
-@@ -67,6 +205,10 @@ RISCOS_PollKeyboard(_THIS)
+@@ -67,6 +208,10 @@ RISCOS_PollKeyboard(_THIS)
          }
      }
  
@@ -181,7 +184,7 @@ index fcca470..441b945 100644
      /* Check for key presses */
      while (key < 0xff) {
          key = _kernel_osbyte(121, key + 1, 0) & 0xff;
-@@ -111,36 +253,169 @@ static const Uint8 mouse_button_map[] = {
+@@ -111,36 +256,169 @@ static const Uint8 mouse_button_map[] = {
      SDL_BUTTON_X2 + 3
  };
  
@@ -358,7 +361,7 @@ index fcca470..441b945 100644
  int
  RISCOS_InitEvents(_THIS)
  {
-@@ -165,10 +440,338 @@ RISCOS_InitEvents(_THIS)
+@@ -165,10 +443,338 @@ RISCOS_InitEvents(_THIS)
      return 0;
  }
  
@@ -478,7 +481,7 @@ index fcca470..441b945 100644
 +        break;
 +    case 17: /* User_Message */
 +    case 18: /* User_Message_Recorded */
-+        RISCOS_WimpMessage(&event->message);
++        RISCOS_WimpMessage(_this, &event->message);
 +        break;
 +    default:
 +        break;

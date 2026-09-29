@@ -176,6 +176,17 @@ static void test_size_limit(void)
     eglGetConfigAttrib(dpy, cfg, EGL_MAX_PBUFFER_WIDTH, &max_w);
     eglGetConfigAttrib(dpy, cfg, EGL_MAX_PBUFFER_HEIGHT, &max_h);
     {
+        /* EGL_LARGEST_PBUFFER reads back as given, and clamps the size */
+        EGLint pa[] = { EGL_WIDTH, max_w + 10, EGL_HEIGHT, 4, EGL_LARGEST_PBUFFER, EGL_TRUE, EGL_NONE };
+        EGLint v = -1, vw = 0;
+        pb = eglCreatePbufferSurface(dpy, cfg, pa);
+        eglQuerySurface(dpy, pb, EGL_LARGEST_PBUFFER, &v);
+        eglQuerySurface(dpy, pb, EGL_WIDTH, &vw);
+        CHECK(pb != EGL_NO_SURFACE && v == EGL_TRUE && vw == max_w,
+              "largest pbuffer: flag reads back, width clamped (%d, %d)", v, vw);
+        eglDestroySurface(dpy, pb);
+    }
+    {
         EGLint pa[] = { EGL_WIDTH, max_w, EGL_HEIGHT, 8, EGL_NONE };
         pb = eglCreatePbufferSurface(dpy, cfg, pa);
     }
@@ -847,6 +858,40 @@ static void test_eig0(void)
     eglDestroyContext(dpy, ctx);
 }
 
+/* A TRGB config on a TBGR screen renders into a sprite made from a mode
+   selector that carries the screen's eig factors. A mode change that keeps
+   the pixel size but changes the eigs (EX1 EY1 to EX0 EY0) must make the
+   sprite again, or it would plot at the old scale. */
+static void test_eig_change_selector(void)
+{
+    EGLConfig cfg;
+    EGLContext ctx;
+    EGLSurface fs;
+    int n;
+
+    eglTerminate(dpy);
+    fake_set_screen(640, 480, 0, 5);
+    fake_reset_clip();
+    eglInitialize(dpy, NULL, NULL);
+    cfg = choose(EGL_RISCOS_VISUAL_TRGB, 0, EGL_WINDOW_BIT);
+    ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+    fs = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, NULL);
+    eglMakeCurrent(dpy, fs, fs, ctx);
+    clear(1, 0, 0);
+    eglSwapBuffers(dpy, fs);
+    n = fake_sprite_creates;
+    eglSwapBuffers(dpy, fs);
+    CHECK(fake_sprite_creates == n, "same mode: sprite kept");
+    fake_screen.xeig = fake_screen.yeig = 0;        /* same 640x480 pixels, EX0 EY0 */
+    eglSwapBuffers(dpy, fs);
+    eglSwapBuffers(dpy, fs);
+    CHECK(fake_sprite_creates == n + 1, "new eig factors: sprite made again (%d)", fake_sprite_creates - n);
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, fs);
+    eglDestroyContext(dpy, ctx);
+    fake_screen.xeig = fake_screen.yeig = 1;
+}
+
 static void test_trgb_screen(void)
 {
     EGLConfig cfgs[16], cfg;
@@ -1515,6 +1560,7 @@ static void *run(void *arg)
     test_gles(dpy);
     test_dispmanx(dpy);
     test_eig0();
+    test_eig_change_selector();
     test_trgb_screen();
     test_overlay(dpy);          /* last: hooks in the fake VideoOverlay */
     return NULL;

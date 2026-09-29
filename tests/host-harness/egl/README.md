@@ -33,7 +33,7 @@ heap in one arena, and the tests run on a thread whose stack is at 1.5 GB.
     gcc $F harness.c harness_ovl.c fake_riscos.c fake_ovl.o ../../../egl/egl_riscos.c harness_es.o bcm_host.o \
       -o harness -L$O -lOSMesa -lpthread -Wl,-rpath,$O && ./harness
 
-Expected: `408 checks, 0 failures: ALL PASS`.
+Expected: `N checks, 0 failures: ALL PASS` (over 400 checks).
 
 ## Running a port (docs/porting)
 

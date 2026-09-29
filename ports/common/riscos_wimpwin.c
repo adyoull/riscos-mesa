@@ -58,7 +58,7 @@ int rw_open(rw_window *w, const char *title, int x, int y, int width, int height
 
     memset(w, 0, sizeof *w);
     w->width = width; w->height = height;
-    strncpy(w->title, title, sizeof w->title - 1);
+    snprintf(w->title, sizeof w->title, "%s", title);
     x0 = x < 0 ? (sw - ow) / 2 : x << xeig;
     y1 = y < 0 ? sh - (sh - oh) / 2 : sh - (y << yeig);
     memset(wb, 0, sizeof wb);
@@ -86,7 +86,7 @@ int rw_open(rw_window *w, const char *title, int x, int y, int width, int height
 void rw_set_title(rw_window *w, const char *title)
 {
     _kernel_swi_regs r;
-    strncpy(w->title, title, sizeof w->title - 1);
+    snprintf(w->title, sizeof w->title, "%s", title);
     r.r[0] = w->handle; r.r[1] = TASK; r.r[2] = 3;        /* redraw the title bar */
     _kernel_swi(Wimp_ForceRedraw, &r, &r);
 }
@@ -103,12 +103,15 @@ int rw_poll(rw_window *w, EGLDisplay dpy, int want_idle, int *key)
     int block[64];
     _kernel_swi_regs r;
 
-    static int overlays = -1;                    /* EGL$Overlay on: overlays may be in use */
-    if (overlays < 0) {
-        const char *v = getenv("EGL$Overlay");
-        overlays = v && (!strcmp(v, "on") || !strcmp(v, "On") || !strcmp(v, "yes") || !strcmp(v, "1"));
-    }
-    if (want_idle || dpy == EGL_NO_DISPLAY || !overlays) {
+    /* Is our window shown through a hardware overlay? (The ports don't ask
+       for one, but the user can give every program one with
+       *Set EGL$Overlay on.) Ask EGL rather than reading the variable, so
+       this always agrees with what EGL did. */
+    EGLint overlay = 0;
+    EGLSurface surf = dpy != EGL_NO_DISPLAY ? eglGetCurrentSurface(EGL_DRAW) : EGL_NO_SURFACE;
+    if (surf != EGL_NO_SURFACE)
+        eglQuerySurface(dpy, surf, EGL_OVERLAY_RISCOS, &overlay);
+    if (want_idle || !overlay) {
         r.r[0] = want_idle ? 0 : 1;              /* mask null events when not animating */
         r.r[1] = (int) block;
         if (_kernel_swi(Wimp_Poll, &r, &r) != NULL)

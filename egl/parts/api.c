@@ -403,8 +403,9 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreatePbufferSurface(EGLDisplay dpy, EGLConfig 
         return EGL_NO_SURFACE;
     }
     s->pixels = s->mem;
-    s->wa_x = w;                /* reported size */
-    s->wa_y = h;
+    s->pb_w = w;                /* the size reported */
+    s->pb_h = h;
+    s->pb_largest = largest ? EGL_TRUE : EGL_FALSE;
     add_surface(d, s);
     ok();
     return (EGLSurface) s;
@@ -484,9 +485,9 @@ static EGLBoolean query_surface(EGLDisplay dpy, EGLSurface surface, EGLint attri
     trgb = s->cfg->layout == LAYOUT_TRGB;
     switch (attribute) {
     case EGL_CONFIG_ID:        *value = s->cfg->id; break;
-    case EGL_WIDTH:            *value = s->kind == SURF_PBUFFER ? s->wa_x : s->w; break;
-    case EGL_HEIGHT:           *value = s->kind == SURF_PBUFFER ? s->wa_y : s->h; break;
-    case EGL_LARGEST_PBUFFER:  if (s->kind == SURF_PBUFFER) *value = EGL_FALSE; break;
+    case EGL_WIDTH:            *value = s->kind == SURF_PBUFFER ? s->pb_w : s->w; break;
+    case EGL_HEIGHT:           *value = s->kind == SURF_PBUFFER ? s->pb_h : s->h; break;
+    case EGL_LARGEST_PBUFFER:  if (s->kind == SURF_PBUFFER) *value = s->pb_largest; break;
     case EGL_RENDER_BUFFER:
         *value = (s->kind == SURF_PIXMAP || s->direct) ? EGL_SINGLE_BUFFER : EGL_BACK_BUFFER;
         break;

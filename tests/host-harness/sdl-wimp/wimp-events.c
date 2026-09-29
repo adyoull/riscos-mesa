@@ -151,6 +151,8 @@ SDL_bool SDL_HasEvent_REAL(Uint32 type) { return queued && (type == SDL_QUIT || 
 void SDL_Quit_REAL(void) { n_sdl_Quit++; }
 const char *RISCOS_AppName(void) { return "Test"; }
 void RISCOS_ApplyPointerVisibility(_THIS) { }
+static int n_update_eigs;
+void RISCOS_UpdateEigs(_THIS) { n_update_eigs++; }
 void RISCOS_WimpPlotWindow(_THIS, SDL_Window *w, RISCOS_Redraw *r, int more) { }
 
 /* ---- the tests ---- */
@@ -324,6 +326,21 @@ static void test_quit(void)
 /* The icon bar icon's sprite name: all 12 characters of the longest names
    (SDL_riscoswimp.h RISCOS_IconSpriteName; Warzone 2100's icon was blank
    when "!Warzone2100" was cut to 11) */
+/* Message_ModeChange: the eig factors cached for mouse positions and
+   plotting are read again (they change between 90 and 180 dpi modes). */
+static void test_mode_change(void)
+{
+    RISCOS_PollBlock event;
+    reset();
+    n_update_eigs = 0;
+    SDL_zero(event);
+    event.message.size = 20;
+    event.message.action = 0x400C1;
+    wimp_event(17, &event);
+    CHECK(n_update_eigs == 1, "Message_ModeChange: eig factors read again (%d)", n_update_eigs);
+    CHECK(n_sdl_quit == 0 && calls_to(Wimp_SendMessage, NULL, NULL) == 0, "and nothing else");
+}
+
 static void test_icon_sprite_name(void)
 {
     static const char *const names[] = { "!Warzone2100", "!OpenTTD", "application", "!TestGL2" };
@@ -417,6 +434,7 @@ static void *run(void *arg)
     test_prequit_task_only();
     test_prequit_answered_no();
     test_close_and_menu();
+    test_mode_change();
     test_quit();
     test_keys();
     test_icon_sprite_name();

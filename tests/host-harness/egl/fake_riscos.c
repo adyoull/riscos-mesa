@@ -21,6 +21,7 @@
 fake_screen_t fake_screen;
 fake_window_t fake_windows[FAKE_MAX_WINDOWS];
 int fake_vsyncs, fake_update_calls, fake_redraw_calls, fake_plots;
+int fake_sprite_creates;
 int fake_force_redraws, fake_force_rect[5], fake_scaled_plots;
 int fake_wimp_nulls, fake_wimp_script[FAKE_SCRIPT_MAX][4], fake_wimp_script_len;
 int fake_pointer[3], fake_wheel, fake_menus_opened, fake_pointer_shape = 1;
@@ -153,6 +154,7 @@ static _kernel_oserror *sprite_op(_kernel_swi_regs *r)
         spr[10] = mode;
         area[1]++;
         area[3] += size;
+        fake_sprite_creates++;
         return NULL;
     }
     if (reason == 34 || reason == 52) {             /* put sprite (scaled) */

@@ -265,6 +265,24 @@ void test_overlay(EGLDisplay d)
     eglSwapBuffers(dpy, ws);
     CHECK(fake_ovl_creates == n + 2 && fake_ovl_live() == 1, "and back");
 
+    /* a mode change while covered: the old overlay goes, and no new one is
+       shown (or given an unwritten buffer) until a frame is copied into it */
+    eglSwapBuffers(dpy, ws);
+    eglSwapBuffers(dpy, ws);                        /* last shown: not buffer 0 */
+    fake_open_window(0x5001, 350, 400, 600, 700, 0, 0);
+    fake_window_behind = 0x5001;
+    fake_set_screen(800, 600, 0, 5);
+    eglSwapBuffers(dpy, ws);
+    CHECK(shown() < 0 && query(ws) != 1, "new mode, covered: not shown (%d, %d)", shown(), query(ws));
+    fake_open_window(0x5001, 800, 100, 1000, 200, 0, 0);
+    eglCheckOverlaysRISCOS(dpy);
+    CHECK(shown() < 0 && query(ws) != 1, "uncovered: no unwritten buffer shown (%d)", shown());
+    eglSwapBuffers(dpy, ws);
+    CHECK(shown() == 0 && query(ws) == 1, "next frame: shown from buffer 0 (%d)", shown());
+    fake_window_behind = -1;
+    fake_set_screen(640, 480, 0, 5);
+    eglSwapBuffers(dpy, ws);
+
     /* GPU short of memory: 2 buffers; none at all: plotted until it changes */
     eglSurfaceAttrib(dpy, ws, EGL_OVERLAY_RISCOS, EGL_FALSE);
     setenv("FAKE_OVL_GPU_BYTES", "80000", 1);       /* a 150x60 buffer is 39840 */

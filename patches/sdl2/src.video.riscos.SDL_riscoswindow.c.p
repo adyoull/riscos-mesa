@@ -1,5 +1,5 @@
 diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow.c
-index f47d33a..145c671 100644
+index f47d33a..1676b75 100644
 --- src/video/riscos/SDL_riscoswindow.c
 +++ src/video/riscos/SDL_riscoswindow.c
 @@ -24,16 +24,361 @@
@@ -24,9 +24,9 @@ index f47d33a..145c671 100644
 +#include <stdlib.h>
 +#include <swis.h>
 +
-+/* Messages we want besides Message_Quit, which every task gets: Message_PreQuit
-+   (see SDL_riscosevents.c). */
-+static const int riscos_wimp_messages[] = { 8 /* Message_PreQuit */, 0 };
++/* Messages we want besides Message_Quit, which every task gets:
++   Message_PreQuit and Message_ModeChange (see SDL_riscosevents.c). */
++static const int riscos_wimp_messages[] = { 8 /* Message_PreQuit */, 0x400C1 /* Message_ModeChange */, 0 };
 +
 +/* 2026: the program's own name (task name, icon bar menu title) and icon
 +   bar sprite, found from its application directory: a program run as

@@ -49,11 +49,11 @@ static int screen_layout(const screen_info *s)
 static int read_mode_variable(int mode, int var, int *value)
 {
     _kernel_swi_regs r;
+    int invalid = 0;
     r.r[0] = mode;
     r.r[1] = var;
-    if (_kernel_swi(OS_ReadModeVariable, &r, &r) != NULL)
-        return 0;
-    /* C flag set = invalid; _kernel_swi can't report it, so sanity check */
+    if (_kernel_swi_c(OS_ReadModeVariable, &r, &r, &invalid) != NULL || invalid)
+        return 0;               /* C set: not a valid mode or variable */
     *value = r.r[2];
     return 1;
 }
