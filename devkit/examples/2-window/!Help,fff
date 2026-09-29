@@ -3,6 +3,16 @@
 
 Example 2: a spinning triangle in a desktop window. Move it, resize it, cover it up; close it to quit.
 
+Click Menu over the window for two speed options:
+  Hardware overlay   the display shows the frames itself (Raspberry Pi,
+                     with the VideoOverlay module)
+  Draw at 240x180    draw a quarter of the pixels and stretch the picture
+                     to fill the window
+The title bar says how the frames are reaching the screen: "plotted"
+(the usual way: the computer copies each frame into the window),
+"overlay", or "overlay hidden" while something is over the window
+(including this menu). The overlay starts a moment after you choose it.
+
 Built from window.c in the riscos-mesa devkit's examples folder; read the
 comments in that file to see how it works.
 

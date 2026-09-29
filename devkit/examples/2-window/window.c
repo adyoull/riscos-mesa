@@ -10,7 +10,11 @@
  *   - the Wimp_Poll loop, the heart of every desktop program;
  *   - the two places EGL joins in: eglSwapBuffers after each frame, and
  *     eglRedrawWindowRISCOS when the desktop asks for a repaint;
- *   - how to animate without slowing the rest of the machine down.
+ *   - how to animate without slowing the rest of the machine down;
+ *   - a menu (click Menu over the window) with two speed options for the
+ *     Raspberry Pi: showing the window through the display's hardware
+ *     overlay, and drawing at a smaller size that is stretched to fill
+ *     the window. Both are one EGL call each.
  *
  * Why the loop matters: RISC OS multitasks "cooperatively". Only one
  * program runs at a time, and it keeps running until it calls Wimp_Poll,
@@ -23,7 +27,8 @@
  * Part of the riscos-mesa devkit. MIT licence: copy it, change it, use it
  * as the start of your own program.
  */
-#define EGL_EGLEXT_PROTOTYPES 1          /* declare eglRedrawWindowRISCOS */
+#define EGL_EGLEXT_PROTOTYPES 1          /* declare the extension functions,
+                                            such as eglRedrawWindowRISCOS */
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -36,11 +41,70 @@
 #define WIDTH  480                       /* window size in pixels */
 #define HEIGHT 360
 
+#define SMALL_W 240                      /* "Draw at 240x180": half size */
+#define SMALL_H 180
+
 /* Wimp_Poll tells us what happened with a "reason code". These are the
  * ones this program cares about. */
-enum { NULL_REASON = 0, REDRAW = 1, OPEN = 2, CLOSE = 3, MESSAGE = 17, MESSAGE_RECORDED = 18 };
+enum { NULL_REASON = 0, REDRAW = 1, OPEN = 2, CLOSE = 3, MOUSE_CLICK = 6,
+       MENU_SELECTION = 9, MESSAGE = 17, MESSAGE_RECORDED = 18 };
 
-static char title[] = "Spinning triangle";
+/* The window's title. The Wimp reads it from our memory ("indirected"),
+ * so we can change it later to show what the program is doing. */
+static char title[64] = "Spinning triangle";
+
+/* ---- The menu -------------------------------------------------------
+ *
+ * A Wimp menu is a block of words: a header (title, colours, size), then
+ * six words for each item. We build it once, and tick items by setting
+ * bit 0 of their first word. */
+enum { ITEM_OVERLAY, ITEM_SMALL, ITEMS };
+static char item_text[ITEMS][24] = { "Hardware overlay", "Draw at 240x180" };
+static int menu[7 + 6 * ITEMS];
+
+static void make_menu(void)
+{
+    int i;
+    memset(menu, 0, sizeof menu);
+    strcpy((char *) menu, "Triangle");   /* title: up to 12 characters */
+    ((char *) menu)[12] = 7;             /* title text black, */
+    ((char *) menu)[13] = 2;             /* title bar grey,   */
+    ((char *) menu)[14] = 7;             /* item text black,  */
+    ((char *) menu)[15] = 0;             /* item background white */
+    menu[4] = 18 * 16;                   /* width, OS units (18 characters) */
+    menu[5] = 44;                        /* height of each item */
+    menu[6] = 0;                         /* gap between items */
+    for (i = 0; i < ITEMS; i++) {
+        int *item = &menu[7 + 6 * i];
+        item[0] = i == ITEMS - 1 ? 0x80 : 0;   /* bit 7: the last item */
+        item[1] = -1;                          /* no submenu */
+        item[2] = 0x07000121;                  /* text, filled, black,
+                                                  indirected (0x100) */
+        item[3] = (int) item_text[i];          /* the text, */
+        item[4] = -1;                          /* no validation string, */
+        item[5] = sizeof item_text[i];         /* and its buffer size */
+    }
+}
+
+static void tick(int item, int on)
+{
+    if (on) menu[7 + 6 * item] |= 1;
+    else    menu[7 + 6 * item] &= ~1;
+}
+
+/* Puts new text in the title bar. The Wimp only redraws the title when
+ * asked: Wimp_ForceRedraw with "TASK" and 3 means "just the title bar". */
+static void set_title(int window, const char *text)
+{
+    _kernel_swi_regs r;
+    if (strcmp(title, text) == 0)
+        return;                          /* no change: don't redraw */
+    snprintf(title, sizeof title, "%s", text);
+    r.r[0] = window;
+    r.r[1] = 0x4B534154;                 /* "TASK" */
+    r.r[2] = 3;
+    _kernel_swi(Wimp_ForceRedraw, &r, &r);
+}
 
 /* Something went wrong: say what (RISC OS shows printed text in a window). */
 static int fail(const char *what)
@@ -95,7 +159,8 @@ static int open_window(void)
                                               let the user make it larger */
     block[14] = 0x07000119;                /* 14: the title is text that we keep
                                               in our own memory ("indirected") */
-    /* 15: what clicks in the window do (0: nothing special) */
+    block[15] = 3 << 12;                   /* 15: tell us about mouse clicks
+                                              (button type 3, "click") */
     block[16] = 1;                         /* 16: sprites come from the Wimp's pool */
     /* 17: minimum size (0: the Wimp decides) */
     block[18] = (int) title;               /* 18-20: the title text, no */
@@ -134,13 +199,18 @@ int main(void)
         EGL_SURFACE_TYPE,    EGL_WINDOW_BIT,
         EGL_NONE
     };
-    static const int messages[] = { 0 };   /* we only want Message_Quit (number 0) */
+    static const int messages[] = { 0 };   /* no messages besides Message_Quit,
+                                              which every task gets (0 ends the list) */
     EGLDisplay display;
     EGLConfig config;
     EGLSurface surface;
     EGLContext context;
     EGLint count, width, height;
     int task, window, frame = 0, running = 1, block[64];
+    int want_overlay = 0, small = 0;     /* the two menu options */
+    int menu_x = 0, menu_y = 0;          /* where the menu was opened */
+    EGLint shown;
+    char text[64];
     unsigned next_frame;
     _kernel_swi_regs r;
     _kernel_oserror *error;
@@ -173,7 +243,13 @@ int main(void)
     eglBindAPI(EGL_OPENGL_API);
     if (!eglChooseConfig(display, want, &config, 1, &count) || count < 1)
         return fail("eglChooseConfig");
-    surface = eglCreateWindowSurface(display, config, window, NULL);
+    /* Start with the hardware overlay off, since it's a menu option.
+     * Saying so here (rather than leaving it out) also stops a user's
+     * "*Set EGL$Overlay on" from turning it on behind the menu's back. */
+    {
+        static const EGLint surface_attrs[] = { EGL_OVERLAY_RISCOS, EGL_FALSE, EGL_NONE };
+        surface = eglCreateWindowSurface(display, config, window, surface_attrs);
+    }
     if (surface == EGL_NO_SURFACE)
         return fail("eglCreateWindowSurface");
     context = eglCreateContext(display, config, EGL_NO_CONTEXT, NULL);
@@ -181,6 +257,7 @@ int main(void)
         return fail("eglCreateContext");
     if (!eglMakeCurrent(display, surface, surface, context))
         return fail("eglMakeCurrent");
+    make_menu();
 
     /* 3. The poll loop. Wimp_PollIdle is Wimp_Poll with an alarm clock:
      * "wake me with a null event at this time, or sooner if something
@@ -188,7 +265,7 @@ int main(void)
      * leaves the rest of the time to other programs. (In a window,
      * eglSwapBuffers doesn't wait for vsync: waiting would freeze every
      * other task, so the pacing is done here instead. Through a hardware
-     * overlay it waits at most until the next one.) */
+     * overlay it may wait, but never longer than one screen refresh.) */
     _kernel_swi(OS_ReadMonotonicTime, &r, &r);
     next_frame = r.r[0];
     while (running) {
@@ -205,6 +282,19 @@ int main(void)
             eglQuerySurface(display, surface, EGL_HEIGHT, &height);
             draw(frame++, width, height);
             eglSwapBuffers(display, surface);    /* puts the frame in the window */
+
+            /* Show in the title how the frame reached the screen. Asking
+             * for an overlay doesn't guarantee one: without the
+             * VideoOverlay module, or while another window or menu is
+             * over ours (our own menu included), EGL plots the frame as
+             * usual, and the overlay only starts after a few frames in a
+             * row. EGL_OVERLAY_RISCOS says what actually happened: 1
+             * overlay, 2 overlay hidden, 0 plotted. */
+            eglQuerySurface(display, surface, EGL_OVERLAY_RISCOS, &shown);
+            snprintf(text, sizeof text, "Spinning triangle: %s%s",
+                     shown == 1 ? "overlay" : shown == 2 ? "overlay hidden" : "plotted",
+                     small ? ", 240x180" : "");
+            set_title(window, text);
             next_frame += 2;
             _kernel_swi(OS_ReadMonotonicTime, &r, &r);
             if ((int) (next_frame - r.r[0]) < 0)
@@ -228,6 +318,61 @@ int main(void)
 
         case CLOSE:
             running = 0;               /* the close icon was clicked */
+            break;
+
+        case MOUSE_CLICK:
+            /* block[2] says which button: 4 Select, 2 Menu, 1 Adjust.
+             * On Menu, open our menu where the pointer is. */
+            if (block[2] == 2) {
+                menu_x = block[0] - 64;  /* the RISC OS custom: 64 OS */
+                menu_y = block[1];       /* units left of the pointer */
+                r.r[1] = (int) menu;
+                r.r[2] = menu_x;
+                r.r[3] = menu_y;
+                _kernel_swi(Wimp_CreateMenu, &r, &r);
+            }
+            break;
+
+        case MENU_SELECTION:
+            /* block[0] is the item chosen (0 = the first). */
+            if (block[0] == ITEM_OVERLAY) {
+                /* Ask for a hardware overlay, or stop using one. On a
+                 * Raspberry Pi with the VideoOverlay module loaded (see
+                 * !Run), the display shows our frames itself instead of
+                 * EGL plotting them: the plot's cost goes, and the picture
+                 * doesn't tear. It's off unless a program asks, because
+                 * the overlay sits on top of everything on the screen:
+                 * EGL hides it whenever something overlaps our window. */
+                want_overlay = !want_overlay;
+                eglSurfaceAttrib(display, surface, EGL_OVERLAY_RISCOS,
+                                 want_overlay ? EGL_TRUE : EGL_FALSE);
+                tick(ITEM_OVERLAY, want_overlay);
+            } else if (block[0] == ITEM_SMALL) {
+                /* Draw at 240x180 whatever size the window is, and let EGL
+                 * stretch each frame to fill it: a quarter of the pixels
+                 * to draw. With an overlay the display does the
+                 * stretching for free; without one the sprite plot does
+                 * it. From the next frame, EGL_WIDTH and EGL_HEIGHT
+                 * report 240x180, so draw() needs no change. (A program
+                 * that uses the mouse must scale its position into the
+                 * 240x180 picture itself: see the EGL guide.) Setting 0
+                 * goes back to following the window's size. */
+                small = !small;
+                eglSurfaceAttrib(display, surface, EGL_RENDER_WIDTH_RISCOS, small ? SMALL_W : 0);
+                if (small)
+                    eglSurfaceAttrib(display, surface, EGL_RENDER_HEIGHT_RISCOS, SMALL_H);
+                tick(ITEM_SMALL, small);
+            }
+            /* The menu closes after a choice, unless it was made with
+             * Adjust: then the RISC OS convention is to reopen it. */
+            r.r[1] = (int) block;
+            _kernel_swi(Wimp_GetPointerInfo, &r, &r);
+            if (block[2] & 1) {
+                r.r[1] = (int) menu;
+                r.r[2] = menu_x;
+                r.r[3] = menu_y;
+                _kernel_swi(Wimp_CreateMenu, &r, &r);
+            }
             break;
 
         case MESSAGE:

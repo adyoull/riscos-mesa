@@ -11,5 +11,9 @@ RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
 RMEnsure SharedUnixLibrary 1.16 Error !GLWindow needs SharedUnixLibrary 1.16 or later (from PackMan)
 RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
 RMEnsure ARMEABISupport 0.00 Error !GLWindow needs ARMEABISupport (from PackMan)
+| The hardware overlay in the program's menu needs the VideoOverlay
+| module (a Raspberry Pi has it in !System). Load it if it's there; the
+| program runs without it, and then its frames are always plotted.
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
 | Start the program. Always "Run" it by its full path.
 Run <GLWindow$Dir>.!RunImage

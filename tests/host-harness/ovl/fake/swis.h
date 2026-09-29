@@ -28,6 +28,8 @@
 #define Wimp_GetRectangle   0x400CA
 #define Wimp_GetWindowState 0x400CB
 #define Wimp_ForceRedraw    0x400D1
+#define Wimp_GetPointerInfo 0x400CF
+#define Wimp_CreateMenu     0x400D4
 #define Wimp_SetCaretPosition 0x400D2
 #define Wimp_ProcessKey     0x400DC
 #define Wimp_CloseDown      0x400DD

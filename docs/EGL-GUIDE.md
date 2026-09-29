@@ -202,44 +202,77 @@ for (;;) {
 
 ### Hardware overlays (EGL_RISCOS_overlay)
 
-A window surface can be shown through a **hardware overlay** instead of being plotted, when the VideoOverlay module is loaded (RISC OS 5 on a Raspberry Pi has it in `!System`): `eglSwapBuffers` copies the finished frame into an overlay buffer and the display hardware shows it at the next vsync. It saves the plot (about 3 ms a frame for a 640x480 window on a Pi 4) and doesn't tear. It suits video and other programs that show ready-made frames; for most GL programs rendering costs far more than the plot.
+Two optional speed-ups for window surfaces, mainly for the Raspberry Pi:
 
-**It is opt-in.** An overlay changes things a program may not expect: it covers menus opened over a window that has stopped swapping, `eglSwapBuffers` can wait for a vsync, screen grabs don't see it, and it takes GPU memory. So a surface only gets one when the program asks:
+- **Draw smaller, show bigger.** Render at a fixed size, such as 320x240, and let each frame be stretched to fill the window. Drawing time depends on the number of pixels, so this is the biggest saving there is. It works on every machine.
+- **A hardware overlay.** Normally EGL *plots* each frame: the CPU copies it into the window with `OS_SpriteOp`, which takes a few milliseconds a frame. With an overlay the display hardware shows the frame itself, and does any stretching for free. This needs the VideoOverlay module, which RISC OS for the Pi has in `!System` (tested with version 0.02).
+
+**Quick start.** Ask for either or both when you make the surface:
 
 ```c
-EGLint attrs[] = { EGL_OVERLAY_RISCOS, EGL_TRUE, EGL_NONE };
+EGLint attrs[] = {
+    EGL_RENDER_WIDTH_RISCOS, 320, EGL_RENDER_HEIGHT_RISCOS, 240,   /* draw at 320x240 */
+    EGL_OVERLAY_RISCOS, EGL_TRUE,                                  /* use an overlay if there is one */
+    EGL_NONE
+};
 surf = eglCreateWindowSurface(dpy, cfg, window_handle, attrs);
-/* or at any time, e.g. from a "Hardware acceleration" menu item: */
-eglSurfaceAttrib(dpy, surf, EGL_OVERLAY_RISCOS, hw_accel ? EGL_TRUE : EGL_FALSE);
 ```
 
-Users can override it: `*Set EGL$Overlay on` gives an overlay to every program that hasn't said `EGL_FALSE` (to try it with programs that don't know about it), and `*Set EGL$Overlay off` turns overlays off for every program, whatever it asked for.
+Or turn them on and off at any time, for example from a menu:
 
-Once asked for:
+```c
+eglSurfaceAttrib(dpy, surf, EGL_OVERLAY_RISCOS, on ? EGL_TRUE : EGL_FALSE);
+eglSurfaceAttrib(dpy, surf, EGL_RENDER_WIDTH_RISCOS, on ? 320 : 0);   /* 0: follow the window again */
+if (on) eglSurfaceAttrib(dpy, surf, EGL_RENDER_HEIGHT_RISCOS, 240);
+```
 
-- **Which surfaces.** A window surface that covers the visible area (the default), when it's the only EGL surface in its window, once the program is animating: three `eglSwapBuffers` in a row, each within a quarter of a second of the last. A window redrawn now and then keeps being plotted. Work area surfaces (`EGL_WORK_AREA_*_RISCOS`), full screen surfaces and DispmanX windows are plotted as before, and so is a visible-area surface while a work area surface shares its window.
-- **Fallbacks.** Every problem falls back to plotting, with no error: VideoOverlay not loaded, no overlay of that size, the GPU out of memory for the buffers (three buffers, else two), an error while showing a frame. After a failure the surface tries again when its size or the screen mode changes. A mode change gets a new overlay.
-- **Windows and menus in front.** On the Pi the overlay is "Basic": it would sit on top of everything. So while any window or menu overlaps your surface, EGL hides the overlay and plots the frame; when nothing overlaps, the overlay comes back. This is checked at every `eglSwapBuffers` and every `eglRedrawWindowRISCOS`. **A program that stops swapping** (a paused video, a finished render) should call `eglCheckOverlaysRISCOS(dpy)` on null events (a few times a second is enough). A quarter of a second after the last swap it hides the overlay and plots the last frame, so a paused window is an ordinary plotted window, and menus and windows over it behave as usual; the next `eglSwapBuffers` shows through the overlay again at once (it is kept, with its buffers). To free the GPU memory during a long pause as well, turn the overlay off with `eglSurfaceAttrib` and back on when playing resumes. freeglut (from the devkit) does this for you: while a window has an overlay (with `EGL$Overlay on`) it wakes ten times a second to check.
-- **Pacing.** With an overlay, `eglSwapBuffers` waits for a vsync only when none has passed since the previous frame was shown (swap interval 1, the default; 0 never waits). Writing into a buffer that is still being switched to would tear. A program with other work to do (decoding the next video frame, game logic) can avoid even that wait: `eglSwapWouldWaitRISCOS(dpy, surf)` returns `EGL_TRUE` when a swap right now would block, so do the other work and swap on the next pass. riscos-ffmpeg's Reel found the blocking wait cost a 60 fps player most of a frame; not blocking fixed it.
-- **Render small, show big.** Rendering costs grow with the pixels drawn, so a program can render at a smaller size and let the overlay stretch it over the window, for free:
+And load the module in `!Run` if it's there (the program runs without it):
+
+```
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+```
+
+The devkit's example 2 (`!GLWindow`) does all of this from its menu, with comments. Nothing else in your program changes: `EGL_WIDTH` and `EGL_HEIGHT` report the render size, so a program that sets `glViewport` from them (as it should) draws correctly.
+
+**How much it helps** (Pi 4, a lit spinning cube in a 1024x768 window, through SDL):
+
+| | Frames a second |
+| --- | --- |
+| Drawing at 1024x768, plotted | 78 |
+| Drawing at 640x480, stretched by the plot | 134 |
+| Drawing at 640x480, stretched by an overlay | 214 |
+
+**Things to know**
+
+- **Both are off unless you ask**, and if an overlay can't be had (no module, not enough GPU memory, any error) EGL quietly plots the frames as usual. You never have to handle a failure. (If overlays never appear on a Pi with the module loaded, the GPU's memory may be too small for the buffers: the `gpu_mem` setting in `CONFIG/TXT` on the boot partition.)
+- **The overlay sits on top of everything on the screen.** So EGL hides it and plots your frames whenever another window or menu overlaps your window, and brings it back when nothing does. Two consequences:
+  - Draw anything that should appear over the picture (a score, subtitles) with GL, into the frame. Anything plotted on the screen over it is hidden.
+  - Open your program's other windows beside the GL window, not over it, or every frame is plotted (slower).
+- **If your program stops drawing for a while** (a paused game or video), call `eglCheckOverlaysRISCOS(dpy)` on null events, a few times a second. EGL then puts the window back to plotting, so menus over it behave normally. The next `eglSwapBuffers` uses the overlay again.
+- **Mouse positions.** The Wimp gives the pointer in screen OS units, as always, so with a render size scale it into the picture yourself. With the window's visible area from `Wimp_GetWindowState` (`x0`, `y0`, `x1`, `y1`) and the mode's eigen factors:
 
   ```c
-  EGLint attrs[] = { EGL_OVERLAY_RISCOS, EGL_TRUE,
-                     EGL_RENDER_WIDTH_RISCOS, 640, EGL_RENDER_HEIGHT_RISCOS, 360, EGL_NONE };
-  surf = eglCreateWindowSurface(dpy, cfg, window_handle, attrs);
+  int win_w = (x1 - x0) >> xeig, win_h = (y1 - y0) >> yeig;      /* window, pixels */
+  int px = ((mouse_x - x0) >> xeig) * render_w / win_w;           /* 0 at the left */
+  int py = ((y1 - mouse_y) >> yeig) * render_h / win_h;           /* 0 at the top  */
   ```
 
-  The surface is then 640x360 (`EGL_WIDTH`/`EGL_HEIGHT` say so; set `glViewport` from them) whatever the window's size, and each frame fills the window's visible area, stretched to its shape. Change it at any time with `eglSurfaceAttrib(dpy, surf, EGL_RENDER_WIDTH_RISCOS, w)` (and `..._HEIGHT_RISCOS`); it takes effect at the next swap; 0 follows the window again. When the overlay is hidden or unavailable the sprite plot does the stretching (`OS_SpriteOp 52`), slower but the same picture. A full screen surface takes a render size too, and is then always scaled by the sprite plot. Mouse positions are in window pixels: multiply by render size / window size to get render pixels. SDL programs get the render size and the overlay through hints, with the mouse scaled for them: see [porting/sdl2.md](porting/sdl2.md).
-- **Draw overlays into the frame.** A Basic overlay covers everything on the screen over its rectangle, so text, a HUD, subtitles or statistics drawn on the screen over the picture are hidden under it. Draw them into the surface with GL.
-- **Put your other windows beside the picture.** While any window overlaps the surface the overlay is hidden and every frame is plotted, which is much slower (720p60 video fell to about 29 fps in Reel with its info window over the picture). Open your program's own windows next to the GL window, not over it.
-- **Turning it off again.** `eglSurfaceAttrib(dpy, surf, EGL_OVERLAY_RISCOS, EGL_FALSE)` hides and frees the overlay at once and plots the last frame; `EGL_TRUE` turns it back on and retries after a failure.
-- **Is it in use?** `eglQuerySurface(dpy, surf, EGL_OVERLAY_RISCOS, &v)`: 1 shown through an overlay, 2 an overlay exists but is hidden (something overlaps), 0 plotted.
-- **Screen grabs** (Snapper, `*ScreenSave`) don't include the overlay: they show what's plotted underneath. Turn the overlay off to grab the window.
-- **`!Run`.** Load the module if it's there (programs run without it):
+  (GL counts y from the bottom: use `render_h - 1 - py` for that. SDL programs get all this done for them: see [porting/sdl2.md](porting/sdl2.md).)
+- **Screen grabs** (Snapper, `*ScreenSave`) don't see an overlay: they show what's plotted underneath.
+- **Users can override you:** `*Set EGL$Overlay off` turns overlays off for every program; `*Set EGL$Overlay on` gives one to every program that hasn't said no. Leaving the attribute out isn't saying no; giving `EGL_OVERLAY_RISCOS, EGL_FALSE` is.
+- **To check it's working,** `eglQuerySurface(dpy, surf, EGL_OVERLAY_RISCOS, &v)` gives 1 when frames are going through an overlay, 2 when it's hidden because something overlaps, and 0 when they're being plotted. Example 2 shows this in its title bar.
 
-  ```
-  RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
-  ```
+#### The details
+
+- **Which surfaces get an overlay:** a window surface covering the visible area (the default), when it's the only EGL surface in its window, once the program is animating (three swaps in a row, each within a quarter of a second of the last). Surfaces placed in the work area (see [GL views inside a window](#gl-views-inside-a-window)), full screen surfaces and windows opened by the DispmanX compatibility library are always plotted.
+- **Retrying:** after a failure the surface tries again when its size or the screen mode changes, or when you set `EGL_OVERLAY_RISCOS` to `EGL_TRUE` again. A mode change gets a new overlay. The overlay uses three buffers, or two if GPU memory is short.
+- **When the overlap is checked:** at every `eglSwapBuffers` and `eglRedrawWindowRISCOS`, and at every `eglCheckOverlaysRISCOS`, which also puts a surface that hasn't been swapped for a quarter of a second back to plotting (keeping the overlay and its buffers for the next swap). To free the GPU memory during a long pause as well, turn the overlay off with `eglSurfaceAttrib` and on again afterwards. freeglut (in the devkit) checks for you while a window has an overlay.
+- **Vsync:** with an overlay, `eglSwapBuffers` waits for a vsync only if none has passed since the previous frame was shown (with the default swap interval of 1; 0 never waits), because writing the next buffer any sooner would tear. A program with other work to do can avoid even that wait: `eglSwapWouldWaitRISCOS(dpy, surf)` returns `EGL_TRUE` if a swap right now would wait, so do the other work first and swap on the next pass.
+- **Changing the render size:** `eglSurfaceAttrib` with `EGL_RENDER_WIDTH_RISCOS` or `EGL_RENDER_HEIGHT_RISCOS` takes effect at the next swap. Setting one when there's no render size yet takes the other from the surface's current size, so set both. Setting either to 0 removes the render size (both). At creation, give both or neither.
+- **Without an overlay,** the sprite plot does the stretching (`OS_SpriteOp 52`): slower than an overlay, but the same picture. A render size equal to the window's size uses the ordinary plot.
+- **Full screen** surfaces take a render size too, stretched to the screen by the sprite plot (never an overlay, screen banks or direct rendering).
+- **Turning the overlay off** with `EGL_FALSE` hides and frees it at once and plots the last frame.
+- **Tested so far:** on a Pi 4, an SDL window with a render size, through an overlay and through the plot, including mouse positions. The rest (other windows and menus over the overlay, pausing, full screen with a render size, mode changes) has been tested against a stand-in VideoOverlay on a PC, and follows the Pi's measured behaviour, but hasn't yet been run on a Pi.
 
 ## GL views inside a window
 
@@ -674,17 +707,7 @@ Rendering is Mesa's software rasteriser on one CPU core, so keep scenes simple a
 | Same, no vsync | ~67 fps | 9.2 ms / 5.7 ms |
 | Same, direct to screen | ~100 fps | 9.9 ms / 0 ms |
 
-The window and full screen figures are from the 20.3.5-4 tests; rendering has got faster since.
-
-**Render size and hardware overlay (Pi 4, 2026-09-29, `sdlgltest`: SDL's GL window through this EGL, a lit cube in a 1024x768 window)**
-
-| Case | Frame rate | Render / present per frame |
-| --- | --- | --- |
-| Rendering at 1024x768, plotted (SDL's old sprite path) | 78 fps | 10.85 ms / 1.96 ms |
-| Rendering at 640x480, stretched by the sprite plot | 134 fps | 4.27 ms / 3.17 ms |
-| Rendering at 640x480, stretched by the overlay | 214 fps | 4.42 ms / 0.25 ms |
-
-Render time follows the pixel count; the overlay takes the present cost to almost nothing. Menus over an overlay, full screen with a render size and mode changes are still to be tried on a Pi. The riscos-mesa benchmark (`glbench`, 640x480, 24-bit depth + stencil, 20.3.5-7, ms per frame and frames per second):
+The window and full screen figures are from the 20.3.5-4 tests; rendering has got faster since. The riscos-mesa benchmark (`glbench`, 640x480, 24-bit depth + stencil, 20.3.5-7, ms per frame and frames per second):
 
 | Scene | ms | fps |
 | --- | --- | --- |

@@ -27,39 +27,10 @@ context from SDL has no window code to change.
 - **Functions:** `SDL_GL_GetProcAddress` finds every GL and GLES function.
   They're also linked directly, so code that calls `glClear` without
   loading it works too.
-- **Render size:** the hint `"SDL_RISCOS_GL_RENDER_SIZE"` = `"640x480"`
-  (`SDL_SetHint` before creating the window, or a system variable of that
-  name, e.g. set from `!Run`) makes GL render at that size, stretched to
-  fill the window, or the screen when full screen. The program sees a
-  640x480 window: `SDL_GetWindowSize`, `SDL_GL_GetDrawableSize`, window
-  events and mouse positions are all in render pixels, while the desktop
-  window keeps the size the program asked for. Rendering cost follows
-  the render size, so this is the big speed-up for a game in a large
-  window or full screen.
-- **Hardware overlay:** the hint `"SDL_RISCOS_GL_OVERLAY"` = `"1"` shows
-  the window through the display's video overlay (VideoOverlay, on a
-  Raspberry Pi): no plot per frame, no tearing, and a render size is
-  scaled by the hardware. `"0"` refuses it; unset, `EGL$Overlay` decides.
-  Everything falls back to the sprite plot without it (see the EGL
-  guide's "Hardware overlays").
-- These two hints (and `"SDL_RISCOS_GL_EGL"` = `"1"`) show the GL window
-  through riscos-mesa's EGL; without them GL renders into the window's
-  sprite as it always has. Load the VideoOverlay module in `!Run` with
-  `RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay`.
-  - **On a Pi 4** (sdlgltest's lit cube in a 1024x768 window, 2026-09-29):
-    78 fps rendering at 1024x768 the old way; 134 fps at 640x480
-    stretched by the sprite plot; 214 fps at 640x480 stretched by the
-    overlay. Mouse positions were right in every corner. Menus over the
-    overlay, full screen and mode changes haven't been tried on a Pi yet.
-  - **Call `SDL_PollEvent` (or `SDL_PumpEvents`) between frames.** With an
-    overlay, a frame that would have to wait for a vsync isn't waited
-    for: it's held and shown from the event loop once the vsync has
-    passed, so `SDL_GL_SwapWindow` never stops the desktop.
-  - **No accumulation buffers** on the EGL path.
-  - **Anything drawn on the screen over the picture is hidden** under a
-    hardware overlay, and while another window overlaps the GL window the
-    frames are plotted instead, which is slower. Keep a program's other
-    windows beside the GL window.
+- **Drawing faster on a Pi:** a smaller render size and the hardware
+  overlay, both switched on with hints. See
+  [Drawing faster](#drawing-faster-render-size-and-hardware-overlay)
+  below.
 - **Windows:** resizing, switching to full screen and back, and EX0 EY0
   (180 dpi) scaling are handled by the driver.
   The hint `"SDL_RISCOS_WINDOW_SCALE"` (`SDL_SetHint`, or a system
@@ -111,6 +82,68 @@ context from SDL has no window code to change.
   [riscos-midisynth](https://github.com/adyoull/riscos-midisynth) plays
   `.mid` files through a SoundFont; its `midisynth_render` output can be
   mixed into an SDL audio callback. OpenTTD's RISC OS port uses it.
+
+## Drawing faster: render size and hardware overlay
+
+Drawing time depends on the number of pixels, so a game in a big window
+or full screen can be slow. riscos-mesa's SDL has two optional fixes:
+
+- **A render size:** the game draws at, say, 640x480, and the picture is
+  stretched to fill the window or the screen.
+- **A hardware overlay:** on a Raspberry Pi with the VideoOverlay module,
+  the display shows the frames itself and does the stretching for free.
+
+Switch them on before creating the window:
+
+```c
+SDL_SetHint("SDL_RISCOS_GL_RENDER_SIZE", "640x480");   /* draw at 640x480 */
+SDL_SetHint("SDL_RISCOS_GL_OVERLAY", "1");             /* use an overlay if there is one */
+window = SDL_CreateWindow("Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                          1024, 768, SDL_WINDOW_OPENGL);
+```
+
+Users can set the same names as system variables instead, for example in
+`!Run`, so it works without changing the program:
+
+```
+Set SDL_RISCOS_GL_RENDER_SIZE 640x480
+Set SDL_RISCOS_GL_OVERLAY 1
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+```
+
+That's all. The desktop window is 1024x768, but the program sees a
+640x480 window everywhere: `SDL_GetWindowSize`, `SDL_GL_GetDrawableSize`,
+window events and mouse positions are all in the 640x480 space, full
+screen included.
+
+On a Pi 4, sdlgltest's lit cube in a 1024x768 window ran at 78 frames a
+second drawing at full size, 134 drawing at 640x480, and 214 drawing at
+640x480 through an overlay.
+
+**Things to know:**
+
+- Without either hint, GL windows work exactly as before.
+- If there's no overlay (no VideoOverlay module, not enough GPU memory,
+  or a machine other than a Pi), the picture is stretched by the normal
+  plot (the CPU copying it to the screen) instead. Nothing fails.
+- The overlay sits on top of everything on the screen, so it's hidden
+  (and frames plotted) whenever another window or menu overlaps the game.
+  Draw anything that should appear over the picture with GL, and keep the
+  program's other windows beside the game window.
+- Call `SDL_PollEvent` (or `SDL_PumpEvents`) between frames, as most
+  games do. With an overlay, the display can take at most one new frame
+  per screen refresh. A frame that arrives sooner is kept and shown by
+  your next `SDL_PollEvent`, so `SDL_GL_SwapWindow` doesn't hold up the
+  desktop. (With `SDL_GL_SetSwapInterval(1)` SDL first waits for the refresh
+  letting other programs run meanwhile.)
+- These windows have no accumulation buffers.
+- `"SDL_RISCOS_GL_OVERLAY"` = `"0"` refuses an overlay even when the user
+  has `EGL$Overlay` set to `on`. `"SDL_RISCOS_GL_EGL"` = `"1"` shows the
+  window through riscos-mesa's EGL (as the two options do) with neither
+  option, which is only useful for testing.
+- Tried on a Pi 4 so far: the figures above and the mouse. Other windows
+  and menus over the game, full screen and screen mode changes have only
+  been tested on a PC against a stand-in for the Pi's display.
 
 ## Step by step
 

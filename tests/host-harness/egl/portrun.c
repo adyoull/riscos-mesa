@@ -15,7 +15,8 @@
  *   s<i>[:<j>[:<k>]]  choose from the open menu (item indices)
  *   w<d>         turn the scroll wheel by d;  n  one more null event
  * PPM = where to save the fake 1280x720 screen when the close request
- * comes; MENUS=1 prints each menu opened.
+ * comes; MENUS=1 prints each menu opened. OVL=1 loads the fake
+ * VideoOverlay module (../ovl/fake_ovl.c, when it's linked in).
  * The fake reports a running desktop (Wimp_ReadSysInfo), so DispmanX
  * programs use libbcm_host's window mode unless <App>$Display says "full".
  */
@@ -29,6 +30,7 @@
 #include <unistd.h>
 #include "fake_riscos.h"
 int app_main(int argc, char **argv);
+void fake_ovl_init(void) __attribute__((weak));
 static struct timespec t0;
 static void dump(void) {
   struct timespec b; FILE *f = fopen(getenv("PPM"), "wb"); int x, y;
@@ -47,6 +49,7 @@ static void *run(void *x) {
   fake_wimp_nulls = atoi(getenv("FRAMES")); fake_wimp_hook = hook;
   fake_wimp_desktop = 1;             /* Wimp_ReadSysInfo reports a desktop */
   fake_log_menus = getenv("MENUS") != NULL;
+  if (getenv("OVL") && fake_ovl_init) fake_ovl_init();
   while (k && *k) {
     int *e = fake_wimp_script[fake_wimp_script_len++], i;
     e[1] = e[2] = e[3] = -1;

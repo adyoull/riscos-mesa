@@ -6,6 +6,8 @@
 # screen. The checks look at what reached the screen.
 #   1-fullscreen, 2-window, 3-shaders: the triangle's three corner colours
 #     on the dark blue background, and a clean exit;
+#   2-window's menu: "Draw at 240x180" and "Hardware overlay" (with the
+#     fake VideoOverlay module, ../ovl/fake_ovl.c) end up in the title;
 #   5-glut: the orange teapot, Space and Escape handled;
 #   6-sound: built against the host SDL and OpenAL of ../openal (run that
 #     first), recorded with SDL's disk driver: three notes, left, middle,
@@ -28,6 +30,7 @@ F="-no-pie -O1 -w -std=gnu99"
 gcc $F -D__riscos__ -I$H/fake -I$R/egl/include -I$M/include -I$R/dispmanx -c $R/egl/egl_riscos.c -o egl_riscos.o
 gcc $F -I$H -I$H/fake -c $H/fake_riscos.c -o fake_riscos.o
 gcc $F -I$H -I$H/fake -c $H/portrun.c -o portrun.o
+gcc $F -I$R/tests/host-harness/ovl/fake -I$H -I$H/fake -c $R/tests/host-harness/ovl/fake_ovl.c -o fake_ovl.o
 fails=0
 expect() {   # description command...
   local d=$1; shift
@@ -49,6 +52,16 @@ FRAMES=20 KEYS=n PPM=window.ppm ./window </dev/null > window.txt 2>&1 || true
 expect "2-window: quits on the close request" grep -q "app_main returned" window.txt
 expect "2-window: triangle in the window"   python3 "$HERE/colours.py" window.ppm triangle
 expect "2-window: frames were drawn"        grep -qE "plots ([2-9][0-9]|1[0-9])" window.txt
+# The menu: Menu click, choose "Draw at 240x180" with Adjust (the menu
+# stays open), then "Hardware overlay", with the fake VideoOverlay loaded.
+gcc $F -D__riscos__ -Dmain=app_main -I$H/fake -I$R/egl/include -I$M/include "$X/2-window/window.c" \
+    egl_riscos.o fake_riscos.o portrun.o fake_ovl.o -o window-menu -L$O -lOSMesa -lpthread -lm -Wl,-rpath,$O
+FRAMES=5 OVL=1 MENUS=1 KEYS=c100:100:2,u,m100:100,c100:100:1,s1,u,n,n,c100:100:2,u,s0,n,n,n,n,n,n PPM=window-menu.ppm \
+    ./window-menu </dev/null > window-menu.txt 2>&1 || true
+expect "2-window menu: quits on the close request" grep -q "app_main returned" window-menu.txt
+expect "2-window menu: the menu opened"       grep -q "Hardware overlay" window-menu.txt
+expect "2-window menu: title shows both options" grep -q 'title "Spinning triangle: overlay, 240x180"' window-menu.txt
+expect "2-window menu: no fake VideoOverlay errors" bash -c '! grep -q FAKE-ERROR window-menu.txt'
 
 app shaders 3-shaders/shaders.c
 FRAMES=20 KEYS=n PPM=shaders.ppm ./shaders </dev/null > shaders.txt 2>&1 || true

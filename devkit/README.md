@@ -222,8 +222,10 @@ explain each line as it comes up.
    showing frames. It takes over the screen for five seconds.
 2. **`2-window`**: the same triangle in a desktop window. You learn the
    Wimp poll loop, redraws, resizing, quitting properly and how to
-   animate without slowing other programs down. **Start your own
-   desktop programs from this one.**
+   animate without slowing other programs down. Its menu has two speed
+   options, each a single EGL call: the Pi's hardware overlay, and
+   drawing at a smaller size stretched to fill the window. **Start your
+   own desktop programs from this one.**
 3. **`3-shaders`**: example 2 redone with OpenGL ES 2.0: a vertex shader
    and a fragment shader, vertex arrays and uniforms.
 4. **`4-sdl2`**: a resizable SDL window with OpenGL, Escape to quit.
@@ -365,6 +367,14 @@ Starts the program. Always start a program with `Run` and its full path:
 in an Obey file, a bare path can be misread as an abbreviated command
 (`A.MyProg` would run `*Append`).
 
+Example 2 also has a line that loads the VideoOverlay module if it's
+there, for its "Hardware overlay" option:
+
+```
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+```
+There's no error line after it: the program works without the module.
+
 The sound example adds lines that load the sound modules, and the
 PThreadTicker module that programs with threads need (see [Programs
 with threads](#threads)). Look at `6-sound/!Run,feb`.
@@ -482,17 +492,16 @@ The drawing is done by the processor, so every pixel costs time.
 
 - **Draw a smaller picture.** A 480x360 window has just over half the
   pixels of a 640x480 one, and takes a little over half as long to draw.
-- **Or draw small and let it be stretched.** EGL can render at a fixed
-  size and stretch each frame to fill the window or the screen: give
-  `EGL_RENDER_WIDTH_RISCOS` and `EGL_RENDER_HEIGHT_RISCOS` when making
-  the surface. With SDL, set the `SDL_RISCOS_GL_RENDER_SIZE` hint to
-  `"640x480"` (for example) before making the window. On a Pi, add a
-  hardware overlay (`EGL_OVERLAY_RISCOS`, or SDL's
-  `SDL_RISCOS_GL_OVERLAY` hint) and the display does the stretching for
-  free: a 1024x768 SDL window rendering at 640x480 went from 78 to 214
-  frames a second. The EGL guide's "Hardware overlays" section explains
-  the catches (it covers anything drawn over the picture, and it's
-  opt-in).
+- **Or draw small and let it be stretched.** EGL can draw at a fixed
+  size, say 240x180, and stretch each frame to fill the window. On a
+  Raspberry Pi it can also hand the frames to the display's hardware
+  overlay, which does the stretching for free. Example 2's menu has both
+  options: look for `EGL_RENDER_WIDTH_RISCOS` and `EGL_OVERLAY_RISCOS` in
+  `window.c`. For SDL programs it's two hints (see the SDL porting
+  guide's "Drawing faster"). On a Pi 4, a 1024x768 window drawing at
+  640x480 through an overlay ran nearly three times as fast as drawing
+  at full size. The EGL guide's "Hardware overlays" section has the
+  catches.
 - **Prefer fixed-function OpenGL to shaders** where speed matters (see
   [Which way should I draw?](#which-way-should-i-draw)).
 - **Textures:** power-of-two sizes (64, 128, 256...), `GL_CLAMP_TO_EDGE`

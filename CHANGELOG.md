@@ -6,53 +6,46 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-10 (in development)
 
-- **SDL GL windows can go through EGL** (asked for by the Warzone 2100
-  port). By default nothing changes: a GL window renders into the
-  window's sprite as before. A program (or the user, with system
-  variables of the same names) opts in to the EGL path with:
-  - **`SDL_RISCOS_GL_RENDER_SIZE` = `"WxH"`:** GL renders at WxH,
-    stretched to fill the window, or the screen full screen (window or
-    desktop-size full screen). The program sees a WxH window: window
-    size, drawable size, window events and mouse positions, while the
-    desktop window keeps the size the program asked for.
-  - **`SDL_RISCOS_GL_OVERLAY` = `"1"`:** the window is shown through a
-    hardware overlay (VideoOverlay), which also does the stretching, with
-    EGL's fallbacks to the sprite plot. A frame that would have to wait
-    for a vsync is held and shown from the event loop, so a swap never
-    blocks the desktop. (`"0"` refuses one.)
-  - **`SDL_RISCOS_GL_EGL` = `"1"`:** the EGL path on its own.
-  - The EGL path is an EGL window surface on the desktop window or the
-    screen; it has no accumulation buffers.
-  - **Link change:** libSDL2 now contains the EGL path, so every program
-    using the devkit's SDL2 links `-lEGL` too:
-    `-lSDL2 -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm` (`sdl2-config`,
-    `sdl2.pc`, `openal.pc` and the docs say so). Programs built without
-    GL (riscos-openttd's SDL) are unchanged.
-  - One small hook in SDL's core (`src.video.SDL_video.c.p`) keeps the
-    render size when going full screen.
-  - sdlgltest `-S WxH`, `-V`/`-N`, key D; Obey files `sdl-scaled`,
-    `sdl-scaled-plot`, `sdl-plain`. Host-tested (the SDL GL harness runs
-    both paths, the EGL one on the real EGL and the fake VideoOverlay).
-  - **Pi 4 (2026-09-29), sdlgltest's spinning cube in a 1024x768 window:**
-
-    | | fps | render | present |
-    |---|---|---|---|
-    | the sprite path, rendering at 1024x768 (`sdl-plain`) | 78 | 10.85 ms | 1.96 ms |
-    | EGL, 640x480 stretched by the sprite plot (`sdl-scaled-plot`) | 134 | 4.27 ms | 3.17 ms |
-    | EGL, 640x480 stretched by the overlay (`sdl-scaled`) | 214 | 4.42 ms | 0.25 ms |
-
-    The mouse position was right in every corner in all three (0..639 x
-    0..479 when scaled). This was also the first Pi run of EGL's
-    hardware overlay and render size. Not yet tried: menus and windows
-    over the overlay, full screen (F, D), a mode change, vsync on.
-- **EGL:** a surface with a render size equal to the size it's shown at
-  uses the plain sprite plot, not a scaled one.
-- **Docs:** a draft Khronos-style spec for `EGL_RISCOS_overlay`
-  (`docs/khronos/EGL_RISCOS_overlay.txt`: the overlay, the render size,
-  `eglCheckOverlaysRISCOS`, `eglSwapWouldWaitRISCOS`). The Pi 4 figures
-  are in the EGL guide and the SDL porting guide. The README, the devkit's
-  beginner's guide ("Making it fast") and `egl/README.md` now cover the
-  overlay, the render size and SDL's EGL path.
+- **SDL GL windows can draw at a smaller size and use the hardware
+  overlay.** Asked for by the Warzone 2100 port. Set the hint (or system
+  variable) `SDL_RISCOS_GL_RENDER_SIZE` to `"WxH"` and the program draws
+  at that size, stretched to fill its window or the screen; it sees a
+  WxH window throughout, mouse positions included. Set
+  `SDL_RISCOS_GL_OVERLAY` to `"1"` and, on a Pi with VideoOverlay, the
+  display shows the frames and does the stretching. Both go through
+  riscos-mesa's EGL. Without the hints, GL windows work exactly as before.
+  See "Drawing faster" in `docs/porting/sdl2.md`.
+- **Link change:** because libSDL2 now contains this EGL route, programs
+  using the devkit's SDL2 link `-lEGL` too:
+  `-lSDL2 -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm`. `sdl2-config`,
+  `sdl2.pc` and `openal.pc` say so already. SDL builds without GL, such
+  as riscos-openttd's, are unchanged.
+- **First Pi 4 figures** (2026-09-29), sdlgltest's lit cube in a
+  1024x768 window: 78 fps drawing at full size (the old route), 134 fps
+  drawing at 640x480 stretched by the plot, 214 fps drawing at 640x480
+  through an overlay. Mouse positions were right in every corner. This
+  was also the first Pi run of 20.3.5-9's overlay and render size. Not
+  tried yet: menus over the overlay, full screen, mode changes, vsync.
+- **Example 2 (`!GLWindow`) has a menu** with "Hardware overlay" and
+  "Draw at 240x180", each one `eglSurfaceAttrib` call, and its title bar
+  shows how frames reach the screen. Its `!Run` loads VideoOverlay if
+  it's there.
+- **Docs:** the EGL guide's "Hardware overlays" section now starts with
+  a quick start, the Pi figures and a short list of things to know, with
+  the exact rules after it. The SDL guide has a "Drawing faster" section
+  with the two hints as code. The README, the devkit's beginner's guide
+  and `egl/README.md` cover both options. New: a draft Khronos-style spec,
+  `docs/khronos/EGL_RISCOS_overlay.txt`.
+- **Smaller changes:**
+  - EGL: a surface whose render size equals the size it's shown at uses
+    the ordinary plot, not a scaled one.
+  - sdlgltest: `-S WxH`, `-V`/`-N` and key D (desktop-size full screen),
+    with Obey files `sdl-scaled`, `sdl-scaled-plot` and `sdl-plain`.
+  - Host tests: the SDL GL harness runs both routes (the EGL one against
+    a fake VideoOverlay), and the examples harness drives example 2's
+    menu.
+  - SDL's core has one small hook (`src.video.SDL_video.c.p`) so full
+    screen keeps the render size.
 
 ## 20.3.5-9: hardware overlays and a scaled render size for EGL
 
