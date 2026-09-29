@@ -64,7 +64,7 @@ and `tests/glestest.c` (OpenGL ES) are complete programs.
 
 | Library | What it is | Link with |
 | --- | --- | --- |
-| `libEGL.a` | EGL 1.4 for RISC OS. Contexts: OpenGL 2.1 (compatibility), OpenGL ES 1.1, ES 2.0 (GLSL ES 1.00). Surfaces: Wimp windows (visible area or work area views), full screen (sprite plot after vsync, or straight into screen memory), pbuffers, sprite pixmaps. Extensions: sync objects, surfaceless contexts, buffer age, swap with damage, partial update, surface locking, sprites as textures with no copy (EGLImage, for video), debug callbacks, platform displays | `-lEGL -lOSMesa -lstdc++ -lz -lm` |
+| `libEGL.a` | EGL 1.4 for RISC OS. Contexts: OpenGL 2.1 (compatibility), OpenGL ES 1.1, ES 2.0 (GLSL ES 1.00). Surfaces: Wimp windows (visible area or work area views), full screen (sprite plot after vsync, or straight into screen memory), pbuffers, sprite pixmaps. Extensions: sync objects, surfaceless contexts, buffer age, swap with damage, partial update, surface locking, sprites as textures with no copy (EGLImage, for video), debug callbacks, platform displays; RISC OS hardware overlays (VideoOverlay) and a render size scaled to the window or screen, both opt-in | `-lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libOSMesa.a` | Mesa 20.3.5 classic OSMesa (swrast), one static library: OpenGL 2.1 + GLSL 1.20, OpenGL ES 1.1 and 2.0 | `-lOSMesa -lstdc++ -lz -lm` |
 | `libGLU.a` | GLU 1.3 (9.0.1) | `-lGLU` before `-lOSMesa` |
 | `libSDL2.a` | SDL 2.26 with the RISC OS drivers: desktop windows and full screen, OpenGL and OpenGL ES contexts, typing, the scroll wheel, 180 dpi desktops, cooperative multitasking, and sound through SharedSoundBuffer (mixes with other programs) | `-lSDL2 -lOSMesa -lstdc++ -lz -lm` |

@@ -4,7 +4,18 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## 20.3.5-9 (in development)
+## 20.3.5-9: hardware overlays and a scaled render size for EGL
+
+EGL can now show a window through the display hardware's video overlay
+(the VideoOverlay module on a Raspberry Pi), and a program can render at
+a smaller size and have it stretched to fill its window or the screen:
+by the overlay at no cost, or by the sprite plot. Both are opt-in. They
+come from riscos-ffmpeg's work on its Reel video player, which measured
+the Pi's overlays with the new `ovltest` and found the vsync waits that
+this release removes. The overlay code has been checked against a fake
+VideoOverlay on the host test harness and follows the Pi 4 measurements,
+but **EGL's use of overlays, the render size and the screen bank change
+have not yet been run on a Pi**; the tests zip has Obey files for each.
 
 - **EGL window surfaces can use hardware overlays** (`EGL_RISCOS_overlay`),
   opt-in. A program asks with `EGL_OVERLAY_RISCOS` = `EGL_TRUE` (when
@@ -21,8 +32,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   (the Pi's overlays sit on top of everything). A program that stops
   swapping (a paused video) calls `eglCheckOverlaysRISCOS` on null
   events: a quarter of a second after the last swap it goes back to the
-  plotted frame, keeping the overlay for the next swap. Opt-in rather than automatic because an overlay covers menus
-  over a program that stops swapping without telling EGL, can make
+  plotted frame, keeping the overlay for the next swap. Opt-in rather
+  than automatic because an overlay covers menus over a program that
+  stops swapping without telling EGL, can make
   swaps wait for a vsync, isn't in screen grabs and takes GPU memory;
   the default may change once it has been tried on Pis.
   `eglQuerySurface(EGL_OVERLAY_RISCOS)` says whether it's in use. Only
@@ -66,6 +78,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   buffers and a vsync wait don't tear), YV12 colours are right, and the
   overlay stays on top of every window and menu. `tests/host-harness/ovl`
   runs it on the host against a fake VideoOverlay (in `run-all.sh`).
+- **Docs:** where to get SharedSoundBuffer and StreamManager (the
+  ssb.zip download on the RDPClient page, and the Internet Archive copy
+  of the original); SharedSound is part of RISC OS.
 
 ## 20.3.5-8: EGL follows the Khronos rules, Cortex-A8/A9, a devkit guide
 
