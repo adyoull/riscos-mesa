@@ -5,15 +5,23 @@
  * library), not on its own. MIT licence (see LICENSE).
  */
 
+#include "../egl_internal.h"
+
 /* ------------------------------------------------------------------ */
 /* Screen and Wimp                                                     */
 
-typedef struct screen_info {
-    int flags, xeig, yeig, log2bpp;
-    int width, height;          /* pixels */
-    void *start;
-    int line_length;            /* bytes */
-} screen_info;
+
+/* One VDU variable (OS_ReadVduVariables), or 0 if it can't be read. */
+static int vdu_variable(int var)
+{
+    int vars[2] = { var, -1 }, val = 0;
+    _kernel_swi_regs r;
+    r.r[0] = (int) vars;
+    r.r[1] = (int) &val;
+    if (_kernel_swi(OS_ReadVduVariables, &r, &r) != NULL)
+        return 0;
+    return val;
+}
 
 static void read_screen(screen_info *s)
 {
@@ -84,19 +92,13 @@ static int sprite_mode_for(int layout, const screen_info *s)
     return (int) trgb_selector;
 }
 
-typedef struct window_state {
-    int handle;
-    int x0, y0, x1, y1;         /* visible area, screen OS units */
-    int scroll_x, scroll_y;
-    int behind, flags;
-} window_state;
 
 /* The vsync counter (OS_Byte 176: counts down, 8 bits here), and how many
    vsyncs have passed since it read `then` (a wrap after 255 reads as few,
    so waits stay short). */
 static int vsync_counter(void)
 {
-    return _kernel_osbyte(176, 0, 255) & 0xFF;
+    return _kernel_osbyte(OSBYTE_VSYNC_COUNT, 0, 255) & 0xFF;
 }
 
 static int vsyncs_since(int then)
@@ -104,9 +106,12 @@ static int vsyncs_since(int then)
     return (then - vsync_counter()) & 0xFF;
 }
 
-/* parts/overlay.c */
-static int ovl_update(egl_display *d, egl_surface *surf, const screen_info *s, int new_frame);
-static void ovl_redraw_rectangle(egl_surface *surf, int *block);
+/* Wait for n vsyncs (the start of the next frame, n times). */
+static void wait_vsyncs(int n)
+{
+    while (n-- > 0)
+        _kernel_osbyte(OSBYTE_WAIT_VSYNC, 0, 0);
+}
 
 static int get_window_state(int handle, window_state *ws)
 {
@@ -124,7 +129,7 @@ static int wanted_size(const egl_surface *surf, const screen_info *s, int *w, in
     if (surf->rw && !surf->fixed && !surf->dmx) {
         *w = surf->rw;              /* a render size, scaled when shown */
         *h = surf->rh;
-    } else if (surf->handle == -1) {
+    } else if (surf->handle == HANDLE_SCREEN) {
         *w = s->width;
         *h = s->height;
     } else if (surf->fixed || surf->dmx) {
@@ -141,7 +146,30 @@ static int wanted_size(const egl_surface *surf, const screen_info *s, int *w, in
     return 1;
 }
 
-typedef struct { int x0, y0, x1, y1; } os_rect;    /* screen OS units, x1/y1 exclusive */
+
+/* In a Wimp_RedrawWindow / Wimp_UpdateWindow loop: the rectangle to draw
+   now (words 7 to 10 of the block), and the next one (0 at the end). */
+static os_rect redraw_clip(const int *block)
+{
+    os_rect c;
+    c.x0 = block[7]; c.y0 = block[8]; c.x1 = block[9]; c.y1 = block[10];
+    return c;
+}
+
+static int next_redraw_rect(int *block)
+{
+    _kernel_swi_regs r;
+    r.r[1] = (int) block;
+    if (_kernel_swi(Wimp_GetRectangle, &r, &r) != NULL)
+        return 0;
+    return r.r[0];
+}
+
+/* Is this a live window surface in the Wimp window `handle`? */
+static int window_surface_in(const egl_surface *surf, int handle)
+{
+    return surf->kind == SURF_WINDOW && surf->handle == handle && !surf->destroy_pending;
+}
 
 #define MAX_PIECES 16
 
@@ -174,7 +202,7 @@ static void shown_size(const egl_surface *surf, const window_state *ws, const sc
         *h = surf->h;
         return;
     }
-    if (surf->handle == -1) {
+    if (surf->handle == HANDLE_SCREEN) {
         *w = s->width;
         *h = s->height;
     } else {
@@ -185,9 +213,19 @@ static void shown_size(const egl_surface *surf, const window_state *ws, const sc
     if (*h < 1) *h = 1;
 }
 
-static void dmx_plot(const egl_surface *surf, const screen_info *s,
-                     const riscos_dmx_placement *pl, int base_x, int top_os,
-                     os_rect clip);
+/* The work area a visible-area surface covers, as box[0..3] = x0, y0,
+   x1, y1 (OS units): from the top left of the visible area, the size it's
+   shown at. */
+static void shown_area(const egl_surface *surf, const window_state *ws, const screen_info *s,
+                       int box[4])
+{
+    int dw, dh;
+    shown_size(surf, ws, s, &dw, &dh);
+    box[0] = ws->scroll_x;
+    box[1] = ws->scroll_y - (dh << s->yeig);
+    box[2] = ws->scroll_x + (dw << s->xeig);
+    box[3] = ws->scroll_y;
+}
 
 /* Plot a window surface's sprite for one rectangle of a Wimp redraw or
    update loop (block = the Wimp_RedrawWindow/UpdateWindow block). */
@@ -207,7 +245,7 @@ static void plot_rectangle(const egl_surface *surf, const int *block, const scre
         int base_x, top_os;
         memset(&pl, 0, sizeof pl);
         pl.visible = 1;
-        if (surf->handle == -1) {
+        if (surf->handle == HANDLE_SCREEN) {
             base_x = 0;
             top_os = s->height << s->yeig;
             pl.w = s->width;
@@ -224,7 +262,7 @@ static void plot_rectangle(const egl_surface *surf, const int *block, const scre
             return;
         }
     }
-    if (surf->handle == -1) {
+    if (surf->handle == HANDLE_SCREEN) {
         x = 0;
         top = s->height << s->yeig;                 /* top of the screen */
     } else if (surf->fixed) {
@@ -244,7 +282,7 @@ static void plot_rectangle(const egl_surface *surf, const int *block, const scre
             return;
         set_graphics_window(&vis);
     }
-    r.r[0] = 512 + 34;          /* PutSpriteUserCoords, pixel for pixel */
+    r.r[0] = SPRITEOP_PUT_USER;  /* pixel for pixel */
     r.r[1] = (int) surf->area;
     r.r[2] = (int) surf->sprite;
     r.r[3] = x;
@@ -301,7 +339,6 @@ static int subtract_rect(os_rect *pieces, int n, const os_rect *hole)
 static void plot_loop(egl_display *d, int handle, egl_surface *only, int *block, int more)
 {
     screen_info s;
-    _kernel_swi_regs r;
     egl_surface *surf, *f;
     os_rect clip, pieces[MAX_PIECES], hole;
     int n, i, above;
@@ -312,10 +349,9 @@ static void plot_loop(egl_display *d, int handle, egl_surface *only, int *block,
        visible area surface (only != NULL) replots the work area ones too. */
     read_screen(&s);
     while (more) {
-        clip.x0 = block[7]; clip.y0 = block[8]; clip.x1 = block[9]; clip.y1 = block[10];
+        clip = redraw_clip(block);
         for (surf = d->surfaces; surf; surf = surf->next) {
-            if (surf->kind != SURF_WINDOW || surf->handle != handle ||
-                surf->destroy_pending || surf->fixed || (only && only != surf))
+            if (!window_surface_in(surf, handle) || surf->fixed || (only && only != surf))
                 continue;
             if (surf->ovl_shown) {
                 ovl_redraw_rectangle(surf, block);  /* the overlay shows it */
@@ -324,8 +360,7 @@ static void plot_loop(egl_display *d, int handle, egl_surface *only, int *block,
             pieces[0] = clip;
             n = 1;
             for (f = d->surfaces; f; f = f->next) {
-                if (f->kind == SURF_WINDOW && f->handle == handle && f->fixed &&
-                    !f->destroy_pending && f->sprite) {
+                if (window_surface_in(f, handle) && f->fixed && f->sprite) {
                     hole = fixed_rect(f, block, &s);
                     n = subtract_rect(pieces, n, &hole);
                 }
@@ -347,16 +382,12 @@ static void plot_loop(egl_display *d, int handle, egl_surface *only, int *block,
         for (surf = d->surfaces; surf; surf = surf->next) {
             if (surf == only)
                 above = 1;
-            if (surf->kind != SURF_WINDOW || surf->handle != handle ||
-                surf->destroy_pending || !surf->fixed)
+            if (!window_surface_in(surf, handle) || !surf->fixed)
                 continue;
             if (above)
                 plot_rectangle(surf, block, &s, &clip);
         }
-        r.r[1] = (int) block;
-        if (_kernel_swi(Wimp_GetRectangle, &r, &r) != NULL)
-            break;
-        more = r.r[0];
+        more = next_redraw_rect(block);
     }
 }
 
@@ -448,7 +479,7 @@ static void dmx_plot(const egl_surface *surf, const screen_info *s,
     y = top - (((((long long) (surf->sprite_h << sye) * factors[1]) / factors[3])
                 >> s->yeig) << s->yeig);
     set_graphics_window(&clip);
-    r.r[0] = 512 + 52;                  /* PutSpriteScaled */
+    r.r[0] = SPRITEOP_PUT_SCALED;
     r.r[1] = (int) surf->area;
     r.r[2] = (int) surf->sprite;
     r.r[3] = (int) (e.x0 - ((long long) (pl->src_x << sxe) * factors[0]) / factors[2]);
@@ -464,16 +495,11 @@ static void dmx_plot(const egl_surface *surf, const screen_info *s,
 static void dmx_window_loop(const egl_surface *surf, const screen_info *s,
                             const riscos_dmx_placement *pl, int *block, int more)
 {
-    _kernel_swi_regs r;
     while (more) {
-        os_rect clip;
-        clip.x0 = block[7]; clip.y0 = block[8]; clip.x1 = block[9]; clip.y1 = block[10];
+        os_rect clip = redraw_clip(block);
         dmx_plot(surf, s, pl, block[1] - block[5], block[4] - block[6], clip);
         set_graphics_window(&clip);
-        r.r[1] = (int) block;
-        if (_kernel_swi(Wimp_GetRectangle, &r, &r) != NULL)
-            break;
-        more = r.r[0];
+        more = next_redraw_rect(block);
     }
 }
 
@@ -484,7 +510,6 @@ static void dmx_window_loop(const egl_surface *surf, const screen_info *s,
 static void present_dmx(egl_surface *surf, const screen_info *s)
 {
     riscos_dmx_placement pl;
-    int i;
 
     memset(&pl, 0, sizeof pl);
     if (!__riscos_dispmanx_placement || !__riscos_dispmanx_placement(surf->dmx, &pl))
@@ -504,8 +529,7 @@ static void present_dmx(egl_surface *surf, const screen_info *s)
         }
         return;
     }
-    for (i = 0; i < surf->swap_interval; i++)
-        _kernel_osbyte(19, 0, 0);
+    wait_vsyncs(surf->swap_interval);
     if (!pl.visible || !surf->sprite || pl.w <= 0 || pl.h <= 0)
         return;
     {
@@ -517,69 +541,60 @@ static void present_dmx(egl_surface *surf, const screen_info *s)
     }
 }
 
-/* Show a finished frame of a window surface: all of it, or only the damaged
-   rectangles (rects/n as for eglSwapBuffersWithDamageKHR; NULL = all). */
-static void present(egl_display *d, egl_surface *surf, const screen_info *s,
-                    const EGLint *rects, int n)
+/* Present a full screen surface: switch screen banks, or wait for the
+   vsync and plot the frame (all of it, or the nd damaged rectangles;
+   nd < 0 = all). */
+static void present_fullscreen(egl_surface *surf, const screen_info *s, const os_rect *dmg, int nd)
+{
+    os_rect all;
+    int top = s->height << s->yeig, i;
+
+    if (surf->banks) {
+        /* Wait only until swap_interval vsyncs have passed since the last
+           switch: at most one switch per vsync (so no tearing with three
+           banks), without blocking for the next vsync when one has
+           already gone by (that cost a 60 fps video player most of a
+           frame). */
+        while (surf->bank_vsync >= 0 && vsyncs_since(surf->bank_vsync) < surf->swap_interval)
+            wait_vsyncs(1);
+        /* Show the finished bank, then draw into the oldest one. With
+           three banks that one isn't on screen even if the display only
+           switches at the next vsync. */
+        _kernel_osbyte(OSBYTE_DISPLAY_BANK, surf->draw_bank, 0);
+        surf->bank_vsync = vsync_counter();
+        surf->draw_bank = surf->draw_bank % surf->banks + 1;
+        surf->pixels = surf->bank_addr[surf->draw_bank];
+        return;
+    }
+    /* one buffer: the wait times the plot to just after a vsync */
+    wait_vsyncs(surf->swap_interval);
+    if (surf->direct || !surf->sprite)
+        return;
+    all.x0 = 0; all.y0 = 0;
+    all.x1 = s->width << s->xeig; all.y1 = top;
+    if (nd < 0) {
+        plot_rectangle(surf, NULL, s, &all);
+        return;
+    }
+    for (i = 0; i < nd; i++) {
+        os_rect c;
+        c.x0 = dmg[i].x0; c.x1 = dmg[i].x1;
+        c.y0 = top + dmg[i].y0; c.y1 = top + dmg[i].y1;
+        set_graphics_window(&c);
+        plot_rectangle(surf, NULL, s, &c);
+    }
+    set_graphics_window(&all);
+}
+
+/* Present a window surface: through its hardware overlay if it has one
+   showing, else update the part of the work area it covers (or each of
+   the nd damaged parts; nd < 0 = all) and plot it there. */
+static void present_window(egl_display *d, egl_surface *surf, const screen_info *s,
+                           const os_rect *dmg, int nd)
 {
     _kernel_swi_regs r;
     int block[11];
-    os_rect dmg[MAX_DAMAGE];
-    int i, nd;
-
-    if (surf->dmx) {
-        present_dmx(surf, s);           /* always the whole surface */
-        return;
-    }
-    nd = damage_rects(surf, rects, n, s, dmg);
-    if (nd == 0 && !surf->banks)
-        return;                         /* all rectangles empty: nothing changed */
-    if (is_scaled(surf))
-        nd = -1;                        /* scaled: always all of it */
-
-    if (surf->handle == -1) {
-        if (surf->banks) {
-            /* Wait only until swap_interval vsyncs have passed since the
-               last switch: at most one switch per vsync (so no tearing
-               with three banks), without blocking for the next vsync when
-               one has already gone by (riscos-ffmpeg measured that costing
-               a 60 fps program most of a frame). */
-            while (surf->bank_vsync >= 0 && vsyncs_since(surf->bank_vsync) < surf->swap_interval)
-                _kernel_osbyte(19, 0, 0);
-            /* Show the finished bank, then draw into the oldest one. With
-               three banks that one isn't on screen even if the display
-               only switches at the next vsync. */
-            _kernel_osbyte(113, surf->draw_bank, 0);
-            surf->bank_vsync = vsync_counter();
-            surf->draw_bank = surf->draw_bank % surf->banks + 1;
-            surf->pixels = surf->bank_addr[surf->draw_bank];
-            return;
-        }
-        /* one buffer: the wait times the plot to just after a vsync */
-        for (i = 0; i < surf->swap_interval; i++)
-            _kernel_osbyte(19, 0, 0);
-        if (surf->direct || !surf->sprite)
-            return;
-        {
-            os_rect all;
-            int top = s->height << s->yeig;
-            all.x0 = 0; all.y0 = 0;
-            all.x1 = s->width << s->xeig; all.y1 = top;
-            if (nd < 0) {
-                plot_rectangle(surf, NULL, s, &all);
-                return;
-            }
-            for (i = 0; i < nd; i++) {
-                os_rect c;
-                c.x0 = dmg[i].x0; c.x1 = dmg[i].x1;
-                c.y0 = top + dmg[i].y0; c.y1 = top + dmg[i].y1;
-                set_graphics_window(&c);
-                plot_rectangle(surf, NULL, s, &c);
-            }
-            set_graphics_window(&all);
-        }
-        return;
-    }
+    int i, left, top, dw = surf->w, dh = surf->h;
 
     /* A visible-area surface shown through a hardware overlay: the frame
        is copied into it instead of being plotted (parts/overlay.c). If the
@@ -592,38 +607,56 @@ static void present(egl_display *d, egl_surface *surf, const screen_info *s,
             nd = -1;
     }
 
-    /* Update the part of the work area the surface covers (or each damaged
-       part of it). */
-    {
-        int left, top, dw = surf->w, dh = surf->h;
-        if (surf->fixed) {
-            left = surf->wa_x;
-            top = surf->wa_y;
-        } else {
-            window_state ws;
-            if (!get_window_state(surf->handle, &ws))
-                return;
-            left = ws.scroll_x;
-            top = ws.scroll_y;
-            shown_size(surf, &ws, s, &dw, &dh);
-        }
-        for (i = 0; i < (nd < 0 ? 1 : nd); i++) {
-            block[0] = surf->handle;
-            if (nd < 0) {
-                block[1] = left;
-                block[2] = top - (dh << s->yeig);
-                block[3] = left + (dw << s->xeig);
-                block[4] = top;
-            } else {
-                block[1] = left + dmg[i].x0;
-                block[2] = top + dmg[i].y0;
-                block[3] = left + dmg[i].x1;
-                block[4] = top + dmg[i].y1;
-            }
-            r.r[1] = (int) block;
-            if (_kernel_swi(Wimp_UpdateWindow, &r, &r) != NULL)
-                return;
-            plot_loop(d, surf->handle, surf, block, r.r[0]);
-        }
+    if (surf->fixed) {
+        left = surf->wa_x;
+        top = surf->wa_y;
+    } else {
+        window_state ws;
+        if (!get_window_state(surf->handle, &ws))
+            return;
+        left = ws.scroll_x;
+        top = ws.scroll_y;
+        shown_size(surf, &ws, s, &dw, &dh);
     }
+    for (i = 0; i < (nd < 0 ? 1 : nd); i++) {
+        block[0] = surf->handle;
+        if (nd < 0) {
+            block[1] = left;
+            block[2] = top - (dh << s->yeig);
+            block[3] = left + (dw << s->xeig);
+            block[4] = top;
+        } else {
+            block[1] = left + dmg[i].x0;
+            block[2] = top + dmg[i].y0;
+            block[3] = left + dmg[i].x1;
+            block[4] = top + dmg[i].y1;
+        }
+        r.r[1] = (int) block;
+        if (_kernel_swi(Wimp_UpdateWindow, &r, &r) != NULL)
+            return;
+        plot_loop(d, surf->handle, surf, block, r.r[0]);
+    }
+}
+
+/* Show a finished frame of a window surface: all of it, or only the damaged
+   rectangles (rects/n as for eglSwapBuffersWithDamageKHR; NULL = all). */
+static void present(egl_display *d, egl_surface *surf, const screen_info *s,
+                    const EGLint *rects, int n)
+{
+    os_rect dmg[MAX_DAMAGE];
+    int nd;
+
+    if (surf->dmx) {
+        present_dmx(surf, s);           /* always the whole surface */
+        return;
+    }
+    nd = damage_rects(surf, rects, n, s, dmg);
+    if (nd == 0 && !surf->banks)
+        return;                         /* all rectangles empty: nothing changed */
+    if (is_scaled(surf))
+        nd = -1;                        /* scaled: always all of it */
+    if (surf->handle == HANDLE_SCREEN)
+        present_fullscreen(surf, s, dmg, nd);
+    else
+        present_window(d, surf, s, dmg, nd);
 }

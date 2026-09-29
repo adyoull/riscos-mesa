@@ -16,6 +16,8 @@
  * can be bound to contexts of one thread only, as EGL says.
  */
 
+#include "../egl_internal.h"
+
 /* ------------------------------------------------------------------ */
 /* Buffers                                                             */
 

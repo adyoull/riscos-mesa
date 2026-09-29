@@ -5,6 +5,8 @@
  * library), not on its own. MIT licence (see LICENSE).
  */
 
+#include "../egl_internal.h"
+
 /* ------------------------------------------------------------------ */
 /* Configs                                                             */
 
@@ -158,4 +160,69 @@ static void make_configs(egl_display *d)
         }
     }
     d->nconfigs = n;
+}
+
+/* eglChooseConfig's matching: fill match[] (room for every config) with the
+   configs that meet attrib_list, best first. Returns how many, or -1 with
+   the error set. */
+static int choose_configs(egl_display *d, const EGLint *attrib_list, const egl_config **match)
+{
+    EGLint want[NCRITERIA];
+    int i, j, n = 0, by_id = 0;
+    EGLint want_id = 0;
+    int pixmap_layout = -1;
+
+    for (j = 0; j < NCRITERIA; j++)
+        want[j] = criteria[j].def;
+    for (i = 0; attrib_list && attrib_list[i] != EGL_NONE; i += 2) {
+        EGLint a = attrib_list[i], v = attrib_list[i + 1];
+        if (a == EGL_MATCH_NATIVE_PIXMAP) {
+            int w, h;
+            void *px;
+            if (v == EGL_NONE || !pixmap_info((void *) v, &w, &h, &pixmap_layout, &px))
+                return fail(EGL_BAD_NATIVE_PIXMAP), -1;
+            continue;
+        }
+        for (j = 0; j < NCRITERIA; j++)
+            if (criteria[j].attrib == a)
+                break;
+        if (j == NCRITERIA || !config_value_ok(a, v))
+            return fail(EGL_BAD_ATTRIBUTE), -1;
+        want[j] = v;
+        if (a == EGL_CONFIG_ID && v != EGL_DONT_CARE) {
+            by_id = 1;
+            want_id = v;
+        }
+    }
+
+    for (i = 0; i < d->nconfigs; i++) {
+        const egl_config *c = &d->configs[i];
+        int good = 1;
+        if (by_id) {
+            good = (c->id == want_id);          /* all else ignored */
+        } else {
+            for (j = 0; j < NCRITERIA && good; j++) {
+                EGLint have;
+                if (criteria[j].match == M_IGNORE || want[j] == EGL_DONT_CARE)
+                    continue;
+                config_attrib(c, criteria[j].attrib, &have);
+                switch (criteria[j].match) {
+                case M_ATLEAST: good = have >= want[j]; break;
+                case M_EXACT:   good = have == want[j]; break;
+                case M_MASK:    good = (have & want[j]) == want[j]; break;
+                case M_FORMAT:  /* RGBA_8888 also matches the EXACT ones */
+                    good = have == want[j] ||
+                           (want[j] == EGL_FORMAT_RGBA_8888_KHR &&
+                            have == EGL_FORMAT_RGBA_8888_EXACT_KHR);
+                    break;
+                }
+            }
+            if (pixmap_layout >= 0 && c->layout != pixmap_layout)
+                good = 0;
+        }
+        if (good)
+            match[n++] = c;
+    }
+    qsort(match, n, sizeof match[0], config_compare);
+    return n;
 }

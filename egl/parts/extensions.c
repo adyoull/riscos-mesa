@@ -5,6 +5,8 @@
  * library), not on its own. MIT licence (see LICENSE).
  */
 
+#include "../egl_internal.h"
+
 /* ------------------------------------------------------------------ */
 /* EGL_KHR_partial_update                                              */
 
@@ -504,6 +506,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglRedrawWindowRISCOS(EGLDisplay dpy, int *block)
     egl_display *d;
     egl_surface *s;
     _kernel_swi_regs r;
+    int more;
 
     ENTER();
     if (!(d = get_display(dpy, 1)))
@@ -511,7 +514,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglRedrawWindowRISCOS(EGLDisplay dpy, int *block)
     if (!block)
         return fail(EGL_BAD_PARAMETER);
     for (s = d->surfaces; s; s = s->next)
-        if (s->kind == SURF_WINDOW && s->handle == block[0] && !s->destroy_pending)
+        if (window_surface_in(s, block[0]))
             break;
     if (!s) {
         /* DispmanX compatibility in window mode: the window shows elements. */
@@ -533,7 +536,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglRedrawWindowRISCOS(EGLDisplay dpy, int *block)
         if (pl.visible && s->sprite)
             dmx_window_loop(s, &scr, &pl, block, r.r[0]);
         else
-            while (r.r[0]) { r.r[1] = (int) block; _kernel_swi(Wimp_GetRectangle, &r, &r); }
+            for (more = r.r[0]; more; more = next_redraw_rect(block))
+                ;
         return ok();
     }
     ovl_check_all(d);                   /* overlays: something may cover them now */
@@ -577,7 +581,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS(EGLDisplay dpy, EGLSurface 
     if (!(d = get_display(dpy, 1)) || !(s = get_surface(d, surface)))
         return EGL_FALSE;
     if (s->kind == SURF_WINDOW && s->swap_interval > 0) {
-        if (s->handle == -1 && s->banks)
+        if (s->handle == HANDLE_SCREEN && s->banks)
             wait = s->bank_vsync >= 0 && vsyncs_since(s->bank_vsync) < s->swap_interval;
         else if (s->handle >= 0 && s->ovl_shown)
             wait = vsync_counter() == s->ovl_vsync;
@@ -606,8 +610,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS(EGLDisplay dpy, EGLSurface su
         return ok();
     }
     {
-        os_rect clip;
-        clip.x0 = block[7]; clip.y0 = block[8]; clip.x1 = block[9]; clip.y1 = block[10];
+        os_rect clip = redraw_clip(block);
         plot_rectangle(s, block, &scr, &clip);
     }
     return ok();

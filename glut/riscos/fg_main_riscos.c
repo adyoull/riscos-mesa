@@ -45,17 +45,12 @@
  * does on RISC OS.
  */
 
+#define EGL_EGLEXT_PROTOTYPES 1         /* eglRedrawWindowRISCOS, eglCheckOverlaysRISCOS */
 #include <limits.h>
 #include <kernel.h>
 #include <swis.h>
 #include <GL/freeglut.h>
 #include "../fg_internal.h"
-
-EGLAPI EGLBoolean EGLAPIENTRY eglRedrawWindowRISCOS( EGLDisplay dpy, int *block );
-EGLAPI EGLBoolean EGLAPIENTRY eglCheckOverlaysRISCOS( EGLDisplay dpy );
-#ifndef EGL_OVERLAY_RISCOS
-#define EGL_OVERLAY_RISCOS      0x3FF6
-#endif
 
 #define Wimp_Poll_              0x400C7
 #define Wimp_PollIdle_          0x400E1

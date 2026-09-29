@@ -35,7 +35,8 @@ which it `#include`s in this order:
 
 | File | What's in it |
 |---|---|
-| `egl_riscos.c` | Headers, limits, the display/config/context/surface types, per-thread state and the lock (`ENTER()`), globals |
+| `egl_internal.h` | What the parts share: limits, SWI numbers and reason codes, the display/config/context/surface types, the lock macros (`ENTER()`, `LOCK()`), and the prototypes of the helpers one part uses from another, grouped by the part that defines them |
+| `egl_riscos.c` | The globals, per-thread state, the lock and error reporting, then the `#include`s of the parts |
 | `parts/screen.c` | Screen mode and window state, plotting a frame (window, full screen, damage rectangles, DispmanX) |
 | `parts/buffers.c` | Surface buffers, screen banks, pixmap sprites |
 | `parts/overlay.c` | Window surfaces shown through a VideoOverlay overlay: creating it, copying frames in, hiding it under other windows, fallbacks |
@@ -45,8 +46,12 @@ which it `#include`s in this order:
 | `parts/api.c` | The EGL 1.4 functions |
 | `parts/extensions.c` | Extension functions (sync, locking, images, platform, debug, RISC OS) and `eglGetProcAddress` |
 
-The parts can't be compiled on their own: helpers stay `static`. Add a new
-part to the list in `egl_riscos.c`, not to a makefile.
+The library is built as one file (`egl_riscos.c`), so its helpers stay
+`static` and invisible to programs. Each part also includes
+`egl_internal.h` itself (a no-op in the build), so an editor or clangd can
+follow a part on its own. When a part starts using a helper from another,
+add its prototype to `egl_internal.h`. Add a new part to the list in
+`egl_riscos.c`, not to a makefile.
 
 Every public function starts with `ENTER()`, which takes the library's
 lock and releases it when the function returns (GCC's cleanup attribute).

@@ -5,6 +5,8 @@
  * library), not on its own. MIT licence (see LICENSE).
  */
 
+#include "../egl_internal.h"
+
 /* ------------------------------------------------------------------ */
 /* EGL 1.4 API                                                         */
 
@@ -119,70 +121,16 @@ EGLAPI EGLBoolean EGLAPIENTRY eglChooseConfig(EGLDisplay dpy, const EGLint *attr
                                               EGLint *num_config)
 {
     egl_display *d;
-    EGLint want[NCRITERIA];
     const egl_config *match[8];
-    int i, j, n = 0, by_id = 0;
-    EGLint want_id = 0;
-    int pixmap_layout = -1;
+    int i, n;
 
     ENTER();
     if (!(d = get_display(dpy, 1)))
         return EGL_FALSE;
     if (!num_config)
         return fail(EGL_BAD_PARAMETER);
-
-    for (j = 0; j < NCRITERIA; j++)
-        want[j] = criteria[j].def;
-    for (i = 0; attrib_list && attrib_list[i] != EGL_NONE; i += 2) {
-        EGLint a = attrib_list[i], v = attrib_list[i + 1];
-        if (a == EGL_MATCH_NATIVE_PIXMAP) {
-            int w, h;
-            void *px;
-            if (v == EGL_NONE || !pixmap_info((void *) v, &w, &h, &pixmap_layout, &px))
-                return fail(EGL_BAD_NATIVE_PIXMAP);
-            continue;
-        }
-        for (j = 0; j < NCRITERIA; j++)
-            if (criteria[j].attrib == a)
-                break;
-        if (j == NCRITERIA || !config_value_ok(a, v))
-            return fail(EGL_BAD_ATTRIBUTE);
-        want[j] = v;
-        if (a == EGL_CONFIG_ID && v != EGL_DONT_CARE) {
-            by_id = 1;
-            want_id = v;
-        }
-    }
-
-    for (i = 0; i < d->nconfigs; i++) {
-        const egl_config *c = &d->configs[i];
-        int good = 1;
-        if (by_id) {
-            good = (c->id == want_id);          /* all else ignored */
-        } else {
-            for (j = 0; j < NCRITERIA && good; j++) {
-                EGLint have;
-                if (criteria[j].match == M_IGNORE || want[j] == EGL_DONT_CARE)
-                    continue;
-                config_attrib(c, criteria[j].attrib, &have);
-                switch (criteria[j].match) {
-                case M_ATLEAST: good = have >= want[j]; break;
-                case M_EXACT:   good = have == want[j]; break;
-                case M_MASK:    good = (have & want[j]) == want[j]; break;
-                case M_FORMAT:  /* RGBA_8888 also matches the EXACT ones */
-                    good = have == want[j] ||
-                           (want[j] == EGL_FORMAT_RGBA_8888_KHR &&
-                            have == EGL_FORMAT_RGBA_8888_EXACT_KHR);
-                    break;
-                }
-            }
-            if (pixmap_layout >= 0 && c->layout != pixmap_layout)
-                good = 0;
-        }
-        if (good)
-            match[n++] = c;
-    }
-    qsort(match, n, sizeof match[0], config_compare);
+    if ((n = choose_configs(d, attrib_list, match)) < 0)
+        return EGL_FALSE;
     if (configs) {
         if (n > config_size) n = config_size;
         if (n < 0) n = 0;
@@ -272,7 +220,7 @@ static EGLSurface create_window_surface(EGLDisplay dpy, EGLConfig config,
         return EGL_NO_SURFACE;
     s->handle = win;
     if (dmx) {
-        s->handle = -3;
+        s->handle = HANDLE_DISPMANX;
         s->dmx = dmx;
         s->w = dmx_w;
         s->h = dmx_h;
@@ -290,7 +238,7 @@ static EGLSurface create_window_surface(EGLDisplay dpy, EGLConfig config,
         case EGL_VG_ALPHA_FORMAT:
             break;              /* OpenVG only, ignored */
         case EGL_SCREEN_BANKS_RISCOS:
-            if (s->handle != -1 || v < 0 || v == 1 || v > MAX_BANKS)
+            if (s->handle != HANDLE_SCREEN || v < 0 || v == 1 || v > MAX_BANKS)
                 goto bad_attr;
             s->want_banks = v;
             break;
@@ -593,7 +541,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSurfaceAttrib(EGLDisplay dpy, EGLSurface surfac
         if (value != EGL_BUFFER_PRESERVED && value != EGL_BUFFER_DESTROYED)
             return fail(EGL_BAD_PARAMETER);
         s->swap_behavior = value;
-        if (value == EGL_BUFFER_PRESERVED && s->handle == -1 && !s->no_banks) {
+        if (value == EGL_BUFFER_PRESERVED && s->handle == HANDLE_SCREEN && !s->no_banks) {
             s->no_banks = 1;            /* screen banks can't preserve: use a sprite */
             if (s->banks) {
                 screen_info scr;
@@ -753,6 +701,97 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapInterval(EGLDisplay dpy, EGLint interval)
     return ok();
 }
 
+/* What eglCreateContext was asked for (EGL_KHR_create_context) */
+typedef struct context_request {
+    EGLint major, minor, flags, profile;
+    int explicit_version, explicit_profile;
+    int release_flush;          /* EGL_KHR_context_flush_control */
+    int es;                     /* OpenGL ES version: 1 or 2 (0 = desktop GL) */
+} context_request;
+
+/* Read and check eglCreateContext's attributes for the bound API. Returns
+   0 (with the error set) if they can't be met. */
+static int read_context_attribs(const EGLint *attrib_list, EGLenum api, context_request *q)
+{
+    int i;
+    q->major = 1; q->minor = 0; q->flags = 0;
+    q->profile = EGL_CONTEXT_OPENGL_COMPATIBILITY_PROFILE_BIT_KHR;
+    q->explicit_version = q->explicit_profile = 0;
+    q->release_flush = 1;
+    q->es = 0;
+    for (i = 0; attrib_list && attrib_list[i] != EGL_NONE; i += 2) {
+        EGLint a = attrib_list[i], v = attrib_list[i + 1];
+        switch (a) {
+        case EGL_CONTEXT_MAJOR_VERSION_KHR:     /* = EGL_CONTEXT_CLIENT_VERSION */
+            q->major = v; q->explicit_version = 1; break;
+        case EGL_CONTEXT_MINOR_VERSION_KHR:
+            q->minor = v; q->explicit_version = 1; break;
+        case EGL_CONTEXT_FLAGS_KHR:
+            q->flags = v; break;
+        case EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR:
+            q->profile = v; q->explicit_profile = 1; break;
+        case EGL_CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY_KHR:
+            if (v != EGL_NO_RESET_NOTIFICATION_KHR)
+                return fail(EGL_BAD_MATCH);
+            break;
+        case EGL_CONTEXT_RELEASE_BEHAVIOR_KHR:
+            if (v != EGL_CONTEXT_RELEASE_BEHAVIOR_FLUSH_KHR &&
+                v != EGL_CONTEXT_RELEASE_BEHAVIOR_NONE_KHR)
+                return fail(EGL_BAD_ATTRIBUTE);
+            q->release_flush = (v == EGL_CONTEXT_RELEASE_BEHAVIOR_FLUSH_KHR);
+            break;
+        default:
+            return fail(EGL_BAD_ATTRIBUTE);
+        }
+    }
+    if (q->flags & ~(EGL_CONTEXT_OPENGL_DEBUG_BIT_KHR |
+                     EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE_BIT_KHR |
+                     EGL_CONTEXT_OPENGL_ROBUST_ACCESS_BIT_KHR))
+        return fail(EGL_BAD_ATTRIBUTE);
+    if (q->flags & EGL_CONTEXT_OPENGL_ROBUST_ACCESS_BIT_KHR)
+        return fail(EGL_BAD_MATCH);             /* no robust access in classic swrast */
+    if (q->profile != EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR &&
+        q->profile != EGL_CONTEXT_OPENGL_COMPATIBILITY_PROFILE_BIT_KHR)
+        return fail(EGL_BAD_MATCH);
+    if (api == EGL_OPENGL_ES_API) {
+        /* EGL_CONTEXT_CLIENT_VERSION (default 1); classic swrast gives
+           ES 1.1 and ES 2.0 */
+        if (q->explicit_profile || (q->flags & EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE_BIT_KHR))
+            return fail(EGL_BAD_ATTRIBUTE);     /* desktop GL only */
+        if (q->major == 1 && (q->minor == 0 || q->minor == 1))
+            q->es = 1;
+        else if (q->major == 2 && q->minor == 0)
+            q->es = 2;
+        else
+            return fail(EGL_BAD_MATCH);         /* ES 3.x: not with this renderer */
+    }
+    return 1;
+}
+
+/* OSMesaCreateContextAttribs's list for a config and a request. */
+static void osmesa_context_attribs(const egl_config *c, const context_request *q, int attribs[20])
+{
+    int n = 0;
+    attribs[n++] = OSMESA_FORMAT;
+    attribs[n++] = c->layout == LAYOUT_TRGB ? OSMESA_BGRA : OSMESA_RGBA;
+    attribs[n++] = OSMESA_DEPTH_BITS;   attribs[n++] = c->depth;
+    attribs[n++] = OSMESA_STENCIL_BITS; attribs[n++] = c->stencil;
+    attribs[n++] = OSMESA_ACCUM_BITS;   attribs[n++] = 0;
+    /* The profile only applies to GL 3.2+ (EGL_KHR_create_context). */
+    attribs[n++] = OSMESA_PROFILE;
+    if (q->es)
+        attribs[n++] = q->es == 1 ? OSMESA_ES1_PROFILE : OSMESA_ES2_PROFILE;
+    else
+        attribs[n++] = (q->explicit_profile && q->profile == EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR &&
+                        (q->major > 3 || (q->major == 3 && q->minor >= 2)))
+                       ? OSMESA_CORE_PROFILE : OSMESA_COMPAT_PROFILE;
+    if (!q->es && q->explicit_version && (q->major > 2 || (q->major == 2 && q->minor > 1))) {
+        attribs[n++] = OSMESA_CONTEXT_MAJOR_VERSION; attribs[n++] = q->major;
+        attribs[n++] = OSMESA_CONTEXT_MINOR_VERSION; attribs[n++] = q->minor;
+    }
+    attribs[n++] = 0;
+}
+
 EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
                                                EGLContext share_context,
                                                const EGLint *attrib_list)
@@ -760,10 +799,8 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
     egl_display *d;
     const egl_config *c;
     egl_context *ctx, *share = NULL;
-    EGLint major = 1, minor = 0, flags = 0;
-    EGLint profile = EGL_CONTEXT_OPENGL_COMPATIBILITY_PROFILE_BIT_KHR;
-    int attribs[20], i, n = 0, explicit_version = 0, explicit_profile = 0;
-    int release_flush = 1, es = 0;
+    context_request q;
+    int attribs[20];
     EGLenum api;
 
     ENTER();
@@ -776,87 +813,9 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
         fail(EGL_BAD_MATCH);            /* can't share between GL and GLES */
         return EGL_NO_CONTEXT;
     }
-
-    for (i = 0; attrib_list && attrib_list[i] != EGL_NONE; i += 2) {
-        EGLint a = attrib_list[i], v = attrib_list[i + 1];
-        switch (a) {
-        case EGL_CONTEXT_MAJOR_VERSION_KHR:     /* = EGL_CONTEXT_CLIENT_VERSION */
-            major = v; explicit_version = 1; break;
-        case EGL_CONTEXT_MINOR_VERSION_KHR:
-            minor = v; explicit_version = 1; break;
-        case EGL_CONTEXT_FLAGS_KHR:
-            flags = v; break;
-        case EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR:
-            profile = v; explicit_profile = 1; break;
-        case EGL_CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY_KHR:
-            if (v != EGL_NO_RESET_NOTIFICATION_KHR) {
-                fail(EGL_BAD_MATCH);
-                return EGL_NO_CONTEXT;
-            }
-            break;
-        case EGL_CONTEXT_RELEASE_BEHAVIOR_KHR:  /* EGL_KHR_context_flush_control */
-            if (v != EGL_CONTEXT_RELEASE_BEHAVIOR_FLUSH_KHR &&
-                v != EGL_CONTEXT_RELEASE_BEHAVIOR_NONE_KHR) {
-                fail(EGL_BAD_ATTRIBUTE);
-                return EGL_NO_CONTEXT;
-            }
-            release_flush = (v == EGL_CONTEXT_RELEASE_BEHAVIOR_FLUSH_KHR);
-            break;
-        default:
-            fail(EGL_BAD_ATTRIBUTE);
-            return EGL_NO_CONTEXT;
-        }
-    }
-    if (flags & ~(EGL_CONTEXT_OPENGL_DEBUG_BIT_KHR |
-                  EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE_BIT_KHR |
-                  EGL_CONTEXT_OPENGL_ROBUST_ACCESS_BIT_KHR)) {
-        fail(EGL_BAD_ATTRIBUTE);
+    if (!read_context_attribs(attrib_list, api, &q))
         return EGL_NO_CONTEXT;
-    }
-    if (flags & EGL_CONTEXT_OPENGL_ROBUST_ACCESS_BIT_KHR) {
-        fail(EGL_BAD_MATCH);            /* no robust access in classic swrast */
-        return EGL_NO_CONTEXT;
-    }
-    if (profile != EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR &&
-        profile != EGL_CONTEXT_OPENGL_COMPATIBILITY_PROFILE_BIT_KHR) {
-        fail(EGL_BAD_MATCH);
-        return EGL_NO_CONTEXT;
-    }
-    if (api == EGL_OPENGL_ES_API) {
-        /* EGL_CONTEXT_CLIENT_VERSION (default 1); classic swrast gives
-           ES 1.1 and ES 2.0 */
-        if (explicit_profile || (flags & EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE_BIT_KHR)) {
-            fail(EGL_BAD_ATTRIBUTE);    /* desktop GL only */
-            return EGL_NO_CONTEXT;
-        }
-        if (major == 1 && (minor == 0 || minor == 1))
-            es = 1;
-        else if (major == 2 && minor == 0)
-            es = 2;
-        else {
-            fail(EGL_BAD_MATCH);        /* ES 3.x: not with this renderer */
-            return EGL_NO_CONTEXT;
-        }
-    }
-
-    attribs[n++] = OSMESA_FORMAT;
-    attribs[n++] = c->layout == LAYOUT_TRGB ? OSMESA_BGRA : OSMESA_RGBA;
-    attribs[n++] = OSMESA_DEPTH_BITS;   attribs[n++] = c->depth;
-    attribs[n++] = OSMESA_STENCIL_BITS; attribs[n++] = c->stencil;
-    attribs[n++] = OSMESA_ACCUM_BITS;   attribs[n++] = 0;
-    /* The profile only applies to GL 3.2+ (EGL_KHR_create_context). */
-    attribs[n++] = OSMESA_PROFILE;
-    if (es)
-        attribs[n++] = es == 1 ? OSMESA_ES1_PROFILE : OSMESA_ES2_PROFILE;
-    else
-        attribs[n++] = (explicit_profile && profile == EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR &&
-                        (major > 3 || (major == 3 && minor >= 2)))
-                       ? OSMESA_CORE_PROFILE : OSMESA_COMPAT_PROFILE;
-    if (!es && explicit_version && (major > 2 || (major == 2 && minor > 1))) {
-        attribs[n++] = OSMESA_CONTEXT_MAJOR_VERSION; attribs[n++] = major;
-        attribs[n++] = OSMESA_CONTEXT_MINOR_VERSION; attribs[n++] = minor;
-    }
-    attribs[n++] = 0;
+    osmesa_context_attribs(c, &q, attribs);
 
     ctx = (egl_context *) calloc(1, sizeof *ctx);
     if (!ctx) {
@@ -872,8 +831,8 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
     ctx->magic = MAGIC_CONTEXT;
     ctx->cfg = c;
     ctx->api = api;
-    ctx->es = es;
-    ctx->release_flush = release_flush;
+    ctx->es = q.es;
+    ctx->release_flush = q.release_flush;
     ctx->next = d->contexts;
     d->contexts = ctx;
     ok();
@@ -1066,7 +1025,10 @@ static EGLBoolean swap(EGLDisplay dpy, EGLSurface surface, const EGLint *rects, 
         return fail(EGL_BAD_ALLOC);
     /* DispmanX compatibility in window mode: libbcm_host polls the Wimp
        here, last, so the program multitasks (and may exit if its window is
-       closed, with EGL's state complete). */
+       closed, with EGL's state complete). It runs with the lock held and
+       calls back into EGL (eglRedrawWindowRISCOS), which is why the lock is
+       recursive; an exit from here leaves the lock held, which is harmless
+       as the program is ending. */
     if (s->dmx && __riscos_dispmanx_swapped)
         __riscos_dispmanx_swapped();
     return ok();

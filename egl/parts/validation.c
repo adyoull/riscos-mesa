@@ -5,6 +5,8 @@
  * library), not on its own. MIT licence (see LICENSE).
  */
 
+#include "../egl_internal.h"
+
 /* ------------------------------------------------------------------ */
 /* Validation                                                          */
 

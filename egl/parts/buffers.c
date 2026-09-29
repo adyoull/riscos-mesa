@@ -5,6 +5,8 @@
  * library), not on its own. MIT licence (see LICENSE).
  */
 
+#include "../egl_internal.h"
+
 /* ------------------------------------------------------------------ */
 /* Buffers                                                             */
 
@@ -12,8 +14,8 @@ static int banks_in_use;
 
 static void restore_banks(void)
 {
-    _kernel_osbyte(113, 1, 0);          /* display and draw bank 1 again */
-    _kernel_osbyte(112, 1, 0);
+    _kernel_osbyte(OSBYTE_DISPLAY_BANK, 1, 0);          /* display and draw bank 1 again */
+    _kernel_osbyte(OSBYTE_DRAW_BANK, 1, 0);
 }
 
 static void restore_banks_atexit(void)
@@ -38,16 +40,12 @@ static void free_buffers(egl_surface *surf)
     surf->direct = 0;
 }
 
+/* The address of a screen bank: make it the VDU's drawing bank and read
+   ScreenStart (VDU variable 148). */
 static void *vdu_bank_start(int bank)
 {
-    static const int vars[] = { 148, -1 };
-    int val = 0;
-    _kernel_swi_regs r;
-    _kernel_osbyte(112, bank, 0);
-    r.r[0] = (int) vars;
-    r.r[1] = (int) &val;
-    _kernel_swi(OS_ReadVduVariables, &r, &r);
-    return (void *) val;
+    _kernel_osbyte(OSBYTE_DRAW_BANK, bank, 0);
+    return (void *) vdu_variable(148);
 }
 
 /* Hardware double (or triple) buffering: render into a screen bank that
@@ -56,14 +54,11 @@ static void *vdu_bank_start(int bank)
    memory if it can. Returns the number of banks (2 or 3), or 0. */
 static int setup_banks(egl_surface *surf, const screen_info *s)
 {
-    static const int vars[] = { 7, -1 };    /* ScreenSize */
     static int atexit_done;
     _kernel_swi_regs r;
-    int screen_size = 0, have, n, i;
+    int screen_size = vdu_variable(7), have, n, i;      /* 7: ScreenSize */
 
-    r.r[0] = (int) vars;
-    r.r[1] = (int) &screen_size;
-    if (_kernel_swi(OS_ReadVduVariables, &r, &r) != NULL || screen_size <= 0)
+    if (screen_size <= 0)
         return 0;
     r.r[0] = 2;                             /* screen memory dynamic area */
     if (_kernel_swi(OS_ReadDynamicArea, &r, &r) != NULL)
@@ -86,8 +81,8 @@ static int setup_banks(egl_surface *surf, const screen_info *s)
         return 0;
     for (i = 1; i <= n; i++)
         surf->bank_addr[i] = vdu_bank_start(i);
-    _kernel_osbyte(112, 1, 0);
-    _kernel_osbyte(113, 1, 0);
+    _kernel_osbyte(OSBYTE_DRAW_BANK, 1, 0);
+    _kernel_osbyte(OSBYTE_DISPLAY_BANK, 1, 0);
     if (surf->bank_addr[1] != s->start || surf->bank_addr[2] == surf->bank_addr[1])
         return 0;
     if (!atexit_done) {
@@ -95,6 +90,16 @@ static int setup_banks(egl_surface *surf, const screen_info *s)
         atexit_done = 1;
     }
     return n;
+}
+
+/* Can a full screen surface render straight into screen memory (a bank,
+   or the visible screen)? Only without a render size, in the screen's own
+   colour order, with whole-pixel rows. */
+static int screen_memory_usable(const egl_surface *surf, const screen_info *s)
+{
+    return surf->handle == HANDLE_SCREEN && !surf->rw &&
+           screen_layout(s) == surf->cfg->layout && s->start != NULL &&
+           (s->line_length & 3) == 0;
 }
 
 /* Make a window surface's buffer fit the window and the screen mode.
@@ -107,10 +112,8 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
     if (!wanted_size(surf, s, &w, &h))
         return fail(EGL_BAD_NATIVE_WINDOW), -1;
 
-    if (surf->handle == -1 && !surf->rw && surf->render_buffer == EGL_BACK_BUFFER && !surf->no_banks &&
-        surf->want_banks >= 2 &&
-        screen_layout(s) == surf->cfg->layout && s->start != NULL &&
-        (s->line_length & 3) == 0) {
+    if (screen_memory_usable(surf, s) && surf->render_buffer == EGL_BACK_BUFFER &&
+        !surf->no_banks && surf->want_banks >= 2) {
         if (surf->banks && surf->bank_addr[1] == s->start && surf->w == w &&
             surf->h == h && surf->stride == s->line_length / 4)
             return 0;
@@ -130,9 +133,7 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
         surf->no_banks = 1;             /* not enough screen memory: plot a sprite */
     }
 
-    if (surf->handle == -1 && !surf->rw && surf->render_buffer == EGL_SINGLE_BUFFER &&
-        screen_layout(s) == surf->cfg->layout && s->start != NULL &&
-        (s->line_length & 3) == 0) {
+    if (screen_memory_usable(surf, s) && surf->render_buffer == EGL_SINGLE_BUFFER) {
         if (surf->direct && surf->pixels == s->start && surf->w == w &&
             surf->h == h && surf->stride == s->line_length / 4)
             return 0;
@@ -163,7 +164,7 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
     surf->area[1] = 0;
     surf->area[2] = 16;
     surf->area[3] = 16;
-    r.r[0] = 256 + 15;          /* create sprite */
+    r.r[0] = SPRITEOP_CREATE;
     r.r[1] = (int) surf->area;
     r.r[2] = (int) "egl";
     r.r[3] = 0;                 /* no palette */

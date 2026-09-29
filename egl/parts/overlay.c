@@ -55,30 +55,31 @@
  *     copying into it (MapBuffer + UnmapBuffer cost about 27 us).
  */
 
-#define OVL_OFF      0          /* no overlay (yet): the sprite is plotted */
-#define OVL_ON       1          /* an overlay exists */
-#define OVL_FAILED   2          /* gave up until the size or mode changes */
+#include "../egl_internal.h"
+
 #define OVL_WARMUP   3          /* swaps in a row before an overlay is made */
 #define OVL_GAP_CS   25         /* ... each at most this long after the last */
+#define OVL_TYPE_BASIC 1        /* VideoOverlay_Create's type: on top of everything */
 #ifndef OS_ReadMonotonicTime
 #define OS_ReadMonotonicTime 0x42
 #endif
 
-enum { OV_CREATE, OV_DESTROY, OV_DISPLAY, OV_MAP, OV_UNMAP, OV_COUNT_ };
-static struct { const char *name; int no; } ovl_swi[] = {
-    { "VideoOverlay_Create", 0 },  { "VideoOverlay_Destroy", 0 },
+/* VideoOverlay's SWIs, looked up by name (its SWI chunk isn't fixed) */
+enum { OV_CREATE, OV_DESTROY, OV_DISPLAY, OV_MAP, OV_UNMAP,
+       OV_SET_SCALE, OV_SET_WINDOW, OV_SET_POSITION, OV_REDRAW_WINDOW, OV_COUNT_ };
+static struct { const char *name; int no; } ovl_swi[OV_COUNT_] = {
+    { "VideoOverlay_Create", 0 },        { "VideoOverlay_Destroy", 0 },
     { "VideoOverlay_DisplayBuffer", 0 }, { "VideoOverlay_MapBuffer", 0 },
-    { "VideoOverlay_UnmapBuffer", 0 },
+    { "VideoOverlay_UnmapBuffer", 0 },   { "VideoOverlay_SetScale", 0 },
+    { "VideoOverlay_SetWindow", 0 },     { "VideoOverlay_SetPosition", 0 },
+    { "VideoOverlay_RedrawWindow", 0 },
 };
-static int ovl_scale_swi, ovl_window_swi, ovl_position_swi, ovl_redraw_swi;
+#define OVL_SWI(which) (ovl_swi[OV_##which].no)
 static int ovl_module;          /* 0 unknown, 1 there, -1 missing */
 
 /* Is VideoOverlay loaded? Looks the SWIs up by name (once it's found). */
 static int ovl_available(void)
 {
-    static const char *extra[] = { "VideoOverlay_SetScale", "VideoOverlay_SetWindow",
-                                   "VideoOverlay_SetPosition", "VideoOverlay_RedrawWindow" };
-    int *extra_no[] = { &ovl_scale_swi, &ovl_window_swi, &ovl_position_swi, &ovl_redraw_swi };
     _kernel_swi_regs r;
     int i;
     if (ovl_module > 0)
@@ -88,13 +89,7 @@ static int ovl_available(void)
         r.r[1] = (int) ovl_swi[i].name;
         if (_kernel_swi(OS_SWINumberFromString, &r, &r) != NULL)
             return 0;
-        ovl_swi[i].no = r.r[0] & ~0x20000;
-    }
-    for (i = 0; i < 4; i++) {
-        r.r[1] = (int) extra[i];
-        if (_kernel_swi(OS_SWINumberFromString, &r, &r) != NULL)
-            return 0;
-        *extra_no[i] = r.r[0] & ~0x20000;
+        ovl_swi[i].no = r.r[0] & ~SWI_X_BIT;
     }
     ovl_module = 1;
     return 1;
@@ -152,8 +147,8 @@ static void ovl_destroy(egl_surface *surf)
 {
     if (surf->ovl_id) {
         if (surf->ovl_shown)
-            ovl_call(ovl_swi[OV_DISPLAY].no, surf->ovl_id, -1);
-        ovl_call(ovl_swi[OV_DESTROY].no, surf->ovl_id, 0);
+            ovl_call(OVL_SWI(DISPLAY), surf->ovl_id, -1);
+        ovl_call(OVL_SWI(DESTROY), surf->ovl_id, 0);
     }
     surf->ovl_id = 0;
     surf->ovl_shown = 0;
@@ -189,24 +184,24 @@ static int ovl_create(egl_surface *surf, const screen_info *s)
         r.r[1] = (surf->w << 16) | surf->h;
         r.r[2] = 0;
         r.r[3] = task;
-        if (_kernel_swi(ovl_swi[OV_CREATE].no, &r, &r) != NULL)
+        if (_kernel_swi(OVL_SWI(CREATE), &r, &r) != NULL)
             return 0;                   /* can't have one of this size or format */
         surf->ovl_id = r.r[0];
         surf->ovl_type = r.r[1] & 0xFF;
         for (b = 0; b < banks; b++) {
-            if (ovl_call(ovl_swi[OV_MAP].no, surf->ovl_id, b) != NULL)
+            if (ovl_call(OVL_SWI(MAP), surf->ovl_id, b) != NULL)
                 break;
-            ovl_call(ovl_swi[OV_UNMAP].no, surf->ovl_id, b);
+            ovl_call(OVL_SWI(UNMAP), surf->ovl_id, b);
         }
         if (b == banks)
             break;
-        ovl_call(ovl_swi[OV_DESTROY].no, surf->ovl_id, 0);
+        ovl_call(OVL_SWI(DESTROY), surf->ovl_id, 0);
         surf->ovl_id = 0;
     }
     if (!surf->ovl_id)
         return 0;
-    if (ovl_call(ovl_window_swi, surf->ovl_id, surf->handle) != NULL) {
-        ovl_call(ovl_swi[OV_DESTROY].no, surf->ovl_id, 0);
+    if (ovl_call(OVL_SWI(SET_WINDOW), surf->ovl_id, surf->handle) != NULL) {
+        ovl_call(OVL_SWI(DESTROY), surf->ovl_id, 0);
         surf->ovl_id = 0;
         return 0;
     }
@@ -235,7 +230,7 @@ static int ovl_place(egl_surface *surf, const window_state *ws, const screen_inf
     r.r[1] = dw;
     r.r[2] = dh;
     r.r[3] = (surf->w << 16) | surf->h;
-    if (_kernel_swi(ovl_scale_swi, &r, &r) != NULL)
+    if (_kernel_swi(OVL_SWI(SET_SCALE), &r, &r) != NULL)
         return 0;
     r.r[0] = surf->ovl_id;
     r.r[1] = ws->scroll_x;
@@ -244,7 +239,7 @@ static int ovl_place(egl_surface *surf, const window_state *ws, const screen_inf
     r.r[4] = ws->scroll_y - (dh << s->yeig);
     r.r[5] = ws->scroll_x + (dw << s->xeig);
     r.r[6] = ws->scroll_y;
-    if (_kernel_swi(ovl_position_swi, &r, &r) != NULL)
+    if (_kernel_swi(OVL_SWI(SET_POSITION), &r, &r) != NULL)
         return 0;
     surf->ovl_placed[0] = ws->scroll_x;
     surf->ovl_placed[1] = ws->scroll_y;
@@ -260,12 +255,12 @@ static int ovl_covered(const window_state *ws)
 {
     window_state w;
     int h, n;
-    if (!(ws->flags & (1 << 16)))
+    if (!(ws->flags & WINDOW_FLAG_OPEN))
         return 1;                               /* not open (closed, iconised) */
     for (h = ws->behind, n = 0; h != -1 && n < 256; n++) {
         if (!get_window_state(h, &w))
             return 1;                           /* can't tell: be safe */
-        if ((w.flags & (1 << 16)) && w.x0 < ws->x1 && w.x1 > ws->x0 &&
+        if ((w.flags & WINDOW_FLAG_OPEN) && w.x0 < ws->x1 && w.x1 > ws->x0 &&
             w.y0 < ws->y1 && w.y1 > ws->y0)
             return 1;
         h = w.behind;
@@ -282,7 +277,7 @@ static int ovl_candidate(egl_display *d, egl_surface *surf)
         return 0;
     /* work area surfaces in the same window would be under the overlay */
     for (o = d->surfaces; o; o = o->next)
-        if (o != surf && o->kind == SURF_WINDOW && o->handle == surf->handle && !o->destroy_pending)
+        if (o != surf && window_surface_in(o, surf->handle))
             return 0;
     return 1;
 }
@@ -292,15 +287,10 @@ static int ovl_candidate(egl_display *d, egl_surface *surf)
 static void ovl_replot(egl_display *d, egl_surface *surf, const window_state *ws,
                       const screen_info *s)
 {
-    int dw, dh;
     _kernel_swi_regs r;
     int block[11];
-    shown_size(surf, ws, s, &dw, &dh);
     block[0] = surf->handle;
-    block[1] = ws->scroll_x;
-    block[2] = ws->scroll_y - (dh << s->yeig);
-    block[3] = ws->scroll_x + (dw << s->xeig);
-    block[4] = ws->scroll_y;
+    shown_area(surf, ws, s, &block[1]);
     r.r[1] = (int) block;
     if (_kernel_swi(Wimp_UpdateWindow, &r, &r) == NULL)
         plot_loop(d, surf->handle, surf, block, r.r[0]);
@@ -312,130 +302,122 @@ static void ovl_replot(egl_display *d, egl_surface *surf, const window_state *ws
    software fallback draws there). */
 static void ovl_just_shown(egl_surface *surf, const window_state *ws, const screen_info *s)
 {
-    int dw, dh;
     _kernel_swi_regs r;
-    shown_size(surf, ws, s, &dw, &dh);
+    int box[4];
+    shown_area(surf, ws, s, box);
     r.r[0] = surf->handle;
-    r.r[1] = ws->scroll_x;
-    r.r[2] = ws->scroll_y - (dh << s->yeig);
-    r.r[3] = ws->scroll_x + (dw << s->xeig);
-    r.r[4] = ws->scroll_y;
+    r.r[1] = box[0]; r.r[2] = box[1]; r.r[3] = box[2]; r.r[4] = box[3];
     _kernel_swi(Wimp_ForceRedraw, &r, &r);
+}
+
+/* Copy the finished frame into overlay buffer b (mapped just for the
+   copy). Returns 0 if the buffer can't be mapped. */
+static int ovl_copy_frame(egl_surface *surf, int b)
+{
+    _kernel_swi_regs r;
+    const int *planes;
+    uint8_t *dst;
+    int stride, y;
+    r.r[0] = surf->ovl_id;
+    r.r[1] = b;
+    if (_kernel_swi(OVL_SWI(MAP), &r, &r) != NULL)
+        return 0;
+    planes = (const int *) r.r[0];          /* plane 0: address, row stride */
+    dst = (uint8_t *) planes[0];
+    stride = planes[1];
+    for (y = 0; y < surf->h; y++)
+        memcpy(dst + (size_t) y * stride, (const uint8_t *) surf->pixels + (size_t) y * surf->stride * 4,
+               (size_t) surf->w * 4);
+    ovl_call(OVL_SWI(UNMAP), surf->ovl_id, b);
+    return 1;
 }
 
 /* Show or hide the overlay to suit what covers the window. new_frame: a
    frame to copy in and show (eglSwapBuffers); otherwise just re-show the
    last one. Returns 1 if the overlay shows the surface, 0 if the caller
    has to plot the sprite. */
-static int ovl_update(egl_display *d, egl_surface *surf, const screen_info *s, int new_frame)
+/* Can the surface (still) have an overlay? If it can't any more, destroy
+   the overlay; after a mode or size change, start again. When the overlay
+   goes while it was showing and there's no new frame to plot, the last one
+   is plotted. */
+static int ovl_still_usable(egl_display *d, egl_surface *surf, const window_state *ws,
+                            const screen_info *s, int new_frame)
 {
-    window_state ws;
-    int b, y, covered, now;
-    _kernel_oserror *e;
-
-    {
-        _kernel_swi_regs r;
-        now = _kernel_swi(OS_ReadMonotonicTime, &r, &r) == NULL ? r.r[0] : 0;
-    }
-    if (new_frame) {
-        surf->ovl_run = surf->ovl_run > 0 && now - surf->ovl_swap_cs <= OVL_GAP_CS ? surf->ovl_run + 1 : 1;
-        surf->ovl_swap_cs = now;
-    }
-    if (!get_window_state(surf->handle, &ws))
-        return 0;
+    int was_shown = surf->ovl_shown;
     if (!ovl_candidate(d, surf)) {
         if (surf->ovl_id) {
-            int was_shown = surf->ovl_shown;
             ovl_destroy(surf);
             if (was_shown && !new_frame && surf->sprite)
-                ovl_replot(d, surf, &ws, s);
+                ovl_replot(d, surf, ws, s);
         }
         return 0;
     }
     /* a new mode or size: start again (the old ID outlives a mode change) */
     if (surf->ovl_state != OVL_OFF &&
         (surf->ovl_mode != ovl_mode_signature(s) || surf->ovl_w != surf->w || surf->ovl_h != surf->h)) {
-        int was_shown = surf->ovl_shown;
         ovl_destroy(surf);
         surf->ovl_state = OVL_OFF;
         if (was_shown && !new_frame)
-            ovl_replot(d, surf, &ws, s);
+            ovl_replot(d, surf, ws, s);
     }
-    if (surf->ovl_state == OVL_FAILED)
-        return 0;
-    /* Stopped swapping (a paused video): back to the plotted sprite, which
-       the Wimp keeps right under menus and windows with no help. The
-       overlay and its buffers are kept, so the next swap shows through it
-       again at once. */
-    covered = !new_frame && now - surf->ovl_swap_cs > OVL_GAP_CS;
-    if (!covered)
-        covered = surf->ovl_type == 1 && ovl_covered(&ws);  /* Basic overlays only */
-    if (covered) {
-        if (surf->ovl_shown) {
-            ovl_call(ovl_swi[OV_DISPLAY].no, surf->ovl_id, -1);
-            surf->ovl_shown = 0;
-            if (!new_frame)
-                ovl_replot(d, surf, &ws, s);
+    return surf->ovl_state != OVL_FAILED;
+}
+
+/* Hide the overlay (keeping it), and plot the last frame if asked. */
+static void ovl_hide(egl_display *d, egl_surface *surf, const window_state *ws,
+                     const screen_info *s, int replot)
+{
+    if (!surf->ovl_shown)
+        return;
+    ovl_call(OVL_SWI(DISPLAY), surf->ovl_id, -1);
+    surf->ovl_shown = 0;
+    if (replot)
+        ovl_replot(d, surf, ws, s);
+}
+
+/* Make the overlay. Returns 0 if there's none to be had (then, with
+   VideoOverlay loaded, don't try again until the size or mode changes), or
+   if it has to stay hidden for now. */
+static int ovl_start(egl_surface *surf, const window_state *ws, const screen_info *s)
+{
+    if (!ovl_available() || !ovl_create(surf, s)) {
+        if (ovl_module > 0) {
+            surf->ovl_state = OVL_FAILED;
+            surf->ovl_w = surf->w;
+            surf->ovl_h = surf->h;
+            surf->ovl_mode = ovl_mode_signature(s);
         }
         return 0;
     }
-    if (surf->ovl_state == OVL_OFF) {
-        if (!new_frame || surf->ovl_run < OVL_WARMUP)
-            return 0;                           /* not animating (yet) */
-        if (!ovl_available() || !ovl_create(surf, s)) {
-            if (new_frame && ovl_module > 0) {
-                surf->ovl_state = OVL_FAILED;   /* VideoOverlay there, but it won't */
-                surf->ovl_w = surf->w;          /* retry at a new size or mode */
-                surf->ovl_h = surf->h;
-                surf->ovl_mode = ovl_mode_signature(s);
-            }
+    return !(surf->ovl_type == OVL_TYPE_BASIC && ovl_covered(ws));
+}
+
+/* No new frame (a redraw or a check): show the last frame through the
+   overlay again if it's hidden. */
+static int ovl_reshow(egl_display *d, egl_surface *surf, const window_state *ws,
+                      const screen_info *s)
+{
+    if (!surf->ovl_shown && surf->ovl_last >= 0) {
+        if (ovl_call(OVL_SWI(DISPLAY), surf->ovl_id, surf->ovl_last) != NULL) {
+            ovl_fail(surf);
+            ovl_replot(d, surf, ws, s);
             return 0;
         }
-        covered = surf->ovl_type == 1 && ovl_covered(&ws);
-        if (covered)
-            return 0;
+        surf->ovl_shown = 1;
+        ovl_just_shown(surf, ws, s);
     }
-    if (!ovl_place(surf, &ws, s)) {
-        ovl_fail(surf);
-        return 0;
-    }
-    if (!new_frame) {
-        if (!surf->ovl_shown && surf->ovl_last >= 0) {
-            if (ovl_call(ovl_swi[OV_DISPLAY].no, surf->ovl_id, surf->ovl_last) != NULL) {
-                ovl_fail(surf);
-                ovl_replot(d, surf, &ws, s);
-                return 0;
-            }
-            surf->ovl_shown = 1;
-            ovl_just_shown(surf, &ws, s);
-        }
-        return surf->ovl_shown;
-    }
+    return surf->ovl_shown;
+}
+
+/* A new frame: copy it into the next buffer and show that. */
+static int ovl_show_frame(egl_surface *surf, const window_state *ws, const screen_info *s)
+{
+    int b = surf->ovl_next;
     /* A buffer switch happens at the next vsync: don't write into a buffer
        until one has passed since the last switch. */
     if (surf->swap_interval > 0 && vsync_counter() == surf->ovl_vsync)
-        _kernel_osbyte(19, 0, 0);
-    b = surf->ovl_next;
-    {
-        _kernel_swi_regs r;
-        const int *planes;
-        uint8_t *dst;
-        int stride;
-        r.r[0] = surf->ovl_id;
-        r.r[1] = b;
-        if ((e = _kernel_swi(ovl_swi[OV_MAP].no, &r, &r)) != NULL) {
-            ovl_fail(surf);
-            return 0;
-        }
-        planes = (const int *) r.r[0];
-        dst = (uint8_t *) planes[0];
-        stride = planes[1];
-        for (y = 0; y < surf->h; y++)
-            memcpy(dst + (size_t) y * stride, (const uint8_t *) surf->pixels + (size_t) y * surf->stride * 4,
-                   (size_t) surf->w * 4);
-        ovl_call(ovl_swi[OV_UNMAP].no, surf->ovl_id, b);
-    }
-    if (ovl_call(ovl_swi[OV_DISPLAY].no, surf->ovl_id, b) != NULL) {
+        wait_vsyncs(1);
+    if (!ovl_copy_frame(surf, b) || ovl_call(OVL_SWI(DISPLAY), surf->ovl_id, b) != NULL) {
         ovl_fail(surf);
         return 0;
     }
@@ -444,9 +426,47 @@ static int ovl_update(egl_display *d, egl_surface *surf, const screen_info *s, i
     surf->ovl_next = (b + 1) % surf->ovl_banks;
     if (!surf->ovl_shown) {
         surf->ovl_shown = 1;
-        ovl_just_shown(surf, &ws, s);
+        ovl_just_shown(surf, ws, s);
     }
     return 1;
+}
+
+static int ovl_update(egl_display *d, egl_surface *surf, const screen_info *s, int new_frame)
+{
+    window_state ws;
+    int covered, now;
+    _kernel_swi_regs r;
+
+    now = _kernel_swi(OS_ReadMonotonicTime, &r, &r) == NULL ? r.r[0] : 0;
+    if (new_frame) {
+        surf->ovl_run = surf->ovl_run > 0 && now - surf->ovl_swap_cs <= OVL_GAP_CS ? surf->ovl_run + 1 : 1;
+        surf->ovl_swap_cs = now;
+    }
+    if (!get_window_state(surf->handle, &ws) || !ovl_still_usable(d, surf, &ws, s, new_frame))
+        return 0;
+    /* Stopped swapping (a paused video): back to the plotted sprite, which
+       the Wimp keeps right under menus and windows with no help. The
+       overlay and its buffers are kept, so the next swap shows through it
+       again at once. Otherwise, hide a Basic overlay while something
+       overlaps the window. */
+    covered = !new_frame && now - surf->ovl_swap_cs > OVL_GAP_CS;
+    if (!covered)
+        covered = surf->ovl_type == OVL_TYPE_BASIC && ovl_covered(&ws);
+    if (covered) {
+        ovl_hide(d, surf, &ws, s, !new_frame);
+        return 0;
+    }
+    if (surf->ovl_state == OVL_OFF) {
+        if (!new_frame || surf->ovl_run < OVL_WARMUP)
+            return 0;                           /* not animating (yet) */
+        if (!ovl_start(surf, &ws, s))
+            return 0;
+    }
+    if (!ovl_place(surf, &ws, s)) {
+        ovl_fail(surf);
+        return 0;
+    }
+    return new_frame ? ovl_show_frame(surf, &ws, s) : ovl_reshow(d, surf, &ws, s);
 }
 
 /* In a Wimp redraw loop: the overlay's own redraw for one rectangle. */
@@ -455,7 +475,7 @@ static void ovl_redraw_rectangle(egl_surface *surf, int *block)
     _kernel_swi_regs r;
     r.r[0] = surf->ovl_id;
     r.r[1] = (int) block;
-    _kernel_swi(ovl_redraw_swi, &r, &r);
+    _kernel_swi(OVL_SWI(REDRAW_WINDOW), &r, &r);
 }
 
 /* Re-check every overlay-backed surface (stacking, mode). */
