@@ -16,6 +16,9 @@ mkdir -p "$HERE/dist"
 TMP=$(mktemp -d)
 cp -r "$STAGE/tests" "$TMP/riscos-mesa-tests"
 cp "$HERE/LICENCES.txt" "$TMP/riscos-mesa-tests/Licences,fff"
+# The ReadMe's first line names the release: stamp it with this one
+[ -f "$TMP/riscos-mesa-tests/ReadMe,fff" ] &&
+  sed -i "1s/^riscos-mesa [^ ]* /riscos-mesa $V /" "$TMP/riscos-mesa-tests/ReadMe,fff"
 rm -f "$HERE/dist/riscos-mesa-tests-$V.zip"
 ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-tests-$V.zip" riscos-mesa-tests )
 rm -rf "$TMP"
@@ -61,7 +64,7 @@ cp -r "$STAGE/include" "$K/include"
 cp "$HERE/LICENCES.txt" "$HERE/devkit/README.md" "$K/"
 cp "$HERE/devkit/README.md" "$K/ReadMe,fff"            # the same guide, for RISC OS
 cp "$HERE/devkit/pkgconfig/"*.pc "$K/lib/pkgconfig/"
-cp "$HERE/devkit/bin/sdl2-config" "$HERE/devkit/bin/mkrozip.py" "$K/bin/"
+cp "$HERE/devkit/bin/sdl2-config" "$HERE/tools/mkrozip.py" "$K/bin/"   # one mkrozip, in tools/
 cp -r "$HERE/devkit/examples" "$K/examples"
 cp -r "$HERE/devkit/riscos" "$K/riscos"              # PThreadTicker (UnixLib 5.0.1)
 mkdir -p "$K/docs/porting"

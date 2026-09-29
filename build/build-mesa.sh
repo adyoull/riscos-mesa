@@ -9,37 +9,21 @@ if [ ! -d mesa-$V ]; then
   fetch_verified "$MESA_URL" "$MESA_SHA256" mesa-$V.tgz
   tar xzf mesa-$V.tgz
   mv mesa-mirror-mesa-$V mesa-$V
+  : > mesa-$V/.riscos-patches-applied
 fi
 cd mesa-$V
 # The port, then the speed-ups, then a workaround for newer host GCCs
 # (see patches/mesa/README), in this order. .riscos-patches-applied in the
-# tree records which are in, so each is applied once and a tree extracted
-# by an earlier version of this script gets only the ones it lacks.
+# tree records which are in, so each is applied once, and a new patch
+# added to the end of the list is applied to an existing tree. (A patch
+# that is changed isn't re-applied: remove src/mesa-20.3.5 to start
+# again, or rebase with tools/mesa-branch.sh.)
 PATCHES="riscos riscos-speed riscos-glsl-decode riscos-glsl-batch gcc13-vectorizer riscos-startup riscos-size-limit riscos-span-speed riscos-direct-rows riscos-uncompressed riscos-fast-tex riscos-fast-fog riscos-fastest riscos-eglimage riscos-osmesa-buffers"
 STAMP=.riscos-patches-applied
 if [ ! -f $STAMP ]; then
-  # No record: a new tree, or one made by an earlier version of this
-  # script, which applied these sets (in this order). Find the largest set
-  # that reverses cleanly, trying it on a scratch copy of the files.
-  : > $STAMP
-  for set in "riscos riscos-speed riscos-glsl-decode gcc13-vectorizer" \
-             "riscos riscos-speed gcc13-vectorizer" "riscos"; do
-    T=$(mktemp -d)
-    for p in $set; do
-      grep '^+++ b/' "$HERE/patches/mesa/mesa-$V-$p.patch" | sed 's#^+++ b/##; s#[[:space:]].*##'
-    done | sort -u | while read -r f; do
-      [ -f "$f" ] && mkdir -p "$T/$(dirname "$f")" && cp "$f" "$T/$f"
-    done
-    ok=1
-    for p in $(echo $set | tr ' ' '\n' | tac); do
-      (cd "$T" && patch -p1 -R -s -f < "$HERE/patches/mesa/mesa-$V-$p.patch" >/dev/null 2>&1) || { ok=0; break; }
-    done
-    rm -rf "$T"
-    if [ $ok = 1 ]; then
-      echo $set | tr ' ' '\n' > $STAMP
-      break
-    fi
-  done
+  echo "src/mesa-$V has no $STAMP (made by a much older build script):" >&2
+  echo "remove it and run this again to start from a fresh tree." >&2
+  exit 1
 fi
 for p in $PATCHES; do
   grep -qx "$p" $STAMP && continue
@@ -47,7 +31,8 @@ for p in $PATCHES; do
   echo $p >> $STAMP
 done
 [ -n "${SOURCES_ONLY:-}" ] && exit 0      # tests/host-setup.sh: the patched source is all it needs
-sed "s#@GCCSDK_ENV@#$GCCSDK_ENV#g; s#@RO_FPU@#$RO_FPU#g" "$HERE/build/meson-riscos.txt.in" > riscos-cross.txt
+flags=$(printf "'%s', " $RO_CFLAGS); flags=${flags%, }        # meson list: '-O3', '-mtune=...', ...
+sed "s#@GCCSDK_ENV@#$GCCSDK_ENV#g; s#@RO_CFLAGS_LIST@#$flags#g" "$HERE/build/meson-riscos.txt.in" > riscos-cross.txt
 fresh_build_dir build-ro
 [ -f build-ro/build.ninja ] || meson setup build-ro --cross-file riscos-cross.txt \
   --prefix="$STAGE" -Ddefault_library=static \

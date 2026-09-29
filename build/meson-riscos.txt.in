@@ -11,8 +11,9 @@ pkgconfig = 'pkg-config'
 needs_exe_wrapper = true
 
 [built-in options]
-c_args = ['-O3', '-mtune=cortex-a72', '-mfpu=@RO_FPU@', '-mfloat-abi=hard', '-fstack-clash-protection']
-cpp_args = ['-O3', '-mtune=cortex-a72', '-mfpu=@RO_FPU@', '-mfloat-abi=hard', '-fstack-clash-protection']
+# RO_CFLAGS from build/env.sh, filled in by build-mesa.sh
+c_args = [@RO_CFLAGS_LIST@]
+cpp_args = [@RO_CFLAGS_LIST@]
 
 [host_machine]
 system = 'riscos'

@@ -167,6 +167,13 @@ Everything installs into `stage/`. No GCCSDK GCC 10 yet? See
 [build/TOOLCHAIN.md](build/TOOLCHAIN.md). The host needs meson, ninja,
 python3-mako, bison, flex, autoconf, automake, libtool and cmake.
 
+**Working on riscos-mesa itself:** [docs/DECISIONS.md](docs/DECISIONS.md)
+explains why things are the way they are (Mesa 20.3.5, EGL as the API,
+the build flags, what's opt-in), and [docs/RELEASING.md](docs/RELEASING.md)
+how a release is made. Each part has its own README: `egl/`,
+`patches/mesa/`, `patches/sdl2/` (including how to change the SDL
+overlay), `glut/`, `dispmanx/`, `tests/host-harness/`.
+
 ## Using it from another port
 
 - **New to this?** Start with the devkit's beginner's guide,

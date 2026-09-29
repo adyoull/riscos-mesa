@@ -235,3 +235,15 @@ files are plain git diffs (patch -p1).
 After changing any of these patches, apply them to a host Mesa tree,
 rebuild it and run tests/run-all.sh (rendering and performance checks in
 tests/host-harness/mesa).
+
+Moving to a newer Mesa
+    These patches are for Mesa 20.3.5, the last release with the classic
+    software renderer (swrast) behind OSMesa. A newer Mesa would mean
+    Gallium's softpipe or llvmpipe instead, and a rebase wouldn't carry
+    most of this work over: riscos-speed, glsl-decode, glsl-batch,
+    span-speed, direct-rows, fast-tex, fast-fog, fastest and
+    uncompressed change classic swrast code that Gallium doesn't have.
+    riscos (the port itself), startup, size-limit and parts of eglimage
+    and osmesa-buffers would have counterparts. docs/DECISIONS.md has the
+    reasons for staying on 20.3.5 and a speed comparison with Mesa 26.
+
