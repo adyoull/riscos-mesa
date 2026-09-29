@@ -19,6 +19,7 @@ cd freeglut-3.8.0
 git checkout -q -- . && git clean -qfd src
 git apply "$R/patches/freeglut/freeglut-3.8.0-riscos.patch"
 cp -r "$R/glut/riscos" src/riscos
+[ -n "${SOURCES_ONLY:-}" ] && exit 0      # tests/host-setup.sh: the patched source is all it needs
 
 DEFS="-DHAVE_SYS_TYPES_H -DHAVE_UNISTD_H -DHAVE_SYS_TIME_H -DHAVE_STDINT_H
  -DHAVE_FCNTL_H -DHAVE_ERRNO_H -DHAVE_VFPRINTF -DNEED_XPARSEGEOMETRY_IMPL

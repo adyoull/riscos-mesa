@@ -3,7 +3,11 @@
 # passed. Run it before committing a change to egl/, dispmanx/, glut/,
 # patches/sdl2 or patches/mesa.
 #
-#   M=<mesa-20.3.5 tree, patches/mesa applied, built in $M/build>
+#   tests/host-setup.sh         (once: sources, host Mesa and GLU)
+#   tests/run-all.sh
+#
+# or, with a host Mesa of your own:
+#   M=<mesa-20.3.5 tree, patches/mesa applied, built in $M/build> GLU=<host libGLU.a>
 #   tests/run-all.sh
 #
 # What it runs:
@@ -54,11 +58,16 @@
 set -uo pipefail
 R=$(cd "$(dirname "$0")/.." && pwd)
 H=$R/tests/host-harness
-: "${M:?M=<host Mesa tree with patches/mesa applied and built in \$M/build>}"
 : "${SRC:=$R/src}" "${STAGE:=$R/stage}" "${OUT:=/tmp/riscos-mesa-tests}"
+# What tests/host-setup.sh made, unless told otherwise
+[ -z "${M:-}" ] && [ -f "$SRC/mesa-20.3.5/build/build.ninja" ] && M=$SRC/mesa-20.3.5
+[ -z "${GLU:-}" ] && [ -f "$SRC/glu-9.0.1/build-host/libGLU.a" ] && GLU=$SRC/glu-9.0.1/build-host/libGLU.a
+[ ! -f "$STAGE/include/GL/glu.h" ] && [ -d "$SRC/host-stage/include" ] && STAGE=$SRC/host-stage
+: "${M:?no host Mesa: run tests/host-setup.sh, or set M=<host Mesa tree built in \$M/build>}"
 O=$M/build/src/mesa/drivers/osmesa
 mkdir -p "$OUT"
 export M SRC STAGE
+[ -n "${GLU:-}" ] && export GLU
 
 results=()
 step() {   # step <name> <command...>: run it, log to $OUT/<name>.log

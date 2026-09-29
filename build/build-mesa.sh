@@ -46,6 +46,7 @@ for p in $PATCHES; do
   patch -p1 < "$HERE/patches/mesa/mesa-$V-$p.patch"
   echo $p >> $STAMP
 done
+[ -n "${SOURCES_ONLY:-}" ] && exit 0      # tests/host-setup.sh: the patched source is all it needs
 sed "s#@GCCSDK_ENV@#$GCCSDK_ENV#g; s#@RO_FPU@#$RO_FPU#g" "$HERE/build/meson-riscos.txt.in" > riscos-cross.txt
 fresh_build_dir build-ro
 [ -f build-ro/build.ninja ] || meson setup build-ro --cross-file riscos-cross.txt \

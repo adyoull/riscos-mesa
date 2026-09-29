@@ -218,8 +218,10 @@ python3-mako, bison, flex, autoconf, automake, libtool and cmake.
 | `tests/host-harness/glut` | freeglut's RISC OS back end on Linux: freeglut's demos driven by scripted keys, clicks, drags, menus, the wheel and resizing (23 checks) |
 | `tests/host-harness/mesa` | the Mesa patches: a hash of every image in a few thousand rendering cases, on the host and on the RISC OS build under qemu-arm; instructions per frame for glbench's scenes (performance regressions) |
 
-`tests/run-all.sh` runs all the host tests in one go (set `M` to a host
-Mesa build; see `tests/run-all.sh` for the rest).
+The host tests run on any Linux x86-64 machine, without the RISC OS
+toolchain: `tests/host-setup.sh` once (it fetches and patches the sources
+and builds a host Mesa, about 10 minutes), then `tests/run-all.sh`. GitHub
+runs the same on every push (`.github/workflows/host-tests.yml`).
 
 ## Licences
 

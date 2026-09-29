@@ -25,6 +25,7 @@ rm -rf openal-soft-$V
 mkdir openal-soft-$V
 tar xzf openal-soft-$V.tar.gz -C openal-soft-$V --strip-components=1
 patch -s -p1 -d openal-soft-$V < "$R/patches/openal/openal-soft-$V-riscos.patch"
+[ -n "${SOURCES_ONLY:-}" ] && exit 0      # tests/host-setup.sh: the patched source is all it needs
 
 mkdir -p openal-soft-$V/build-ro && cd openal-soft-$V/build-ro
 # -D_POSIX_C_SOURCE/_XOPEN_SOURCE: OpenAL builds with -std=c11, and UnixLib
