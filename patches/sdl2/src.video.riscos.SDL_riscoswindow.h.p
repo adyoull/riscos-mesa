@@ -1,5 +1,4 @@
 diff --git src/video/riscos/SDL_riscoswindow.h src/video/riscos/SDL_riscoswindow.h
-index d713b7a..30d18ee 100644
 --- src/video/riscos/SDL_riscoswindow.h
 +++ src/video/riscos/SDL_riscoswindow.h
 @@ -30,10 +30,56 @@ typedef struct

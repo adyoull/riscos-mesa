@@ -1,6 +1,5 @@
 diff --git src/audio/riscos/SDL_riscosaudio.c src/audio/riscos/SDL_riscosaudio.c
 new file mode 100644
-index 0000000..b8de289
 --- /dev/null
 +++ src/audio/riscos/SDL_riscosaudio.c
 @@ -0,0 +1,265 @@

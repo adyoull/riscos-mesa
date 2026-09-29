@@ -1,6 +1,5 @@
 diff --git src/video/riscos/SDL_riscosopengl.c src/video/riscos/SDL_riscosopengl.c
 new file mode 100644
-index 0000000..375e55a
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.c
 @@ -0,0 +1,808 @@

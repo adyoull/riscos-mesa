@@ -1,5 +1,4 @@
 diff --git src/video/SDL_video.c src/video/SDL_video.c
-index 0804c9c..ad78b2e 100644
 --- src/video/SDL_video.c
 +++ src/video/SDL_video.c
 @@ -24,6 +24,10 @@

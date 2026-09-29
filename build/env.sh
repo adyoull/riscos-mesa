@@ -38,6 +38,25 @@ fresh_build_dir() {   # dir
   echo "$RO_FPU" > "$1/.ro-fpu"
 }
 
+# Pinned sources: each downloaded tarball's version, URL and SHA-256, in one
+# place (the build scripts and tools/mesa-branch.sh, sdl-overlay-regen.sh
+# use these). freedesktop.org is often unreachable from build boxes, so
+# Mesa comes from a GitHub mirror that carries the release tags; swap for
+# archive.mesa3d.org if you prefer (the hash is of the mirror's archive).
+MESA_V=20.3.5
+MESA_URL=https://codeload.github.com/chaotic-cx/mesa-mirror/tar.gz/refs/tags/mesa-$MESA_V
+MESA_SHA256=adabbe0161cd8db4f1935fca9e07b7ef86219951a2ac830586de149c1753b828
+SDL_V=2.26.0
+SDL_URL=https://codeload.github.com/libsdl-org/SDL/tar.gz/refs/tags/release-$SDL_V
+SDL_SHA256=f38367892a6f243e8b4010e9e3d9714dc848e11b1a3f69c4af514dc6e7aca7f0
+ZLIB_V=1.3.1
+ZLIB_URL=https://codeload.github.com/madler/zlib/tar.gz/refs/tags/v$ZLIB_V
+ZLIB_SHA256=17e88863f3600672ab49182f217281b6fc4d3c762bde361935e436a95214d05c
+OPENAL_V=1.19.1
+OPENAL_URL=https://codeload.github.com/kcat/openal-soft/tar.gz/refs/tags/openal-soft-$OPENAL_V
+OPENAL_URL2=http://archive.ubuntu.com/ubuntu/pool/universe/o/openal-soft/openal-soft_$OPENAL_V.orig.tar.gz
+OPENAL_SHA256=9f3536ab2bb7781dbafabc6a61e0b34b17edd16bd6c2eaf2ae71bc63078f98c7
+
 # Download a source tarball and refuse to use it unless its SHA-256 matches.
 # The Mesa/SDL/zlib tarballs are GitHub-generated archives; GitHub has very
 # occasionally changed those bytes. If a check fails, compare the unpacked

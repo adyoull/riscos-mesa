@@ -1,6 +1,5 @@
 diff --git src/video/riscos/SDL_riscoswimp.h src/video/riscos/SDL_riscoswimp.h
 new file mode 100644
-index 0000000..920a3bc
 --- /dev/null
 +++ src/video/riscos/SDL_riscoswimp.h
 @@ -0,0 +1,174 @@

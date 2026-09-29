@@ -53,8 +53,7 @@ make)
     else
         source "$R/build/env.sh"
         T=$(mktemp -d)
-        (cd "$T" && fetch_verified https://codeload.github.com/chaotic-cx/mesa-mirror/tar.gz/refs/tags/mesa-$V \
-            adabbe0161cd8db4f1935fca9e07b7ef86219951a2ac830586de149c1753b828 mesa-$V.tgz)
+        (cd "$T" && fetch_verified "$MESA_URL" "$MESA_SHA256" mesa-$V.tgz)
         tar xzf "$T/mesa-$V.tgz" -C "$DIR" --strip-components=1
         rm -rf "$T"
     fi

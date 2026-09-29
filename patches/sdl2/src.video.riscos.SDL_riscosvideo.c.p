@@ -1,5 +1,4 @@
 diff --git src/video/riscos/SDL_riscosvideo.c src/video/riscos/SDL_riscosvideo.c
-index 4763011..faaabd4 100644
 --- src/video/riscos/SDL_riscosvideo.c
 +++ src/video/riscos/SDL_riscosvideo.c
 @@ -34,9 +34,23 @@

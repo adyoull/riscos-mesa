@@ -1,5 +1,4 @@
 diff --git src/timer/unix/SDL_systimer.c src/timer/unix/SDL_systimer.c
-index 406bd48..48b3a13 100644
 --- src/timer/unix/SDL_systimer.c
 +++ src/timer/unix/SDL_systimer.c
 @@ -183,6 +183,14 @@ SDL_GetPerformanceFrequency(void)

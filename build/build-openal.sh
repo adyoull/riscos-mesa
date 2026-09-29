@@ -16,14 +16,11 @@
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 R=$(cd "$(dirname "$0")/.." && pwd)
-V=1.19.1
-SUM=9f3536ab2bb7781dbafabc6a61e0b34b17edd16bd6c2eaf2ae71bc63078f98c7
+V=$OPENAL_V
 cd "$SRC"
 # The GitHub tag archive; Ubuntu's orig tarball is the same file.
-fetch_verified https://codeload.github.com/kcat/openal-soft/tar.gz/refs/tags/openal-soft-$V \
-    $SUM openal-soft-$V.tar.gz \
-  || fetch_verified http://archive.ubuntu.com/ubuntu/pool/universe/o/openal-soft/openal-soft_$V.orig.tar.gz \
-    $SUM openal-soft-$V.tar.gz
+fetch_verified "$OPENAL_URL" "$OPENAL_SHA256" openal-soft-$V.tar.gz \
+  || fetch_verified "$OPENAL_URL2" "$OPENAL_SHA256" openal-soft-$V.tar.gz
 rm -rf openal-soft-$V
 mkdir openal-soft-$V
 tar xzf openal-soft-$V.tar.gz -C openal-soft-$V --strip-components=1

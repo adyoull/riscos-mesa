@@ -3,13 +3,10 @@
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 HERE=$(cd "$(dirname "$0")/.." && pwd)
-V=20.3.5
+V=$MESA_V
 cd "$SRC"
 if [ ! -d mesa-$V ]; then
-  # freedesktop.org is often unreachable from build boxes; this GitHub mirror
-  # carries the release tags. Swap for archive.mesa3d.org if you prefer.
-  fetch_verified https://codeload.github.com/chaotic-cx/mesa-mirror/tar.gz/refs/tags/mesa-$V \
-    adabbe0161cd8db4f1935fca9e07b7ef86219951a2ac830586de149c1753b828 mesa-$V.tgz
+  fetch_verified "$MESA_URL" "$MESA_SHA256" mesa-$V.tgz
   tar xzf mesa-$V.tgz
   mv mesa-mirror-mesa-$V mesa-$V
 fi

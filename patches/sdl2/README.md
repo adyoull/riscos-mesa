@@ -37,8 +37,7 @@ It contains:
   `OS_Pointer 2` on every poll and sent as `SDL_MOUSEWHEEL`, in a window
   (while the pointer is over it) and in full screen. RISC OS 5 on the Pi
   doesn't send Wimp `Scroll_Request` events. It's in
-  `src.video.riscos.SDL_riscosevents.c.p`; `scroll-wheel-only.diff` is the
-  same change on its own, against the previous events patch.
+  `src.video.riscos.SDL_riscosevents.c.p`.
 - Cooperative multitasking (2026-09-25): nothing in the driver may stop
   other tasks while the program has a desktop window.
   - `SDL_Delay` yields with Wimp_PollIdle (whole centiseconds; the
@@ -168,8 +167,25 @@ It contains:
 The older `sdl2-riscos-framebuffer.p` from the buildkit is superseded by
 `src.video.riscos.SDL_riscosframebuffer.c.p` and must not be applied.
 
-Regenerate after editing: in a git tree of pristine SDL + these patches,
-`git diff --no-prefix <pristine> HEAD -- <file> > src.video.riscos.<file>.p`.
+## Changing the overlay
+
+1. Edit the C files in the SDL tree that `build/build-sdl2.sh` makes
+   (`src/SDL-release-2.26.0`), never the `.p` files themselves.
+2. Rebuild (`build/build-sdl2.sh`) and run the host tests
+   (`tests/run-all.sh`: the `sdl` and `sdl-wimp` steps).
+3. Run `tools/sdl-overlay-regen.sh`. It rewrites each `.p` from the tree
+   (a diff of pristine SDL against it, without `index` lines, so only real
+   changes show) and then checks that pristine SDL plus the `.p` files
+   gives the tree exactly. `--check` does only the check.
+4. Commit the `.p` files. If anything OpenTTD's build compiles changed (all
+   but the GL files), write the riscos-openttd handoff to re-export.
+
+The three `sdl2-configure.ac.*.p` files patch the same file in turn, so the
+script only checks them: edit those by hand.
+
+`build/build-sdl2.sh` notices when the `.p` files have changed since its
+tree was made (after a `git pull`, say) and stops if the tree no longer
+matches them, rather than building old code.
 
 ## Licence
 These patches change SDL files, so they are under SDL's zlib licence, like

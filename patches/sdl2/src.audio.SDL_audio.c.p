@@ -1,5 +1,4 @@
 diff --git src/audio/SDL_audio.c src/audio/SDL_audio.c
-index 0888878..6d20280 100644
 --- src/audio/SDL_audio.c
 +++ src/audio/SDL_audio.c
 @@ -117,6 +117,9 @@ static const AudioBootStrap *const bootstrap[] = {

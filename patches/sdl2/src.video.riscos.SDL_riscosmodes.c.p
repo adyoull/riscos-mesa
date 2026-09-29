@@ -1,5 +1,4 @@
 diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
-index 9500b22..df73e42 100644
 --- src/video/riscos/SDL_riscosmodes.c
 +++ src/video/riscos/SDL_riscosmodes.c
 @@ -293,9 +293,16 @@ RISCOS_SetDisplayMode(_THIS, SDL_VideoDisplay * display, SDL_DisplayMode * mode)

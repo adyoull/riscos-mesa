@@ -1,5 +1,4 @@
 diff --git src/video/riscos/SDL_riscosmouse.c src/video/riscos/SDL_riscosmouse.c
-index 072f8a7..9c6fde6 100644
 --- src/video/riscos/SDL_riscosmouse.c
 +++ src/video/riscos/SDL_riscosmouse.c
 @@ -23,6 +23,8 @@

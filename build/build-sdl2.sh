@@ -8,13 +8,27 @@ set -euo pipefail
 source "$(dirname "$0")/env.sh"
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 cd "$SRC"
-if [ ! -d SDL-release-2.26.0 ]; then
-  fetch_verified https://codeload.github.com/libsdl-org/SDL/tar.gz/refs/tags/release-2.26.0 \
-    f38367892a6f243e8b4010e9e3d9714dc848e11b1a3f69c4af514dc6e7aca7f0 SDL-2.26.0.tgz
-  tar xzf SDL-2.26.0.tgz
-  (cd SDL-release-2.26.0 && for p in "$HERE"/patches/sdl2/*.p; do patch -s -p0 < "$p"; done && ./autogen.sh)
+# The overlay's fingerprint: tells whether patches/sdl2 changed since the
+# tree was made.
+overlay_sum() { cat "$HERE"/patches/sdl2/*.p | sha256sum | cut -d' ' -f1; }
+if [ ! -d SDL-release-$SDL_V ]; then
+  fetch_verified "$SDL_URL" "$SDL_SHA256" SDL-$SDL_V.tgz
+  tar xzf SDL-$SDL_V.tgz
+  (cd SDL-release-$SDL_V && for p in "$HERE"/patches/sdl2/*.p; do patch -s -p0 < "$p"; done && ./autogen.sh)
+  overlay_sum > SDL-release-$SDL_V/.overlay-sum
+elif [ "$(cat SDL-release-$SDL_V/.overlay-sum 2>/dev/null)" != "$(overlay_sum)" ]; then
+  # patches/sdl2 changed (a git pull, say) since this tree was made. Edits
+  # made in the tree itself are fine (that's where the overlay is edited),
+  # but the tree must now match the .p files, or it would build old code.
+  if "$HERE"/tools/sdl-overlay-regen.sh --check; then
+    overlay_sum > SDL-release-$SDL_V/.overlay-sum
+  else
+    echo "src/SDL-release-$SDL_V doesn't match patches/sdl2: remove it to build the"
+    echo "overlay as it is now, or run tools/sdl-overlay-regen.sh to keep the tree's edits."
+    exit 1
+  fi
 fi
-fresh_build_dir SDL-release-2.26.0/build-ro && cd SDL-release-2.26.0/build-ro
+fresh_build_dir SDL-release-$SDL_V/build-ro && cd SDL-release-$SDL_V/build-ro
 # -I egl/include: SDL's GL windows are EGL window surfaces (programs then
 # link -lEGL too: -lSDL2 -lGLU -lEGL -lOSMesa ...)
 CFLAGS="$RO_CFLAGS -I$HERE/egl/include -I$STAGE/include" LDFLAGS="-L$STAGE/lib" \

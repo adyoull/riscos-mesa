@@ -1,5 +1,4 @@
 diff --git src/video/riscos/SDL_riscosevents_c.h src/video/riscos/SDL_riscosevents_c.h
-index 6b43411..f6cbee1 100644
 --- src/video/riscos/SDL_riscosevents_c.h
 +++ src/video/riscos/SDL_riscosevents_c.h
 @@ -29,6 +29,11 @@
