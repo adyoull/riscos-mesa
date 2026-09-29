@@ -206,6 +206,17 @@ Run in this order and note the output:
                    compare the fps and present times. To try overlays in
                    other EGL programs (freeglut, the ports), which don't
                    ask for one: *Set EGL$Overlay on first
+        egl-scaled     rendering at 320x240 and letting the overlay scale
+                   it to the window (new in 20.3.5-9): resize the window,
+                   the picture should stay sharp-edged and smooth, the
+                   fps should hardly change. Click in it: S switches
+                   between 320x240 and the window's size (compare the
+                   fps), H overlay off/on. Results: "eglscaled"
+        egl-scaled-plot the same, scaled by the sprite plot instead of
+                   the overlay (slower): "eglscaledplot"
+        egl-scaled-full full screen for 10 s, rendered at 640x360 and
+                   scaled by the sprite plot: compare its fps with
+                   egl-full's. Results: "eglscaledfull"
 
    l) More programs, in separate zips, each with its own ReadMe:
       riscos-mesa-hello_pi   the Raspberry Pi's hello_triangle,

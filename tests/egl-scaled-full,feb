@@ -1,0 +1,3 @@
+| riscos-mesa EGL test: full screen, rendered at 640x360 and scaled to the screen by the sprite plot.
+Dir <Obey$Dir>
+Run egltest -f -S 640x360 -t 10 -o eglscaledfull

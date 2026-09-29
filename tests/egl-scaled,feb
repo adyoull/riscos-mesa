@@ -1,0 +1,5 @@
+| riscos-mesa EGL test: render at 320x240 and let the hardware overlay scale it to the window.
+| Resize the window: it stays 320x240, stretched. Click in it: S window size/320x240, H overlay off/on.
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+Dir <Obey$Dir>
+Run egltest -w -V -S 320x240 -o eglscaled

@@ -1,0 +1,3 @@
+| riscos-mesa EGL test: the same as egl-scaled, but scaled by the sprite plot (no overlay).
+Dir <Obey$Dir>
+Run egltest -w -n -S 320x240 -o eglscaledplot

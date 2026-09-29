@@ -5,6 +5,9 @@ riscos-mesa's EGL has two RISC OS extensions, `EGL_RISCOS_wimp_window` and
 registered yet, so their enum values (0x3FF0 to 0x3FF5) are **provisional**.
 Those values fall inside the range Khronos keeps for future allocations
 (0x35B0 to 0x3FFF), so another vendor could be given them one day.
+A third, `EGL_RISCOS_overlay` (hardware overlays, render size: 0x3FF6 to
+0x3FF8, and `eglCheckOverlaysRISCOS`, `eglSwapWouldWaitRISCOS`), is newer
+and not part of this registration yet: it waits for Pi testing.
 
 This folder holds a ready-made registration, to be submitted by the project
 owner as a pull request to the Khronos EGL registry:

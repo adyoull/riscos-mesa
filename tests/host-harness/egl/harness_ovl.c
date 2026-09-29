@@ -386,6 +386,108 @@ void test_overlay(EGLDisplay d)
         eglMakeCurrent(dpy, ws, ws, ctx);
     }
 
+    /* A render size (EGL_RENDER_WIDTH/HEIGHT_RISCOS), scaled to the window */
+    {
+        EGLint rs[] = { EGL_RENDER_WIDTH_RISCOS, 100, EGL_RENDER_HEIGHT_RISCOS, 80, EGL_NONE };
+        EGLint r1[] = { EGL_RENDER_WIDTH_RISCOS, 100, EGL_NONE };
+        EGLint rwa[] = { EGL_RENDER_WIDTH_RISCOS, 100, EGL_RENDER_HEIGHT_RISCOS, 80,
+                         EGL_WORK_AREA_WIDTH_RISCOS, 20, EGL_WORK_AREA_HEIGHT_RISCOS, 20, EGL_NONE };
+        EGLSurface s4, s5;
+        EGLint v, fw = 0, fh = 0;
+        int sp, cr;
+        /* window 0x5004: 200x160 pixels, top left pixel (50, 270) */
+        fake_open_window(0x5004, 100, 100, 500, 420, 0, 0);
+        CHECK(eglCreateWindowSurface(dpy, cfg, 0x5004, r1) == EGL_NO_SURFACE &&
+              eglGetError() == EGL_BAD_ATTRIBUTE, "render width without height refused");
+        CHECK(eglCreateWindowSurface(dpy, cfg, 0x5004, rwa) == EGL_NO_SURFACE &&
+              eglGetError() == EGL_BAD_ATTRIBUTE, "render size on a work area surface refused");
+        s4 = eglCreateWindowSurface(dpy, cfg, 0x5004, rs);
+        CHECK(s4 != EGL_NO_SURFACE && eglMakeCurrent(dpy, s4, s4, ctx), "render size surface");
+        eglQuerySurface(dpy, s4, EGL_WIDTH, &fw);
+        eglQuerySurface(dpy, s4, EGL_HEIGHT, &fh);
+        eglQuerySurface(dpy, s4, EGL_RENDER_WIDTH_RISCOS, &v);
+        CHECK(fw == 100 && fh == 80 && v == 100, "renders at 100x80 (%dx%d) in a 200x160 window", fw, fh);
+        glViewport(0, 0, 100, 80);
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(0, 0, 50, 80); clear(1, 0, 0);          /* left half red */
+        glScissor(50, 0, 50, 80); clear(0, 0, 1);         /* right half blue */
+        glDisable(GL_SCISSOR_TEST);
+        wipe();
+        sp = fake_scaled_plots;
+        eglSwapBuffers(dpy, s4);
+        CHECK(fake_scaled_plots > sp && box_is(50, 270, 100, 160, RED) && box_is(150, 270, 100, 160, BLUE),
+              "plotted scaled 2x over the whole visible area (%06X %06X)",
+              RGB(fake_screen_pixel(60, 300)), RGB(fake_screen_pixel(240, 300)));
+        CHECK(RGB(fake_screen_pixel(49, 300)) == 0 && RGB(fake_screen_pixel(250, 300)) == 0 &&
+              RGB(fake_screen_pixel(100, 269)) == 0 && RGB(fake_screen_pixel(100, 430)) == 0, "nothing outside");
+        /* the window grows to 300 wide: same render size, 3x across */
+        fake_open_window(0x5004, 100, 100, 700, 420, 0, 0);
+        wipe();
+        eglSwapBuffers(dpy, s4);
+        eglQuerySurface(dpy, s4, EGL_WIDTH, &fw);
+        CHECK(fw == 100 && box_is(50, 270, 150, 160, RED) && box_is(200, 270, 150, 160, BLUE),
+              "resized window: still 100 wide, stretched to 300");
+        wipe();
+        block[0] = 0x5004;
+        eglRedrawWindowRISCOS(dpy, block);
+        CHECK(box_is(50, 270, 150, 160, RED) && box_is(200, 270, 150, 160, BLUE), "redraw: scaled too");
+
+        /* through an overlay: the overlay is the render size, scaled by it */
+        eglSurfaceAttrib(dpy, s4, EGL_OVERLAY_RISCOS, EGL_TRUE);
+        eglSwapBuffers(dpy, s4); eglSwapBuffers(dpy, s4); eglSwapBuffers(dpy, s4);
+        fake_ovl_info(&w, &h, NULL, NULL, NULL, &sw, &sh);
+        CHECK(query(s4) == 1 && w == 100 && h == 80 && sw == 300 && sh == 160,
+              "overlay 100x80 scaled to 300x160 (%dx%d -> %dx%d)", w, h, sw, sh);
+        CHECK(RGB(fake_ovl_pixel(shown(), 10, 10)) == RED && RGB(fake_ovl_pixel(shown(), 90, 70)) == BLUE,
+              "overlay holds the small frame");
+        cr = fake_ovl_creates;
+        fake_open_window(0x5004, 100, 100, 500, 420, 0, 0);
+        eglSwapBuffers(dpy, s4);
+        fake_ovl_info(NULL, NULL, NULL, NULL, NULL, &sw, &sh);
+        CHECK(fake_ovl_creates == cr && sw == 200 && sh == 160, "window resized: same overlay, rescaled (%dx%d)", sw, sh);
+        wipe();
+        n = fake_ovl_redraws;
+        eglRedrawWindowRISCOS(dpy, block);
+        CHECK(fake_ovl_redraws == n + 1 && RGB(fake_screen_pixel(100, 300)) == 0, "redraw: the overlay's");
+
+        /* back to following the window */
+        CHECK(!eglSurfaceAttrib(dpy, s4, EGL_RENDER_WIDTH_RISCOS, -1) && eglGetError() == EGL_BAD_PARAMETER,
+              "negative render size refused");
+        CHECK(eglSurfaceAttrib(dpy, s4, EGL_RENDER_WIDTH_RISCOS, 0), "render size 0");
+        eglSwapBuffers(dpy, s4);
+        eglQuerySurface(dpy, s4, EGL_WIDTH, &fw);
+        eglQuerySurface(dpy, s4, EGL_HEIGHT, &fh);
+        eglSwapBuffers(dpy, s4);
+        fake_ovl_info(&w, &h, NULL, NULL, NULL, &sw, &sh);
+        CHECK(fw == 200 && fh == 160 && w == 200 && sw == 200, "follows the window again (%dx%d, overlay %d)", fw, fh, w);
+        /* and a new render size at any time */
+        CHECK(eglSurfaceAttrib(dpy, s4, EGL_RENDER_HEIGHT_RISCOS, 40), "render height 40");
+        eglSwapBuffers(dpy, s4);
+        eglQuerySurface(dpy, s4, EGL_WIDTH, &fw);
+        eglQuerySurface(dpy, s4, EGL_HEIGHT, &fh);
+        CHECK(fw == 200 && fh == 40, "render size %dx%d (width kept)", fw, fh);
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(dpy, s4);
+
+        /* full screen at 320x240, scaled to 640x480 by the plot */
+        s5 = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, rs + 0);
+        eglMakeCurrent(dpy, s5, s5, ctx);
+        eglSurfaceAttrib(dpy, s5, EGL_RENDER_WIDTH_RISCOS, 320);
+        eglSurfaceAttrib(dpy, s5, EGL_RENDER_HEIGHT_RISCOS, 240);
+        eglSwapBuffers(dpy, s5);
+        eglQuerySurface(dpy, s5, EGL_WIDTH, &fw);
+        glViewport(0, 0, 320, 240);
+        clear(0, 1, 0);
+        wipe();
+        sp = fake_scaled_plots;
+        eglSwapBuffers(dpy, s5);
+        CHECK(fw == 320 && fake_scaled_plots == sp + 1 && box_is(0, 0, 640, 480, GREEN),
+              "full screen: 320 wide (%d), scaled to the whole screen", fw);
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(dpy, s5);
+        eglMakeCurrent(dpy, ws, ws, ctx);
+    }
+
     /* destroying the surface destroys the overlay */
     eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglDestroySurface(dpy, ws);

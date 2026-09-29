@@ -175,6 +175,7 @@ typedef struct egl_surface {
     int direct;                 /* rendering into screen memory */
     int banks;                  /* > 0: flipping between this many screen banks */
     int draw_bank;              /* bank being drawn (1..banks) */
+    int rw, rh;                 /* EGL_RENDER_WIDTH/HEIGHT_RISCOS: render size, scaled to the window or screen (0 = follow it) */
     int bank_vsync;             /* vsync counter (OS_Byte 176) at the last bank switch, -1 none */
     void *bank_addr[MAX_BANKS + 1];
     int no_banks;               /* don't try screen banks (failed, or preserved contents wanted) */

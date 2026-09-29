@@ -121,7 +121,10 @@ static int wanted_size(const egl_surface *surf, const screen_info *s, int *w, in
 {
     window_state ws;
 
-    if (surf->handle == -1) {
+    if (surf->rw && !surf->fixed && !surf->dmx) {
+        *w = surf->rw;              /* a render size, scaled when shown */
+        *h = surf->rh;
+    } else if (surf->handle == -1) {
         *w = s->width;
         *h = s->height;
     } else if (surf->fixed || surf->dmx) {
@@ -154,6 +157,38 @@ static void set_graphics_window(const os_rect *c)
     }
 }
 
+/* A surface with a render size (EGL_RENDER_WIDTH/HEIGHT_RISCOS): shown
+   scaled to fill its window's visible area, or the screen. */
+static int is_scaled(const egl_surface *surf)
+{
+    return surf->rw && !surf->fixed && !surf->dmx;
+}
+
+/* The size, in screen pixels, a visible-area or full screen surface is
+   shown at: its own size, or for a scaled one the window's or screen's. */
+static void shown_size(const egl_surface *surf, const window_state *ws, const screen_info *s,
+                       int *w, int *h)
+{
+    if (!is_scaled(surf)) {
+        *w = surf->w;
+        *h = surf->h;
+        return;
+    }
+    if (surf->handle == -1) {
+        *w = s->width;
+        *h = s->height;
+    } else {
+        *w = (ws->x1 - ws->x0) >> s->xeig;
+        *h = (ws->y1 - ws->y0) >> s->yeig;
+    }
+    if (*w < 1) *w = 1;
+    if (*h < 1) *h = 1;
+}
+
+static void dmx_plot(const egl_surface *surf, const screen_info *s,
+                     const riscos_dmx_placement *pl, int base_x, int top_os,
+                     os_rect clip);
+
 /* Plot a window surface's sprite for one rectangle of a Wimp redraw or
    update loop (block = the Wimp_RedrawWindow/UpdateWindow block). */
 static void plot_rectangle(const egl_surface *surf, const int *block, const screen_info *s,
@@ -165,6 +200,27 @@ static void plot_rectangle(const egl_surface *surf, const int *block, const scre
 
     if (!surf->sprite)
         return;
+    if (is_scaled(surf)) {
+        /* stretched over the visible area (or the screen) */
+        riscos_dmx_placement pl;
+        int base_x, top_os;
+        memset(&pl, 0, sizeof pl);
+        pl.visible = 1;
+        if (surf->handle == -1) {
+            base_x = 0;
+            top_os = s->height << s->yeig;
+            pl.w = s->width;
+            pl.h = s->height;
+        } else {
+            base_x = block[1];
+            top_os = block[4];
+            pl.w = (block[3] - block[1]) >> s->xeig;
+            pl.h = (block[4] - block[2]) >> s->yeig;
+        }
+        dmx_plot(surf, s, &pl, base_x, top_os, *clip);
+        set_graphics_window(clip);
+        return;
+    }
     if (surf->handle == -1) {
         x = 0;
         top = s->height << s->yeig;                 /* top of the screen */
@@ -475,6 +531,8 @@ static void present(egl_display *d, egl_surface *surf, const screen_info *s,
     nd = damage_rects(surf, rects, n, s, dmg);
     if (nd == 0 && !surf->banks)
         return;                         /* all rectangles empty: nothing changed */
+    if (is_scaled(surf))
+        nd = -1;                        /* scaled: always all of it */
 
     if (surf->handle == -1) {
         if (surf->banks) {
@@ -534,7 +592,7 @@ static void present(egl_display *d, egl_surface *surf, const screen_info *s,
     /* Update the part of the work area the surface covers (or each damaged
        part of it). */
     {
-        int left, top;
+        int left, top, dw = surf->w, dh = surf->h;
         if (surf->fixed) {
             left = surf->wa_x;
             top = surf->wa_y;
@@ -544,13 +602,14 @@ static void present(egl_display *d, egl_surface *surf, const screen_info *s,
                 return;
             left = ws.scroll_x;
             top = ws.scroll_y;
+            shown_size(surf, &ws, s, &dw, &dh);
         }
         for (i = 0; i < (nd < 0 ? 1 : nd); i++) {
             block[0] = surf->handle;
             if (nd < 0) {
                 block[1] = left;
-                block[2] = top - (surf->h << s->yeig);
-                block[3] = left + (surf->w << s->xeig);
+                block[2] = top - (dh << s->yeig);
+                block[3] = left + (dw << s->xeig);
                 block[4] = top;
             } else {
                 block[1] = left + dmg[i].x0;

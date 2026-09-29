@@ -33,6 +33,14 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   on the host harness (about 60 new checks against a fake VideoOverlay);
   **not yet tried on a Pi**: `egl-overlay` and `egl-no-overlay` in the
   tests zip (egltest `-V` / `-n`; keys H and P).
+- **Render size** (`EGL_RENDER_WIDTH_RISCOS`, `EGL_RENDER_HEIGHT_RISCOS`):
+  a window or full screen surface can render at a fixed size, stretched
+  to fill the window or screen when shown. Through a hardware overlay the
+  display does the scaling at no cost, so a game can render at 640x360
+  and fill a 1920x1080 window for a ninth of the rendering; otherwise the
+  sprite plot scales it. egltest `-S WxH` (key S), Obey files
+  `egl-scaled`, `egl-scaled-plot`, `egl-scaled-full`. Asked for by
+  riscos-ffmpeg; not yet tried on a Pi.
 - **Screen banks don't block for nothing.** A full screen surface with
   screen banks now waits only until its swap interval of vsyncs has
   passed since the last bank switch, instead of always waiting for the

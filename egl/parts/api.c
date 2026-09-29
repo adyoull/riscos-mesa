@@ -252,7 +252,7 @@ static EGLSurface create_window_surface(EGLDisplay dpy, EGLConfig config,
     egl_surface *s;
     screen_info scr;
     window_state ws;
-    int i, have_w = 0, have_h = 0, dmx = 0, dmx_w = 0, dmx_h = 0;
+    int i, have_w = 0, have_h = 0, dmx = 0, dmx_w = 0, dmx_h = 0, have_rw = 0, have_rh = 0;
 
     if (!(d = get_display(dpy, 1)) || !(c = get_config(d, config)))
         return EGL_NO_SURFACE;
@@ -299,6 +299,8 @@ static EGLSurface create_window_surface(EGLDisplay dpy, EGLConfig config,
                 goto bad_attr;
             s->ovl_want = v == EGL_TRUE;
             break;
+        case EGL_RENDER_WIDTH_RISCOS:     s->rw = v; have_rw = 1; break;
+        case EGL_RENDER_HEIGHT_RISCOS:    s->rh = v; have_rh = 1; break;
         case EGL_WORK_AREA_X_RISCOS:      s->wa_x = v; break;
         case EGL_WORK_AREA_Y_RISCOS:      s->wa_y = v; break;
         case EGL_WORK_AREA_WIDTH_RISCOS:  s->w = v; have_w = 1; break;
@@ -311,6 +313,13 @@ static EGLSurface create_window_surface(EGLDisplay dpy, EGLConfig config,
         if (!have_w || !have_h || s->w < 1 || s->h < 1 || s->handle < 0)
             goto bad_attr;
         s->fixed = 1;
+    }
+    /* A render size, scaled to the window or screen: visible-area and full
+       screen surfaces only, both sizes given */
+    if (have_rw || have_rh) {
+        if (!have_rw || !have_rh || s->rw < 1 || s->rh < 1 || s->rw > MAX_PBUFFER ||
+            s->rh > MAX_PBUFFER || s->fixed || s->dmx)
+            goto bad_attr;
     }
 
     read_screen(&scr);
@@ -483,6 +492,8 @@ static EGLBoolean query_surface(EGLDisplay dpy, EGLSurface surface, EGLint attri
         break;
     case EGL_SWAP_BEHAVIOR:    *value = s->swap_behavior; break;
     case EGL_SCREEN_BANKS_RISCOS: *value = s->banks; break;
+    case EGL_RENDER_WIDTH_RISCOS:  *value = s->rw; break;
+    case EGL_RENDER_HEIGHT_RISCOS: *value = s->rh; break;
     case EGL_OVERLAY_RISCOS:
         /* 0 not using one, 1 shown through it, 2 one exists but it's hidden
            (something overlaps the window) */
@@ -606,6 +617,24 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSurfaceAttrib(EGLDisplay dpy, EGLSurface surfac
             if (s->ovl_want && s->ovl_state == OVL_FAILED)
                 s->ovl_state = OVL_OFF;         /* try again at the next swap */
             ovl_update(d, s, &scr, 0);          /* off: hide it and plot the sprite */
+        }
+        break;
+    case EGL_RENDER_WIDTH_RISCOS:
+    case EGL_RENDER_HEIGHT_RISCOS:
+        /* a new render size (0 = follow the window or screen again); the
+           surface takes it at the next eglSwapBuffers, as after a resize */
+        if (s->kind != SURF_WINDOW || s->fixed || s->dmx)
+            return fail(EGL_BAD_MATCH);
+        if (value < 0 || value > MAX_PBUFFER)
+            return fail(EGL_BAD_PARAMETER);
+        if (value == 0) {
+            s->rw = s->rh = 0;
+        } else if (attribute == EGL_RENDER_WIDTH_RISCOS) {
+            s->rw = value;
+            if (!s->rh) s->rh = s->h;
+        } else {
+            s->rh = value;
+            if (!s->rw) s->rw = s->w;
         }
         break;
     case EGL_MULTISAMPLE_RESOLVE:

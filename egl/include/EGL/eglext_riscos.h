@@ -72,6 +72,13 @@ extern "C" {
    below): creation attribute, eglSurfaceAttrib and eglQuerySurface. */
 #define EGL_OVERLAY_RISCOS              0x3FF6
 
+/* Render size of a visible-area window surface or the full screen,
+   scaled to fill the window or screen when shown (EGL_RISCOS_overlay,
+   below): creation attributes (both or neither), eglSurfaceAttrib (0 =
+   follow the window again) and eglQuerySurface. */
+#define EGL_RENDER_WIDTH_RISCOS         0x3FF7
+#define EGL_RENDER_HEIGHT_RISCOS        0x3FF8
+
 /* ModeFlags colour order bits reported as EGL_NATIVE_VISUAL_ID */
 #define EGL_RISCOS_VISUAL_TBGR          0x0000
 #define EGL_RISCOS_VISUAL_TRGB          0x4000
@@ -120,6 +127,16 @@ EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS (EGLDisplay dpy, EGLSurface s
  *   eglSwapWouldWaitRISCOS(dpy, surface) says whether a swap right now
  *   would block like that: a program with other work to do (decoding the
  *   next video frame) does it and swaps on its next pass instead.
+ *
+ *   Render size: EGL_RENDER_WIDTH_RISCOS / EGL_RENDER_HEIGHT_RISCOS (both,
+ *   at creation, or either with eglSurfaceAttrib at any time; 0 = follow
+ *   the window again) fix the size a visible-area window surface or the
+ *   full screen surface renders at; the frame is stretched to fill the
+ *   window's visible area or the screen. Through an overlay the display
+ *   hardware scales it at no cost; otherwise the sprite plot scales it
+ *   (OS_SpriteOp 52). EGL_WIDTH/EGL_HEIGHT report the render size;
+ *   pointer positions must be scaled by the program. Full screen with a
+ *   render size uses the sprite plot (no direct rendering or banks).
  *
  *   A Basic overlay covers everything on the screen over its rectangle:
  *   anything that should be seen over the picture (a HUD, subtitles,

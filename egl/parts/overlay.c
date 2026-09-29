@@ -225,12 +225,14 @@ static int ovl_create(egl_surface *surf, const screen_info *s)
 static int ovl_place(egl_surface *surf, const window_state *ws, const screen_info *s)
 {
     _kernel_swi_regs r;
+    int dw, dh;
+    shown_size(surf, ws, s, &dw, &dh);      /* > the surface: scaled by the overlay */
     if (surf->ovl_placed[0] == ws->scroll_x && surf->ovl_placed[1] == ws->scroll_y &&
-        surf->ovl_placed[2] == surf->w && surf->ovl_placed[3] == surf->h)
+        surf->ovl_placed[2] == dw && surf->ovl_placed[3] == dh)
         return 1;
     r.r[0] = surf->ovl_id;
-    r.r[1] = surf->w;
-    r.r[2] = surf->h;
+    r.r[1] = dw;
+    r.r[2] = dh;
     r.r[3] = (surf->w << 16) | surf->h;
     if (_kernel_swi(ovl_scale_swi, &r, &r) != NULL)
         return 0;
@@ -238,15 +240,15 @@ static int ovl_place(egl_surface *surf, const window_state *ws, const screen_inf
     r.r[1] = ws->scroll_x;
     r.r[2] = ws->scroll_y;
     r.r[3] = ws->scroll_x;
-    r.r[4] = ws->scroll_y - (surf->h << s->yeig);
-    r.r[5] = ws->scroll_x + (surf->w << s->xeig);
+    r.r[4] = ws->scroll_y - (dh << s->yeig);
+    r.r[5] = ws->scroll_x + (dw << s->xeig);
     r.r[6] = ws->scroll_y;
     if (_kernel_swi(ovl_position_swi, &r, &r) != NULL)
         return 0;
     surf->ovl_placed[0] = ws->scroll_x;
     surf->ovl_placed[1] = ws->scroll_y;
-    surf->ovl_placed[2] = surf->w;
-    surf->ovl_placed[3] = surf->h;
+    surf->ovl_placed[2] = dw;
+    surf->ovl_placed[3] = dh;
     return 1;
 }
 
@@ -289,12 +291,14 @@ static int ovl_candidate(egl_display *d, egl_surface *surf)
 static void ovl_replot(egl_display *d, egl_surface *surf, const window_state *ws,
                       const screen_info *s)
 {
+    int dw, dh;
     _kernel_swi_regs r;
     int block[11];
+    shown_size(surf, ws, s, &dw, &dh);
     block[0] = surf->handle;
     block[1] = ws->scroll_x;
-    block[2] = ws->scroll_y - (surf->h << s->yeig);
-    block[3] = ws->scroll_x + (surf->w << s->xeig);
+    block[2] = ws->scroll_y - (dh << s->yeig);
+    block[3] = ws->scroll_x + (dw << s->xeig);
     block[4] = ws->scroll_y;
     r.r[1] = (int) block;
     if (_kernel_swi(Wimp_UpdateWindow, &r, &r) == NULL)
@@ -307,11 +311,13 @@ static void ovl_replot(egl_display *d, egl_surface *surf, const window_state *ws
    software fallback draws there). */
 static void ovl_just_shown(egl_surface *surf, const window_state *ws, const screen_info *s)
 {
+    int dw, dh;
     _kernel_swi_regs r;
+    shown_size(surf, ws, s, &dw, &dh);
     r.r[0] = surf->handle;
     r.r[1] = ws->scroll_x;
-    r.r[2] = ws->scroll_y - (surf->h << s->yeig);
-    r.r[3] = ws->scroll_x + (surf->w << s->xeig);
+    r.r[2] = ws->scroll_y - (dh << s->yeig);
+    r.r[3] = ws->scroll_x + (dw << s->xeig);
     r.r[4] = ws->scroll_y;
     _kernel_swi(Wimp_ForceRedraw, &r, &r);
 }

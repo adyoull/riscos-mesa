@@ -107,7 +107,7 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
     if (!wanted_size(surf, s, &w, &h))
         return fail(EGL_BAD_NATIVE_WINDOW), -1;
 
-    if (surf->handle == -1 && surf->render_buffer == EGL_BACK_BUFFER && !surf->no_banks &&
+    if (surf->handle == -1 && !surf->rw && surf->render_buffer == EGL_BACK_BUFFER && !surf->no_banks &&
         surf->want_banks >= 2 &&
         screen_layout(s) == surf->cfg->layout && s->start != NULL &&
         (s->line_length & 3) == 0) {
@@ -130,7 +130,7 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
         surf->no_banks = 1;             /* not enough screen memory: plot a sprite */
     }
 
-    if (surf->handle == -1 && surf->render_buffer == EGL_SINGLE_BUFFER &&
+    if (surf->handle == -1 && !surf->rw && surf->render_buffer == EGL_SINGLE_BUFFER &&
         screen_layout(s) == surf->cfg->layout && s->start != NULL &&
         (s->line_length & 3) == 0) {
         if (surf->direct && surf->pixels == s->start && surf->w == w &&

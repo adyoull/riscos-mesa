@@ -32,6 +32,11 @@
  *                                frame stays; eglCheckOverlaysRISCOS on null
  *                                events hides it under windows and menus).
  *                                The title and summary show which is used.
+ *   egltest -w|-f -S WxH         render at WxH and scale to the window or
+ *                                screen (EGL_RENDER_WIDTH/HEIGHT_RISCOS): by
+ *                                the overlay with -w -V, else by the plot.
+ *                                In a window, S switches between that and
+ *                                the window's own size.
  *   egltest -w -D                 damage demo: after the first frame only the
  *                                middle of the window is redrawn and shown
  *                                (EGL_EXT_buffer_age and
@@ -551,6 +556,7 @@ static void app_plot_copy(int handle, EGLSurface fx)
     }
 }
 
+static int rs_w, rs_h;                            /* -S WxH: render size */
 static int overlay_opt;                           /* -V 1, -n -1, neither 0 */
 
 /* EGL_OVERLAY_RISCOS: 0 plotted, 1 shown through the overlay, 2 hidden */
@@ -614,9 +620,18 @@ static int run_window(int second, double limit)
     cfg = pick_config(EGL_WINDOW_BIT, 16);
     ctx = cfg ? eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL) : EGL_NO_CONTEXT;
     {
-        EGLint oa[] = { EGL_OVERLAY_RISCOS, overlay_opt > 0 ? EGL_TRUE : EGL_FALSE, EGL_NONE };
+        EGLint oa[8];
+        int n = 0;
+        if (overlay_opt) {
+            oa[n++] = EGL_OVERLAY_RISCOS; oa[n++] = overlay_opt > 0 ? EGL_TRUE : EGL_FALSE;
+        }
+        if (rs_w > 0) {
+            oa[n++] = EGL_RENDER_WIDTH_RISCOS; oa[n++] = rs_w;
+            oa[n++] = EGL_RENDER_HEIGHT_RISCOS; oa[n++] = rs_h;
+        }
+        oa[n] = EGL_NONE;
         if (!fx_first)
-            ws = cfg ? eglCreateWindowSurface(dpy, cfg, handle, overlay_opt ? oa : NULL) : EGL_NO_SURFACE;
+            ws = cfg ? eglCreateWindowSurface(dpy, cfg, handle, oa) : EGL_NO_SURFACE;
     }
     fx_ctx = ctx;
     if (second == 2 && ctx != EGL_NO_CONTEXT)
@@ -774,6 +789,18 @@ static int run_window(int second, double limit)
                 toggles++;
                 eglSurfaceAttrib(dpy, ws, EGL_OVERLAY_RISCOS, ovl_want ? EGL_TRUE : EGL_FALSE);
                 say("H: overlay %s\n", ovl_want ? "on" : "off");
+            } else if (block[6] == 's' || block[6] == 'S') {
+                EGLint cur = 0;
+                eglQuerySurface(dpy, ws, EGL_RENDER_WIDTH_RISCOS, &cur);
+                if (cur) {
+                    eglSurfaceAttrib(dpy, ws, EGL_RENDER_WIDTH_RISCOS, 0);
+                    say("S: render at the window's size\n");
+                } else {
+                    int sw2 = rs_w > 0 ? rs_w : w / 2, sh2 = rs_h > 0 ? rs_h : h / 2;
+                    eglSurfaceAttrib(dpy, ws, EGL_RENDER_WIDTH_RISCOS, sw2 > 0 ? sw2 : 1);
+                    eglSurfaceAttrib(dpy, ws, EGL_RENDER_HEIGHT_RISCOS, sh2 > 0 ? sh2 : 1);
+                    say("S: render at %dx%d, scaled\n", sw2, sh2);
+                }
             } else if (block[6] == 'p' || block[6] == 'P') {
                 paused = !paused;
                 say("P: %s\n", paused ? "paused" : "running");
@@ -828,13 +855,17 @@ static int run_fullscreen(int direct, int interval, double limit)
     EGLint w, h, rb, banks = 0;
     char how[64];
     EGLint attrs[] = { EGL_RENDER_BUFFER, direct ? EGL_SINGLE_BUFFER : EGL_BACK_BUFFER,
-                       EGL_SCREEN_BANKS_RISCOS, want_banks, EGL_NONE };
+                       EGL_SCREEN_BANKS_RISCOS, want_banks, EGL_NONE, 0, EGL_NONE, 0, EGL_NONE };
     int bar = 0;
     double t0, t1, t2, tstart, render = 0, present = 0;
     long frames = 0;
     float a = 0;
     int in_desktop;
 
+    if (rs_w > 0) {
+        attrs[4] = EGL_RENDER_WIDTH_RISCOS; attrs[5] = rs_w;
+        attrs[6] = EGL_RENDER_HEIGHT_RISCOS; attrs[7] = rs_h;
+    }
     collect = 1;
     in_desktop = wimp_start("egltest full screen");
     if (!egl_start()) { collect = 0; fputs(summary, stdout); return 1; }
@@ -883,7 +914,9 @@ static int run_fullscreen(int direct, int interval, double limit)
         a += 2;
     } while (t2 - tstart < limit);
 
-    if (rb == EGL_SINGLE_BUFFER)
+    if (rs_w > 0)
+        snprintf(how, sizeof how, "scaled to the screen (sprite plot)");
+    else if (rb == EGL_SINGLE_BUFFER)
         snprintf(how, sizeof how, "direct to screen memory");
     else if (banks > 0)
         snprintf(how, sizeof how, "%d screen banks", banks);
@@ -926,6 +959,9 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-D")) damage_demo = 1;
         else if (!strcmp(argv[i], "-n")) overlay_opt = -1;
         else if (!strcmp(argv[i], "-V")) overlay_opt = 1;
+        else if (!strcmp(argv[i], "-S") && i + 1 < argc) {
+            if (sscanf(argv[++i], "%dx%d", &rs_w, &rs_h) != 2 || rs_w < 1 || rs_h < 1) rs_w = rs_h = 0;
+        }
         else if (!strcmp(argv[i], "-F") && i + 1 < argc)
             sscanf(argv[++i], "%d,%d,%d,%d", &fx_x, &fx_y, &fx_w, &fx_h);
         else if (!strcmp(argv[i], "-d")) direct = 1;
@@ -937,8 +973,8 @@ int main(int argc, char **argv)
             outf = fopen(argv[++i], "w");
             if (!outf) printf("can't write %s\n", argv[i]);
         } else {
-            printf("usage: egltest [-o file] | -w [-r|-R] [-D] [-V|-n] [-t secs] [-o file] | "
-                   "-f [-d] [-b n] [-v n] [-p] [-t secs] [-o file]\n");
+            printf("usage: egltest [-o file] | -w [-r|-R] [-D] [-V|-n] [-S WxH] [-t secs] [-o file] | "
+                   "-f [-d] [-b n] [-v n] [-p] [-S WxH] [-t secs] [-o file]\n");
             return 1;
         }
     }
