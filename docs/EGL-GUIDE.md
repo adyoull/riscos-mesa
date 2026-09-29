@@ -229,7 +229,7 @@ Once asked for:
   surf = eglCreateWindowSurface(dpy, cfg, window_handle, attrs);
   ```
 
-  The surface is then 640x360 (`EGL_WIDTH`/`EGL_HEIGHT` say so; set `glViewport` from them) whatever the window's size, and each frame fills the window's visible area, stretched to its shape. Change it at any time with `eglSurfaceAttrib(dpy, surf, EGL_RENDER_WIDTH_RISCOS, w)` (and `..._HEIGHT_RISCOS`); it takes effect at the next swap; 0 follows the window again. When the overlay is hidden or unavailable the sprite plot does the stretching (`OS_SpriteOp 52`), slower but the same picture. A full screen surface takes a render size too, and is then always scaled by the sprite plot. Mouse positions are in window pixels: multiply by render size / window size to get render pixels.
+  The surface is then 640x360 (`EGL_WIDTH`/`EGL_HEIGHT` say so; set `glViewport` from them) whatever the window's size, and each frame fills the window's visible area, stretched to its shape. Change it at any time with `eglSurfaceAttrib(dpy, surf, EGL_RENDER_WIDTH_RISCOS, w)` (and `..._HEIGHT_RISCOS`); it takes effect at the next swap; 0 follows the window again. When the overlay is hidden or unavailable the sprite plot does the stretching (`OS_SpriteOp 52`), slower but the same picture. A full screen surface takes a render size too, and is then always scaled by the sprite plot. Mouse positions are in window pixels: multiply by render size / window size to get render pixels. SDL programs get the render size and the overlay through hints, with the mouse scaled for them: see [porting/sdl2.md](porting/sdl2.md).
 - **Draw overlays into the frame.** A Basic overlay covers everything on the screen over its rectangle, so text, a HUD, subtitles or statistics drawn on the screen over the picture are hidden under it. Draw them into the surface with GL.
 - **Put your other windows beside the picture.** While any window overlaps the surface the overlay is hidden and every frame is plotted, which is much slower (720p60 video fell to about 29 fps in Reel with its info window over the picture). Open your program's own windows next to the GL window, not over it.
 - **Turning it off again.** `eglSurfaceAttrib(dpy, surf, EGL_OVERLAY_RISCOS, EGL_FALSE)` hides and frees the overlay at once and plots the last frame; `EGL_TRUE` turns it back on and retries after a failure.
@@ -674,7 +674,17 @@ Rendering is Mesa's software rasteriser on one CPU core, so keep scenes simple a
 | Same, no vsync | ~67 fps | 9.2 ms / 5.7 ms |
 | Same, direct to screen | ~100 fps | 9.9 ms / 0 ms |
 
-The window and full screen figures are from the 20.3.5-4 tests; rendering has got faster since. The riscos-mesa benchmark (`glbench`, 640x480, 24-bit depth + stencil, 20.3.5-7, ms per frame and frames per second):
+The window and full screen figures are from the 20.3.5-4 tests; rendering has got faster since.
+
+**Render size and hardware overlay (Pi 4, 2026-09-29, `sdlgltest`: SDL's GL window through this EGL, a lit cube in a 1024x768 window)**
+
+| Case | Frame rate | Render / present per frame |
+| --- | --- | --- |
+| Rendering at 1024x768, plotted (SDL's old sprite path) | 78 fps | 10.85 ms / 1.96 ms |
+| Rendering at 640x480, stretched by the sprite plot | 134 fps | 4.27 ms / 3.17 ms |
+| Rendering at 640x480, stretched by the overlay | 214 fps | 4.42 ms / 0.25 ms |
+
+Render time follows the pixel count; the overlay takes the present cost to almost nothing. Menus over an overlay, full screen with a render size and mode changes are still to be tried on a Pi. The riscos-mesa benchmark (`glbench`, 640x480, 24-bit depth + stencil, 20.3.5-7, ms per frame and frames per second):
 
 | Scene | ms | fps |
 | --- | --- | --- |

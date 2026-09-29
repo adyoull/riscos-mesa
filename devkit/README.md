@@ -482,6 +482,17 @@ The drawing is done by the processor, so every pixel costs time.
 
 - **Draw a smaller picture.** A 480x360 window has just over half the
   pixels of a 640x480 one, and takes a little over half as long to draw.
+- **Or draw small and let it be stretched.** EGL can render at a fixed
+  size and stretch each frame to fill the window or the screen: give
+  `EGL_RENDER_WIDTH_RISCOS` and `EGL_RENDER_HEIGHT_RISCOS` when making
+  the surface. With SDL, set the `SDL_RISCOS_GL_RENDER_SIZE` hint to
+  `"640x480"` (for example) before making the window. On a Pi, add a
+  hardware overlay (`EGL_OVERLAY_RISCOS`, or SDL's
+  `SDL_RISCOS_GL_OVERLAY` hint) and the display does the stretching for
+  free: a 1024x768 SDL window rendering at 640x480 went from 78 to 214
+  frames a second. The EGL guide's "Hardware overlays" section explains
+  the catches (it covers anything drawn over the picture, and it's
+  opt-in).
 - **Prefer fixed-function OpenGL to shaders** where speed matters (see
   [Which way should I draw?](#which-way-should-i-draw)).
 - **Textures:** power-of-two sizes (64, 128, 256...), `GL_CLAMP_TO_EDGE`
@@ -505,8 +516,9 @@ The drawing is done by the processor, so every pixel costs time.
   what these examples show.
 - **In this devkit's `docs/` folder:**
   - `EGL-GUIDE.md`: everything about EGL on RISC OS: full screen
-    options, views inside windows, sprites, pbuffers, video textures,
-    threads, extensions and the complete troubleshooting table.
+    options, views inside windows, hardware overlays and render sizes,
+    sprites, pbuffers, video textures, threads, extensions and the
+    complete troubleshooting table.
   - `porting/`: step-by-step guides to porting Raspberry Pi programs,
     SDL programs, GLUT programs and Mesa's demos. Their worked examples'
     source is in the riscos-mesa repository (github.com/adyoull/riscos-mesa,

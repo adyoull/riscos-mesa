@@ -11,7 +11,11 @@ Titanium. Not on the Pi 1 or Zero (ARMv6).
 its tests. That covers EGL in desktop windows and full screen, OpenGL ES
 1.1 and 2.0, SDL2, the Raspberry Pi examples and the ported demos. A
 640x480 lit, spinning cube runs at about 225 fps in a desktop window, and
-GL programs multitask properly.
+GL programs multitask properly. EGL's hardware overlay and render size
+(20.3.5-9) and SDL's EGL path for GL windows were first run on a Pi 4 on
+2026-09-29: a 1024x768 SDL window rendering at 640x480 went from 78 fps to
+214 fps through the overlay. Menus over the overlay, full screen and mode
+changes haven't been tried there yet.
 
 ## Three ways in
 
@@ -22,13 +26,19 @@ GL programs multitask properly.
      (GL draws into them) and images (textures that read them in place,
      for video), and pbuffers are supported.
    - Your program runs its own Wimp_Poll loop, and EGL does the plotting.
+   - Opt-in on the Pi: a window shown through the display's hardware
+     overlay (VideoOverlay), and a render size smaller than the window,
+     stretched to fill it. See the guide's
+     [Hardware overlays](docs/EGL-GUIDE.md#hardware-overlays-egl_riscos_overlay).
    - New to it? Start with the devkit's [beginner's guide](devkit/README.md)
      and [examples](devkit/examples). The [programming guide](docs/EGL-GUIDE.md)
      is the full reference.
 2. **SDL2.** SDL 2.26's RISC OS video driver gains OpenGL and OpenGL ES
    contexts (`SDL_GL_CreateContext`). SDL programs port without RISC OS
-   specific GL code. The driver uses OSMesa directly and multitasks in a
-   desktop window.
+   specific GL code. By default the driver renders into the window's
+   sprite and multitasks in a desktop window. Hints (or system variables)
+   switch a GL window to EGL for a smaller render size and the hardware
+   overlay: see [docs/porting/sdl2.md](docs/porting/sdl2.md).
 3. **Porting aids for existing code.** They sit alongside the native EGL
    and don't replace it:
    - **freeglut (GLUT)** with a native RISC OS back end: GLUT windows are
@@ -67,7 +77,7 @@ and `tests/glestest.c` (OpenGL ES) are complete programs.
 | `libEGL.a` | EGL 1.4 for RISC OS. Contexts: OpenGL 2.1 (compatibility), OpenGL ES 1.1, ES 2.0 (GLSL ES 1.00). Surfaces: Wimp windows (visible area or work area views), full screen (sprite plot after vsync, or straight into screen memory), pbuffers, sprite pixmaps. Extensions: sync objects, surfaceless contexts, buffer age, swap with damage, partial update, surface locking, sprites as textures with no copy (EGLImage, for video), debug callbacks, platform displays; RISC OS hardware overlays (VideoOverlay) and a render size scaled to the window or screen, both opt-in | `-lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libOSMesa.a` | Mesa 20.3.5 classic OSMesa (swrast), one static library: OpenGL 2.1 + GLSL 1.20, OpenGL ES 1.1 and 2.0 | `-lOSMesa -lstdc++ -lz -lm` |
 | `libGLU.a` | GLU 1.3 (9.0.1) | `-lGLU` before `-lOSMesa` |
-| `libSDL2.a` | SDL 2.26 with the RISC OS drivers: desktop windows and full screen, OpenGL and OpenGL ES contexts, typing, the scroll wheel, 180 dpi desktops, cooperative multitasking, and sound through SharedSoundBuffer (mixes with other programs) | `-lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm` |
+| `libSDL2.a` | SDL 2.26 with the RISC OS drivers: desktop windows and full screen, OpenGL and OpenGL ES contexts (optionally through EGL, for a smaller render size and the hardware overlay), typing, the scroll wheel, 180 dpi desktops, cooperative multitasking, and sound through SharedSoundBuffer (mixes with other programs) | `-lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libopenal.a` | OpenAL Soft 1.19.1: OpenAL 1.1 with the EFX effects and positioned (3D) sources, mixed in software and played through SDL's sound driver (so it mixes with other programs) | `-lopenal -lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libglut.a` | freeglut 3.8.0 with a native RISC OS back end: Wimp windows and subwindows, Wimp menus, full screen and game mode, keyboard (with key releases), mouse, wheel. `libfreeglut-gles.a` is the OpenGL ES build (`-DFREEGLUT_GLES`) | `-lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libbcm_host.a` | DispmanX compatibility, a porting aid for Raspberry Pi 1–3 Khronos code. Empty `libGLESv2`, `libGLESv1_CM`, `libvcos` and `libvchiq_arm` come with it so Pi link lines work | `-lbcm_host -lEGL -lOSMesa -lstdc++ -lz -lm` |
@@ -182,6 +192,10 @@ python3-mako, bison, flex, autoconf, automake, libtool and cmake.
   - Don't let SDL's OpenGL *renderer* (`SDL_VIDEO_RENDER_OGL`) get
     enabled: it would pick software GL over the faster software renderer
     for every SDL2 program. The build script checks this.
+  - GL windows can opt in to EGL's render size and hardware overlay with
+    `SDL_RISCOS_GL_RENDER_SIZE` = `"WxH"` and `SDL_RISCOS_GL_OVERLAY` =
+    `"1"` (hints, or system variables of the same names). Without them
+    nothing changes.
   - Programs with a GL-or-not choice (e.g. OpenTTD's `sdl-opengl` driver)
     should keep using their non-GL path on RISC OS.
 - **Plain OSMesa:** see `tests/osmesatest.c`, which renders straight into a
@@ -193,13 +207,14 @@ python3-mako, bison, flex, autoconf, automake, libtool and cmake.
 |---|---|
 | `orient`, `prof`, `glutest` | pixel order and row order; which GL versions are granted; GLU |
 | `osmesatest`, `glbench` | GL strings, fixed-function and GLSL speed |
-| `egltest` (`egl-*` Obey files) | EGL checks and extensions; desktop window (+ work area view, damage demo); full screen (+ direct, screen banks) |
+| `egltest` (`egl-*` Obey files) | EGL checks and extensions; desktop window (+ work area view, damage demo); full screen (+ direct, screen banks); hardware overlay and render size (`egl-overlay`, `egl-scaled*`) |
+| `ovltest` (`ovl-*`) | the Pi's VideoOverlay module itself: memory speed, tearing, windows and menus over an overlay |
 | `glestest` (`gles-*`) | OpenGL ES 1.1 and 2.0 in a desktop window, full screen and into a sprite |
 | `dmxtest` (`dmx-*`) | the DispmanX compatibility library, full screen and window mode |
-| `sdlgltest` | SDL2 GL in a desktop window: fps in the title, F full screen, Space vsync |
+| `sdlgltest` | SDL2 GL in a desktop window: fps in the title, F full screen, D desktop-size full screen, Space vsync; `-S WxH` render size and `-V` overlay (`sdl-scaled`, `sdl-scaled-plot`, `sdl-plain`) |
 | `hello_pi`, `ports` and `glut` zips | real programs: the Pi examples, Mesa's demos, SDL's GL tests, freeglut's demos |
-| `tests/host-harness` | the SDL GL glue on Linux with emulated SWIs |
-| `tests/host-harness/egl` | libEGL and libbcm_host on Linux against a fake screen, Wimp and SpriteOp (265 checks); `portrun.c` runs whole ported programs |
+| `tests/host-harness` | SDL's GL windows on Linux with emulated SWIs: the sprite path and the EGL path, with a render size and a fake VideoOverlay; `sdl-wimp` checks the driver's Wimp events and mouse scaling |
+| `tests/host-harness/egl` | libEGL and libbcm_host on Linux against a fake screen, Wimp and SpriteOp (436 checks, including hardware overlays against a fake VideoOverlay); `portrun.c` runs whole ported programs |
 | `tests/host-harness/glut` | freeglut's RISC OS back end on Linux: freeglut's demos driven by scripted keys, clicks, drags, menus, the wheel and resizing (23 checks) |
 | `tests/host-harness/mesa` | the Mesa patches: a hash of every image in a few thousand rendering cases, on the host and on the RISC OS build under qemu-arm; instructions per frame for glbench's scenes (performance regressions) |
 

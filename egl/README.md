@@ -23,7 +23,7 @@ This file is for people working on the library itself.
 | API | EGL 1.4, plus the extensions listed in the guide, `EGL_RISCOS_wimp_window`, `EGL_RISCOS_platform_wimp` and `EGL_RISCOS_overlay` |
 | Client APIs | OpenGL 2.1 compatibility (GLSL 1.20); OpenGL ES 1.1 and 2.0 (GLSL ES 1.00), through riscos-mesa's OSMesa ES profile patch |
 | Configs | 8: RGBA 8888 with depth/stencil 0/0, 16/0, 24/0, 24/8, in each of the two RISC OS 32bpp colour orders |
-| Surfaces | Wimp window (visible area or a work area rectangle), the whole screen (sprite plot, direct, or screen banks), pbuffer, sprite pixmap; up to 4096x4096. Visible-area window surfaces can be shown through a hardware overlay (VideoOverlay; opt-in with `EGL_OVERLAY_RISCOS`), falling back to plotting. Each surface owns its buffers, including depth and stencil (OSMesa buffers, `patches/mesa/*-riscos-osmesa-buffers.patch`) |
+| Surfaces | Wimp window (visible area or a work area rectangle), the whole screen (sprite plot, direct, or screen banks), pbuffer, sprite pixmap; up to 4096x4096. Visible-area window surfaces can be shown through a hardware overlay (VideoOverlay; opt-in with `EGL_OVERLAY_RISCOS`), falling back to plotting. Visible-area and full screen surfaces can have a render size (`EGL_RENDER_WIDTH/HEIGHT_RISCOS`), stretched by the overlay or the sprite plot (`OS_SpriteOp 52`). Each surface owns its buffers, including depth and stencil (OSMesa buffers, `patches/mesa/*-riscos-osmesa-buffers.patch`) |
 | Threads | EGL 1.4's rules: per-thread error, API and current context (one per API); a recursive lock around every call |
 | Conformance | Checked with Khronos's dEQP-EGL tests on the host (`tests/host-harness/deqp`); not certified, so `EGL_CONFORMANT` is 0 |
 | Registration | The RISC OS extensions' enum values are provisional; `docs/khronos/` has the registration ready to submit |
@@ -58,7 +58,7 @@ After changing anything here, run `tests/run-all.sh` (see its header for
 the settings). The parts that exercise EGL are:
 
 - `tests/host-harness/egl`: the library against a host-built OSMesa and a
-  fake RISC OS (screen, Wimp, OS_SpriteOp), with about 400 checks of what
+  fake RISC OS (screen, Wimp, OS_SpriteOp), with 436 checks of what
   reaches the "screen" (the overlay checks, `harness_ovl.c`, use the fake
   VideoOverlay in `tests/host-harness/ovl/fake_ovl.c`);
 - `tests/host-harness/examples`: the devkit's examples, run on the same
@@ -69,7 +69,10 @@ the settings). The parts that exercise EGL are:
 first build; not part of run-all). Compare with its `expected.txt`.
 
 On a Raspberry Pi: `egltest` and `glestest` in the tests zip, with the
-`egl-*` and `gles-*` Obey files.
+`egl-*` and `gles-*` Obey files (`egl-overlay` and `egl-scaled*` for
+overlays and the render size), and `sdlgltest`'s `sdl-scaled*` for
+SDL's GL windows through EGL. The extension spec draft is
+`docs/khronos/EGL_RISCOS_overlay.txt`.
 
 ## Design notes: toward a common RISC OS GL interface
 

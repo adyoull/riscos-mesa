@@ -46,6 +46,20 @@ context from SDL has no window code to change.
   through riscos-mesa's EGL; without them GL renders into the window's
   sprite as it always has. Load the VideoOverlay module in `!Run` with
   `RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay`.
+  - **On a Pi 4** (sdlgltest's lit cube in a 1024x768 window, 2026-09-29):
+    78 fps rendering at 1024x768 the old way; 134 fps at 640x480
+    stretched by the sprite plot; 214 fps at 640x480 stretched by the
+    overlay. Mouse positions were right in every corner. Menus over the
+    overlay, full screen and mode changes haven't been tried on a Pi yet.
+  - **Call `SDL_PollEvent` (or `SDL_PumpEvents`) between frames.** With an
+    overlay, a frame that would have to wait for a vsync isn't waited
+    for: it's held and shown from the event loop once the vsync has
+    passed, so `SDL_GL_SwapWindow` never stops the desktop.
+  - **No accumulation buffers** on the EGL path.
+  - **Anything drawn on the screen over the picture is hidden** under a
+    hardware overlay, and while another window overlaps the GL window the
+    frames are plotted instead, which is slower. Keep a program's other
+    windows beside the GL window.
 - **Windows:** resizing, switching to full screen and back, and EX0 EY0
   (180 dpi) scaling are handled by the driver.
   The hint `"SDL_RISCOS_WINDOW_SCALE"` (`SDL_SetHint`, or a system

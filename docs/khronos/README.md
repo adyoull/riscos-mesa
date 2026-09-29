@@ -7,7 +7,10 @@ Those values fall inside the range Khronos keeps for future allocations
 (0x35B0 to 0x3FFF), so another vendor could be given them one day.
 A third, `EGL_RISCOS_overlay` (hardware overlays, render size: 0x3FF6 to
 0x3FF8, and `eglCheckOverlaysRISCOS`, `eglSwapWouldWaitRISCOS`), is newer
-and not part of this registration yet: it waits for Pi testing.
+and not part of this registration yet. Its draft spec is
+`EGL_RISCOS_overlay.txt`. It was first run on a Pi 4 on 2026-09-29; menus
+over the overlay, full screen and mode changes still need trying before it
+is added.
 
 This folder holds a ready-made registration, to be submitted by the project
 owner as a pull request to the Khronos EGL registry:
@@ -16,6 +19,7 @@ owner as a pull request to the Khronos EGL registry:
 |---|---|
 | `EGL_RISCOS_platform_wimp.txt` | The spec for the client extension (`EGL_PLATFORM_RISCOS`), extension #156 |
 | `EGL_RISCOS_wimp_window.txt` | The spec for the native types, work area surfaces, screen banks and the two redraw functions, extension #157 |
+| `EGL_RISCOS_overlay.txt` | Draft spec for hardware overlays and the render size; not in the patch yet |
 | `0001-Add-EGL_RISCOS_platform_wimp-and-EGL_RISCOS_wimp_win.patch` | The whole pull request as one commit (`git am`), made against EGL-Registry `main` at db3425b (2026-09-21) |
 
 The patch does the following:

@@ -47,6 +47,12 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     over the overlay, full screen (F, D), a mode change, vsync on.
 - **EGL:** a surface with a render size equal to the size it's shown at
   uses the plain sprite plot, not a scaled one.
+- **Docs:** a draft Khronos-style spec for `EGL_RISCOS_overlay`
+  (`docs/khronos/EGL_RISCOS_overlay.txt`: the overlay, the render size,
+  `eglCheckOverlaysRISCOS`, `eglSwapWouldWaitRISCOS`). The Pi 4 figures
+  are in the EGL guide and the SDL porting guide. The README, the devkit's
+  beginner's guide ("Making it fast") and `egl/README.md` now cover the
+  overlay, the render size and SDL's EGL path.
 
 ## 20.3.5-9: hardware overlays and a scaled render size for EGL
 

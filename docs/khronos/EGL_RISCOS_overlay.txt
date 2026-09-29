@@ -1,0 +1,246 @@
+Name
+
+    RISCOS_overlay
+
+Name Strings
+
+    EGL_RISCOS_overlay
+
+Contributors
+
+    Andrew Youll
+
+Contacts
+
+    Andrew Youll (adyoull 'at' users.noreply.github.com)
+
+Status
+
+    Draft. Shipping in riscos-mesa (Mesa 20.3.5 for RISC OS 5) since
+    version 20.3.5-9 (2026). First run on a Raspberry Pi 4 on 2026-09-29.
+    Not yet part of the registration in this folder: the token values
+    below are provisional.
+
+Version
+
+    Version 1, 2026-09-29
+
+Number
+
+    EGL Extension # not yet assigned
+
+Extension Type
+
+    EGL display extension
+
+Dependencies
+
+    EGL 1.4 and EGL_RISCOS_wimp_window are required.
+
+    This extension is written against the EGL 1.5 specification.
+
+Overview
+
+    On RISC OS a window surface is normally shown by plotting each frame
+    into the window (EGL_RISCOS_wimp_window). Some machines, such as the
+    Raspberry Pi with the VideoOverlay module, can instead show a buffer
+    through a display overlay, which the hardware switches at vertical
+    sync and can scale for free.
+
+    This extension lets an application ask for a window surface to be
+    shown through such an overlay, with automatic fallback to plotting
+    whenever an overlay can't be used. It also lets a window or full
+    screen surface render at a fixed size (the "render size") that is
+    stretched to fill the window or the screen, and adds two functions:
+    one for applications that stop swapping for a while, and one that
+    tells an application whether a swap would block.
+
+New Types
+
+    None
+
+New Procedures and Functions
+
+    EGLBoolean eglCheckOverlaysRISCOS(EGLDisplay dpy);
+
+    EGLBoolean eglSwapWouldWaitRISCOS(EGLDisplay dpy, EGLSurface surface);
+
+New Tokens
+
+    Accepted as an attribute in the <attrib_list> of
+    eglCreateWindowSurface and eglCreatePlatformWindowSurface(EXT), as the
+    <attribute> argument of eglSurfaceAttrib and of eglQuerySurface:
+
+        EGL_OVERLAY_RISCOS                      0x3FF6 (provisional)
+        EGL_RENDER_WIDTH_RISCOS                 0x3FF7 (provisional)
+        EGL_RENDER_HEIGHT_RISCOS                0x3FF8 (provisional)
+
+Additions to Chapter 3 of the EGL 1.5 Specification (EGL Functions and
+Errors)
+
+    Add to section 3.5.1 "Creating On-Screen Rendering Surfaces":
+
+    "EGL_OVERLAY_RISCOS may be given as EGL_TRUE or EGL_FALSE; other values
+    generate EGL_BAD_ATTRIBUTE. EGL_TRUE asks for the surface to be shown
+    through a hardware overlay; EGL_FALSE refuses one. If it is not given,
+    the surface has no overlay unless the user has asked for overlays (see
+    "User control" below). Only a surface for a Wimp window that covers
+    the window's visible area can be shown through an overlay; for other
+    surfaces the attribute is accepted and has no effect.
+
+    EGL_RENDER_WIDTH_RISCOS and EGL_RENDER_HEIGHT_RISCOS give the size, in
+    pixels, that the surface renders at. They are accepted for a surface
+    covering a Wimp window's visible area and for EGL_RISCOS_SCREEN_WINDOW.
+    Both must be given, each from 1 to the implementation's largest
+    surface size (4096 in riscos-mesa); giving only one, a value out of
+    that range, or either with EGL_WORK_AREA_WIDTH_RISCOS generates
+    EGL_BAD_ATTRIBUTE. The surface's EGL_WIDTH and EGL_HEIGHT are then the
+    render size, whatever the size of the window or screen, and each frame
+    posted is stretched to fill the window's visible area, or the screen.
+    Pointer positions reported by the Wimp are not changed: applications
+    scale them into render pixels themselves. A full screen surface with a
+    render size doesn't use screen banks or single buffering."
+
+    Add to section 3.5.6 "Surface Attributes", for eglSurfaceAttrib:
+
+    "If <attribute> is EGL_OVERLAY_RISCOS, <value> must be EGL_TRUE or
+    EGL_FALSE, or EGL_BAD_PARAMETER is generated. It may be changed at any
+    time. EGL_FALSE hides and frees any overlay the surface has, and shows
+    the last frame posted by plotting it. EGL_TRUE asks for an overlay
+    again, including after one could not be used.
+
+    If <attribute> is EGL_RENDER_WIDTH_RISCOS or EGL_RENDER_HEIGHT_RISCOS,
+    <value> is a new render width or height (the other keeps its current
+    value, or the surface's current size if there was no render size), or
+    0 to remove the render size, so that the surface follows the size of
+    the window or screen again. The change takes effect at the next
+    eglSwapBuffers, as after the window is resized. A value below 0 or
+    above the largest surface size generates EGL_BAD_PARAMETER. If the
+    surface is not a visible-area window surface or a full screen surface,
+    EGL_BAD_MATCH is generated.
+
+    Querying EGL_OVERLAY_RISCOS with eglQuerySurface gives 0 if the
+    surface is not using an overlay, 1 if its frames are being shown
+    through one, and 2 if it has an overlay that is hidden at the moment.
+    Querying EGL_RENDER_WIDTH_RISCOS or EGL_RENDER_HEIGHT_RISCOS gives the
+    render size, or 0 if there is none."
+
+    Add a new section 3.10.5 "Hardware Overlays on RISC OS":
+
+    "Showing a surface through an overlay. While a surface has asked for
+    an overlay, the implementation may show it through one once the
+    application is animating it (several eglSwapBuffers calls in quick
+    succession: riscos-mesa waits for three, each within a quarter of a
+    second of the last). eglSwapBuffers then copies the finished frame into
+    an overlay buffer, and the display shows it at the next vertical sync,
+    instead of plotting it. Rendering is unchanged. With a render size the
+    display scales the frame to fill the window's visible area.
+
+    Fallbacks. If an overlay can't be used, the frames are plotted as
+    without this extension, and no error is generated. This covers: no
+    overlay support (the VideoOverlay module not loaded), no overlay of
+    the surface's size or format, too little memory for the overlay's
+    buffers, an error while showing a frame, surfaces placed in the work
+    area, full screen surfaces, and a visible-area surface sharing its
+    window with a work area surface. After a failure the implementation
+    tries again when the surface's size or the screen mode changes, or
+    when the application sets EGL_OVERLAY_RISCOS to EGL_TRUE. A screen mode
+    change gets a new overlay.
+
+    Other windows. An overlay may be drawn over everything else on the
+    screen (on the Raspberry Pi it is). While any other window or menu
+    overlaps the surface, its overlay is hidden and its frames are
+    plotted; when nothing overlaps it, the overlay is shown again. This is
+    checked at every eglSwapBuffers and eglRedrawWindowRISCOS. Anything an
+    application wants seen over the picture must be drawn into the
+    surface.
+
+    Pacing. With an overlay, eglSwapBuffers waits for a vertical sync only
+    if none has passed since the previous frame was shown and the swap
+    interval is greater than 0, since writing the next buffer sooner
+    would tear. It does not otherwise wait, so the desktop keeps
+    multitasking.
+
+    Applications that stop swapping. An application that stops calling
+    eglSwapBuffers for a while (a paused video) calls
+
+        EGLBoolean eglCheckOverlaysRISCOS(EGLDisplay dpy);
+
+    from its event loop (on null events, a few times a second). It repeats
+    the overlap check above for every surface of <dpy> that has an
+    overlay. For a surface that hasn't been swapped for a while
+    (riscos-mesa: a quarter of a second), it hides the overlay and plots
+    the last frame, keeping the overlay and its buffers; the next
+    eglSwapBuffers shows through the overlay again. If <dpy> is not a
+    valid initialised display, EGL_FALSE is returned and EGL_BAD_DISPLAY or
+    EGL_NOT_INITIALIZED is generated.
+
+    Avoiding a blocking swap.
+
+        EGLBoolean eglSwapWouldWaitRISCOS(EGLDisplay dpy,
+                                          EGLSurface surface);
+
+    returns EGL_TRUE if eglSwapBuffers on <surface> would, if called now,
+    wait for a vertical sync that a later call would not need: a surface
+    shown through an overlay when no vertical sync has passed since its
+    last frame was shown, or a full screen surface using screen banks when
+    fewer than its swap interval of vertical syncs have passed since the
+    last bank was shown. It returns EGL_FALSE in every other case,
+    including a swap interval of 0 and a full screen surface whose wait is
+    part of showing the frame. An application with other work to do does
+    it and swaps later. If <surface> is not a valid surface,
+    EGL_BAD_SURFACE is generated.
+
+    User control. On RISC OS the system variable EGL$Overlay lets the user
+    override applications. "on", "yes" or "1" gives an overlay to every
+    surface whose application has not set EGL_OVERLAY_RISCOS to EGL_FALSE.
+    "off", "no" or "0" gives no surface an overlay, whatever its
+    application asked for."
+
+    Change section 3.10.3 "Posting Semantics" as changed by
+    EGL_RISCOS_wimp_window:
+
+    "For a surface created with EGL_RISCOS_SCREEN_WINDOW using screen
+    banks, eglSwapBuffers waits only until the given number of vertical
+    syncs has passed since the previous bank was shown."
+
+Errors
+
+    As described above.
+
+Issues
+
+    1. Why is the overlay opt-in rather than automatic?
+
+       RESOLVED: an overlay changes things an application may not expect.
+       It can sit over menus opened over a window that has stopped
+       swapping, eglSwapBuffers can wait for a vertical sync, screen grabs
+       don't include it, and it takes memory from the GPU. So an
+       application asks for one, typically from a "hardware acceleration"
+       option, and the user can force overlays on or off with EGL$Overlay.
+
+    2. Why does a paused surface go back to plotting?
+
+       RESOLVED: an overlay drawn over everything would cover a menu opened
+       over a paused window, because nothing swaps to trigger the overlap
+       check. Plotting the paused frame makes the window behave as an
+       ordinary window. The overlay is kept, so playing again costs
+       nothing.
+
+    3. Why doesn't the implementation scale pointer positions?
+
+       RESOLVED: pointer positions come from the Wimp, not from EGL. The
+       application knows both sizes (EGL_WIDTH/EGL_HEIGHT and the window's
+       visible area) and scales them itself. Toolkits built on EGL, such
+       as riscos-mesa's SDL2, do this for their applications.
+
+    4. Should the render size be part of a separate extension?
+
+       UNRESOLVED: it works without an overlay (the plotted frame is
+       scaled), but its main use is with one, where scaling is free, so
+       for now it is part of this extension.
+
+Revision History
+
+    Version 1, 2026-09-29 (Andrew Youll)
+        - First draft, describing riscos-mesa 20.3.5-9 and later.

@@ -15,7 +15,7 @@
 #                   scenes, no more than 2% above expected/perf.txt
 #                   (tests/host-harness/mesa/perf.sh; needs valgrind)
 #   egl             libEGL and libbcm_host against a fake RISC OS
-#                   (tests/host-harness/egl, 347 checks)
+#                   (tests/host-harness/egl, 436 checks)
 #   sdl             SDL's GL glue with emulated SWIs (tests/host-harness)
 #   sdl-wimp        SDL's Wimp event handling: desktop quit, close icon,
 #                   icon bar menu (tests/host-harness/sdl-wimp)
