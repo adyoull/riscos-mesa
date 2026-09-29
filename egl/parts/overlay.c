@@ -134,11 +134,6 @@ static int ovl_task_handle(void)
     return r.r[0];
 }
 
-static int ovl_vsyncs(void)
-{
-    return _kernel_osbyte(176, 0, 255) & 0xFF;  /* the vsync counter */
-}
-
 static _kernel_oserror *ovl_call(int which, int id, int a)
 {
     _kernel_swi_regs r;
@@ -220,7 +215,7 @@ static int ovl_create(egl_surface *surf, const screen_info *s)
     surf->ovl_h = surf->h;
     surf->ovl_mode = ovl_mode_signature(s);
     surf->ovl_placed[0] = surf->ovl_placed[1] = 0x7FFFFFFF;
-    surf->ovl_vsync = ovl_vsyncs() - 1;     /* "a vsync has happened since" */
+    surf->ovl_vsync = vsync_counter() - 1;     /* "a vsync has happened since" */
     surf->ovl_state = OVL_ON;
     return 1;
 }
@@ -411,7 +406,7 @@ static int ovl_update(egl_display *d, egl_surface *surf, const screen_info *s, i
     }
     /* A buffer switch happens at the next vsync: don't write into a buffer
        until one has passed since the last switch. */
-    if (surf->swap_interval > 0 && ovl_vsyncs() == surf->ovl_vsync)
+    if (surf->swap_interval > 0 && vsync_counter() == surf->ovl_vsync)
         _kernel_osbyte(19, 0, 0);
     b = surf->ovl_next;
     {
@@ -437,7 +432,7 @@ static int ovl_update(egl_display *d, egl_surface *surf, const screen_info *s, i
         ovl_fail(surf);
         return 0;
     }
-    surf->ovl_vsync = ovl_vsyncs();
+    surf->ovl_vsync = vsync_counter();
     surf->ovl_last = b;
     surf->ovl_next = (b + 1) % surf->ovl_banks;
     if (!surf->ovl_shown) {

@@ -552,6 +552,35 @@ EGLAPI EGLBoolean EGLAPIENTRY eglCheckOverlaysRISCOS(EGLDisplay dpy)
     return ok();
 }
 
+/* EGL_RISCOS_overlay: would eglSwapBuffers on this surface block right now
+   waiting for a vsync that a later swap wouldn't need? True for a surface
+   shown through an overlay, or a full screen surface with screen banks,
+   when fewer than its swap interval of vsyncs have passed since the last
+   switch. A program with other work (decoding the next video frame) does
+   that and swaps on its next pass instead (riscos-ffmpeg's Reel found the
+   blocking wait cost a 60 fps player most of a frame). Always false where
+   waiting is part of showing the frame (full screen single buffer: the
+   plot is timed to the vsync) or where there is no wait (a plotted
+   window, swap interval 0). */
+EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS(EGLDisplay dpy, EGLSurface surface)
+{
+    egl_display *d;
+    egl_surface *s;
+    int wait = 0;
+
+    ENTER();
+    if (!(d = get_display(dpy, 1)) || !(s = get_surface(d, surface)))
+        return EGL_FALSE;
+    if (s->kind == SURF_WINDOW && s->swap_interval > 0) {
+        if (s->handle == -1 && s->banks)
+            wait = s->bank_vsync >= 0 && vsyncs_since(s->bank_vsync) < s->swap_interval;
+        else if (s->handle >= 0 && s->ovl_shown)
+            wait = vsync_counter() == s->ovl_vsync;
+    }
+    ok();
+    return wait ? EGL_TRUE : EGL_FALSE;
+}
+
 EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS(EGLDisplay dpy, EGLSurface surface,
                                                    const int *block)
 {
@@ -608,6 +637,7 @@ static const struct {
     F(eglSignalSyncKHR), F(eglSwapBuffersWithDamageEXT), F(eglSwapBuffersWithDamageKHR),
     F(eglUnlockSurfaceKHR), F(eglWaitSyncKHR),
     F(eglRedrawWindowRISCOS), F(eglPlotSurfaceRISCOS), F(eglCheckOverlaysRISCOS),
+    F(eglSwapWouldWaitRISCOS),
 };
 #undef F
 

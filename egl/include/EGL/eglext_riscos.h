@@ -115,6 +115,17 @@ EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS (EGLDisplay dpy, EGLSurface s
  *   With an overlay, eglSwapBuffers waits for a vsync when the previous
  *   frame was shown less than a frame ago (the switch happens at the next
  *   vsync, and writing sooner would tear), unless the swap interval is 0.
+ *   Full screen surfaces with screen banks likewise wait only until swap
+ *   interval vsyncs have passed since the last switch.
+ *   eglSwapWouldWaitRISCOS(dpy, surface) says whether a swap right now
+ *   would block like that: a program with other work to do (decoding the
+ *   next video frame) does it and swaps on its next pass instead.
+ *
+ *   A Basic overlay covers everything on the screen over its rectangle:
+ *   anything that should be seen over the picture (a HUD, subtitles,
+ *   statistics) must be drawn into the surface. And while any window
+ *   overlaps the surface the frames are plotted, which is much slower:
+ *   open a program's own windows beside the picture, not over it.
  *
  *   Turning it on and off ("hardware acceleration"):
  *     program:  EGL_OVERLAY_RISCOS = EGL_TRUE in eglCreateWindowSurface's
@@ -132,8 +143,10 @@ EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS (EGLDisplay dpy, EGLSurface s
 #ifndef EGL_RISCOS_overlay
 #define EGL_RISCOS_overlay 1
 typedef EGLBoolean (EGLAPIENTRYP PFNEGLCHECKOVERLAYSRISCOSPROC) (EGLDisplay dpy);
+typedef EGLBoolean (EGLAPIENTRYP PFNEGLSWAPWOULDWAITRISCOSPROC) (EGLDisplay dpy, EGLSurface surface);
 #ifdef EGL_EGLEXT_PROTOTYPES
 EGLAPI EGLBoolean EGLAPIENTRY eglCheckOverlaysRISCOS (EGLDisplay dpy);
+EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS (EGLDisplay dpy, EGLSurface surface);
 #endif
 #endif /* EGL_RISCOS_overlay */
 

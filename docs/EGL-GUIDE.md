@@ -220,7 +220,9 @@ Once asked for:
 - **Which surfaces.** A window surface that covers the visible area (the default), when it's the only EGL surface in its window, once the program is animating: three `eglSwapBuffers` in a row, each within a quarter of a second of the last. A window redrawn now and then keeps being plotted. Work area surfaces (`EGL_WORK_AREA_*_RISCOS`), full screen surfaces and DispmanX windows are plotted as before, and so is a visible-area surface while a work area surface shares its window.
 - **Fallbacks.** Every problem falls back to plotting, with no error: VideoOverlay not loaded, no overlay of that size, the GPU out of memory for the buffers (three buffers, else two), an error while showing a frame. After a failure the surface tries again when its size or the screen mode changes. A mode change gets a new overlay.
 - **Windows and menus in front.** On the Pi the overlay is "Basic": it would sit on top of everything. So while any window or menu overlaps your surface, EGL hides the overlay and plots the frame; when nothing overlaps, the overlay comes back. This is checked at every `eglSwapBuffers` and every `eglRedrawWindowRISCOS`. **A program that stops swapping** (a paused video, a finished render) should call `eglCheckOverlaysRISCOS(dpy)` on null events (a few times a second is enough). A quarter of a second after the last swap it hides the overlay and plots the last frame, so a paused window is an ordinary plotted window, and menus and windows over it behave as usual; the next `eglSwapBuffers` shows through the overlay again at once (it is kept, with its buffers). To free the GPU memory during a long pause as well, turn the overlay off with `eglSurfaceAttrib` and back on when playing resumes. freeglut (from the devkit) does this for you: while a window has an overlay (with `EGL$Overlay on`) it wakes ten times a second to check.
-- **Pacing.** With an overlay, `eglSwapBuffers` waits for a vsync only when none has passed since the previous frame was shown (swap interval 1, the default; 0 never waits). Writing into a buffer that is still being switched to would tear.
+- **Pacing.** With an overlay, `eglSwapBuffers` waits for a vsync only when none has passed since the previous frame was shown (swap interval 1, the default; 0 never waits). Writing into a buffer that is still being switched to would tear. A program with other work to do (decoding the next video frame, game logic) can avoid even that wait: `eglSwapWouldWaitRISCOS(dpy, surf)` returns `EGL_TRUE` when a swap right now would block, so do the other work and swap on the next pass. riscos-ffmpeg's Reel found the blocking wait cost a 60 fps player most of a frame; not blocking fixed it.
+- **Draw overlays into the frame.** A Basic overlay covers everything on the screen over its rectangle, so text, a HUD, subtitles or statistics drawn on the screen over the picture are hidden under it. Draw them into the surface with GL.
+- **Put your other windows beside the picture.** While any window overlaps the surface the overlay is hidden and every frame is plotted, which is much slower (720p60 video fell to about 29 fps in Reel with its info window over the picture). Open your program's own windows next to the GL window, not over it.
 - **Turning it off again.** `eglSurfaceAttrib(dpy, surf, EGL_OVERLAY_RISCOS, EGL_FALSE)` hides and frees the overlay at once and plots the last frame; `EGL_TRUE` turns it back on and retries after a failure.
 - **Is it in use?** `eglQuerySurface(dpy, surf, EGL_OVERLAY_RISCOS, &v)`: 1 shown through an overlay, 2 an overlay exists but is hidden (something overlaps), 0 plotted.
 - **Screen grabs** (Snapper, `*ScreenSave`) don't include the overlay: they show what's plotted underneath. Turn the overlay off to grab the window.
@@ -280,7 +282,7 @@ Use the native window `EGL_RISCOS_SCREEN_WINDOW` (-1). The surface is the size o
 | --- | --- | --- | --- |
 | Sprite plot (default) | no attributes | GL draws into a sprite; the swap waits for vsync and plots it | Clean; ~6 ms per copy |
 | Direct | `EGL_RENDER_BUFFER`, `EGL_SINGLE_BUFFER` | GL draws straight into the visible screen; nothing to copy | Fastest (~100 fps for the test cube), but you see the frame being drawn |
-| Screen banks (experimental) | `EGL_SCREEN_BANKS_RISCOS`, 2 or 3 | GL draws into a hidden screen bank; the swap switches banks with `OS_Byte 113` | Tears badly: the bank switch isn't applied in step with vsync |
+| Screen banks (experimental) | `EGL_SCREEN_BANKS_RISCOS`, 2 or 3 | GL draws into a hidden screen bank; the swap switches banks with `OS_Byte 113`, waiting only until `swap interval` vsyncs have passed since the last switch | Tears badly: the bank switch isn't applied in step with vsync |
 
 ```c
 static const EGLint direct[] = { EGL_RENDER_BUFFER, EGL_SINGLE_BUFFER, EGL_NONE };
@@ -484,14 +486,20 @@ EGLBoolean eglCheckOverlaysRISCOS(EGLDisplay dpy);
 
 Re-checks every surface shown through a hardware overlay: hides the overlay (and plots the last frame) while a window or menu overlaps the surface, shows it again when nothing does, and goes back to plotting for good once the surface hasn't been swapped for a quarter of a second (until its next `eglSwapBuffers`). Only needed while a program isn't calling `eglSwapBuffers` (a paused video): call it on null events. Extension `EGL_RISCOS_overlay`.
 
-All three are also available through `eglGetProcAddress` (`PFNEGLREDRAWWINDOWRISCOSPROC`, `PFNEGLPLOTSURFACERISCOSPROC`, `PFNEGLCHECKOVERLAYSRISCOSPROC`).
+```c
+EGLBoolean eglSwapWouldWaitRISCOS(EGLDisplay dpy, EGLSurface surface);
+```
+
+`EGL_TRUE` when `eglSwapBuffers` on the surface would block right now waiting for a vsync that swapping a little later wouldn't need: a surface shown through a hardware overlay, or a full screen surface with screen banks, when fewer than its swap interval of vsyncs have passed since its last switch. Do other work and swap on the next pass. `EGL_FALSE` everywhere else, including a full screen sprite plot (its wait times the plot to the vsync, so it can't be skipped) and swap interval 0. Extension `EGL_RISCOS_overlay`.
+
+All four are also available through `eglGetProcAddress` (`PFNEGLREDRAWWINDOWRISCOSPROC`, `PFNEGLPLOTSURFACERISCOSPROC`, `PFNEGLCHECKOVERLAYSRISCOSPROC`, `PFNEGLSWAPWOULDWAITRISCOSPROC`).
 
 **Standard EGL 1.4 on RISC OS: behaviour worth knowing**
 
 | Call | RISC OS behaviour |
 | --- | --- |
 | `eglSwapBuffers` (window) | `Wimp_UpdateWindow` over the surface and plot; never waits for vsync. Through a hardware overlay: copy into an overlay buffer and show it, waiting for a vsync only if none has passed since the last frame |
-| `eglSwapBuffers` (full screen) | Waits for vsync `swap interval` times, then shows the frame |
+| `eglSwapBuffers` (full screen) | Sprite plot and direct: waits for vsync `swap interval` times, then shows the frame. Screen banks: waits only until `swap interval` vsyncs have passed since the last switch |
 | `eglSwapBuffers` (pbuffer, pixmap) | No effect |
 | `eglSwapInterval` | 0 to 4; applies to the current surface |
 | `eglWaitClient`, `eglWaitGL` | `glFinish` |

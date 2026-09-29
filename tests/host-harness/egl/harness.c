@@ -717,23 +717,40 @@ static void test_window(void)
         glFinish();
         CHECK(fake_screen.display_bank == 1 && RGB(fake_bank_pixel(1, 5, 5)) != RED_TBGR &&
               RGB(fake_bank_pixel(2, 5, 5)) == RED_TBGR, "drawn into hidden bank 2, bank 1 still shown");
+        CHECK(!eglSwapWouldWaitRISCOS(dpy, fs), "first swap wouldn't wait");
         eglSwapBuffers(dpy, fs);
-        CHECK(fake_screen.display_bank == 2 && fake_vsyncs == 1 && fake_plots == 0,
-              "swap: vsync then show bank 2, no plot");
+        CHECK(fake_screen.display_bank == 2 && fake_vsyncs == 0 && fake_plots == 0,
+              "first swap: show bank 2 at once (no earlier switch to wait for), no plot");
         clear(0, 1, 0);
         glFinish();
         CHECK(RGB(fake_bank_pixel(3, 5, 5)) == GREEN && RGB(fake_bank_pixel(2, 5, 5)) == RED_TBGR,
               "next frame goes to bank 3; bank 2 untouched while shown");
+        CHECK(eglSwapWouldWaitRISCOS(dpy, fs), "no vsync since: a swap would wait");
         eglSwapBuffers(dpy, fs);
         bank = fake_screen.display_bank;
+        CHECK(fake_vsyncs == 1, "second swap within a frame: waited for one vsync (%d)", fake_vsyncs);
         clear(0, 0, 1);
         glFinish();
         CHECK(bank == 3 && RGB(fake_bank_pixel(1, 5, 5)) == BLUE_TBGR, "then bank 3 shown, bank 1 drawn");
+        fake_vsyncs++;                  /* a vsync goes by */
+        CHECK(!eglSwapWouldWaitRISCOS(dpy, fs), "a vsync has passed: wouldn't wait");
         eglSwapBuffers(dpy, fs);
-        CHECK(fake_screen.display_bank == 1 && fake_screen.vdu_bank == 1, "round to bank 1");
+        CHECK(fake_screen.display_bank == 1 && fake_screen.vdu_bank == 1 && fake_vsyncs == 2,
+              "round to bank 1, no wait (%d)", fake_vsyncs);
+        eglSwapInterval(dpy, 2);
+        fake_vsyncs++;
+        CHECK(eglSwapWouldWaitRISCOS(dpy, fs), "interval 2, one vsync passed: would wait");
         clear(1, 1, 1);
         eglSwapBuffers(dpy, fs);
-        CHECK(fake_screen.display_bank == 2, "bank 2 again");
+        CHECK(fake_vsyncs == 4 && fake_screen.display_bank == 2, "interval 2: waited for the second (%d)", fake_vsyncs);
+        eglSwapInterval(dpy, 0);
+        CHECK(!eglSwapWouldWaitRISCOS(dpy, fs), "interval 0: never waits");
+        eglSwapInterval(dpy, 1);
+        fake_vsyncs++;
+        eglSwapBuffers(dpy, fs);
+        clear(1, 1, 1);
+        eglSwapBuffers(dpy, fs);
+        CHECK(fake_screen.display_bank == 1, "bank 1 again (%d)", fake_screen.display_bank);
         /* asking for preserved contents switches to the sprite method */
         CHECK(eglSurfaceAttrib(dpy, fs, EGL_SWAP_BEHAVIOR, EGL_BUFFER_PRESERVED), "set preserved");
         eglQuerySurface(dpy, fs, EGL_SCREEN_BANKS_RISCOS, &nb);

@@ -33,6 +33,17 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   on the host harness (about 60 new checks against a fake VideoOverlay);
   **not yet tried on a Pi**: `egl-overlay` and `egl-no-overlay` in the
   tests zip (egltest `-V` / `-n`; keys H and P).
+- **Screen banks don't block for nothing.** A full screen surface with
+  screen banks now waits only until its swap interval of vsyncs has
+  passed since the last bank switch, instead of always waiting for the
+  next vsync (on average half a frame blocked per swap at 60 fps).
+  Found by riscos-ffmpeg while making Reel play 60 fps video.
+- **`eglSwapWouldWaitRISCOS`**: says whether a swap right now would block
+  for a vsync (overlay or screen banks), so a program with other work,
+  such as decoding the next video frame, can do it first and swap on its
+  next pass. The EGL guide also gains Reel's advice for overlays: draw
+  anything to be seen over the picture into the frame, and open other
+  windows beside it, not over it.
 - **Hardware overlay tests (`ovltest`).** Before EGL could use the
   display hardware's overlays, a Pi had to answer some questions: which
   formats and sizes it offers, how fast overlay memory is, whether cached

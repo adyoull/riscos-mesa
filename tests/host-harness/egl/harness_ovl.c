@@ -160,7 +160,9 @@ void test_overlay(EGLDisplay d)
     eglSwapBuffers(dpy, ws);
     eglSwapBuffers(dpy, ws);
     CHECK(fake_vsyncs == n + 2, "back-to-back swaps wait for a vsync each (%d)", fake_vsyncs - n);
+    CHECK(eglSwapWouldWaitRISCOS(dpy, ws), "overlay, no vsync since the switch: a swap would wait");
     fake_vsyncs++;                          /* one passes by itself */
+    CHECK(!eglSwapWouldWaitRISCOS(dpy, ws), "a vsync has passed: it wouldn't");
     eglSwapBuffers(dpy, ws);
     CHECK(fake_vsyncs == n + 3, "no wait when a vsync has passed (%d)", fake_vsyncs - n);
     eglSwapInterval(dpy, 0);
@@ -224,6 +226,7 @@ void test_overlay(EGLDisplay d)
     wipe();
     CHECK(eglSurfaceAttrib(dpy, ws, EGL_OVERLAY_RISCOS, EGL_FALSE), "attrib off");
     CHECK(fake_ovl_live() == 0 && query(ws) == 0 && box_is(100, 250, 100, 80, BLUE), "off: gone, frame plotted");
+    CHECK(!eglSwapWouldWaitRISCOS(dpy, ws), "plotted window: a swap never waits");
     wipe();
     clear(0, 1, 0);
     eglSwapBuffers(dpy, ws);

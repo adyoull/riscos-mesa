@@ -91,6 +91,19 @@ typedef struct window_state {
     int behind, flags;
 } window_state;
 
+/* The vsync counter (OS_Byte 176: counts down, 8 bits here), and how many
+   vsyncs have passed since it read `then` (a wrap after 255 reads as few,
+   so waits stay short). */
+static int vsync_counter(void)
+{
+    return _kernel_osbyte(176, 0, 255) & 0xFF;
+}
+
+static int vsyncs_since(int then)
+{
+    return (then - vsync_counter()) & 0xFF;
+}
+
 /* parts/overlay.c */
 static int ovl_update(egl_display *d, egl_surface *surf, const screen_info *s, int new_frame);
 static void ovl_redraw_rectangle(egl_surface *surf, int *block);
@@ -464,17 +477,26 @@ static void present(egl_display *d, egl_surface *surf, const screen_info *s,
         return;                         /* all rectangles empty: nothing changed */
 
     if (surf->handle == -1) {
-        for (i = 0; i < surf->swap_interval; i++)
-            _kernel_osbyte(19, 0, 0);
         if (surf->banks) {
+            /* Wait only until swap_interval vsyncs have passed since the
+               last switch: at most one switch per vsync (so no tearing
+               with three banks), without blocking for the next vsync when
+               one has already gone by (riscos-ffmpeg measured that costing
+               a 60 fps program most of a frame). */
+            while (surf->bank_vsync >= 0 && vsyncs_since(surf->bank_vsync) < surf->swap_interval)
+                _kernel_osbyte(19, 0, 0);
             /* Show the finished bank, then draw into the oldest one. With
                three banks that one isn't on screen even if the display
                only switches at the next vsync. */
             _kernel_osbyte(113, surf->draw_bank, 0);
+            surf->bank_vsync = vsync_counter();
             surf->draw_bank = surf->draw_bank % surf->banks + 1;
             surf->pixels = surf->bank_addr[surf->draw_bank];
             return;
         }
+        /* one buffer: the wait times the plot to just after a vsync */
+        for (i = 0; i < surf->swap_interval; i++)
+            _kernel_osbyte(19, 0, 0);
         if (surf->direct || !surf->sprite)
             return;
         {
