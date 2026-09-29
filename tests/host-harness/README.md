@@ -1,15 +1,18 @@
-Runs `SDL_riscosopengl.c` on an x86-64 Linux host against a host-built
-libOSMesa.a. `_kernel_swi` emulates OS_SpriteOp 15 (create sprite) and the
-driver's plot is replaced by a check of what would reach the screen.
-The glue casts pointers to int (as all RISC OS SWI code does), so the stub
-allocator uses MAP_32BIT and the binary is built -no-pie.
-
-    S=<patched SDL-release-2.26.0>; M=<mesa-20.3.5 with include/>
-    gcc -no-pie -w -std=gnu99 -DSDL_VIDEO_DRIVER_RISCOS=1 -DSDL_VIDEO_OPENGL=1 \
-      -DSDL_VIDEO_OPENGL_OSMESA=1 -I$S/include -I$S/src/video/riscos -I$S/src/video \
-      -I$S/src -Ifake -I$M/include -include $S/src/SDL_internal.h \
-      harness.c $S/src/video/riscos/SDL_riscosopengl.c -o harness \
-      libOSMesa.a -lstdc++ -lz -lm -lpthread && ./harness
+Runs `SDL_riscosopengl.c` (SDL's GL windows: the sprite path, and the
+opt-in EGL path, riscos-mesa EGL window surfaces) on an x86-64 Linux
+host: the driver file, the real EGL
+(`egl/egl_riscos.c`), a host-built OSMesa, the EGL harness's fake RISC OS
+(`egl/fake_riscos.c`) and the fake VideoOverlay (`ovl/fake_ovl.c`). It
+checks the sprite path (no hints: GL renders into the window's sprite,
+plotted by the driver) and, on the EGL path, what reaches the fake
+screen: a desktop window at 1:1, a render
+size (`SDL_RISCOS_GL_RENDER_SIZE`) stretched over the window and over the
+screen full screen, redraws, the other colour order, an overlay
+(`SDL_RISCOS_GL_OVERLAY`) scaled by the display with frames held for a
+vsync and shown from the event loop, OpenGL ES, and swap interval pacing.
+The code casts pointers to int (as all RISC OS SWI code does), so it runs
+on a stack below 2 GB with malloc kept on the brk heap, built -no-pie.
+The build line is `sdl_harness` in `tests/run-all.sh`.
 
 ## `sdl-wimp/`: the driver's Wimp event handling
 

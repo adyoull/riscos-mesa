@@ -201,7 +201,8 @@ static void plot_rectangle(const egl_surface *surf, const int *block, const scre
     if (!surf->sprite)
         return;
     if (is_scaled(surf)) {
-        /* stretched over the visible area (or the screen) */
+        /* stretched over the visible area (or the screen); the plain plot
+           below when that happens to be the render size */
         riscos_dmx_placement pl;
         int base_x, top_os;
         memset(&pl, 0, sizeof pl);
@@ -217,9 +218,11 @@ static void plot_rectangle(const egl_surface *surf, const int *block, const scre
             pl.w = (block[3] - block[1]) >> s->xeig;
             pl.h = (block[4] - block[2]) >> s->yeig;
         }
-        dmx_plot(surf, s, &pl, base_x, top_os, *clip);
-        set_graphics_window(clip);
-        return;
+        if (pl.w != surf->w || pl.h != surf->h) {
+            dmx_plot(surf, s, &pl, base_x, top_os, *clip);
+            set_graphics_window(clip);
+            return;
+        }
     }
     if (surf->handle == -1) {
         x = 0;

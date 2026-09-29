@@ -8,5 +8,5 @@ libdir=${prefix}/lib
 Name: OpenAL
 Description: OpenAL Soft 1.19.1, playing through SDL2
 Version: 1.19.1
-Libs: -L${libdir} -lopenal -lSDL2 -lOSMesa -lstdc++ -lz -lm
+Libs: -L${libdir} -lopenal -lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm
 Cflags: -I${includedir} -I${includedir}/AL -DAL_LIBTYPE_STATIC

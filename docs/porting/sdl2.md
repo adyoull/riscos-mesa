@@ -9,8 +9,9 @@ sound), built from their unchanged source by `build/build-ports.sh` into
 - `testgles2`: OpenGL ES 2.0 shaders.
 
 This is the easiest route to RISC OS. SDL already has a RISC OS video
-driver, and riscos-mesa's SDL2 adds OpenGL to it, so a program that gets
-its window and context from SDL has no window code to change.
+driver, and riscos-mesa's SDL2 adds OpenGL to it (link `-lEGL` too: it
+can show GL windows through EGL), so a program that gets its window and
+context from SDL has no window code to change.
 
 ## What SDL gives you
 
@@ -26,6 +27,25 @@ its window and context from SDL has no window code to change.
 - **Functions:** `SDL_GL_GetProcAddress` finds every GL and GLES function.
   They're also linked directly, so code that calls `glClear` without
   loading it works too.
+- **Render size:** the hint `"SDL_RISCOS_GL_RENDER_SIZE"` = `"640x480"`
+  (`SDL_SetHint` before creating the window, or a system variable of that
+  name, e.g. set from `!Run`) makes GL render at that size, stretched to
+  fill the window, or the screen when full screen. The program sees a
+  640x480 window: `SDL_GetWindowSize`, `SDL_GL_GetDrawableSize`, window
+  events and mouse positions are all in render pixels, while the desktop
+  window keeps the size the program asked for. Rendering cost follows
+  the render size, so this is the big speed-up for a game in a large
+  window or full screen.
+- **Hardware overlay:** the hint `"SDL_RISCOS_GL_OVERLAY"` = `"1"` shows
+  the window through the display's video overlay (VideoOverlay, on a
+  Raspberry Pi): no plot per frame, no tearing, and a render size is
+  scaled by the hardware. `"0"` refuses it; unset, `EGL$Overlay` decides.
+  Everything falls back to the sprite plot without it (see the EGL
+  guide's "Hardware overlays").
+- These two hints (and `"SDL_RISCOS_GL_EGL"` = `"1"`) show the GL window
+  through riscos-mesa's EGL; without them GL renders into the window's
+  sprite as it always has. Load the VideoOverlay module in `!Run` with
+  `RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay`.
 - **Windows:** resizing, switching to full screen and back, and EX0 EY0
   (180 dpi) scaling are handled by the driver.
   The hint `"SDL_RISCOS_WINDOW_SCALE"` (`SDL_SetHint`, or a system
@@ -66,7 +86,7 @@ its window and context from SDL has no window code to change.
   `SDL_AUDIODRIVER=riscos` or `dsp` forces one. `!LoopWave`
   (SDL's loopwave test) is the worked example.
 - **OpenAL:** programs that use OpenAL (games with 3D sound) link the
-  devkit's `libopenal.a` (OpenAL Soft 1.19.1): `-lopenal -lSDL2 -lOSMesa
+  devkit's `libopenal.a` (OpenAL Soft 1.19.1): `-lopenal -lSDL2 -lEGL -lOSMesa
   -lstdc++ -lz -lm`. It plays through SDL's sound, so the modules above
   are needed the same way. OpenAL mixes in SDL's audio thread: link with
   UnixLib 5.0.1 or later and load PThreadTicker (see the README). OpenAL's error
@@ -84,7 +104,7 @@ its window and context from SDL has no window code to change.
 
    ```sh
    $CC $RO_CFLAGS -I$STAGE/include -I$STAGE/include/SDL2 -static prog.c \
-       -o '!Prog/!RunImage,e1f' -L$STAGE/lib -lSDL2 -lOSMesa -lstdc++ -lz -lm
+       -o '!Prog/!RunImage,e1f' -L$STAGE/lib -lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm
    ```
 
    Add `-lGLU` before `-lOSMesa` if the program uses GLU, and

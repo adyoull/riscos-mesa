@@ -42,7 +42,7 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
   seemingly at random (`tools/check-stack-probes.py` checks a binary).
 - Link lines:
   - EGL: `-lEGL -lOSMesa -lstdc++ -lz -lm`.
-  - SDL2: `-lSDL2 -lOSMesa -lstdc++ -lz -lm` (add `-lGLU` if used).
+  - SDL2: `-lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm` (add `-lGLU` if used).
   - GLUT: `-lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm`.
   - Pi code: `-lbcm_host -lEGL -lOSMesa -lstdc++ -lz -lm`.
   - OpenAL (sound, through SDL): `-lopenal -lSDL2` before the rest of the

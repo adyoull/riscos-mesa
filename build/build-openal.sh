@@ -9,7 +9,7 @@
 # Nothing RISC OS-specific is needed below SDL.
 # patches/openal: two small build fixes (see patches/openal/README).
 #
-# Apps link: -lopenal -lSDL2 -lm   (plus what SDL2 needs, as for SDL apps)
+# Apps link: -lopenal -lSDL2 -lEGL -lOSMesa ... (plus what SDL2 needs, as for SDL apps)
 # OpenAL mixes in SDL's audio thread, so programs need UnixLib 5.0.1 or later
 # (the pthread ticker fix) and should load the PThreadTicker module
 # (devkit/riscos/PThrTicker) from !Run.

@@ -12,7 +12,7 @@ for arg in "$@"; do
     --prefix=*|--exec-prefix=*) ;;       # ignored: the devkit knows where it is
     --version) out="$out 2.26.0" ;;
     --cflags) out="$out -I$prefix/include/SDL2 -I$prefix/include -D_REENTRANT" ;;
-    --libs|--static-libs) out="$out -L$prefix/lib -lSDL2 -lGLU -lOSMesa -lstdc++ -lz -lm" ;;
+    --libs|--static-libs) out="$out -L$prefix/lib -lSDL2 -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm" ;;
     *) echo "$usage" >&2; exit 1 ;;
   esac
 done

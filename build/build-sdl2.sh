@@ -15,7 +15,9 @@ if [ ! -d SDL-release-2.26.0 ]; then
   (cd SDL-release-2.26.0 && for p in "$HERE"/patches/sdl2/*.p; do patch -s -p0 < "$p"; done && ./autogen.sh)
 fi
 fresh_build_dir SDL-release-2.26.0/build-ro && cd SDL-release-2.26.0/build-ro
-CFLAGS="$RO_CFLAGS -I$STAGE/include" LDFLAGS="-L$STAGE/lib" \
+# -I egl/include: SDL's GL windows are EGL window surfaces (programs then
+# link -lEGL too: -lSDL2 -lGLU -lEGL -lOSMesa ...)
+CFLAGS="$RO_CFLAGS -I$HERE/egl/include -I$STAGE/include" LDFLAGS="-L$STAGE/lib" \
   ../configure --host=$HOST --prefix="$STAGE" --disable-shared --enable-static \
   --enable-video-riscos-osmesa --disable-video-opengles --disable-video-rpi
 grep -q "define SDL_VIDEO_OPENGL_OSMESA 1" include/SDL_config.h || { echo "OSMesa GL NOT enabled"; exit 1; }

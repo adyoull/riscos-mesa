@@ -50,7 +50,7 @@ for spec in "TestGL2 testgl2 HAVE_OPENGL" "TestGLES testgles HAVE_OPENGLES" "Tes
   cp -r "$P/sdl2-tests/riscos/!$1" "$OUT/sdl2-tests/"
   $CC $CF -D$3 -DOUTPUT_VAR="\"$1\$Output\"" -I"$STAGE/include/SDL2" -static "$T/$2.c" "$T/testutils.c" \
       "$P/sdl2-tests/riscos_output.c" -o "$OUT/sdl2-tests/!$1/!RunImage,e1f" \
-      -L"$STAGE/lib" -lSDL2_test -lSDL2 -lOSMesa -lstdc++ -lz -lm
+      -L"$STAGE/lib" -lSDL2_test -lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm
   $STRIP "$OUT/sdl2-tests/!$1/!RunImage,e1f"
   cp "$SRC/SDL-release-2.26.0/LICENSE.txt" "$OUT/sdl2-tests/!$1/Licence,fff"
 done

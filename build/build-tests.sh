@@ -21,14 +21,14 @@ $CC $RO_CFLAGS $GL -static "$T/prof.c"       -o "$STAGE/tests/prof,e1f"       $L
 [ -f "$STAGE/lib/libbcm_host.a" ] && $CC $RO_CFLAGS $GL -static "$T/dmxtest.c" "$T/es_cube.c" "$T/hrtime.c" \
     -o "$STAGE/tests/dmxtest,e1f" -lbcm_host -lEGL -lGLESv2 -lvcos -lvchiq_arm $LIBS
 [ -f "$STAGE/lib/libSDL2.a" ] && $CC $RO_CFLAGS $GL -I"$STAGE/include/SDL2" -static "$T/sdlgltest.c" "$T/hrtime.c" \
-    -o "$STAGE/tests/sdlgltest,e1f" -lSDL2 $LIBS
+    -o "$STAGE/tests/sdlgltest,e1f" -lSDL2 -lEGL $LIBS
 # OpenAL (libopenal.a) playing through SDL2's audio
 [ -f "$STAGE/lib/libopenal.a" ] && $CC $RO_CFLAGS $GL -I"$STAGE/include/SDL2" -static "$T/altest.c" \
-    -o "$STAGE/tests/altest,e1f" -lopenal -lSDL2 $LIBS
+    -o "$STAGE/tests/altest,e1f" -lopenal -lSDL2 -lEGL $LIBS
 # VideoOverlay (hardware overlay) tests for the Pi: plain C, no GL
 $CC $RO_CFLAGS -static "$T/ovltest.c" "$T/hrtime.c" -o "$STAGE/tests/ovltest,e1f"
 for f in "$STAGE"/tests/*,e1f; do $STRIP "$f"; done
-cp "$T/ReadMe,fff" "$T"/egl-*,feb "$T"/dmx-*,feb "$T"/gles-*,feb "$T"/al-*,feb "$T"/ovl-*,feb "$STAGE/tests/"
+cp "$T/ReadMe,fff" "$T"/egl-*,feb "$T"/dmx-*,feb "$T"/gles-*,feb "$T"/al-*,feb "$T"/ovl-*,feb "$T"/sdl-*,feb "$STAGE/tests/"
 # UnixLib 5.0.1's PThreadTicker module, which al-tone loads for altest's
 # threads (OpenAL mixes in SDL's audio thread)
 cp "$T/../devkit/riscos/PThrTicker,ffa" "$STAGE/tests/"

@@ -8,5 +8,5 @@ libdir=${prefix}/lib
 Name: sdl2
 Description: SDL 2.26 with the RISC OS video, OpenGL and sound drivers
 Version: 2.26.0
-Libs: -L${libdir} -lSDL2 -lGLU -lOSMesa -lstdc++ -lz -lm
+Libs: -L${libdir} -lSDL2 -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm
 Cflags: -I${includedir}/SDL2 -I${includedir} -D_REENTRANT

@@ -1,9 +1,9 @@
 diff --git src/video/riscos/SDL_riscosopengl.h src/video/riscos/SDL_riscosopengl.h
 new file mode 100644
-index 0000000..d5e3207
+index 0000000..140836c
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.h
-@@ -0,0 +1,45 @@
+@@ -0,0 +1,55 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -43,6 +43,16 @@ index 0000000..d5e3207
 +extern int RISCOS_GL_SwapWindow(_THIS, SDL_Window *window);
 +extern void RISCOS_GL_DeleteContext(_THIS, SDL_GLContext context);
 +extern void RISCOS_GL_DestroyWindowBuffer(SDL_Window *window);
++/* 2026: the EGL path's surface only (the desktop window is going) */
++extern void RISCOS_GL_DestroySurface(SDL_Window *window);
++/* 2026: render size (SDL_HINT_RISCOS_GL_RENDER_SIZE) for a new GL window */
++extern void RISCOS_GL_ApplyRenderSize(SDL_Window *window);
++/* 2026: a Redraw_Window_Request for a GL window: 1 if handled */
++extern int RISCOS_GL_Redraw(_THIS, SDL_Window *window, void *redraw_block);
++/* 2026: between frames (PumpEvents): show a frame held for a vsync, keep an
++   overlay right while nothing is swapped. Returns how soon (cs) it wants
++   to run again when the program waits for events, or 0. */
++extern int RISCOS_GL_Idle(_THIS, SDL_bool run);
 +
 +#endif /* SDL_VIDEO_OPENGL_OSMESA */
 +

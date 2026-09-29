@@ -27,7 +27,8 @@ It contains:
   task at VideoInit when the desktop is running, Wimp_SetMode instead of
   OS_ScreenMode while a task. Re-applied here from the OpenTTD port's notes;
   reconciled with riscos-openttd commit 9d90de1 (the same code).
-- OpenGL via OSMesa (`SDL_riscosopengl.[ch]` + small hooks), compiled only
+- OpenGL via OSMesa (`SDL_riscosopengl.[ch]` + small hooks; through
+  riscos-mesa's EGL since 2026-09-29, see below), compiled only
   with `--enable-video-riscos-osmesa`. Desktop GL 2.1, and (2026-09-25)
   OpenGL ES 1.1 / 2.0 with `SDL_GL_CONTEXT_PROFILE_ES`, which needs
   riscos-mesa's OSMesa patch (`OSMESA_ES1_PROFILE`/`OSMESA_ES2_PROFILE`). Without that flag the library has no
@@ -129,6 +130,38 @@ It contains:
   `!Warzone210` and the icon was blank. `RISCOS_IconSpriteName`
   (`SDL_riscoswimp.h`) copies up to 12 characters with no terminator
   needed; checked by `tests/host-harness/sdl-wimp`.
+- GL windows through EGL, opt-in (2026-09-29, requested by the Warzone
+  2100 port; GL builds only, nothing changes without
+  `--enable-video-riscos-osmesa`):
+  - By default a GL window still renders into its sprite (the "sprite
+    path", unchanged). With any of the hints below, `SDL_riscosopengl.c`
+    uses the EGL path instead: the window is an EGL window surface
+    (riscos-mesa's libEGL) on the desktop window, or on the screen (-1)
+    full screen; the context is an EGL context in the screen's colour
+    order; redraw requests go to `eglRedrawWindowRISCOS`.
+    `SDL_RISCOS_GL_EGL` = "1" selects it on its own. **GL programs link
+    `-lEGL`** (libSDL2 contains both paths): `-lSDL2 -lGLU -lEGL -lOSMesa
+    ...`; build-sdl2.sh adds `-I egl/include`.
+  - Render size: the hint `SDL_RISCOS_GL_RENDER_SIZE` = `"WxH"` (or a
+    system variable of that name), read when a GL window is made. The
+    program then sees a WxH window (`SDL_GetWindowSize`, drawable size,
+    window events, mouse coordinates scaled from the desktop window or
+    the screen), while the desktop window keeps the size it asked for
+    (`SDL_riscoswindow.h`: `render_w/h`, `disp_w/h`, `RISCOS_ShownW/H`).
+    EGL renders at WxH and stretches it. Full screen keeps WxH, stretched
+    to the screen: `src.video.SDL_video.c.p` is a small hook in
+    `SDL_UpdateFullscreenMode` (`RISCOS_KeepsRenderSize`) so SDL doesn't
+    take the screen mode's size.
+  - Overlay: `SDL_RISCOS_GL_OVERLAY` "1"/"0" asks for / refuses EGL's
+    hardware overlay (`EGL_RISCOS_overlay`); unset, `EGL$Overlay` decides.
+    A frame EGL would have to wait a vsync for is held and shown from
+    PumpEvents (`RISCOS_GL_Idle`), which also keeps the overlay right
+    while nothing is swapped, so a swap never blocks the desktop.
+  - On the EGL path the EX0 EY0 2x window scale is EGL's stretch too
+    (the surface always renders at the SDL window size).
+  - Checked by `tests/host-harness/harness.c` (the driver file, both
+    paths, against the real EGL and the fake RISC OS and VideoOverlay) and
+    `sdl-wimp` (mouse scaling).
 - `sdl2-configure.ac.host.p`: OpenTTD's triplet fix (arm-riscos-gnueabihf
   is not Linux). `sdl2-configure.ac.osmesa.p`: the OSMesa option.
 

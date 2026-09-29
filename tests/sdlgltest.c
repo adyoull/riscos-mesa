@@ -10,8 +10,13 @@
  * (drawing + glFinish, i.e. Mesa) and "present" (SDL_GL_SwapWindow: the
  * sprite plot through the Wimp or to the screen), using hrtime.c.
  *
- * Usage: sdlgltest [width height] [-f] [-t seconds] [-r fps] [-w]
+ * Usage: sdlgltest [width height] [-f] [-t seconds] [-r fps] [-w] [-S WxH] [-V|-N]
  *   -f  start full screen      -t  quit by itself after this many seconds
+ *   -S  render at WxH, stretched to the window (SDL_RISCOS_GL_RENDER_SIZE):
+ *       the program sees a WxH window; the title shows the mouse position
+ *       in it. Key D: desktop-size full screen (stretched) and back
+ *   -V  ask for a hardware overlay (SDL_RISCOS_GL_OVERLAY=1), -N refuse one;
+ *       the title shows "overlay", "overlay hidden" or "plotted"
  *   -r  cap the frame rate with SDL_Delay (tests cooperative SDL_Delay)
  *   -w  event driven: wait in SDL_WaitEvent and only redraw when something
  *       happens (wheel, keys, clicks, moving the pointer over the window);
@@ -22,6 +27,21 @@
 #include "SDL.h"
 #include "SDL_opengl.h"
 #include "hrtime.h"
+#define EGL_EGLEXT_PROTOTYPES 1
+#include <EGL/egl.h>
+#include <EGL/eglext_riscos.h>
+
+/* EGL_OVERLAY_RISCOS of SDL's GL surface: 0 plotted, 1 overlay, 2 hidden */
+static const char *overlay_state(void)
+{
+    EGLint v = 0;
+    EGLDisplay d = eglGetCurrentDisplay();
+    EGLSurface s = eglGetCurrentSurface(EGL_DRAW);
+    if (d == EGL_NO_DISPLAY || s == EGL_NO_SURFACE ||
+        !eglQuerySurface(d, s, EGL_OVERLAY_RISCOS, &v))
+        return "";
+    return v == 1 ? " - overlay" : v == 2 ? " - overlay hidden" : " - plotted";
+}
 
 #ifndef VARIANT
 #define VARIANT "unnamed build"
@@ -53,7 +73,9 @@ int main(int argc, char **argv)
 {
     static const float lpos[4] = {2, 3, 4, 0};
     int w = 640, h = 480, running = 1, frames = 0, vsync = 0, full = 0, i;
-    char title[80], glinfo[160];
+    char title[200], glinfo[160];
+    const char *rsize = NULL, *ovl = NULL;
+    int mx = -1, my = -1, fulltype = SDL_WINDOW_FULLSCREEN;
     Uint32 start, total_frames = 0;
     int cap = 0, waitmode = 0;
     double elapsed, limit = 0, t_start, t_frame, t_drawn, render_s = 0, present_s = 0,
@@ -69,9 +91,14 @@ int main(int argc, char **argv)
         else if (argv[i][0] == '-' && argv[i][1] == 't' && i + 1 < argc) limit = atof(argv[++i]);
         else if (argv[i][0] == '-' && argv[i][1] == 'r' && i + 1 < argc) cap = atoi(argv[++i]);
         else if (argv[i][0] == '-' && argv[i][1] == 'w') waitmode = 1;
+        else if (argv[i][0] == '-' && argv[i][1] == 'S' && i + 1 < argc) rsize = argv[++i];
+        else if (argv[i][0] == '-' && argv[i][1] == 'V') ovl = "1";
+        else if (argv[i][0] == '-' && argv[i][1] == 'N') ovl = "0";
         else if (i + 1 < argc) { w = atoi(argv[i]); h = atoi(argv[i + 1]); i++; }
     }
 
+    if (rsize) SDL_SetHint("SDL_RISCOS_GL_RENDER_SIZE", rsize);
+    if (ovl) SDL_SetHint("SDL_RISCOS_GL_OVERLAY", ovl);
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         printf("SDL_Init: %s\n", SDL_GetError());
         return 1;
@@ -114,10 +141,12 @@ int main(int argc, char **argv)
                 if (dist < 3.0f) dist = 3.0f;
                 if (dist > 18.0f) dist = 18.0f;
             }
-            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_f) {
+            if (ev.type == SDL_KEYDOWN && (ev.key.keysym.sym == SDLK_f || ev.key.keysym.sym == SDLK_d)) {
                 full = !full;
-                SDL_SetWindowFullscreen(win, full ? SDL_WINDOW_FULLSCREEN : 0);
+                fulltype = ev.key.keysym.sym == SDLK_d ? SDL_WINDOW_FULLSCREEN_DESKTOP : SDL_WINDOW_FULLSCREEN;
+                SDL_SetWindowFullscreen(win, full ? fulltype : 0);
             }
+            if (ev.type == SDL_MOUSEMOTION) { mx = ev.motion.x; my = ev.motion.y; }
             if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_SPACE) {
                 vsync = !vsync;
                 SDL_GL_SetSwapInterval(vsync);
@@ -152,10 +181,10 @@ int main(int argc, char **argv)
         frames++;
         total_frames++;
         if (SDL_GetTicks() - last >= 1000) {
-            SDL_snprintf(title, sizeof title, "sdlgltest %dx%d - %d fps - render %.2f ms - present %.2f ms%s%s",
+            SDL_snprintf(title, sizeof title, "sdlgltest %dx%d - %d fps - render %.2f ms - present %.2f ms%s%s%s - mouse %d,%d",
                          dw, dh, frames, frames ? render_s * 1000 / frames : 0.0,
                          frames ? present_s * 1000 / frames : 0.0, vsync ? " (vsync)" : "",
-                         waitmode ? " (wait)" : cap ? " (capped)" : "");
+                         waitmode ? " (wait)" : cap ? " (capped)" : "", overlay_state(), mx, my);
             render_tot += render_s; present_tot += present_s;
             render_s = present_s = 0;
             SDL_SetWindowTitle(win, title);
@@ -165,6 +194,9 @@ int main(int argc, char **argv)
     }
 
     render_tot += render_s; present_tot += present_s;   /* the last part-second */
+    if (rsize || ovl)
+        printf("render size %s, overlay hint %s, overlay at quit:%s\n",
+               rsize ? rsize : "(window)", ovl ? ovl : "(unset)", overlay_state());
     elapsed = hr_seconds() - t_start;   /* before SDL_Quit, which resets SDL's tick count */
     SDL_GL_DeleteContext(ctx);
     SDL_DestroyWindow(win);

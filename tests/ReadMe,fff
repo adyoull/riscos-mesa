@@ -41,6 +41,22 @@ Run in this order and note the output:
    -r N cap at N fps using SDL_Delay, -w only redraw when something happens
    (idle = no CPU). It prints a summary (average fps, render/present ms)
    when it quits.
+   New in 20.3.5-10: SDL's GL windows can go through EGL (these options
+   select it; without them GL renders into the window's sprite as before),
+   which gives them EGL's render size and hardware overlay:
+     -S WxH  render at WxH, stretched to fill the window (the program sees
+             a WxH window: the title shows the mouse position in it, which
+             should run 0..W-1 across the window). D: full screen at the
+             desktop's size, stretched, and back
+     -V      ask for a hardware overlay, -N refuse one; the title ends
+             "overlay", "overlay hidden" or "plotted"
+   Obey files:
+     sdl-scaled      1024x768 window rendering at 640x480, with an overlay
+     sdl-scaled-plot the same, stretched by the sprite plot
+     sdl-plain       1024x768 at 1024x768 the old way (the window's sprite),
+                     to compare the fps
+   Please send the fps and render/present times of each, and whether the
+   mouse position is right in the corners.
 
 6. glbench [width height [seconds [scene]]] [-o file]
    Software GL benchmark, no desktop involved: clear, lit cube, full-screen

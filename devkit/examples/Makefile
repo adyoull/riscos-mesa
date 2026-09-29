@@ -33,9 +33,9 @@ CFLAGS := -O2 -mfpu=vfpv3 -mfloat-abi=hard -fstack-clash-protection \
 # How to link: -static puts everything in the one program file. The order
 # of the -l libraries matters: each one before the libraries it uses.
 GL_LIBS    := -lEGL -lOSMesa -lstdc++ -lz -lm
-SDL_LIBS   := -lSDL2 -lOSMesa -lstdc++ -lz -lm
+SDL_LIBS   := -lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm
 GLUT_LIBS  := -lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm
-SOUND_LIBS := -lopenal -lSDL2 -lOSMesa -lstdc++ -lz -lm
+SOUND_LIBS := -lopenal -lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm
 # -s strips the debugging names out, making the program much smaller.
 LDFLAGS    := -static -s -L$(DEVKIT)/lib
 

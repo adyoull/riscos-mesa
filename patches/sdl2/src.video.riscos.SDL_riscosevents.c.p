@@ -1,8 +1,8 @@
 diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents.c
-index fcca470..95fcd44 100644
+index fcca470..441b945 100644
 --- src/video/riscos/SDL_riscosevents.c
 +++ src/video/riscos/SDL_riscosevents.c
-@@ -23,15 +23,103 @@
+@@ -23,15 +23,104 @@
  #if SDL_VIDEO_DRIVER_RISCOS
  
  #include "../../events/SDL_events_c.h"
@@ -14,6 +14,7 @@ index fcca470..95fcd44 100644
  #include "SDL_riscosvideo.h"
  #include "SDL_riscosevents_c.h"
 +#include "SDL_riscoswindow.h"
++#include "SDL_riscosopengl.h"
  #include "scancodes_riscos.h"
  
  #include <kernel.h>
@@ -106,7 +107,7 @@ index fcca470..95fcd44 100644
  static SDL_Scancode
  SDL_RISCOS_translate_keycode(int keycode)
  {
-@@ -50,6 +138,44 @@ SDL_RISCOS_translate_keycode(int keycode)
+@@ -50,6 +139,44 @@ SDL_RISCOS_translate_keycode(int keycode)
      return scancode;
  }
  
@@ -151,7 +152,7 @@ index fcca470..95fcd44 100644
  void
  RISCOS_PollKeyboard(_THIS)
  {
-@@ -57,6 +183,17 @@ RISCOS_PollKeyboard(_THIS)
+@@ -57,6 +184,17 @@ RISCOS_PollKeyboard(_THIS)
      Uint8 key = 2;
      int i;
  
@@ -169,7 +170,7 @@ index fcca470..95fcd44 100644
      /* Check for key releases */
      for (i = 0; i < RISCOS_MAX_KEYS_PRESSED; i++) {
          if (driverdata->key_pressed[i] != 255) {
-@@ -67,6 +204,10 @@ RISCOS_PollKeyboard(_THIS)
+@@ -67,6 +205,10 @@ RISCOS_PollKeyboard(_THIS)
          }
      }
  
@@ -180,7 +181,7 @@ index fcca470..95fcd44 100644
      /* Check for key presses */
      while (key < 0xff) {
          key = _kernel_osbyte(121, key + 1, 0) & 0xff;
-@@ -111,36 +252,153 @@ static const Uint8 mouse_button_map[] = {
+@@ -111,36 +253,169 @@ static const Uint8 mouse_button_map[] = {
      SDL_BUTTON_X2 + 3
  };
  
@@ -189,9 +190,9 @@ index fcca470..95fcd44 100644
 +/* 2026: mouse handling for a Wimp window. */
 +static void
 +RISCOS_PollMouseWindowed(_THIS)
- {
-     SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
-     SDL_Mouse *mouse = SDL_GetMouse();
++{
++    SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
++    SDL_Mouse *mouse = SDL_GetMouse();
 +    SDL_Window *window = driverdata->wimp_sdl_window;
 +    int xeig = driverdata->xeig, yeig = driverdata->yeig;
 +    RISCOS_WindowState state;
@@ -232,8 +233,14 @@ index fcca470..95fcd44 100644
 +
 +    x = (ptr.x - (state.open.visible.x0 - state.open.scroll_x)) >> xeig;
 +    y = ((state.open.visible.y1 - state.open.scroll_y) - ptr.y) >> yeig;
-+    if (driverdata->wscale_x > 1) x /= driverdata->wscale_x;   /* scaled window */
-+    if (driverdata->wscale_y > 1) y /= driverdata->wscale_y;
++    /* screen pixels -> SDL pixels: the window may be scaled (wscale, and a
++       GL render size stretched over it; see RISCOS_ShownW) */
++    {
++        int ww = RISCOS_ShownW(window) * (driverdata->wscale_x > 0 ? driverdata->wscale_x : 1);
++        int wh = RISCOS_ShownH(window) * (driverdata->wscale_y > 0 ? driverdata->wscale_y : 1);
++        if (ww != window->w) x = (int)(((long long)x * window->w) / ww);
++        if (wh != window->h) y = (int)(((long long)y * window->h) / wh);
++    }
 +    if (x < 0) x = 0;
 +    if (y < 0) y = 0;
 +    if (x >= window->w) x = window->w - 1;
@@ -279,13 +286,13 @@ index fcca470..95fcd44 100644
 +
 +static void
 +RISCOS_PollMouseFullscreen(_THIS)
-+{
+ {
 +    /* 2026: always report against our (full screen) window rather than
 +       mouse->focus, so that once the pointer has touched a screen edge and
 +       SDL has dropped the focus, it gets it back; convert OS units with the
 +       real eigen factors instead of assuming 2 OS units per pixel. */
-+    SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
-+    SDL_Mouse *mouse = SDL_GetMouse();
+     SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
+     SDL_Mouse *mouse = SDL_GetMouse();
 +    SDL_Window *window = _this->windows ? _this->windows : mouse->focus;
      SDL_Rect rect;
      _kernel_swi_regs regs;
@@ -309,6 +316,16 @@ index fcca470..95fcd44 100644
 +    if (y < 0) y = 0;
 +    if (x >= rect.w) x = rect.w - 1;
 +    if (y >= rect.h) y = rect.h - 1;
++    {
++        /* A GL window is stretched over the whole screen (EGL renders at
++           the window's size): screen pixels -> the window's */
++        SDL_WindowData *wd = window ? (SDL_WindowData *) window->driverdata : NULL;
++        if (wd && wd->gl_egl && rect.w > 0 && rect.h > 0 &&
++            (window->w != rect.w || window->h != rect.h)) {
++            x = (int)(((long long)x * window->w) / rect.w);
++            y = (int)(((long long)y * window->h) / rect.h);
++        }
++    }
 +
 +    if (window && mouse->focus != window) {
 +        SDL_SetMouseFocus(window);
@@ -341,7 +358,7 @@ index fcca470..95fcd44 100644
  int
  RISCOS_InitEvents(_THIS)
  {
-@@ -165,10 +423,314 @@ RISCOS_InitEvents(_THIS)
+@@ -165,10 +440,338 @@ RISCOS_InitEvents(_THIS)
      return 0;
  }
  
@@ -390,6 +407,11 @@ index fcca470..95fcd44 100644
 +        break;
 +    case 1:  /* Redraw_Window_Request */
 +        if (event->window == driverdata->wimp_window && driverdata->wimp_sdl_window) {
++#if SDL_VIDEO_OPENGL_OSMESA
++            /* a GL window: EGL's redraw (its frame, or its overlay) */
++            if (RISCOS_GL_Redraw(_this, driverdata->wimp_sdl_window, &event->redraw))
++                break;
++#endif
 +            regs.r[1] = (int)&event->redraw;
 +            if (_kernel_swi(Wimp_RedrawWindow, &regs, &regs) == NULL)
 +                RISCOS_WimpPlotWindow(_this, driverdata->wimp_sdl_window, &event->redraw, regs.r[0]);
@@ -605,6 +627,19 @@ index fcca470..95fcd44 100644
 +    regs.r[0] = (1 << 4) | (1 << 22);     /* no Pointer_Leaving; scan the pollword */
 +    if (timeout >= 0)
 +        deadline = now + ((unsigned int)timeout + 9) / 10;
++#if SDL_VIDEO_OPENGL_OSMESA
++    {
++        /* a GL frame held for a vsync, or an overlay to keep right while
++           nothing is swapped: wake up for RISCOS_GL_Idle (in PumpEvents) */
++        int gl_cs = RISCOS_GL_Idle(_this, SDL_FALSE);
++        if (gl_cs > 0 && (!driverdata->pointer_in || gl_cs < 2)) {
++            until = now + (unsigned int)gl_cs;
++            if (timeout >= 0 && (int)(deadline - until) < 0)
++                until = deadline;
++            goto poll;
++        }
++    }
++#endif
 +    if (driverdata->pointer_in) {
 +        until = now + 2;
 +        if (timeout >= 0 && (int)(deadline - until) < 0)
@@ -614,6 +649,9 @@ index fcca470..95fcd44 100644
 +    } else {
 +        regs.r[0] |= 1;                   /* no null events: sleep until an event */
 +    }
++#if SDL_VIDEO_OPENGL_OSMESA
++poll:
++#endif
 +    regs.r[1] = (int)&event;
 +    regs.r[2] = (int)until;
 +    regs.r[3] = (int)driverdata->wakeup_pollword;
@@ -650,6 +688,9 @@ index fcca470..95fcd44 100644
 +    /* Only multitask while we have a desktop window; full screen owns the machine. */
 +    if (RISCOS_IsWindowed((SDL_VideoData *)_this->driverdata)) {
 +        RISCOS_PollWimp(_this);
++#if SDL_VIDEO_OPENGL_OSMESA
++        RISCOS_GL_Idle(_this, SDL_TRUE);
++#endif
 +    }
      RISCOS_PollMouse(_this);
 +    RISCOS_PollWheel(_this);

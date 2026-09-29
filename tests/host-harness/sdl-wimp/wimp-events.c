@@ -66,6 +66,9 @@ static int calls_to(int swi, _kernel_swi_regs *last, RISCOS_Message *message)
 
 /* ---- fake RISC OS ---- */
 
+#define WINDOW_H 0x1234
+static int fake_ptr_on, fake_ptr[2];
+
 _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
 {
     if (ncalls < MAX_CALLS) {
@@ -83,9 +86,20 @@ _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out
         break;
     case Wimp_GetPointerInfo:
         memset((void *)(intptr_t)in->r[1], 0, sizeof(RISCOS_Pointer));
+        if (fake_ptr_on) {
+            RISCOS_Pointer *p = (RISCOS_Pointer *)(intptr_t)in->r[1];
+            p->x = fake_ptr[0]; p->y = fake_ptr[1]; p->window = WINDOW_H;
+        }
         break;
     case Wimp_GetWindowState:
         memset((char *)(intptr_t)in->r[1] + 4, 0, sizeof(RISCOS_WindowState) - 4);
+        if (fake_ptr_on) {
+            RISCOS_WindowState *w = (RISCOS_WindowState *)(intptr_t)in->r[1];
+            w->open.visible.x0 = 100; w->open.visible.y1 = 900;     /* top left, OS units */
+        }
+        break;
+    case OS_Mouse:
+        out->r[0] = fake_ptr[0]; out->r[1] = fake_ptr[1]; out->r[2] = 0;
         break;
     case OS_ReadMonotonicTime:
         out->r[0] = (int)(ticks / 10);
@@ -108,7 +122,9 @@ static SDL_Mouse mouse;
 SDL_Mouse *SDL_GetMouse(void) { return &mouse; }
 SDL_Window *SDL_GetMouseFocus_REAL(void) { return NULL; }
 void SDL_SetMouseFocus(SDL_Window *w) { (void)w; }
-int SDL_SendMouseMotion(SDL_Window *w, SDL_MouseID id, int rel, int x, int y) { return 0; }
+static int motion_x, motion_y;
+int SDL_SendMouseMotion(SDL_Window *w, SDL_MouseID id, int rel, int x, int y)
+{ motion_x = x; motion_y = y; mouse.x = x; mouse.y = y; return 0; }
 int SDL_SendMouseButton(SDL_Window *w, SDL_MouseID id, Uint8 s, Uint8 b) { return 0; }
 int SDL_SendMouseWheel(SDL_Window *w, SDL_MouseID id, float x, float y, SDL_MouseWheelDirection d) { return 0; }
 int SDL_SendKeyboardKey(Uint8 state, SDL_Scancode sc) { return 0; }
@@ -344,6 +360,46 @@ static void test_keys(void)
     }
 }
 
+/* Pointer positions: screen pixels -> SDL pixels, with a 2x window scale
+   and with a GL render size (SDL_RISCOS_GL_RENDER_SIZE) stretched over the
+   window or the screen. */
+static void test_mouse(void)
+{
+    SDL_WindowData wd;
+    memset(&wd, 0, sizeof wd);
+    fake_ptr_on = 1;
+    vdata.xeig = vdata.yeig = 1;
+    mouse.x = mouse.y = -1;
+    fake_ptr[0] = 100 + 2 * 160; fake_ptr[1] = 900 - 2 * 120;       /* pixel 160,120 in */
+    RISCOS_PollMouse(&device);
+    CHECK(motion_x == 160 && motion_y == 120, "1:1 window: pixel 160,120 (%d,%d)", motion_x, motion_y);
+    vdata.wscale_x = vdata.wscale_y = 2;
+    RISCOS_PollMouse(&device);
+    CHECK(motion_x == 80 && motion_y == 60, "2x window: 80,60 (%d,%d)", motion_x, motion_y);
+    vdata.wscale_x = vdata.wscale_y = 1;
+    window.driverdata = &wd;
+    wd.render_w = 160; wd.render_h = 60; wd.disp_w = 320; wd.disp_h = 240;
+    window.w = 160; window.h = 60;
+    RISCOS_PollMouse(&device);
+    CHECK(motion_x == 80 && motion_y == 30, "render size 160x60 in a 320x240 window: 80,30 (%d,%d)", motion_x, motion_y);
+    fake_ptr[0] = 100 + 2 * 319; fake_ptr[1] = 900 - 2 * 239;       /* bottom right */
+    RISCOS_PollMouse(&device);
+    CHECK(motion_x == 159 && motion_y == 59, "bottom right corner: 159,59 (%d,%d)", motion_x, motion_y);
+    /* full screen (1920x1080), a GL window rendering at 960x540 */
+    vdata.wimp_window = 0;
+    device.windows = &window;
+    wd.gl_egl = 1;
+    window.w = 960; window.h = 540;
+    fake_ptr[0] = 2 * 1000; fake_ptr[1] = 2 * (1080 - 1 - 500);      /* pixel 1000,500 */
+    RISCOS_PollMouse(&device);
+    CHECK(motion_x == 500 && motion_y == 250, "full screen, render 960x540: 500,250 (%d,%d)", motion_x, motion_y);
+    vdata.wimp_window = WINDOW;
+    device.windows = NULL;
+    window.driverdata = NULL;
+    window.w = 320; window.h = 240;
+    fake_ptr_on = 0;
+}
+
 static void *run(void *arg)
 {
     (void)arg;
@@ -364,6 +420,7 @@ static void *run(void *arg)
     test_quit();
     test_keys();
     test_icon_sprite_name();
+    test_mouse();
     return NULL;
 }
 

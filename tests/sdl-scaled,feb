@@ -1,0 +1,5 @@
+| riscos-mesa SDL test: a 1024x768 window rendering at 640x480, stretched by a hardware overlay.
+| Click in it: F/D full screen, Space vsync. The title shows fps, render/present and the mouse position.
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+Dir <Obey$Dir>
+Run sdlgltest 1024 768 -S 640x480 -V

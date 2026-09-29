@@ -78,9 +78,9 @@ The libraries:
 | `libOSMesa.a` | OpenGL 2.1, OpenGL ES 1.1 and 2.0 (Mesa) | always needed for drawing |
 | `libEGL.a` | EGL: connects OpenGL to RISC OS windows and the screen | `-lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libGLU.a` | Handy extras for OpenGL (perspective, tessellation...) | add `-lGLU` before `-lOSMesa` |
-| `libSDL2.a` | SDL 2.26: windows, keyboard, mouse, sound, OpenGL | `-lSDL2 -lOSMesa -lstdc++ -lz -lm` (this SDL has OpenGL built in, so it always needs Mesa) |
+| `libSDL2.a` | SDL 2.26: windows, keyboard, mouse, sound, OpenGL | `-lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm` (this SDL has OpenGL built in, through EGL, so it always needs EGL and Mesa) |
 | `libglut.a` | freeglut 3.8: the classic GLUT toolkit | `-lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm` |
-| `libopenal.a` | OpenAL Soft: positioned 3D sound (it plays through SDL) | `-lopenal -lSDL2 -lOSMesa -lstdc++ -lz -lm` |
+| `libopenal.a` | OpenAL Soft: positioned 3D sound (it plays through SDL) | `-lopenal -lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libbcm_host.a` and friends | Lets existing Raspberry Pi (Pi 1-3) OpenGL ES programs run unchanged. For porting only: new programs should use EGL directly | see the porting guides |
 
 ---

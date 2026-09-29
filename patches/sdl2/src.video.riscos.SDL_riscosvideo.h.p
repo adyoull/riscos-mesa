@@ -1,5 +1,5 @@
 diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
-index db6c86e..8796dc2 100644
+index db6c86e..d52730a 100644
 --- src/video/riscos/SDL_riscosvideo.h
 +++ src/video/riscos/SDL_riscosvideo.h
 @@ -24,6 +24,7 @@
@@ -10,7 +10,7 @@ index db6c86e..8796dc2 100644
  
  #define RISCOS_MAX_KEYS_PRESSED 6
  
-@@ -31,8 +32,53 @@ typedef struct SDL_VideoData
+@@ -31,8 +32,67 @@ typedef struct SDL_VideoData
  {
      int last_mouse_buttons;
      Uint8 key_pressed[RISCOS_MAX_KEYS_PRESSED];
@@ -54,6 +54,20 @@ index db6c86e..8796dc2 100644
 +   variable SDL_RISCOS_WINDOW_SCALE; SDL$WindowScale is still read if the
 +   hint isn't set. */
 +#define SDL_HINT_RISCOS_WINDOW_SCALE "SDL_RISCOS_WINDOW_SCALE"
++
++/* 2026: OpenGL windows (riscos-mesa builds); each of these selects the
++   EGL path (SDL_riscosopengl.c). SDL_RISCOS_GL_RENDER_SIZE
++   "WxH": GL renders at WxH and the picture is stretched to fill the window
++   (or the screen); the program sees a WxH window (size, events, mouse).
++   SDL_RISCOS_GL_OVERLAY "1"/"0": ask for / refuse a hardware overlay
++   (EGL_RISCOS_overlay); unset, EGL$Overlay decides. Both can also be set as
++   system variables of those names, and are read when a window is made. */
++#define SDL_HINT_RISCOS_GL_RENDER_SIZE "SDL_RISCOS_GL_RENDER_SIZE"
++#define SDL_HINT_RISCOS_GL_OVERLAY "SDL_RISCOS_GL_OVERLAY"
++/* 2026: "1": GL windows use the EGL path even without the two above (the
++   render size or "1" for the overlay also select it; otherwise GL renders
++   into the window's sprite, as before) */
++#define SDL_HINT_RISCOS_GL_EGL "SDL_RISCOS_GL_EGL"
 +
 +extern void RISCOS_ApplyPointerVisibility(_THIS);
 +extern void RISCOS_WimpPlotWindow(_THIS, SDL_Window *window, RISCOS_Redraw *redraw, int more);

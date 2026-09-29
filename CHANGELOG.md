@@ -4,6 +4,39 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## 20.3.5-10 (in development)
+
+- **SDL GL windows can go through EGL** (asked for by the Warzone 2100
+  port). By default nothing changes: a GL window renders into the
+  window's sprite as before. A program (or the user, with system
+  variables of the same names) opts in to the EGL path with:
+  - **`SDL_RISCOS_GL_RENDER_SIZE` = `"WxH"`:** GL renders at WxH,
+    stretched to fill the window, or the screen full screen (window or
+    desktop-size full screen). The program sees a WxH window: window
+    size, drawable size, window events and mouse positions, while the
+    desktop window keeps the size the program asked for.
+  - **`SDL_RISCOS_GL_OVERLAY` = `"1"`:** the window is shown through a
+    hardware overlay (VideoOverlay), which also does the stretching, with
+    EGL's fallbacks to the sprite plot. A frame that would have to wait
+    for a vsync is held and shown from the event loop, so a swap never
+    blocks the desktop. (`"0"` refuses one.)
+  - **`SDL_RISCOS_GL_EGL` = `"1"`:** the EGL path on its own.
+  - The EGL path is an EGL window surface on the desktop window or the
+    screen; it has no accumulation buffers.
+  - **Link change:** libSDL2 now contains the EGL path, so every program
+    using the devkit's SDL2 links `-lEGL` too:
+    `-lSDL2 -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm` (`sdl2-config`,
+    `sdl2.pc`, `openal.pc` and the docs say so). Programs built without
+    GL (riscos-openttd's SDL) are unchanged.
+  - One small hook in SDL's core (`src.video.SDL_video.c.p`) keeps the
+    render size when going full screen.
+  - sdlgltest `-S WxH`, `-V`/`-N`, key D; Obey files `sdl-scaled`,
+    `sdl-scaled-plot`, `sdl-plain`. Host-tested (the SDL GL harness runs
+    both paths, the EGL one on the real EGL and the fake VideoOverlay);
+    **not yet run on a Pi**.
+- **EGL:** a surface with a render size equal to the size it's shown at
+  uses the plain sprite plot, not a scaled one.
+
 ## 20.3.5-9: hardware overlays and a scaled render size for EGL
 
 EGL can now show a window through the display hardware's video overlay

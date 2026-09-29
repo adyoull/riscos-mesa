@@ -95,11 +95,17 @@ sdl_harness() {
     local S=$SRC/SDL-release-2.26.0
     [ -f "$S/src/video/riscos/SDL_riscosopengl.c" ] || { echo "no patched SDL in $S (run build/build-sdl2.sh)"; return 1; }
     cd "$H" || return 1
-    gcc -no-pie -w -std=gnu99 -DSDL_VIDEO_DRIVER_RISCOS=1 -DSDL_VIDEO_OPENGL=1 \
-        -DSDL_VIDEO_OPENGL_OSMESA=1 -I"$S/include" -I"$S/src/video/riscos" -I"$S/src/video" \
-        -I"$S/src" -Ifake -I"$M/include" -include "$S/src/SDL_internal.h" \
-        harness.c "$S/src/video/riscos/SDL_riscosopengl.c" -o "$OUT/sdl-harness" \
-        -L"$O" -lOSMesa -lstdc++ -lz -lm -lpthread -Wl,-rpath,"$O" &&
+    local SF="-no-pie -O1 -w -std=gnu99 -DSDL_VIDEO_DRIVER_RISCOS=1 -DSDL_VIDEO_OPENGL=1 \
+        -DSDL_VIDEO_OPENGL_OSMESA=1 -I$S/include -I$S/src/video/riscos -I$S/src/video \
+        -I$S/src -Iegl/fake -Iegl -I$R/egl/include -I$M/include -include $S/src/SDL_internal.h"
+    local EF="-no-pie -O1 -w -std=gnu99 -Iegl/fake -I$R/dispmanx/include -I$R/dispmanx -I$R/egl/include -I$M/include"
+    gcc $SF -c harness.c -o "$OUT/sdl-harness.o" &&
+    gcc $SF -c "$S/src/video/riscos/SDL_riscosopengl.c" -o "$OUT/sdl-gl.o" &&
+    gcc $EF -c "$R/egl/egl_riscos.c" -o "$OUT/sdl-egl.o" &&
+    gcc $EF -c egl/fake_riscos.c -o "$OUT/sdl-fake.o" &&
+    gcc -no-pie -O1 -w -std=gnu99 -Iovl/fake -Iegl -Iegl/fake -c ovl/fake_ovl.c -o "$OUT/sdl-fake-ovl.o" &&
+    gcc -no-pie "$OUT/sdl-harness.o" "$OUT/sdl-gl.o" "$OUT/sdl-egl.o" "$OUT/sdl-fake.o" "$OUT/sdl-fake-ovl.o" \
+        -o "$OUT/sdl-harness" -L"$O" -lOSMesa -lstdc++ -lz -lm -lpthread -Wl,-rpath,"$O" &&
     "$OUT/sdl-harness" | tee "$OUT/sdl.out" | tail -1 && grep -q "ALL CHECKS PASSED" "$OUT/sdl.out"
 }
 

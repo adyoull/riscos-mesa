@@ -1,5 +1,5 @@
 diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow.c
-index f47d33a..becac35 100644
+index f47d33a..145c671 100644
 --- src/video/riscos/SDL_riscoswindow.c
 +++ src/video/riscos/SDL_riscoswindow.c
 @@ -24,16 +24,361 @@
@@ -155,8 +155,8 @@ index f47d33a..becac35 100644
 +        sx = (xeig < 1) ? 2 : 1;
 +        sy = (yeig < 1) ? 2 : 1;
 +        if ((sx > 1 || sy > 1) &&
-+            (window->w * sx > RISCOS_WimpScreenSize(11) ||
-+             window->h * sy > RISCOS_WimpScreenSize(12) - (80 >> yeig))) {
++            (RISCOS_ShownW(window) * sx > RISCOS_WimpScreenSize(11) ||
++             RISCOS_ShownH(window) * sy > RISCOS_WimpScreenSize(12) - (80 >> yeig))) {
 +            sx = sy = 1;
 +        }
 +    }
@@ -260,8 +260,8 @@ index f47d33a..becac35 100644
 +{
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +    int xeig = RISCOS_WimpReadEig(4), yeig = RISCOS_WimpReadEig(5);
-+    int w_os = (window->w * vdata->wscale_x) << xeig;
-+    int h_os = (window->h * vdata->wscale_y) << yeig;
++    int w_os = (RISCOS_ShownW(window) * vdata->wscale_x) << xeig;
++    int h_os = (RISCOS_ShownH(window) * vdata->wscale_y) << yeig;
 +    _kernel_swi_regs regs;
 +
 +    RISCOS_WimpOpenAt(vdata->wimp_window, vdata->wimp_open_x, vdata->wimp_open_y, w_os, h_os);
@@ -291,8 +291,8 @@ index f47d33a..becac35 100644
 +        return -1;
 +    RISCOS_UpdateEigs(_this);
 +    RISCOS_ChooseWindowScale(_this, window);
-+    w_os = (window->w * vdata->wscale_x) << xeig;
-+    h_os = (window->h * vdata->wscale_y) << yeig;
++    w_os = (RISCOS_ShownW(window) * vdata->wscale_x) << xeig;
++    h_os = (RISCOS_ShownH(window) * vdata->wscale_y) << yeig;
 +
 +    if (window->title)
 +        SDL_strlcpy(vdata->window_title, window->title, sizeof(vdata->window_title));
@@ -364,9 +364,14 @@ index f47d33a..becac35 100644
      SDL_WindowData *driverdata;
  
      driverdata = (SDL_WindowData *) SDL_calloc(1, sizeof(*driverdata));
-@@ -42,27 +387,212 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
+@@ -41,21 +386,232 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
+         return SDL_OutOfMemory();
      }
      driverdata->window = window;
++    window->driverdata = driverdata;
++#if SDL_VIDEO_OPENGL_OSMESA
++    RISCOS_GL_ApplyRenderSize(window);
++#endif
  
 -    window->flags |= SDL_WINDOW_FULLSCREEN;
 -
@@ -379,13 +384,14 @@ index f47d33a..becac35 100644
 +        SDL_SetMouseFocus(window);
 +    } else {
 +        if (RISCOS_WimpCreateWindow(_this, window) < 0) {
++            window->driverdata = NULL;
 +            SDL_free(driverdata);
 +            return -1;
 +        }
 +    }
  
      /* All done! */
-     window->driverdata = driverdata;
+-    window->driverdata = driverdata;
      return 0;
  }
  
@@ -401,6 +407,12 @@ index f47d33a..becac35 100644
 +
 +    if (!RISCOS_IsWindowed(vdata))
 +        return;
++#if SDL_VIDEO_OPENGL_OSMESA
++    /* EGL's surface (and any overlay) goes with the desktop window; the
++       next frame makes a full screen one. */
++    if (vdata->wimp_sdl_window)
++        RISCOS_GL_DestroySurface(vdata->wimp_sdl_window);
++#endif
 +    handle = vdata->wimp_window;
 +    regs.r[1] = (int)&handle;
 +    _kernel_swi(Wimp_DeleteWindow, &regs, &regs);
@@ -426,11 +438,29 @@ index f47d33a..becac35 100644
 +        RISCOS_UpdateEigs(_this);
 +        SDL_SetMouseFocus(window);
 +        RISCOS_ApplyPointerVisibility(_this);
++        {
++            /* A render size is kept full screen: stretched to the screen
++               (SDL_video.c asks RISCOS_KeepsRenderSize) */
++            SDL_WindowData *d = (SDL_WindowData *) window->driverdata;
++            if (d && d->render_w) {
++                window->w = d->render_w;
++                window->h = d->render_h;
++            }
++        }
 +    } else if (!window->is_destroying && !RISCOS_IsWindowed(vdata)) {
 +        /* Back to a desktop window of the windowed size. */
++        SDL_WindowData *d = (SDL_WindowData *) window->driverdata;
 +        if (window->windowed.w > 0 && window->windowed.h > 0) {
 +            window->w = window->windowed.w;
 +            window->h = window->windowed.h;
++        }
++        if (d && d->render_w) {
++            /* the windowed size is the desktop window's; the program
++               still sees the render size */
++            d->disp_w = window->w;
++            d->disp_h = window->h;
++            window->w = d->render_w;
++            window->h = d->render_h;
 +        }
 +        RISCOS_UpdateEigs(_this);
 +        RISCOS_WimpCreateWindow(_this, window);
@@ -450,11 +480,22 @@ index f47d33a..becac35 100644
 +    if (!RISCOS_IsWindowed(vdata) || vdata->wimp_sdl_window != window)
 +        return;
 +
++    {
++        /* A render size: the program asked for a new desktop window size;
++           it keeps seeing (and rendering at) the render size. */
++        SDL_WindowData *d = (SDL_WindowData *) window->driverdata;
++        if (d && d->render_w) {
++            d->disp_w = window->w;
++            d->disp_h = window->h;
++            window->w = d->render_w;
++            window->h = d->render_h;
++        }
++    }
 +    xeig = RISCOS_WimpReadEig(4);
 +    yeig = RISCOS_WimpReadEig(5);
 +    RISCOS_ChooseWindowScale(_this, window);
-+    w_os = (window->w * vdata->wscale_x) << xeig;
-+    h_os = (window->h * vdata->wscale_y) << yeig;
++    w_os = (RISCOS_ShownW(window) * vdata->wscale_x) << xeig;
++    h_os = (RISCOS_ShownH(window) * vdata->wscale_y) << yeig;
 +
 +    extent.x0 = 0; extent.y0 = -h_os; extent.x1 = w_os; extent.y1 = 0;
 +    regs.r[0] = vdata->wimp_window;
@@ -539,6 +580,11 @@ index f47d33a..becac35 100644
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
      SDL_WindowData *driverdata = (SDL_WindowData *) window->driverdata;
  
++#if SDL_VIDEO_OPENGL_OSMESA
++    /* EGL's surface (and any overlay) first, while its window exists */
++    if (driverdata)
++        RISCOS_GL_DestroyWindowBuffer(window);
++#endif
 +    if (RISCOS_IsWindowed(vdata) && vdata->wimp_sdl_window == window) {
 +        _kernel_swi_regs regs;
 +        int handle = vdata->wimp_window;
@@ -555,10 +601,7 @@ index f47d33a..becac35 100644
      if (!driverdata)
          return;
  
-+#if SDL_VIDEO_OPENGL_OSMESA
-+    RISCOS_GL_DestroyWindowBuffer(window);
-+#endif
-     SDL_free(driverdata);
+@@ -63,6 +619,29 @@ RISCOS_DestroyWindow(_THIS, SDL_Window * window)
      window->driverdata = NULL;
  }
  
@@ -575,6 +618,14 @@ index f47d33a..becac35 100644
 +        vdata->wimp_task = 0;
 +        vdata->iconbar_icon = -1;
 +    }
++}
++
++/* 2026: see SDL_riscoswindow.h */
++SDL_bool
++RISCOS_KeepsRenderSize(SDL_Window *window)
++{
++    const SDL_WindowData *d = window ? (const SDL_WindowData *) window->driverdata : NULL;
++    return (d && d->render_w) ? SDL_TRUE : SDL_FALSE;
 +}
 +
  SDL_bool
