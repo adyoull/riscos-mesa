@@ -32,8 +32,19 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     render size when going full screen.
   - sdlgltest `-S WxH`, `-V`/`-N`, key D; Obey files `sdl-scaled`,
     `sdl-scaled-plot`, `sdl-plain`. Host-tested (the SDL GL harness runs
-    both paths, the EGL one on the real EGL and the fake VideoOverlay);
-    **not yet run on a Pi**.
+    both paths, the EGL one on the real EGL and the fake VideoOverlay).
+  - **Pi 4 (2026-09-29), sdlgltest's spinning cube in a 1024x768 window:**
+
+    | | fps | render | present |
+    |---|---|---|---|
+    | the sprite path, rendering at 1024x768 (`sdl-plain`) | 78 | 10.85 ms | 1.96 ms |
+    | EGL, 640x480 stretched by the sprite plot (`sdl-scaled-plot`) | 134 | 4.27 ms | 3.17 ms |
+    | EGL, 640x480 stretched by the overlay (`sdl-scaled`) | 214 | 4.42 ms | 0.25 ms |
+
+    The mouse position was right in every corner in all three (0..639 x
+    0..479 when scaled). This was also the first Pi run of EGL's
+    hardware overlay and render size. Not yet tried: menus and windows
+    over the overlay, full screen (F, D), a mode change, vsync on.
 - **EGL:** a surface with a render size equal to the size it's shown at
   uses the plain sprite plot, not a scaled one.
 
