@@ -139,7 +139,9 @@ Errors)
     Fallbacks. If an overlay can't be used, the frames are plotted as
     without this extension, and no error is generated. This covers: no
     overlay support (the VideoOverlay module not loaded), no overlay of
-    the surface's size or format, too little memory for the overlay's
+    the surface's size or format, a surface larger than the
+    implementation allows (riscos-mesa: 2048 pixels each way and 2048x1200
+    pixels in all), too little memory for the overlay's
     buffers, an error while showing a frame, surfaces placed in the work
     area, full screen surfaces, and a visible-area surface sharing its
     window with a work area surface. After a failure the implementation

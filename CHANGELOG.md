@@ -50,6 +50,13 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   - Ported programs (the eglut and esUtil helpers) ask EGL whether their
     window has an overlay instead of reading `EGL$Overlay` themselves,
     which missed "ON".
+- **EGL makes no overlay bigger than 2048x1200 pixels** (or 2048 each
+  way); bigger surfaces are plotted. riscos-ffmpeg's Reel found that a 4K
+  overlay on a Pi 4 ran the GPU short of memory and blanked the whole
+  screen. The EGL guide also says to draw text into an overlay at the
+  surface's own pixels: shrinking screen-size text into a smaller frame
+  makes it unreadable.
+- **Smaller changes:**
   - EGL: a surface whose render size equals the size it's shown at uses
     the ordinary plot, not a scaled one.
   - sdlgltest: `-S WxH`, `-V`/`-N` and key D (desktop-size full screen),

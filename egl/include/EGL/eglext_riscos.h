@@ -106,7 +106,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS (EGLDisplay dpy, EGLSurface s
  *   frame being plotted into the window. GL still renders into ordinary
  *   memory. Everything else falls back to plotting, as before: VideoOverlay not loaded (load it in !Run with
  *     RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
- *   ), no overlay of that size or format, the GPU short of memory, any
+ *   ), no overlay of that size or format, a surface bigger than 2048
+ *   pixels each way or 2048x1200 pixels in all, the GPU short of memory, any
  *   error, work area surfaces, full screen and DispmanX surfaces. The
  *   overlay is made once the program is animating (3 swaps in a row, each
  *   within a quarter of a second of the last).

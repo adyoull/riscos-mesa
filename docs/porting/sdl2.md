@@ -125,10 +125,14 @@ second drawing at full size, 134 drawing at 640x480, and 214 drawing at
 - Without either hint, GL windows work exactly as before.
 - If there's no overlay (no VideoOverlay module, not enough GPU memory,
   or a machine other than a Pi), the picture is stretched by the normal
-  plot (the CPU copying it to the screen) instead. Nothing fails.
+  plot (the CPU copying it to the screen) instead. Nothing fails. A render
+  size (or window) bigger than 2048x1200 pixels never gets an overlay: on
+  a Pi 4 that much ran the GPU short of memory and blanked the screen.
 - The overlay sits on top of everything on the screen, so it's hidden
   (and frames plotted) whenever another window or menu overlaps the game.
-  Draw anything that should appear over the picture with GL, and keep the
+  Draw anything that should appear over the picture with GL, at the
+  render size's own pixels (text drawn at screen size and shrunk into the
+  frame becomes unreadable), and keep the
   program's other windows beside the game window.
 - Call `SDL_PollEvent` (or `SDL_PumpEvents`) between frames, as most
   games do. With an overlay, the display can take at most one new frame

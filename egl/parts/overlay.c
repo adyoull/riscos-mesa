@@ -60,6 +60,15 @@
 #define OVL_WARMUP   3          /* swaps in a row before an overlay is made */
 #define OVL_GAP_CS   25         /* ... each at most this long after the last */
 #define OVL_TYPE_BASIC 1        /* VideoOverlay_Create's type: on top of everything */
+/* The largest overlay EGL makes: at most 2048 pixels each way (the Pi's
+   overlays), and no more pixels than 2048x1200. Each buffer is 32bpp, so
+   that's under 10 MB a buffer, 30 MB for three. riscos-ffmpeg found that a
+   4K overlay on a Pi 4 ran the GPU short of memory (VideoOverlay gave 2 of
+   3 buffers) and the whole screen kept blanking while it was shown; 3
+   1920x1080 32bpp buffers are known to be fine. Bigger surfaces are
+   plotted: give them a render size to use an overlay. */
+#define OVL_MAX_SIDE   2048
+#define OVL_MAX_PIXELS (2048 * 1200)
 #ifndef OS_ReadMonotonicTime
 #define OS_ReadMonotonicTime 0x42
 #endif
@@ -275,6 +284,8 @@ static int ovl_candidate(egl_display *d, egl_surface *surf)
     if (surf->kind != SURF_WINDOW || surf->handle < 0 || surf->fixed || surf->dmx ||
         !ovl_wanted(surf) || !surf->sprite || surf->destroy_pending)
         return 0;
+    if (surf->w > OVL_MAX_SIDE || surf->h > OVL_MAX_SIDE || surf->w * surf->h > OVL_MAX_PIXELS)
+        return 0;                               /* too big: see OVL_MAX_PIXELS */
     /* work area surfaces in the same window would be under the overlay */
     for (o = d->surfaces; o; o = o->next)
         if (o != surf && window_surface_in(o, surf->handle))

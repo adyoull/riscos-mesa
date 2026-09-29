@@ -468,6 +468,27 @@ void test_overlay(EGLDisplay d)
         eglRedrawWindowRISCOS(dpy, block);
         CHECK(fake_ovl_redraws == n + 1 && RGB(fake_screen_pixel(100, 300)) == 0, "redraw: the overlay's");
 
+        /* too big for an overlay (over 2048 each way, or 2048x1200 pixels):
+           plotted, and an overlay again at a sensible size */
+        n = fake_ovl_live();                        /* s4's and any others' */
+        eglSurfaceAttrib(dpy, s4, EGL_RENDER_WIDTH_RISCOS, 2100);
+        eglSwapBuffers(dpy, s4); eglSwapBuffers(dpy, s4);
+        CHECK(query(s4) == 0 && fake_ovl_live() == n - 1, "render 2100 wide: no overlay (%d, %d)", query(s4), fake_ovl_live());
+        eglSurfaceAttrib(dpy, s4, EGL_RENDER_WIDTH_RISCOS, 2000);
+        eglSurfaceAttrib(dpy, s4, EGL_RENDER_HEIGHT_RISCOS, 1300);
+        eglSwapBuffers(dpy, s4); eglSwapBuffers(dpy, s4);
+        CHECK(query(s4) == 0 && fake_ovl_live() == n - 1, "render 2000x1300: no overlay (%d)", query(s4));
+        eglSurfaceAttrib(dpy, s4, EGL_RENDER_WIDTH_RISCOS, 1920);
+        eglSurfaceAttrib(dpy, s4, EGL_RENDER_HEIGHT_RISCOS, 1200);
+        eglSwapBuffers(dpy, s4); eglSwapBuffers(dpy, s4);
+        fake_ovl_info(&w, &h, NULL, NULL, NULL, NULL, NULL);
+        CHECK(query(s4) == 1 && w == 1920 && h == 1200, "render 1920x1200: overlay (%d, %dx%d)", query(s4), w, h);
+        eglSurfaceAttrib(dpy, s4, EGL_RENDER_WIDTH_RISCOS, 100);
+        eglSurfaceAttrib(dpy, s4, EGL_RENDER_HEIGHT_RISCOS, 80);
+        eglSwapBuffers(dpy, s4); eglSwapBuffers(dpy, s4);
+        fake_ovl_info(&w, &h, NULL, NULL, NULL, NULL, NULL);
+        CHECK(query(s4) == 1 && w == 100 && h == 80, "back to 100x80: overlay (%dx%d)", w, h);
+
         /* back to following the window */
         CHECK(!eglSurfaceAttrib(dpy, s4, EGL_RENDER_WIDTH_RISCOS, -1) && eglGetError() == EGL_BAD_PARAMETER,
               "negative render size refused");
