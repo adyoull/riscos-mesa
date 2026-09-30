@@ -39,6 +39,10 @@ changes haven't been tried there yet.
    sprite and multitasks in a desktop window. Hints (or system variables)
    switch a GL window to EGL for a smaller render size and the hardware
    overlay: see [docs/porting/sdl2.md](docs/porting/sdl2.md).
+   Desktop-size full screen is a borderless window that keeps the
+   desktop multitasking, and SDL's 2D drawing uses the CPU's NEON or SIMD
+   instructions (about 1.6 times as fast for sprites with soft edges on a
+   Pi 4).
 3. **Porting aids for existing code.** They sit alongside the native EGL
    and don't replace it:
    - **freeglut (GLUT)** with a native RISC OS back end: GLUT windows are

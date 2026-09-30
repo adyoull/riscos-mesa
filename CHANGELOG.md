@@ -4,7 +4,13 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## 20.3.5-10 (in development)
+## 20.3.5-10: SDL gets EGL's overlay, a full screen that multitasks, and faster 2D
+
+SDL programs can now use what 20.3.5-9 gave EGL: GL windows can draw at a
+smaller size and go through the Pi's hardware overlay. Desktop-size full
+screen keeps the desktop multitasking, and SDL's 2D drawing uses the
+CPU's NEON or SIMD instructions. It's also the first release with 20.3.5-9's
+overlays run on a Pi.
 
 - **SDL GL windows can draw at a smaller size and use the hardware
   overlay.** Asked for by the Warzone 2100 port. Set the hint (or system
