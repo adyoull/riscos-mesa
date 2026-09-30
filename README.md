@@ -7,15 +7,15 @@ and VFPv3 floating point: Raspberry Pi 2, 3 and 4, and Cortex-A8/A9/A15
 machines such as the BeagleBoard-xM, PandaBoard, ARMini, i.MX6 boards and
 Titanium. Not on the Pi 1 or Zero (ARMv6).
 
-**Tested on a Raspberry Pi 4 (RISC OS 5):** release 20.3.5-5 passes all
-its tests. That covers EGL in desktop windows and full screen, OpenGL ES
-1.1 and 2.0, SDL2, the Raspberry Pi examples and the ported demos. A
+**Tested on a Raspberry Pi 4 (RISC OS 5).** EGL in desktop windows and
+full screen, OpenGL ES 1.1 and 2.0, SDL2, freeglut, the Raspberry Pi
+examples, the ported demos and the devkit's six examples all run there. A
 640x480 lit, spinning cube runs at about 225 fps in a desktop window, and
-GL programs multitask properly. EGL's hardware overlay and render size
-(20.3.5-9) and SDL's EGL path for GL windows were first run on a Pi 4 on
-2026-09-29: a 1024x768 SDL window rendering at 640x480 went from 78 fps to
-214 fps through the overlay. Menus over the overlay, full screen and mode
-changes haven't been tried there yet.
+GL programs multitask properly. In 20.3.5-10, a 1024x768 SDL window
+rendering at 640x480 goes from 78 fps to 214 fps through the hardware
+overlay, and SDL draws sprites with soft edges about 1.6 times as fast.
+Not tried on a Pi yet: menus over the overlay, the overlay in full screen
+or across mode changes, and SDL's multitasking full screen.
 
 ## Three ways in
 
