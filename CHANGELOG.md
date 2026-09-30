@@ -4,6 +4,17 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## 20.3.5-11 (in development)
+
+- **Every program is linked with UnixLib 5.0.3** (was 5.0.1). It fixes
+  `ctime()` and `asctime()` returning a bad pointer, and `read()` into a
+  stack buffer stopping a program with "EMT trap" (both found by other
+  ports), and adds files over 2GB for programs built with
+  `-D_FILE_OFFSET_BITS=64` (5.0.2). riscos-mesa's libraries don't contain
+  UnixLib, so the devkit's libraries work as before; relink your own
+  programs with 5.0.3 to get the fixes. `build/TOOLCHAIN.md` says how to
+  install it.
+
 ## 20.3.5-10: SDL gets EGL's overlay, a full screen that multitasks, and faster 2D
 
 SDL programs can now use what 20.3.5-9 gave EGL: GL windows can draw at a

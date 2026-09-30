@@ -463,7 +463,8 @@ In UnixLib before 5.0.1, the ticker's code lived inside your program,
 so at that moment it wasn't there, and the other program crashed.
 Two things put that right:
 
-1. **Link with UnixLib 5.0.1 or later** (github.com/adyoull/riscos-unixlib).
+1. **Link with UnixLib 5.0.1 or later** (github.com/adyoull/riscos-unixlib;
+   5.0.3 is the newest, and is what riscos-mesa's own programs use).
    It keeps the ticker's code where it's always in memory. Build your
    GCCSDK with it, or copy its `libunixlib.a` into your GCCSDK (that
    project's README says how), or ask whoever supplied your GCCSDK

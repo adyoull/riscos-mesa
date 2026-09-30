@@ -33,11 +33,12 @@ On a 1-CPU container this took about 30 minutes after the source was ready.
 The ld-riscos dynamic linker and the native (runs-on-RISC-OS) compiler steps
 of the recipe were skipped; static linking doesn't need them.
 
-## UnixLib 5.0.1 (riscos-unixlib)
+## UnixLib 5.0.3 (riscos-unixlib)
 
 riscos-mesa's release programs (tests, ports, examples) are linked with
-**UnixLib 5.0.1** from github.com/adyoull/riscos-unixlib: GCCSDK's UnixLib
-with the fixes the ports needed. The ones that matter here:
+**UnixLib 5.0.3** from github.com/adyoull/riscos-unixlib: GCCSDK's UnixLib
+with the fixes the ports needed (5.0.1 until 20.3.5-10). The ones that
+matter here:
 
 - the **pthread ticker fix**: the thread switcher's code runs from the
   PThreadTicker module (or a copy in the RMA), so a threaded program (SDL
@@ -45,11 +46,16 @@ with the fixes the ports needed. The ones that matter here:
 - `wctype()` and friends implemented: without them any C++ program whose
   `std::locale` set-up runs aborts at start with "wctype not implemented";
 - sub-centisecond `clock_gettime(CLOCK_MONOTONIC)` and `nanosleep`;
-- `sched_get_priority_min/max`, `fdatasync`; sound fixes for `/dev/dsp`.
+- `sched_get_priority_min/max`, `fdatasync`; sound fixes for `/dev/dsp`;
+- 5.0.2: files over 2GB (up to 4GB-1) with `-D_FILE_OFFSET_BITS=64`;
+  nothing changes for programs built without it;
+- 5.0.3: `ctime()`/`asctime()` returned a bad pointer, `read()` into an
+  untouched stack buffer could stop a program with "EMT trap", and no
+  build paths in the library. Same exported symbols as 5.0.2.
 
 riscos-mesa's own libraries (`libOSMesa.a` etc.) don't contain UnixLib, so
 they work with any UnixLib; it's the programs linked with them that need
-5.0.1. Either:
+5.0.1 or later (5.0.3 recommended). Either:
 
 - patch the GCCSDK source before building the toolchain
   (`patch -d riscos-gccsdk -p1 < patches/unixlib-riscos.diff` from that
@@ -57,8 +63,9 @@ they work with any UnixLib; it's the programs linked with them that need
 - replace an installed toolchain's library: copy the release's
   `libunixlib.a` over the one `arm-riscos-gnueabihf-gcc
   -print-file-name=libunixlib.a` names (keep the old one), and the
-  repository's `libunixlib/include/sched.h` and `unistd.h` into the
-  `include/` directory next to that `lib/`; or run `make sources install`
+  repository's `libunixlib/include/sched.h`, `unistd.h`, `sys/stat.h` and
+  `sys/mman.h` into the `include/` directory next to that `lib/` (check
+  the release's `SHA256SUMS` first); or run `make sources install`
   in that repository, which does the same from source.
 
 Check: `arm-riscos-gnueabihf-nm <that libunixlib.a> | grep
