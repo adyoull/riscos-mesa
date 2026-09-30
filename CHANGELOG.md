@@ -74,8 +74,19 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   before, because the ARM routines leave that alpha alone. Colours come
   out within half a step of the exact blend (the C code is up to 2 steps
   off). Checked through SDL's API on emulated NEON and SIMD-only CPUs
-  (`tests/host-harness/sdl-arm`); not measured on a Pi yet
-  (`sdlblitbench`, below). The routines are pixman's (MIT and zlib):
+  (`tests/host-harness/sdl-arm`). On a Pi 4 (`sdlblitbench`, a 1024x768
+  frame, ms per frame, average of three interleaved runs each):
+
+  | Scene | Before | After | |
+  | --- | --- | --- | --- |
+  | tiles (soft-edged map tiles) | 6.20 | 3.83 | 1.62x |
+  | units (300 round sprites) | 7.38 | 6.42 | 1.15x |
+  | glass (see-through sprites) | 8.57 | 5.31 | 1.61x |
+  | fill | 0.79 | 0.77 | same |
+  | tiles onto a surface with alpha (C code in both) | 6.15 | 5.92 | 1.04x |
+  | copy, no blending (same code in both) | 3.41 | 3.40 | same |
+
+  The routines are pixman's (MIT and zlib):
   `LICENCES.txt` has the notices. riscos-openttd gets them only if it
   configures SDL with `--enable-arm-simd --enable-arm-neon`.
 - **Smaller changes:**

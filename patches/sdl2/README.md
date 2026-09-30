@@ -190,6 +190,8 @@ It contains:
   runs as before. Their colours are within half a step of the exact blend
   (the C code's are up to 2 steps off). Checked by
   `tests/host-harness/sdl-arm` (on emulated NEON and SIMD-only CPUs).
+  On a Pi 4, sprites with soft edges or see-through all over draw about
+  1.6 times as fast (`sdlblitbench`; figures in the CHANGELOG).
   riscos-openttd gets them only if it configures with the same two
   options; without them `SDL_blit_A.c` is the same as before.
 - `sdl2-configure.ac.host.p`: OpenTTD's triplet fix (arm-riscos-gnueabihf
