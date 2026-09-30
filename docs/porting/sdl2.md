@@ -36,6 +36,20 @@ context from SDL has no window code to change.
   The hint `"SDL_RISCOS_WINDOW_SCALE"` (`SDL_SetHint`, or a system
   variable of that name; `SDL$WindowScale` also works) sets the scale;
   `SDL_ShowWindow` / `SDL_HideWindow` work.
+- **Full screen, two kinds:**
+  - `SDL_WINDOW_FULLSCREEN_DESKTOP` gives a *full window*: a borderless
+    desktop window covering the screen, as RDPClient's full window mode.
+    The program keeps multitasking: other programs (a game server in a
+    TaskWindow, say) keep running, the icon bar pops up at the bottom
+    edge, other windows can open over it, and a click on the game brings
+    it back to the front.
+  - `SDL_WINDOW_FULLSCREEN` changes the screen mode and owns the screen:
+    the desktop stops until the program goes back to a window. It's the
+    faster kind.
+  - The hint `"SDL_RISCOS_FULLSCREEN_WINDOW"` (or a system variable of
+    that name) = `"1"` makes both a full window (with the mode change,
+    for `SDL_WINDOW_FULLSCREEN`); `"0"` makes both the single tasking
+    kind, as before.
 - **Quitting:** the close icon sends `SDL_WINDOWEVENT_CLOSE` (and SDL then
   sends `SDL_QUIT` if it was the last window), the icon bar menu's Quit
   sends `SDL_QUIT`. A desktop shutdown or the Task Manager's Quit also

@@ -14,7 +14,8 @@
  *   -f  start full screen      -t  quit by itself after this many seconds
  *   -S  render at WxH, stretched to the window (SDL_RISCOS_GL_RENDER_SIZE):
  *       the program sees a WxH window; the title shows the mouse position
- *       in it. Key D: desktop-size full screen (stretched) and back
+ *       in it. Key D: desktop-size full screen (stretched) and back; it's a
+ *       "full window", so the desktop keeps running
  *   -V  ask for a hardware overlay (SDL_RISCOS_GL_OVERLAY=1), -N refuse one;
  *       the title shows "overlay", "overlay hidden" or "plotted"
  *   -r  cap the frame rate with SDL_Delay (tests cooperative SDL_Delay)

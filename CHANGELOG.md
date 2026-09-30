@@ -50,6 +50,14 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   - Ported programs (the eglut and esUtil helpers) ask EGL whether their
     window has an overlay instead of reading `EGL$Overlay` themselves,
     which missed "ON".
+- **SDL full screen can keep multitasking** (asked for by the Freeciv
+  port, whose server runs in a TaskWindow). `SDL_WINDOW_FULLSCREEN_DESKTOP`
+  now gives a "full window", as RDPClient's: a borderless desktop window
+  covering the screen, so other programs keep running, the icon bar pops
+  up and other windows can come in front (a click brings the game back).
+  `SDL_WINDOW_FULLSCREEN` still owns the screen. The hint or system
+  variable `SDL_RISCOS_FULLSCREEN_WINDOW` = `"1"` makes both full windows,
+  `"0"` neither (the old behaviour).
 - **EGL makes no overlay bigger than 2048x1200 pixels** (or 2048 each
   way); bigger surfaces are plotted. riscos-ffmpeg's Reel found that a 4K
   overlay on a Pi 4 ran the GPU short of memory and blanked the whole

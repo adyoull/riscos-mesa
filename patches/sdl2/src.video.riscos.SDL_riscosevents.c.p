@@ -1,7 +1,7 @@
 diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents.c
 --- src/video/riscos/SDL_riscosevents.c
 +++ src/video/riscos/SDL_riscosevents.c
-@@ -23,15 +23,107 @@
+@@ -23,15 +23,108 @@
  #if SDL_VIDEO_DRIVER_RISCOS
  
  #include "../../events/SDL_events_c.h"
@@ -94,6 +94,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +        break;
 +    case 0x400C1: /* Message_ModeChange: the desktop's screen mode changed */
 +        RISCOS_UpdateEigs(_this);                /* OS units per pixel may have too */
++        RISCOS_FullWindowModeChanged(_this);     /* a full window fills the new screen */
 +        break;
 +    case 0:  /* Message_Quit */
 +        riscos_quit.shutdown_pending = SDL_FALSE;
@@ -109,7 +110,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  static SDL_Scancode
  SDL_RISCOS_translate_keycode(int keycode)
  {
-@@ -50,6 +142,44 @@ SDL_RISCOS_translate_keycode(int keycode)
+@@ -50,6 +143,44 @@ SDL_RISCOS_translate_keycode(int keycode)
      return scancode;
  }
  
@@ -154,7 +155,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  void
  RISCOS_PollKeyboard(_THIS)
  {
-@@ -57,6 +187,17 @@ RISCOS_PollKeyboard(_THIS)
+@@ -57,6 +188,17 @@ RISCOS_PollKeyboard(_THIS)
      Uint8 key = 2;
      int i;
  
@@ -172,7 +173,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
      /* Check for key releases */
      for (i = 0; i < RISCOS_MAX_KEYS_PRESSED; i++) {
          if (driverdata->key_pressed[i] != 255) {
-@@ -67,6 +208,10 @@ RISCOS_PollKeyboard(_THIS)
+@@ -67,6 +209,10 @@ RISCOS_PollKeyboard(_THIS)
          }
      }
  
@@ -183,7 +184,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
      /* Check for key presses */
      while (key < 0xff) {
          key = _kernel_osbyte(121, key + 1, 0) & 0xff;
-@@ -111,36 +256,169 @@ static const Uint8 mouse_button_map[] = {
+@@ -111,36 +257,169 @@ static const Uint8 mouse_button_map[] = {
      SDL_BUTTON_X2 + 3
  };
  
@@ -360,7 +361,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  int
  RISCOS_InitEvents(_THIS)
  {
-@@ -165,10 +443,338 @@ RISCOS_InitEvents(_THIS)
+@@ -165,10 +444,349 @@ RISCOS_InitEvents(_THIS)
      return 0;
  }
  
@@ -391,6 +392,21 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +    regs.r[2] = x - 64;
 +    regs.r[3] = 96 + 44;
 +    _kernel_swi(Wimp_CreateMenu, &regs, &regs);
++}
++
++/* 2026: bring the program's desktop window to the front. */
++static void
++RISCOS_WimpToFront(SDL_VideoData *driverdata)
++{
++    RISCOS_WindowState state;
++    _kernel_swi_regs regs;
++    state.open.window = driverdata->wimp_window;
++    regs.r[1] = (int)&state;
++    if (_kernel_swi(Wimp_GetWindowState, &regs, &regs) == NULL && state.open.behind != -1) {
++        state.open.behind = -1;
++        regs.r[1] = (int)&state;
++        _kernel_swi(Wimp_OpenWindow, &regs, &regs);
++    }
 +}
 +
 +/* 2026: handle one Wimp event. Returns 0 for a null event, 1 otherwise. */
@@ -429,19 +445,15 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +            driverdata->pending_clicks |= event->click.buttons & 7;
 +            driverdata->pending_click_x = event->click.x;
 +            driverdata->pending_click_y = event->click.y;
++            /* A full window has no title bar to click: a click on it
++               brings it back to the front, as in RDPClient */
++            if (driverdata->full_window)
++                RISCOS_WimpToFront(driverdata);
 +        } else if (event->click.window == -2 && event->click.icon == driverdata->iconbar_icon) {
 +            if (event->click.buttons & 2) {
 +                RISCOS_IconbarMenu(event->click.x);
 +            } else if (RISCOS_IsWindowed(driverdata)) {
-+                /* Select/Adjust: bring the game window to the front. */
-+                RISCOS_WindowState state;
-+                state.open.window = driverdata->wimp_window;
-+                regs.r[1] = (int)&state;
-+                if (_kernel_swi(Wimp_GetWindowState, &regs, &regs) == NULL) {
-+                    state.open.behind = -1;
-+                    regs.r[1] = (int)&state;
-+                    _kernel_swi(Wimp_OpenWindow, &regs, &regs);
-+                }
++                RISCOS_WimpToFront(driverdata);  /* Select/Adjust: the game to the front */
 +            }
 +        }
 +        break;

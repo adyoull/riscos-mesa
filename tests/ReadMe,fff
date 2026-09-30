@@ -47,7 +47,9 @@ Run in this order and note the output:
      -S WxH  render at WxH, stretched to fill the window (the program sees
              a WxH window: the title shows the mouse position in it, which
              should run 0..W-1 across the window). D: full screen at the
-             desktop's size, stretched, and back
+             desktop's size, stretched, and back. From 20.3.5-10 D is a
+             "full window": it keeps multitasking (other programs keep
+             running, the icon bar pops up, a click brings it back)
      -V      ask for a hardware overlay, -N refuse one; the title ends
              "overlay", "overlay hidden" or "plotted"
    Obey files:

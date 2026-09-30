@@ -1,13 +1,14 @@
 diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow.c
 --- src/video/riscos/SDL_riscoswindow.c
 +++ src/video/riscos/SDL_riscoswindow.c
-@@ -24,16 +24,361 @@
+@@ -24,16 +24,404 @@
  
  #include "SDL_version.h"
  #include "SDL_syswm.h"
 +#include "SDL_hints.h"
  #include "../SDL_sysvideo.h"
  #include "../../events/SDL_mouse_c.h"
++#include "../../events/SDL_windowevents_c.h"
  
  
  #include "SDL_riscosvideo.h"
@@ -263,6 +264,12 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    int h_os = (RISCOS_ShownH(window) * vdata->wscale_y) << yeig;
 +    _kernel_swi_regs regs;
 +
++    if (vdata->full_window) {           /* always the whole screen */
++        w_os = RISCOS_WimpScreenSize(11) << xeig;
++        h_os = RISCOS_WimpScreenSize(12) << yeig;
++        vdata->wimp_open_x = 0;
++        vdata->wimp_open_y = h_os;
++    }
 +    RISCOS_WimpOpenAt(vdata->wimp_window, vdata->wimp_open_x, vdata->wimp_open_y, w_os, h_os);
 +
 +    regs.r[0] = vdata->wimp_window;
@@ -274,8 +281,26 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    _kernel_swi(Wimp_SetCaretPosition, &regs, &regs);
 +}
 +
++/* 2026: does this full screen window want to be a "full window" (a
++   borderless, screen-sized Wimp window that keeps multitasking)? See
++   SDL_HINT_RISCOS_FULLSCREEN_WINDOW. */
++static SDL_bool
++RISCOS_WantsFullWindow(SDL_Window * window)
++{
++    const char *hint = SDL_GetHint(SDL_HINT_RISCOS_FULLSCREEN_WINDOW);
++    if (hint && *hint)
++        return (*hint != '0') ? SDL_TRUE : SDL_FALSE;
++    return ((window->flags & SDL_WINDOW_FULLSCREEN_DESKTOP) == SDL_WINDOW_FULLSCREEN_DESKTOP)
++           ? SDL_TRUE : SDL_FALSE;
++}
++
++/* Make the desktop window: an ordinary one (title bar, close icon...),
++   centred, at the window's size; or, with full set, a full window: no
++   borders, the size of the screen, at its bottom left corner, at scale 1
++   (its SDL size is the screen's in pixels, or the render size stretched
++   to the screen). */
 +static int
-+RISCOS_WimpCreateWindow(_THIS, SDL_Window * window)
++RISCOS_WimpCreateWindow(_THIS, SDL_Window * window, SDL_bool full)
 +{
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +    int xeig = RISCOS_WimpReadEig(4), yeig = RISCOS_WimpReadEig(5);
@@ -289,9 +314,20 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    if (RISCOS_WimpStart(_this) < 0)
 +        return -1;
 +    RISCOS_UpdateEigs(_this);
-+    RISCOS_ChooseWindowScale(_this, window);
-+    w_os = (RISCOS_ShownW(window) * vdata->wscale_x) << xeig;
-+    h_os = (RISCOS_ShownH(window) * vdata->wscale_y) << yeig;
++    if (full) {
++        SDL_WindowData *d = (SDL_WindowData *) window->driverdata;
++        vdata->wscale_x = vdata->wscale_y = 1;
++        if (d && d->render_w) {
++            d->disp_w = RISCOS_WimpScreenSize(11);
++            d->disp_h = RISCOS_WimpScreenSize(12);
++        }
++        w_os = scr_w;
++        h_os = scr_h;
++    } else {
++        RISCOS_ChooseWindowScale(_this, window);
++        w_os = (RISCOS_ShownW(window) * vdata->wscale_x) << xeig;
++        h_os = (RISCOS_ShownH(window) * vdata->wscale_y) << yeig;
++    }
 +
 +    if (window->title)
 +        SDL_strlcpy(vdata->window_title, window->title, sizeof(vdata->window_title));
@@ -303,7 +339,8 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    def.visible.x1 = w_os; def.visible.y1 = h_os;
 +    def.scroll_x = 0; def.scroll_y = 0;
 +    def.behind = -1;
-+    def.flags = 0x80000002 | 0x01000000 | 0x02000000 | 0x04000000;  /* new format, moveable, back, close, title */
++    def.flags = full ? 0x80000000                                      /* new format, no borders */
++                     : 0x80000002 | 0x01000000 | 0x02000000 | 0x04000000;  /* new format, moveable, back, close, title */
 +    def.title_fg = 7;
 +    def.title_bg = 2;
 +    def.work_fg = 7;
@@ -330,6 +367,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +
 +    vdata->wimp_window = regs.r[0];
 +    vdata->wimp_sdl_window = window;
++    vdata->full_window = full;
 +    vdata->pointer_in = SDL_FALSE;
 +    vdata->has_caret = SDL_FALSE;
 +
@@ -344,10 +382,15 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    /* Centred on the screen, below the top edge. SDL creates windows hidden
 +       and then shows them (RISCOS_ShowWindow) unless the program asked for
 +       SDL_WINDOW_HIDDEN; coming back from full screen, show it now. */
-+    minx = (scr_w - w_os) / 2;
-+    if (minx < 0) minx = 0;
-+    maxy = scr_h - (scr_h - h_os) / 2;
-+    if (maxy > scr_h - 40) maxy = scr_h - 40;
++    if (full) {
++        minx = 0;
++        maxy = scr_h;
++    } else {
++        minx = (scr_w - w_os) / 2;
++        if (minx < 0) minx = 0;
++        maxy = scr_h - (scr_h - h_os) / 2;
++        if (maxy > scr_h - 40) maxy = scr_h - 40;
++    }
 +    vdata->wimp_open_x = minx;
 +    vdata->wimp_open_y = maxy;
 +    if (!(window->flags & SDL_WINDOW_HIDDEN) && !window->is_hiding)
@@ -363,7 +406,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
      SDL_WindowData *driverdata;
  
      driverdata = (SDL_WindowData *) SDL_calloc(1, sizeof(*driverdata));
-@@ -41,21 +386,232 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
+@@ -41,21 +429,263 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
          return SDL_OutOfMemory();
      }
      driverdata->window = window;
@@ -375,14 +418,23 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 -    window->flags |= SDL_WINDOW_FULLSCREEN;
 -
 -    SDL_SetMouseFocus(window);
-+    if ((window->flags & SDL_WINDOW_FULLSCREEN) || RISCOS_IsWindowed(vdata)) {
++    if ((window->flags & SDL_WINDOW_FULLSCREEN) && !RISCOS_IsWindowed(vdata) &&
++        RISCOS_WantsFullWindow(window)) {
++        /* Full screen that multitasks: a full window (SetWindowFullscreen
++           follows, and remakes it at the screen's size) */
++        if (RISCOS_WimpCreateWindow(_this, window, SDL_TRUE) < 0) {
++            window->driverdata = NULL;
++            SDL_free(driverdata);
++            return -1;
++        }
++    } else if ((window->flags & SDL_WINDOW_FULLSCREEN) || RISCOS_IsWindowed(vdata)) {
 +        /* Full screen: we own the whole screen. We stay a Wimp task (if we
 +           are one) but stop calling Wimp_Poll, so the desktop is suspended
 +           until we return to a window or quit (fix 13). */
 +        window->flags |= SDL_WINDOW_FULLSCREEN;
 +        SDL_SetMouseFocus(window);
 +    } else {
-+        if (RISCOS_WimpCreateWindow(_this, window) < 0) {
++        if (RISCOS_WimpCreateWindow(_this, window, SDL_FALSE) < 0) {
 +            window->driverdata = NULL;
 +            SDL_free(driverdata);
 +            return -1;
@@ -417,6 +469,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    _kernel_swi(Wimp_DeleteWindow, &regs, &regs);
 +    vdata->wimp_window = 0;
 +    vdata->wimp_sdl_window = NULL;
++    vdata->full_window = SDL_FALSE;
 +    vdata->pointer_in = SDL_FALSE;
 +    vdata->has_caret = SDL_FALSE;
 +}
@@ -426,6 +479,26 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +{
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +    (void)display;
++
++    if (fullscreen && RISCOS_WantsFullWindow(window) &&
++        (vdata->wimp_sdl_window == window || !RISCOS_IsWindowed(vdata))) {
++        /* A full window: made again at the screen's current size (the mode
++           may just have changed), so the task keeps multitasking */
++        SDL_WindowData *d = (SDL_WindowData *) window->driverdata;
++        if (vdata->wimp_sdl_window == window)
++            RISCOS_WimpDeleteWindow(_this);
++        if (d && d->render_w) {
++            window->w = d->render_w;
++            window->h = d->render_h;
++        }
++        RISCOS_WimpCreateWindow(_this, window, SDL_TRUE);
++        RISCOS_ApplyPointerVisibility(_this);
++        return;
++    }
++    if (!fullscreen && vdata->full_window && vdata->wimp_sdl_window == window &&
++        !window->is_destroying) {
++        RISCOS_WimpDeleteWindow(_this);         /* then back to a window, below */
++    }
 +
 +    if (fullscreen) {
 +        if (vdata->wimp_sdl_window == window) {
@@ -462,7 +535,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +            window->h = d->render_h;
 +        }
 +        RISCOS_UpdateEigs(_this);
-+        RISCOS_WimpCreateWindow(_this, window);
++        RISCOS_WimpCreateWindow(_this, window, SDL_FALSE);
 +        RISCOS_ApplyPointerVisibility(_this);
 +    }
 +}
@@ -476,7 +549,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    RISCOS_Box extent;
 +    _kernel_swi_regs regs;
 +
-+    if (!RISCOS_IsWindowed(vdata) || vdata->wimp_sdl_window != window)
++    if (!RISCOS_IsWindowed(vdata) || vdata->wimp_sdl_window != window || vdata->full_window)
 +        return;
 +
 +    {
@@ -591,6 +664,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +        _kernel_swi(Wimp_DeleteWindow, &regs, &regs);
 +        vdata->wimp_window = 0;
 +        vdata->wimp_sdl_window = NULL;
++        vdata->full_window = SDL_FALSE;
 +        vdata->pointer_in = SDL_FALSE;
 +        vdata->has_caret = SDL_FALSE;
 +        /* Make sure the pointer is visible again on the desktop. */
@@ -600,7 +674,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
      if (!driverdata)
          return;
  
-@@ -63,6 +619,29 @@ RISCOS_DestroyWindow(_THIS, SDL_Window * window)
+@@ -63,6 +693,62 @@ RISCOS_DestroyWindow(_THIS, SDL_Window * window)
      window->driverdata = NULL;
  }
  
@@ -625,6 +699,39 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +{
 +    const SDL_WindowData *d = window ? (const SDL_WindowData *) window->driverdata : NULL;
 +    return (d && d->render_w) ? SDL_TRUE : SDL_FALSE;
++}
++
++/* 2026: see SDL_riscoswindow.h. A full window takes the new screen's
++   size; the program is told its window was resized (unless it has a
++   render size, which is simply stretched to the new screen). */
++void
++RISCOS_FullWindowModeChanged(_THIS)
++{
++    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
++    SDL_Window *window = vdata->wimp_sdl_window;
++    SDL_WindowData *d;
++    RISCOS_Box extent;
++    _kernel_swi_regs regs;
++    int w, h, xeig, yeig;
++
++    if (!vdata->full_window || !window)
++        return;
++    d = (SDL_WindowData *) window->driverdata;
++    xeig = RISCOS_WimpReadEig(4);
++    yeig = RISCOS_WimpReadEig(5);
++    w = RISCOS_WimpScreenSize(11);
++    h = RISCOS_WimpScreenSize(12);
++    extent.x0 = 0; extent.y0 = -(h << yeig); extent.x1 = w << xeig; extent.y1 = 0;
++    regs.r[0] = vdata->wimp_window;
++    regs.r[1] = (int)&extent;
++    _kernel_swi(Wimp_SetExtent, &regs, &regs);
++    RISCOS_WimpOpenAt(vdata->wimp_window, 0, h << yeig, w << xeig, h << yeig);
++    if (d && d->render_w) {
++        d->disp_w = w;
++        d->disp_h = h;
++    } else {
++        SDL_SendWindowEvent(window, SDL_WINDOWEVENT_RESIZED, w, h);
++    }
 +}
 +
  SDL_bool

@@ -9,7 +9,7 @@ diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
  
  #define RISCOS_MAX_KEYS_PRESSED 6
  
-@@ -31,8 +32,67 @@ typedef struct SDL_VideoData
+@@ -31,8 +32,82 @@ typedef struct SDL_VideoData
  {
      int last_mouse_buttons;
      Uint8 key_pressed[RISCOS_MAX_KEYS_PRESSED];
@@ -21,6 +21,8 @@ diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
 +    int wimp_window;            /* Wimp window handle, or 0 in full screen (see RISCOS_IsWindowed) */
 +    int wimp_open_x, wimp_open_y; /* where it opens (top left, OS units) when shown */
 +    SDL_Window *wimp_sdl_window;
++    SDL_bool full_window;       /* 2026: wimp_window is a borderless screen-sized
++                                   "full window" (full screen that multitasks) */
 +    SDL_bool pointer_in;        /* pointer is over our window */
 +    SDL_bool has_caret;         /* we have the input focus */
 +    SDL_bool cursor_hidden;     /* SDL asked for the pointer to be hidden */
@@ -53,6 +55,19 @@ diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
 +   variable SDL_RISCOS_WINDOW_SCALE; SDL$WindowScale is still read if the
 +   hint isn't set. */
 +#define SDL_HINT_RISCOS_WINDOW_SCALE "SDL_RISCOS_WINDOW_SCALE"
++
++/* 2026: how full screen is done. A "full window" is a borderless Wimp
++   window the size of the screen, as RDPClient's full window mode: the
++   program stays a multitasking Wimp task (other tasks, TaskWindows
++   included, keep running, the icon bar pops up, windows can come in
++   front; a click brings the game back). The other kind owns the screen
++   and stops the desktop until it returns to a window (faster, single
++   tasking). Unset: SDL_WINDOW_FULLSCREEN_DESKTOP gives a full window and
++   SDL_WINDOW_FULLSCREEN (with a mode change) the single tasking kind.
++   "1": both give a full window (after Wimp_SetMode for
++   SDL_WINDOW_FULLSCREEN). "0": both single tasking, as before 2026-09-30.
++   Also read as the system variable of the same name. */
++#define SDL_HINT_RISCOS_FULLSCREEN_WINDOW "SDL_RISCOS_FULLSCREEN_WINDOW"
 +
 +/* 2026: OpenGL windows (riscos-mesa builds); each of these selects the
 +   EGL path (SDL_riscosopengl.c). SDL_RISCOS_GL_RENDER_SIZE

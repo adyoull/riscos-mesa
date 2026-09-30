@@ -161,6 +161,20 @@ It contains:
   - Checked by `tests/host-harness/harness.c` (the driver file, both
     paths, against the real EGL and the fake RISC OS and VideoOverlay) and
     `sdl-wimp` (mouse scaling).
+- Full screen that multitasks: the "full window" (2026-09-30, requested by
+  the Freeciv port, whose game server runs in a TaskWindow that full
+  screen used to stop). `SDL_WINDOW_FULLSCREEN_DESKTOP` gives a borderless
+  Wimp window the size of the screen, as RDPClient's full window mode: the
+  program keeps polling the Wimp, so other tasks run, the icon bar pops
+  up, other windows can come in front, and a click on the game brings it
+  back to the front. It's drawn, sized and scaled like any desktop window
+  (scale 1; a GL render size is stretched to the screen, through the
+  overlay if asked). A desktop mode change resizes it and sends
+  `SDL_WINDOWEVENT_RESIZED`. `SDL_WINDOW_FULLSCREEN` (with its mode
+  change) still owns the screen, for speed. The hint or system variable
+  `SDL_RISCOS_FULLSCREEN_WINDOW` = `"1"` makes that a full window too
+  (after Wimp_SetMode), and `"0"` gives the single tasking kind for both,
+  as before. `sdl-wimp` checks the click and the mode change.
 - `sdl2-configure.ac.host.p`: OpenTTD's triplet fix (arm-riscos-gnueabihf
   is not Linux). `sdl2-configure.ac.osmesa.p`: the OSMesa option.
 

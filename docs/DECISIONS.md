@@ -72,6 +72,10 @@ program.
 - **SDL's driver yields**: `SDL_Delay` and `SDL_WaitEvent` wait in
   `Wimp_PollIdle`, and a frame that would have to wait for a vsync is
   held and shown from the event loop.
+- **Full screen can multitask too.** SDL's desktop-size full screen is a
+  borderless screen-sized Wimp window that keeps polling (RDPClient's
+  "full window"), so a game's server in a TaskWindow keeps running. Only
+  full screen with a mode change owns the machine, because it's faster.
 
 ## Opt-in, not automatic
 

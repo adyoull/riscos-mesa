@@ -151,8 +151,9 @@ SDL_bool SDL_HasEvent_REAL(Uint32 type) { return queued && (type == SDL_QUIT || 
 void SDL_Quit_REAL(void) { n_sdl_Quit++; }
 const char *RISCOS_AppName(void) { return "Test"; }
 void RISCOS_ApplyPointerVisibility(_THIS) { }
-static int n_update_eigs;
+static int n_update_eigs, n_full_mode_changed;
 void RISCOS_UpdateEigs(_THIS) { n_update_eigs++; }
+void RISCOS_FullWindowModeChanged(_THIS) { n_full_mode_changed++; }
 void RISCOS_WimpPlotWindow(_THIS, SDL_Window *w, RISCOS_Redraw *r, int more) { }
 
 /* ---- the tests ---- */
@@ -338,7 +339,39 @@ static void test_mode_change(void)
     event.message.action = 0x400C1;
     wimp_event(17, &event);
     CHECK(n_update_eigs == 1, "Message_ModeChange: eig factors read again (%d)", n_update_eigs);
+    CHECK(n_full_mode_changed == 1, "and a full window told to follow the new screen");
     CHECK(n_sdl_quit == 0 && calls_to(Wimp_SendMessage, NULL, NULL) == 0, "and nothing else");
+}
+
+/* A full window (full screen that multitasks) has no title bar: a click on
+   it brings it back to the front; an ordinary window isn't moved. */
+static void test_full_window_click(void)
+{
+    RISCOS_PollBlock event;
+    _kernel_swi_regs r;
+    RISCOS_WindowState sent;
+    int wimp_window = vdata.wimp_window;
+
+    reset();
+    vdata.wimp_window = WINDOW_H;
+    vdata.full_window = SDL_TRUE;
+    SDL_zero(event);
+    event.click.window = WINDOW_H;
+    event.click.buttons = 4;
+    wimp_event(6, &event);
+    CHECK(calls_to(Wimp_OpenWindow, &r, NULL) == 1, "full window clicked: opened again (%d)",
+          calls_to(Wimp_OpenWindow, NULL, NULL));
+    memcpy(&sent, (void *)(intptr_t)r.r[1], sizeof sent);
+    CHECK(sent.open.behind == -1 && sent.open.window == WINDOW_H, "at the front (behind %d)", sent.open.behind);
+    CHECK(vdata.pending_clicks & 4, "and the click still reaches the program");
+
+    reset();
+    vdata.full_window = SDL_FALSE;
+    vdata.pending_clicks = 0;
+    wimp_event(6, &event);
+    CHECK(calls_to(Wimp_OpenWindow, NULL, NULL) == 0, "ordinary window clicked: not moved");
+    vdata.wimp_window = wimp_window;
+    vdata.pending_clicks = 0;
 }
 
 static void test_icon_sprite_name(void)
@@ -435,6 +468,7 @@ static void *run(void *arg)
     test_prequit_answered_no();
     test_close_and_menu();
     test_mode_change();
+    test_full_window_click();
     test_quit();
     test_keys();
     test_icon_sprite_name();
