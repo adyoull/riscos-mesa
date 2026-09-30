@@ -64,7 +64,23 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   screen. The EGL guide also says to draw text into an overlay at the
   surface's own pixels: shrinking screen-size text into a smaller frame
   makes it unreadable.
+- **SDL uses its ARM NEON and SIMD routines for 2D drawing** (suggested
+  by the Freeciv port). SDL 2.26 has them for see-through blits, filling
+  rectangles and two pixel conversions, but only switched them on for
+  Linux. They're now on for RISC OS too, with SDL checking the CPU when a
+  blit is set up (NEON, else ARMv6 SIMD, else the C code as before).
+  They're used for sprites onto surfaces without alpha, such as the
+  window surface; onto a surface with its own alpha SDL's C code runs as
+  before, because the ARM routines leave that alpha alone. Colours come
+  out within half a step of the exact blend (the C code is up to 2 steps
+  off). Checked through SDL's API on emulated NEON and SIMD-only CPUs
+  (`tests/host-harness/sdl-arm`); not measured on a Pi yet
+  (`sdlblitbench`, below). The routines are pixman's (MIT and zlib):
+  `LICENCES.txt` has the notices. riscos-openttd gets them only if it
+  configures SDL with `--enable-arm-simd --enable-arm-neon`.
 - **Smaller changes:**
+  - `sdlblitbench`: how fast SDL draws a 2D game's frame (tiles, sprites,
+    see-through sprites, fills), for comparing SDL builds.
   - EGL: a surface whose render size equals the size it's shown at uses
     the ordinary plot, not a scaled one.
   - sdlgltest: `-S WxH`, `-V`/`-N` and key D (desktop-size full screen),

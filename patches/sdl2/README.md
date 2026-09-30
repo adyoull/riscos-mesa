@@ -8,8 +8,8 @@ then copied out; a change needed by another project comes here as a
 request (a handoff), not as an edit to its copy.
 `tools/sdl-overlay-check.sh DIR` reports whether a copy still matches.
 
-One set of per-file patches, GCCSDK autobuilder style (`patch -p0`, any
-order). The GL code is in these files, and the configure option decides
+One set of per-file patches, GCCSDK autobuilder style (`patch -p0`, in
+name order: the configure.ac ones build on each other). The GL code is in these files, and the configure option decides
 whether it is compiled:
 
 - **riscos-mesa** (`build/build-sdl2.sh`) configures with
@@ -175,8 +175,26 @@ It contains:
   `SDL_RISCOS_FULLSCREEN_WINDOW` = `"1"` makes that a full window too
   (after Wimp_SetMode), and `"0"` gives the single tasking kind for both,
   as before. `sdl-wimp` checks the click and the mode change.
+- ARM SIMD and NEON blitters (2026-09-30, suggested by the Freeciv port):
+  SDL 2.26 has ARM assembly for per-pixel alpha blits (32 bpp onto 32 bpp,
+  and onto RGB565), filling rectangles and two pixel format conversions
+  (from pixman, MIT licence, see LICENCES.txt), but its configure only
+  turns them on for Linux. `sdl2-configure.ac.simd.p` turns them on for
+  RISC OS, and `build/build-sdl2.sh` configures with `--enable-arm-simd
+  --enable-arm-neon` (and checks they took). SDL checks the CPU when a
+  blit is set up: NEON through VFPSupport, ARMv6 SIMD through
+  OS_PlatformFeatures (`SDL_cpuinfo.c`, unchanged). The alpha routines
+  leave the destination's alpha byte alone, where SDL's C code blends it,
+  so `src.video.SDL_blit_A.c.p` uses them only for destinations without
+  alpha, such as the window surface; onto a surface with alpha, the C code
+  runs as before. Their colours are within half a step of the exact blend
+  (the C code's are up to 2 steps off). Checked by
+  `tests/host-harness/sdl-arm` (on emulated NEON and SIMD-only CPUs).
+  riscos-openttd gets them only if it configures with the same two
+  options; without them `SDL_blit_A.c` is the same as before.
 - `sdl2-configure.ac.host.p`: OpenTTD's triplet fix (arm-riscos-gnueabihf
   is not Linux). `sdl2-configure.ac.osmesa.p`: the OSMesa option.
+  `sdl2-configure.ac.simd.p`: the ARM blitters (above).
 
 The older `sdl2-riscos-framebuffer.p` from the buildkit is superseded by
 `src.video.riscos.SDL_riscosframebuffer.c.p` and must not be applied.
@@ -194,8 +212,8 @@ The older `sdl2-riscos-framebuffer.p` from the buildkit is superseded by
 4. Commit the `.p` files. If anything OpenTTD's build compiles changed (all
    but the GL files), write the riscos-openttd handoff to re-export.
 
-The three `sdl2-configure.ac.*.p` files patch the same file in turn, so the
-script only checks them: edit those by hand.
+The four `sdl2-configure.ac.*.p` files patch the same file in turn (in
+name order), so the script only checks them: edit those by hand.
 
 `build/build-sdl2.sh` notices when the `.p` files have changed since its
 tree was made (after a `git pull`, say) and stops if the tree no longer

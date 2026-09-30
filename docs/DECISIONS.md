@@ -118,6 +118,14 @@ re-exports. How to change it: `patches/sdl2/README.md`.
   a Pi 4: NEON gained nothing, and VFPv3 is as fast as VFPv4 there
   (every glbench scene within 0.5%) while also running on Cortex-A8/A9
   machines. Not the Pi 1 or Zero: they're ARMv6.
+- **SDL's ARM NEON and SIMD blitters are on** (from 20.3.5-10), with
+  SDL's run-time CPU check, so a machine without NEON uses the ARMv6 SIMD
+  ones or the C code. Their per-pixel alpha routines leave the
+  destination's alpha alone where SDL's C code blends it, so riscos-mesa
+  uses them only for destinations without alpha (such as the window
+  surface), where they are more accurate than the C code
+  (`tests/host-harness/sdl-arm`). To use them for alpha destinations too,
+  SDL's behaviour for those would change: check with SDL upstream first.
 - **Not position-independent** (`-Db_staticpic=false`): GCCSDK's `-fPIC`
   code reaches every global through the shared library tables, which a
   static library doesn't need.

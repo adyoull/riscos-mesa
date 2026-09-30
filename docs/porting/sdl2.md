@@ -50,6 +50,16 @@ context from SDL has no window code to change.
     that name) = `"1"` makes both a full window (with the mode change,
     for `SDL_WINDOW_FULLSCREEN`); `"0"` makes both the single tasking
     kind, as before.
+- **2D drawing (SDL's surfaces and `SDL_BlitSurface`)** uses SDL's ARM
+  NEON routines (ARMv6 SIMD ones without NEON) from 20.3.5-10, for
+  sprites with alpha, `SDL_FillRect` and some pixel conversions. SDL picks
+  them itself. To get them for sprites with alpha, blit onto a surface
+  **without** alpha in the window surface's byte order (the window
+  surface itself, or one made with `SDL_PIXELFORMAT_XBGR8888`), from
+  sprites in the same order with alpha (`SDL_PIXELFORMAT_ABGR8888`, or
+  `SDL_ConvertSurface` to the window surface's format with alpha added).
+  Onto a surface with its own alpha, SDL uses its C code, as before.
+  `sdlblitbench` in the test programs measures it.
 - **Quitting:** the close icon sends `SDL_WINDOWEVENT_CLOSE` (and SDL then
   sends `SDL_QUIT` if it was the last window), the icon bar menu's Quit
   sends `SDL_QUIT`. A desktop shutdown or the Task Manager's Quit also

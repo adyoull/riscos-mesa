@@ -34,7 +34,13 @@ fresh_build_dir SDL-release-$SDL_V/build-ro && cd SDL-release-$SDL_V/build-ro
 # link -lEGL too: -lSDL2 -lGLU -lEGL -lOSMesa ...)
 CFLAGS="$RO_CFLAGS -I$HERE/egl/include -I$STAGE/include" LDFLAGS="-L$STAGE/lib" \
   ../configure --host=$HOST --prefix="$STAGE" --disable-shared --enable-static \
-  --enable-video-riscos-osmesa --disable-video-opengles --disable-video-rpi
+  --enable-video-riscos-osmesa --disable-video-opengles --disable-video-rpi \
+  --enable-arm-simd --enable-arm-neon
 grep -q "define SDL_VIDEO_OPENGL_OSMESA 1" include/SDL_config.h || { echo "OSMesa GL NOT enabled"; exit 1; }
+# SDL's ARM SIMD and NEON blitters: SDL checks the CPU at run time, so a
+# machine without NEON uses the SIMD or C ones
+for b in SDL_ARM_SIMD_BLITTERS SDL_ARM_NEON_BLITTERS; do
+  grep -q "define $b 1" include/SDL_config.h || { echo "$b NOT enabled"; exit 1; }
+done
 grep -q "define SDL_VIDEO_RENDER_OGL 1" include/SDL_config.h && { echo "SDL GL renderer enabled - must stay off"; exit 1; }
 make -j"$(nproc)" && make install

@@ -29,6 +29,25 @@ as 32-bit addresses.
     SDL=<patched SDL-release-2.26.0> tests/host-harness/sdl-wimp/run.sh
 
 
+## `sdl-arm/`: SDL's ARM SIMD and NEON blitters
+
+`sdl-arm/run.sh` builds the patched SDL tree for ARM Linux with the same
+blitter options as `build/build-sdl2.sh` and runs `armblit.c` under
+qemu-arm, on an emulated Cortex-A8 with NEON and again with NEON off
+(ARMv6 SIMD only). Through SDL's own API it checks that sprites with
+alpha onto a surface without alpha use the ARM routine, with colours
+within 1 of the exact blend (SDL's C code is checked alongside); that onto
+a surface with alpha SDL's C code is used, alpha and all (the riscos-mesa
+guard in `SDL_blit_A.c`: remove it and this fails); ARGB onto RGB565;
+`SDL_FillRect` at 8, 16 and 32 bpp and two pixel conversions exactly;
+and that nothing outside a blit changes. The blitter code and SDL's choice
+of routine are the same as on RISC OS; only SDL's CPU check differs.
+Needs `qemu-arm` and `arm-linux-gnueabihf-gcc`; run by `tests/run-all.sh`
+with `ARM=1`.
+
+    SDL=<patched SDL-release-2.26.0> tests/host-harness/sdl-arm/run.sh
+
+
 ## `openal/`: OpenAL Soft through SDL's sound
 
 `openal/run.sh` builds the devkit's OpenAL Soft 1.19.1 (with

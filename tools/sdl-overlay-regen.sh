@@ -15,7 +15,7 @@
 # to rewrite the .p files, and commit them. `git diff patches/sdl2` shows
 # what changed. Every .p file patches one source file, and is named after
 # it (src/video/riscos/SDL_riscoswindow.c -> src.video.riscos.SDL_riscoswindow.c.p).
-# The one exception is configure.ac, which three .p files patch in turn
+# The one exception is configure.ac, which four .p files patch in turn
 # (sdl2-configure.ac.*.p, applied in name order): this script only checks
 # those; edit them by hand, and --check confirms the result.
 #

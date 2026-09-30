@@ -42,6 +42,9 @@
 #                   qemu-arm emulating a Cortex-A8, the oldest CPU supported
 #                   (tests/host-harness/mesa/arm); only with ARM=1,
 #                   as it takes a few minutes
+#   sdl-arm         SDL's ARM SIMD and NEON blitters through SDL's API,
+#                   against its C code, on emulated NEON and SIMD-only
+#                   CPUs (tests/host-harness/sdl-arm); only with ARM=1
 #
 # Not run here, as it takes a long first build: Khronos's dEQP-EGL tests
 # (tests/host-harness/deqp/README.md). Run them after changing egl/ or
@@ -145,8 +148,10 @@ step ovl env OUT="$OUT/ovl" "$H/ovl/run.sh"
 if [ -n "${ARM:-}" ]; then
     # on an emulated Cortex-A8 (VFPv3), the oldest CPU the build supports
     step arm env OUT="$OUT/arm" QEMU_CPU="${QEMU_CPU:-cortex-a8}" "$H/mesa/arm/run-arm.sh"
+    step sdl-arm env SDL="$SRC/SDL-release-2.26.0" OUT="$OUT/sdl-arm" "$H/sdl-arm/run.sh"
 else
     skip arm "set ARM=1 (needs qemu-user and an ARM Linux cross compiler)"
+    skip sdl-arm "set ARM=1"
 fi
 
 if printf '%s\n' "${results[@]}" | grep -q '^FAIL'; then

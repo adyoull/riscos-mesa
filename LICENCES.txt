@@ -37,6 +37,10 @@ The same applies to programs linked with OpenAL Soft (libopenal, section
  5. GLU 9.0.1 (libGLU) - SGI Free Software License B 2.0
  6. SDL 2.26.0 (libSDL2) - zlib licence. The RISC OS video driver files are
     altered from the original SDL sources (riscos-mesa / riscos-openttd).
+    Its ARM SIMD and NEON blitters, switched on from 20.3.5-10, are from
+    pixman: Nokia's parts under the MIT licence and a similar permissive
+    one, RISC OS Open's and the Raspberry Pi Foundation's under zlib (see
+    12)
  7. zlib 1.3.1 (libz) - zlib licence
  8. UnixLib 5.0.1 (the GCCSDK C library with riscos-unixlib's fixes,
     github.com/adyoull/riscos-unixlib; linked into every program) - BSD,
@@ -1108,3 +1112,64 @@ https://www.gnu.org/licenses/gcc-exception-3.1.html
  object files), and must say where OpenAL Soft's source can be had: the
  tarball, with riscos-mesa's patches/openal, as build/build-openal.sh
  fetches and applies them.
+
+
+===========================================================================
+
+12. SDL's ARM blitters (pixman)
+
+SDL 2.26's src/video/arm files, linked into libSDL2 from riscos-mesa
+20.3.5-10. The parts by RISC OS Open Ltd and the Raspberry Pi Foundation
+(pixman-arm-simd-asm.S, pixman-arm-simd-asm.h, and additions to
+pixman-arm-neon-asm.S) are under the zlib licence, as the rest of SDL
+(section 6). The parts by Nokia carry these notices:
+
+pixman-arm-neon-asm.S, pixman-arm-neon-asm.h:
+
+ Copyright (c) 2009 Nokia Corporation
+
+ Permission is hereby granted, free of charge, to any person obtaining a
+ copy of this software and associated documentation files (the "Software"),
+ to deal in the Software without restriction, including without limitation
+ the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ and/or sell copies of the Software, and to permit persons to whom the
+ Software is furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice (including the next
+ paragraph) shall be included in all copies or substantial portions of the
+ Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ DEALINGS IN THE SOFTWARE.
+
+ Author:  Siarhei Siamashka (siarhei.siamashka@nokia.com)
+
+pixman-arm-asm.h:
+
+ Copyright (c) 2010 Nokia Corporation
+
+ Permission to use, copy, modify, distribute, and sell this software and its
+ documentation for any purpose is hereby granted without fee, provided that
+ the above copyright notice appear in all copies and that both that
+ copyright notice and this permission notice appear in supporting
+ documentation, and that the name of Mozilla Corporation not be used in
+ advertising or publicity pertaining to distribution of the software without
+ specific, written prior permission.  Mozilla Corporation makes no
+ representations about the suitability of this software for any purpose.  It
+ is provided "as is" without express or implied warranty.
+
+ THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
+ SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+ FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
+ AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
+ OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
+ SOFTWARE.
+
+ Author:  Siarhei Siamashka (siarhei.siamashka@nokia.com)
