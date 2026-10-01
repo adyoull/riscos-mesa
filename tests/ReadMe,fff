@@ -171,13 +171,15 @@ Run in this order and note the output:
         Background: John Duffell's own site (now on the Internet Archive)
           has more details:
           https://web.archive.org/web/20110920080106/http://www.duffell.riscos.me.uk/
-      The programs are linked with UnixLib 5.0.3.1-rc8 (5.0.1 from 20.3.5-8), and
+      The programs are linked with UnixLib 5.0.3.1 (5.0.1 from 20.3.5-8), and
       al-tone first loads UnixLib's PThreadTicker module (PThrTicker, in
       this directory), which keeps the thread switcher safe while altest's
       sound thread runs. To check it's used, type
         *Set UnixLib$TickerStats <Wimp$ScrapDir>.TickerStats
       before double-clicking al-tone: the line altest adds to that file
-      should end via=module.
+      should end via=module. If an older PThreadTicker (0.01 or 0.02) is
+      already loaded, it ends via= something else: altest then runs its own
+      copy of the module's code, which also works. Restart to use 0.03.
 
    k) ovltest: hardware overlays (VideoOverlay), new in 20.3.5-9
       Measurements for using the display hardware's overlays in EGL and

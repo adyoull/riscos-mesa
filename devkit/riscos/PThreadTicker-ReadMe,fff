@@ -1,7 +1,7 @@
 PThreadTicker
 =============
 
-Version 0.02, from UnixLib v5.0.3.1-rc8 (riscos-unixlib).
+Version 0.03, from UnixLib v5.0.3.1 (riscos-unixlib).
 
 riscos-unixlib is an unofficial fork of GCCSDK's UnixLib, and
 PThreadTicker is not part of GCCSDK. Please report problems at
@@ -10,8 +10,6 @@ https://github.com/adyoull/riscos-unixlib/issues, not to GCCSDK.
 A small module that makes threaded UnixLib programs (built with GCCSDK
 GCC 10 and UnixLib 5.0.1 or later: Warzone 2100, OpenTTD, SDL
 programs...) safer in the desktop.
-
-** Pre-release: not yet tested on RISC OS hardware. **
 
 What it does
 ------------
@@ -37,8 +35,15 @@ Either:
 *Help PThreadTicker shows the version. The RMEnsure lines ask for 0.01
 on purpose: if an older copy is loaded and in use, asking for a newer
 one would try to replace it, which it refuses, and the !Run file would
-stop with an error. Either version works with every UnixLib that uses
-it; 0.02 (counts programs with interrupts off) is better.
+stop with an error.
+
+Which programs use which version: programs built with UnixLib 5.0.3.1 or
+later use 0.03 only; programs built with earlier UnixLib use 0.01 or
+0.02 only. A program that doesn't find a version it uses runs the same
+routines from its own memory instead, which works just as well, so any
+mix is safe. To have every program use the module, load 0.03 for
+5.0.3.1 programs (a copy of 0.02 can't be replaced while in use, so
+restart first).
 
 Removing
 --------
@@ -55,6 +60,11 @@ file when it quits. Lines ending via=module used this module.
 
 Changes
 -------
+0.03 (1 Oct 2026): the timer keeps running while the program is in
+     Wimp_Poll; if it fires meanwhile, threads are switched as Wimp_Poll
+     returns. Before, a program that polled more often than every 2
+     centiseconds never switched threads at all. Interface version 2,
+     used by UnixLib 5.0.3.1 and later.
 0.02 (1 Oct 2026): the count of programs using the module is updated
      with interrupts off, so two programs starting or quitting at the
      same moment (in TaskWindows) can't lose a count.

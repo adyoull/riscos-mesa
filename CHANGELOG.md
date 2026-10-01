@@ -6,18 +6,23 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-11 (in development)
 
-- **Every program is linked with UnixLib 5.0.3.1-rc8** (was 5.0.1), a
-  pre-release of riscos-unixlib. Since 5.0.1 it fixes `ctime()` and
-  `asctime()` returning a bad pointer, `read()` into a stack buffer
-  stopping a program with "EMT trap", child processes tearing down their
-  parent's thread timer and sound, and long sleeps ending early; the heap
-  can grow past 128 MB, and files over 2GB work for programs built with
+- **Every program is linked with UnixLib 5.0.3.1** (was 5.0.1). The fix
+  that matters most here: threads now run in programs that poll the Wimp
+  often. Before, a desktop program calling Wimp_Poll more often than every
+  2 cs (SDL programs do) never switched threads, so SDL's sound thread
+  and OpenAL's mixing got no time. Also: `ctime()` and `asctime()`
+  returned a bad pointer, `read()` into a stack buffer could stop a
+  program with "EMT trap", child processes tore down their parent's
+  thread timer and sound, long sleeps ended early; the heap can grow past
+  128 MB, and files over 2GB work for programs built with
   `-D_FILE_OFFSET_BITS=64`. riscos-mesa's libraries don't contain UnixLib,
   so the devkit's libraries work as before; relink your own programs to
   get the fixes. `build/TOOLCHAIN.md` says how to install it.
-- **PThreadTicker 0.02** (from the same UnixLib pre-release) replaces 0.01
-  in the devkit and the test programs. The `RMEnsure ... 0.01` lines stay:
-  either version works with every UnixLib that uses it.
+- **PThreadTicker 0.03** (from UnixLib 5.0.3.1) replaces 0.01 in the
+  devkit and the test programs; programs linked with 5.0.3.1 use only
+  0.03. The `RMEnsure ... 0.01` lines stay, as its ReadMe advises: with
+  an older copy already loaded, a program runs its own copy of the code,
+  which also works.
 
 ## 20.3.5-10: SDL gets EGL's overlay, a full screen that multitasks, and faster 2D
 

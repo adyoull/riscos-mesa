@@ -33,12 +33,11 @@ On a 1-CPU container this took about 30 minutes after the source was ready.
 The ld-riscos dynamic linker and the native (runs-on-RISC-OS) compiler steps
 of the recipe were skipped; static linking doesn't need them.
 
-## UnixLib 5.0.3.1-rc8 (riscos-unixlib)
+## UnixLib 5.0.3.1 (riscos-unixlib)
 
 riscos-mesa's release programs (tests, ports, examples) are linked with
-**UnixLib 5.0.3.1-rc8** from github.com/adyoull/riscos-unixlib, a
-pre-release: GCCSDK's UnixLib with the fixes the ports needed (5.0.1
-until 20.3.5-10). riscos-unixlib is an unofficial fork, not made or
+**UnixLib 5.0.3.1** from github.com/adyoull/riscos-unixlib: GCCSDK's
+UnixLib with the fixes the ports needed (5.0.1 until 20.3.5-10). riscos-unixlib is an unofficial fork, not made or
 supported by the GCCSDK developers. The fixes that matter here:
 
 - the **pthread ticker fix**: the thread switcher's code runs from the
@@ -53,15 +52,19 @@ supported by the GCCSDK developers. The fixes that matter here:
 - 5.0.3: `ctime()`/`asctime()` returned a bad pointer, `read()` into an
   untouched stack buffer could stop a program with "EMT trap", and no
   build paths in the library. Same exported symbols as 5.0.2;
-- 5.0.3.1 (pre-releases rc1 to rc8): fixes from a review of the fork
-  (`fork`/`vfork` children no longer tear down their parent's thread
-  timer, sound or stack; long sleeps; the monotonic clock), a heap past
-  128 MB, `fork()` in EABI programs, `_exit(n)` exits with code n. It
-  comes with PThreadTicker 0.02.
+- 5.0.3.1: **threads run in programs that poll often** (before, a
+  program that called Wimp_Poll more often than every 2 cs, as SDL
+  programs do, never switched threads, so SDL's sound thread got no
+  time); a heap past 128 MB; `fork()` in EABI programs; `_exit(n)` exits
+  with code n; `fork`/`vfork` children no longer tear down their
+  parent's thread timer, sound or stack; long sleeps; the monotonic
+  clock; sound fixes. It comes with PThreadTicker 0.03, which 5.0.3.1
+  programs need to use the module (with an older copy loaded they run
+  their own copy of its code, which also works).
 
 riscos-mesa's own libraries (`libOSMesa.a` etc.) don't contain UnixLib, so
 they work with any UnixLib; it's the programs linked with them that need
-5.0.1 or later (5.0.3, or 5.0.3.1 once it's released, recommended). Either:
+5.0.1 or later (5.0.3.1 recommended). Either:
 
 - patch the GCCSDK source before building the toolchain
   (`patch -d riscos-gccsdk -p1 < patches/unixlib-riscos.diff` from that

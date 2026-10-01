@@ -464,8 +464,9 @@ so at that moment it wasn't there, and the other program crashed.
 Two things put that right:
 
 1. **Link with UnixLib 5.0.1 or later** (github.com/adyoull/riscos-unixlib;
-   5.0.3 is the newest release; riscos-mesa's own programs use the
-   5.0.3.1-rc8 pre-release).
+   5.0.3.1 is the newest, and is what riscos-mesa's own programs use. It
+   also makes threads run in programs that poll the Wimp often, as SDL
+   programs do).
    It keeps the ticker's code where it's always in memory. Build your
    GCCSDK with it, or copy its `libunixlib.a` into your GCCSDK (that
    project's README says how), or ask whoever supplied your GCCSDK
@@ -477,10 +478,13 @@ Two things put that right:
    RMEnsure PThreadTicker 0.01 RMLoad <MyGame$Dir>.PThrTicker
    ```
 
-   The module is in this devkit's `riscos/` folder (648 bytes, BSD
-   licence; its ReadMe and Licence are there too). A module is always
+   The module is in this devkit's `riscos/` folder (version 0.03, which
+   programs linked with UnixLib 5.0.3.1 use; BSD licence, with its ReadMe
+   and Licence). The line asks for 0.01 on purpose: if an older copy is
+   already loaded and in use it can't be replaced, and the program then
+   runs its own copy of the code, which also works. A module is always
    in memory, which makes it the proper home for the ticker's code.
-   Without it, UnixLib 5.0.1 copies the code into a block of the module
+   Without it, UnixLib copies the code into a block of the module
    area and runs it from there. That works too, but running code from a
    data block is the more fragile of the two, so ship the module.
 
