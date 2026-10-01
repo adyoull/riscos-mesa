@@ -1,11 +1,17 @@
 PThreadTicker
 =============
 
-Version 0.01, from UnixLib v5.0.1 (riscos-unixlib).
+Version 0.02, from UnixLib v5.0.3.1-rc8 (riscos-unixlib).
+
+riscos-unixlib is an unofficial fork of GCCSDK's UnixLib, and
+PThreadTicker is not part of GCCSDK. Please report problems at
+https://github.com/adyoull/riscos-unixlib/issues, not to GCCSDK.
 
 A small module that makes threaded UnixLib programs (built with GCCSDK
 GCC 10 and UnixLib 5.0.1 or later: Warzone 2100, OpenTTD, SDL
 programs...) safer in the desktop.
+
+** Pre-release: not yet tested on RISC OS hardware. **
 
 What it does
 ------------
@@ -28,7 +34,11 @@ Either:
 - or put PThrTicker inside an application and load it from its !Run:
     RMEnsure PThreadTicker 0.01 RMLoad <MyApp$Dir>.PThrTicker
 
-*Help PThreadTicker shows the version.
+*Help PThreadTicker shows the version. The RMEnsure lines ask for 0.01
+on purpose: if an older copy is loaded and in use, asking for a newer
+one would try to replace it, which it refuses, and the !Run file would
+stop with an error. Either version works with every UnixLib that uses
+it; 0.02 (counts programs with interrupts off) is better.
 
 Removing
 --------
@@ -42,6 +52,13 @@ Checking what it does
   *Set UnixLib$TickerStats <Wimp$ScrapDir>.TickerStats
 makes every UnixLib program append one line of timer counters to that
 file when it quits. Lines ending via=module used this module.
+
+Changes
+-------
+0.02 (1 Oct 2026): the count of programs using the module is updated
+     with interrupts off, so two programs starting or quitting at the
+     same moment (in TaskWindows) can't lose a count.
+0.01 (27 Sep 2026): first version.
 
 Licence and source
 ------------------

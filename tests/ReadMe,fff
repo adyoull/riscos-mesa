@@ -171,7 +171,7 @@ Run in this order and note the output:
         Background: John Duffell's own site (now on the Internet Archive)
           has more details:
           https://web.archive.org/web/20110920080106/http://www.duffell.riscos.me.uk/
-      The programs are linked with UnixLib 5.0.3 (5.0.1 from 20.3.5-8), and
+      The programs are linked with UnixLib 5.0.3.1-rc8 (5.0.1 from 20.3.5-8), and
       al-tone first loads UnixLib's PThreadTicker module (PThrTicker, in
       this directory), which keeps the thread switcher safe while altest's
       sound thread runs. To check it's used, type
