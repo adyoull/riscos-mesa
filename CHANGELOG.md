@@ -4,7 +4,11 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## 20.3.5-11 (in development)
+## 20.3.5-11: UnixLib 5.0.3.1, so SDL's sound thread runs
+
+Every program is relinked with UnixLib 5.0.3.1. Its most important fix
+for riscos-mesa: threads now run in desktop programs that poll often,
+so SDL's sound and OpenAL get time. riscos-mesa's own code is unchanged.
 
 - **Every program is linked with UnixLib 5.0.3.1** (was 5.0.1). The fix
   that matters most here: threads now run in programs that poll the Wimp
