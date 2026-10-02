@@ -8,6 +8,7 @@
 #define OS_ScreenMode       0x65
 #define OS_ReadMonotonicTime 0x42
 #define OS_FSControl        0x29
+#define OS_ReadVarVal       0x23
 #define Wimp_ReadSysInfo    0x400F2
 #define Wimp_Initialise     0x400C0
 #define Wimp_CreateWindow   0x400C1

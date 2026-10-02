@@ -151,9 +151,10 @@ SDL_bool SDL_HasEvent_REAL(Uint32 type) { return queued && (type == SDL_QUIT || 
 void SDL_Quit_REAL(void) { n_sdl_Quit++; }
 const char *RISCOS_AppName(void) { return "Test"; }
 void RISCOS_ApplyPointerVisibility(_THIS) { }
-static int n_update_eigs, n_full_mode_changed;
+static int n_update_eigs, n_window_mode_changed, n_desktop_mode_changed, mode_change_order;
 void RISCOS_UpdateEigs(_THIS) { n_update_eigs++; }
-void RISCOS_FullWindowModeChanged(_THIS) { n_full_mode_changed++; }
+void RISCOS_DesktopModeChanged(_THIS) { n_desktop_mode_changed++; mode_change_order = mode_change_order * 10 + 1; }
+void RISCOS_WindowModeChanged(_THIS) { n_window_mode_changed++; mode_change_order = mode_change_order * 10 + 2; }
 void RISCOS_WimpPlotWindow(_THIS, SDL_Window *w, RISCOS_Redraw *r, int more) { }
 
 /* ---- the tests ---- */
@@ -333,13 +334,15 @@ static void test_mode_change(void)
 {
     RISCOS_PollBlock event;
     reset();
-    n_update_eigs = 0;
+    n_update_eigs = n_window_mode_changed = n_desktop_mode_changed = mode_change_order = 0;
     SDL_zero(event);
     event.message.size = 20;
     event.message.action = 0x400C1;
     wimp_event(17, &event);
     CHECK(n_update_eigs == 1, "Message_ModeChange: eig factors read again (%d)", n_update_eigs);
-    CHECK(n_full_mode_changed == 1, "and a full window told to follow the new screen");
+    CHECK(n_desktop_mode_changed == 1, "SDL's desktop display mode read again");
+    CHECK(n_window_mode_changed == 1 && mode_change_order == 12,
+          "then the window fitted to the new mode (after the desktop mode: %d)", mode_change_order);
     CHECK(n_sdl_quit == 0 && calls_to(Wimp_SendMessage, NULL, NULL) == 0, "and nothing else");
 }
 

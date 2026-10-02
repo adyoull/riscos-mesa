@@ -112,12 +112,15 @@ static _kernel_oserror *parse(const int *s, int banks_default, fovl_t *o)
     return NULL;
 }
 
+/* The sizes an overlay can be shown at: 1x1 to 4096x4096, as VideoOverlay
+   0.02 reports on a Pi 4; FAKE_OVL_LIMITS="minw,minh,maxw,maxh" for others */
 static void limits(const fovl_t *o, _kernel_swi_regs *r)
 {
+    const char *l = getenv("FAKE_OVL_LIMITS");
     r->r[1] = o->type;
-    r->r[2] = o->w / 8 < 16 ? 16 : o->w / 8;
-    r->r[3] = o->h / 8 < 16 ? 16 : o->h / 8;
-    r->r[4] = 2048; r->r[5] = 2048;
+    r->r[2] = 1; r->r[3] = 1; r->r[4] = 4096; r->r[5] = 4096;
+    if (l)
+        sscanf(l, "%d,%d,%d,%d", &r->r[2], &r->r[3], &r->r[4], &r->r[5]);
 }
 
 static void plane_geometry(fovl_t *o)

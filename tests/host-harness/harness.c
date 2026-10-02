@@ -62,6 +62,8 @@ SDL_bool SDL_GetStringBoolean(const char *v, SDL_bool d) {
 }
 static Uint32 fake_ticks = 1000; static int delays, vsync_in_delay; static Uint32 delay_ms_total;
 Uint32 SDL_GetTicks(void) { return fake_ticks; }
+static SDL_threadID fake_thread = 1;            /* the calling thread, as SDL sees it */
+SDL_threadID SDL_ThreadID(void) { return fake_thread; }
 void SDL_Delay(Uint32 ms) { fake_ticks += ms; }
 SDL_bool RISCOS_WimpDelay(_THIS, Uint32 ms) {
     (void) _this; delays++; delay_ms_total += ms; fake_ticks += ms;
@@ -116,6 +118,7 @@ static void *run(void *arg)
     dev.driverdata = &vd; win.driverdata = wd; win.w = 200; win.h = 160;
     win.flags = SDL_WINDOW_OPENGL;
     vd.wimp_window = 0x6000; vd.wimp_sdl_window = &win;
+    vd.main_thread = 1;
     dev.gl_config.depth_size = 16; dev.gl_config.major_version = 2; dev.gl_config.minor_version = 1;
     cur_win = &win;
 
@@ -264,6 +267,14 @@ static void *run(void *arg)
     fake_vsyncs++;
     RISCOS_GL_Idle(&dev, SDL_TRUE);
     CHECK(wd->gl_pending == 0 && fake_ovl_displays == n + 1, "a vsync later the event loop shows it");
+    /* A swap from another thread isn't held (only the event loop's thread
+       shows held frames): EGL waits for the vsync instead (code review
+       2026-10-02) */
+    fake_thread = 2; n = fake_ovl_displays;
+    frame(1, 0, 0); RISCOS_GL_SwapWindow(&dev, &win);     /* no vsync since the last switch */
+    CHECK(wd->gl_pending == 0 && fake_ovl_displays == n + 1,
+          "another thread's swap: not held, shown (%d)", fake_ovl_displays - n);
+    fake_thread = 1;
     /* vsync on: wait for it cooperatively (the Wimp runs meanwhile) */
     RISCOS_GL_SetSwapInterval(&dev, 1);
     vsync_in_delay = 1; delays = 0; n = fake_ovl_displays; sp = fake_vsyncs;

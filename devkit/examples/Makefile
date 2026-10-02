@@ -15,6 +15,8 @@
 # why"). Use these flags in your own programs too.
 
 DEVKIT ?= ..
+# mkrozip.py: in the devkit's bin/, or tools/ in the riscos-mesa repository
+MKROZIP ?= $(firstword $(wildcard $(DEVKIT)/bin/mkrozip.py $(DEVKIT)/../tools/mkrozip.py))
 ifdef GCCSDK_ENV
 CC := $(GCCSDK_ENV)/bin/arm-riscos-gnueabihf-gcc
 else
@@ -66,7 +68,7 @@ endef
 # A zip that keeps the RISC OS filetypes (,e1f = ELF program, ,feb = Obey
 # file, ,fff = Text): unzip it on RISC OS with SparkFS or unzip.
 zip: all
-	cd build && rm -f examples.zip && python3 $(abspath $(DEVKIT))/bin/mkrozip.py examples.zip !*
+	cd build && rm -f examples.zip && python3 $(abspath $(MKROZIP)) examples.zip !*
 	@echo "made build/examples.zip"
 
 clean:

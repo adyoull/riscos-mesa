@@ -527,6 +527,103 @@ void test_overlay(EGLDisplay d)
         eglMakeCurrent(dpy, ws, ws, ctx);
     }
 
+    /* Frames swapped while the window is covered go to the sprite; when
+       it's uncovered, a redraw before the next swap mustn't bring back the
+       overlay's older frame (code review 2026-10-02). */
+    {
+        EGLint on[] = { EGL_OVERLAY_RISCOS, EGL_TRUE, EGL_NONE };
+        EGLSurface s7;
+        int blk[64], q;
+        fake_window_behind = -1;
+        fake_open_window(0x5007, 700, 100, 900, 260, 0, 0);
+        s7 = eglCreateWindowSurface(dpy, cfg, 0x5007, on);
+        eglMakeCurrent(dpy, s7, s7, ctx);
+        glViewport(0, 0, 100, 80);
+        clear(1, 0, 0);
+        eglSwapBuffers(dpy, s7); eglSwapBuffers(dpy, s7); eglSwapBuffers(dpy, s7);
+        CHECK(query(s7) == 1 && RGB(fake_ovl_pixel(shown(), 5, 5)) == RED, "covered later: red through the overlay");
+        fake_open_window(0x5008, 650, 50, 950, 300, 0, 0);
+        fake_window_behind = 0x5008;
+        clear(0, 1, 0);
+        eglSwapBuffers(dpy, s7); eglSwapBuffers(dpy, s7);
+        CHECK(query(s7) == 2, "covered: overlay hidden (%d)", query(s7));
+        fake_window_behind = -1;
+        blk[0] = 0x5007;
+        eglRedrawWindowRISCOS(dpy, blk);
+        q = query(s7);
+        CHECK(q != 1, "uncovered, redraw before a swap: the old red frame isn't shown again (%d)", q);
+        eglSwapBuffers(dpy, s7);
+        CHECK(query(s7) == 1 && RGB(fake_ovl_pixel(shown(), 5, 5)) == GREEN, "next swap: green through the overlay");
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(dpy, s7);
+        eglMakeCurrent(dpy, ws, ws, ctx);
+    }
+    /* The window deleted under a surface with an overlay: EGL_FALSE, or
+       eglCheckOverlaysRISCOS after the surface is destroyed while still
+       current, must remove the overlay (code review 2026-10-02). */
+    {
+        EGLint on[] = { EGL_OVERLAY_RISCOS, EGL_TRUE, EGL_NONE };
+        EGLSurface s6;
+        int i, before, pass;
+        for (pass = 0; pass < 2; pass++) {
+            fake_window_behind = -1;
+            fake_open_window(0x5006, 700, 100, 900, 260, 0, 0);
+            s6 = eglCreateWindowSurface(dpy, cfg, 0x5006, on);
+            eglMakeCurrent(dpy, s6, s6, ctx);
+            before = fake_ovl_live();
+            eglSwapBuffers(dpy, s6); eglSwapBuffers(dpy, s6); eglSwapBuffers(dpy, s6);
+            CHECK(fake_ovl_live() == before + 1, "window to be deleted: overlay made");
+            for (i = 0; i < FAKE_MAX_WINDOWS; i++)
+                if (fake_windows[i].handle == 0x5006)
+                    fake_windows[i].handle = 0x7777;       /* the window's gone */
+            if (pass == 0) {
+                eglSurfaceAttrib(dpy, s6, EGL_OVERLAY_RISCOS, EGL_FALSE);
+                CHECK(fake_ovl_live() == before && query(s6) == 0,
+                      "window deleted, EGL_FALSE: overlay freed (%d left)", fake_ovl_live() - before);
+                eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+                eglDestroySurface(dpy, s6);
+            } else {
+                eglDestroySurface(dpy, s6);                /* still current */
+                eglCheckOverlaysRISCOS(dpy);
+                CHECK(fake_ovl_live() == before,
+                      "window deleted, surface destroyed while current, check: overlay freed (%d left)",
+                      fake_ovl_live() - before);
+                eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+            }
+            for (i = 0; i < FAKE_MAX_WINDOWS; i++)
+                if (fake_windows[i].handle == 0x7777)
+                    fake_windows[i].handle = 0;
+            eglMakeCurrent(dpy, ws, ws, ctx);
+        }
+    }
+
+    /* A size VideoOverlay says it can't show (Create's R2-R5): plotted
+       instead (code review 2026-10-02) */
+    {
+        EGLint on[] = { EGL_OVERLAY_RISCOS, EGL_TRUE, EGL_NONE };
+        EGLSurface s8;
+        int before;
+        fake_window_behind = -1;
+        fake_open_window(0x5009, 700, 100, 900, 260, 0, 0);
+        setenv("FAKE_OVL_LIMITS", "300,300,4096,4096", 1);
+        s8 = eglCreateWindowSurface(dpy, cfg, 0x5009, on);
+        eglMakeCurrent(dpy, s8, s8, ctx);
+        before = fake_ovl_live();
+        eglSwapBuffers(dpy, s8); eglSwapBuffers(dpy, s8); eglSwapBuffers(dpy, s8);
+        CHECK(query(s8) == 0 && fake_ovl_live() == before,
+              "shown below the overlay's minimum size: plotted (%d)", query(s8));
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(dpy, s8);
+        unsetenv("FAKE_OVL_LIMITS");
+        s8 = eglCreateWindowSurface(dpy, cfg, 0x5009, on);
+        eglMakeCurrent(dpy, s8, s8, ctx);
+        eglSwapBuffers(dpy, s8); eglSwapBuffers(dpy, s8); eglSwapBuffers(dpy, s8);
+        CHECK(query(s8) == 1, "within its limits: overlay (%d)", query(s8));
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(dpy, s8);
+        eglMakeCurrent(dpy, ws, ws, ctx);
+    }
+
     /* destroying the surface destroys the overlay */
     eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglDestroySurface(dpy, ws);

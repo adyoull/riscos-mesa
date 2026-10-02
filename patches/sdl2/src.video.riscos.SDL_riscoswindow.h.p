@@ -1,7 +1,7 @@
 diff --git src/video/riscos/SDL_riscoswindow.h src/video/riscos/SDL_riscoswindow.h
 --- src/video/riscos/SDL_riscoswindow.h
 +++ src/video/riscos/SDL_riscoswindow.h
-@@ -30,10 +30,58 @@ typedef struct
+@@ -30,10 +30,59 @@ typedef struct
      SDL_Window *window;
      sprite_area *fb_area;
      sprite_header *fb_sprite;
@@ -43,8 +43,9 @@ diff --git src/video/riscos/SDL_riscoswindow.h src/video/riscos/SDL_riscoswindow
 +/* 2026: SDL_video.c asks whether a window keeps its render size full
 +   screen (instead of taking the screen mode's size). */
 +extern SDL_bool RISCOS_KeepsRenderSize(SDL_Window *window);
-+/* 2026: the desktop's mode changed: a full window follows the new screen size */
-+extern void RISCOS_FullWindowModeChanged(_THIS);
++/* 2026: the desktop's mode changed: the desktop window is fitted to it (a
++   full window to the new screen size) */
++extern void RISCOS_WindowModeChanged(_THIS);
 +
  extern int RISCOS_CreateWindow(_THIS, SDL_Window * window);
  extern void RISCOS_DestroyWindow(_THIS, SDL_Window * window);

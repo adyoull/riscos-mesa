@@ -470,6 +470,15 @@ static _kernel_oserror *swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
         if (r.r[0] != 37) { e = error("FSControl reason not faked"); break; }
         snprintf((char *) (long) r.r[2], r.r[5], "%s", (const char *) (long) r.r[1]);
         break;
+    case 0x23: {    /* OS_ReadVarVal (r4 = 3, string): from the host's environment */
+        const char *v = getenv((const char *) (long) r.r[0]);
+        static _kernel_oserror notfound = { 0x124, "System variable not found" };
+        if (!v) { r.r[2] = 0; e = &notfound; break; }
+        if ((int) strlen(v) > r.r[2]) { r.r[2] = ~(int) strlen(v); e = error("Buffer overflow"); break; }
+        memcpy((char *) (long) r.r[1], v, strlen(v));
+        r.r[2] = (int) strlen(v);
+        break;
+    }
     case 0x42:      /* OS_ReadMonotonicTime: centiseconds */
         r.r[0] = fake_wimp_polls * 2;
         break;

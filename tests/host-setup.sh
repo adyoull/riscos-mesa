@@ -22,6 +22,9 @@ source "$R/build/env.sh"
 # env.sh points CC and friends at the RISC OS cross compiler; the host
 # builds below use the host's own (the build scripts set theirs again).
 unset CC CXX AR RANLIB STRIP
+# ...and its pkg-config set-up, which points at the RISC OS stage's .pc
+# files: the host Mesa must find the host's zlib and expat, not those
+unset PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
 fail() { echo "$1 failed: see $2" >&2; exit 1; }
 
 echo "== patched sources"

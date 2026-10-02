@@ -4,6 +4,34 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## 20.3.5-12 (in development)
+
+- **Fixes from a code review of 20.3.5-10 and -11:**
+  - EGL overlays: a window uncovered after frames were swapped while it
+    was covered no longer shows the overlay's older frame again; an
+    overlay whose window has been deleted is removed (it stayed over
+    everything); `EGL$Overlay` is read with OS_ReadVarVal instead of
+    `getenv`, which isn't thread safe in UnixLib for names with a `$`;
+    an overlay is only used at sizes VideoOverlay says it can show; a
+    menu or window over the parent of a child window now hides the
+    child's overlay.
+  - SDL: a desktop mode change between 90 and 180 dpi keeps a window's
+    picture and mouse right (it fitted only full windows before), and
+    SDL's desktop mode follows the change, so a later desktop-size full
+    screen gets the right size; a full window that can't be made falls
+    back to single tasking full screen; on the EGL path the mouse is
+    right in a window taller than the screen; frames are held only on
+    the event loop's thread.
+  - Build and tests: `build-sdl2.sh` stops if a `.p` file doesn't apply
+    (it carried on); `tools/sdl-overlay-regen.sh --check` also finds
+    source changes no `.p` covers (after a `.p` was removed), says when it
+    falls back to the tree's git history for pristine SDL, and copes with
+    a file that is back to pristine; the `sdl-arm` test checks which CPU
+    features each emulated CPU reports, and rebuilds when its options
+    change; `tests/host-setup.sh` no longer lets the host build see the
+    RISC OS stage's pkg-config files; CI keeps all the logs; the devkit
+    examples' `make zip` works from the repository too.
+
 ## 20.3.5-11: UnixLib 5.0.3.1, so SDL's sound thread runs
 
 Every program is relinked with UnixLib 5.0.3.1. Its most important fix

@@ -14,7 +14,11 @@ overlay_sum() { cat "$HERE"/patches/sdl2/*.p | sha256sum | cut -d' ' -f1; }
 if [ ! -d SDL-release-$SDL_V ]; then
   fetch_verified "$SDL_URL" "$SDL_SHA256" SDL-$SDL_V.tgz
   tar xzf SDL-$SDL_V.tgz
-  (cd SDL-release-$SDL_V && for p in "$HERE"/patches/sdl2/*.p; do patch -s -p0 < "$p"; done && ./autogen.sh)
+  # Every .p must apply: a failure stops the build (inside a loop on the
+  # left of &&, set -e alone wouldn't catch it)
+  (cd SDL-release-$SDL_V && for p in "$HERE"/patches/sdl2/*.p; do
+     patch -s -p0 < "$p" || { echo "does not apply: $(basename "$p")" >&2; exit 1; }
+   done && ./autogen.sh)
   overlay_sum > SDL-release-$SDL_V/.overlay-sum
 elif [ "$(cat SDL-release-$SDL_V/.overlay-sum 2>/dev/null)" != "$(overlay_sum)" ]; then
   # patches/sdl2 changed (a git pull, say) since this tree was made. Edits

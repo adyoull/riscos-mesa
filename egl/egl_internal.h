@@ -182,6 +182,7 @@ typedef struct egl_surface {
     int ovl_want;               /* EGL_OVERLAY_RISCOS: 1 program asked, 0 program refused, -1 unset (EGL$Overlay decides) */
     int ovl_state;              /* OVL_OFF, OVL_ON, OVL_FAILED */
     int ovl_id, ovl_type;       /* VideoOverlay ID (0 = none); 0 Z-Order, 1 Basic */
+    int ovl_min_w, ovl_min_h, ovl_max_w, ovl_max_h; /* shown sizes it can scale to (0 max: any) */
     int ovl_banks, ovl_next, ovl_last;  /* buffers; next to write; last shown (-1 none) */
     int ovl_shown;              /* the overlay is showing the surface */
     int ovl_w, ovl_h, ovl_mode; /* the size and screen mode it was made for */

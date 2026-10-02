@@ -1,7 +1,47 @@
 diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
 --- src/video/riscos/SDL_riscosmodes.c
 +++ src/video/riscos/SDL_riscosmodes.c
-@@ -293,9 +293,16 @@ RISCOS_SetDisplayMode(_THIS, SDL_VideoDisplay * display, SDL_DisplayMode * mode)
+@@ -230,6 +230,39 @@ RISCOS_InitModes(_THIS)
+     return SDL_AddBasicVideoDisplay(&mode);
+ }
+ 
++void
++RISCOS_DesktopModeChanged(_THIS)
++{
++    SDL_VideoDisplay *display;
++    SDL_DisplayMode mode;
++    _kernel_swi_regs regs;
++    int *current_mode;
++    void *old;
++    size_t size;
++
++    if (_this->num_displays < 1)
++        return;
++    display = &_this->displays[0];
++    /* SDL's own mode (full screen with a mode change) isn't the desktop's:
++       the desktop mode is what it goes back to */
++    if (display->current_mode.driverdata != display->desktop_mode.driverdata)
++        return;
++    regs.r[0] = 1;
++    if (_kernel_swi(OS_ScreenMode, &regs, &regs) != NULL)
++        return;
++    current_mode = (int *)regs.r[1];
++    if (!read_mode_block(current_mode, &mode, SDL_TRUE))
++        return;
++    size = measure_mode_block(current_mode);
++    mode.driverdata = copy_memory(current_mode, size, size);
++    if (!mode.driverdata)
++        return;
++    old = display->desktop_mode.driverdata;
++    display->desktop_mode = mode;
++    display->current_mode = mode;
++    SDL_free(old);
++}
++
+ void
+ RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay * display)
+ {
+@@ -293,9 +326,16 @@ RISCOS_SetDisplayMode(_THIS, SDL_VideoDisplay * display, SDL_DisplayMode * mode)
      _kernel_oserror *error;
      int i;
  
@@ -21,7 +61,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
      if (error != NULL) {
          return SDL_SetError("Unable to set the current screen mode: %s (%i)", error->errmess, error->errnum);
      }
-@@ -308,6 +315,8 @@ RISCOS_SetDisplayMode(_THIS, SDL_VideoDisplay * display, SDL_DisplayMode * mode)
+@@ -308,6 +348,8 @@ RISCOS_SetDisplayMode(_THIS, SDL_VideoDisplay * display, SDL_DisplayMode * mode)
      /* Update cursor visibility, since it may have been disabled by the mode change. */
      SDL_SetCursor(NULL);
  

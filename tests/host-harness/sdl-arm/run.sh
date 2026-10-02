@@ -27,9 +27,14 @@ command -v qemu-arm >/dev/null || { echo "needs qemu-arm"; exit 1; }
 command -v $CC >/dev/null || { echo "needs $CC"; exit 1; }
 mkdir -p "$OUT/build"
 
-# rebuild SDL when a source file is newer than the last build
+# rebuild SDL when a source file is newer than the last build, or when
+# the tree, configure or the options here have changed
+CONFIG="$SDL $FLAGS $(cat "$SDL/configure.ac" "$0" | sha256sum | cut -c1-16)"
 if [ ! -f "$OUT/inst/lib/libSDL2.a" ] ||
+   [ "$(cat "$OUT/config" 2>/dev/null)" != "$CONFIG" ] ||
    [ -n "$(find "$SDL/src" "$SDL/include" -newer "$OUT/inst/lib/libSDL2.a" -type f -print -quit)" ]; then
+    rm -rf "$OUT/build" "$OUT/inst" "$OUT/config"
+    mkdir -p "$OUT/build"
     echo "building SDL for ARM Linux in $OUT/build"
     (cd "$OUT/build" &&
      "$SDL/configure" --host=arm-linux-gnueabihf --prefix="$OUT/inst" \
@@ -42,6 +47,7 @@ if [ ! -f "$OUT/inst/lib/libSDL2.a" ] ||
         CFLAGS="$FLAGS" > configure.log 2>&1 &&
      make -j"$(nproc)" > make.log 2>&1 && make install > install.log 2>&1) ||
         { echo "SDL build failed (logs in $OUT/build)"; exit 1; }
+    echo "$CONFIG" > "$OUT/config"
 fi
 for d in SDL_ARM_SIMD_BLITTERS SDL_ARM_NEON_BLITTERS; do
     grep -q "#define $d 1" "$OUT/inst/include/SDL2/SDL_config.h" ||
@@ -52,10 +58,15 @@ $CC $FLAGS -static -I"$OUT/inst/include/SDL2" "$HERE/armblit.c" \
     "$OUT/inst/lib/libSDL2.a" -lm -o "$OUT/armblit" 2> "$OUT/link.log" ||
     { cat "$OUT/link.log"; exit 1; }
 
+# Each CPU must also be detected as expected: if SDL's CPU check found
+# neither, armblit would only test the C code, and pass.
 fail=0
-for cpu in cortex-a8 cortex-a8,neon=off,vfp-d32=off; do
+for run in "cortex-a8|CPU: NEON yes, ARM SIMD yes" \
+           "cortex-a8,neon=off,vfp-d32=off|CPU: NEON no, ARM SIMD yes"; do
+    cpu=${run%%|*} want=${run#*|}
     echo "== $cpu"
-    qemu-arm -cpu "$cpu" "$OUT/armblit" || fail=1
+    qemu-arm -cpu "$cpu" "$OUT/armblit" | tee "$OUT/armblit.out" || fail=1
+    grep -qx "$want" "$OUT/armblit.out" || { echo "FAIL: expected \"$want\""; fail=1; }
 done
 [ $fail = 0 ] && echo "sdl-arm: all passed"
 exit $fail

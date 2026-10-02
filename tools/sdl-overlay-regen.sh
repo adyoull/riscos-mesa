@@ -37,11 +37,21 @@ PRISTINE=$W/SDL-release-$SDL_V
 # history if it has one (a tree whose first commit is pristine SDL).
 unpack_pristine() {
     rm -rf "$PRISTINE"
-    if (cd "$SRC" && fetch_verified "$SDL_URL" "$SDL_SHA256" SDL-$SDL_V.tgz) 2>/dev/null; then
+    if (cd "$SRC" && fetch_verified "$SDL_URL" "$SDL_SHA256" SDL-$SDL_V.tgz) 2>"$W/fetch.log"; then
         tar xzf "$SRC/SDL-$SDL_V.tgz" -C "$W"
     elif git -C "$T" rev-parse -q --verify HEAD >/dev/null 2>&1; then
+        # Offline: only right if that first commit really is SDL as
+        # released, so say what was used
+        local first
+        first=$(git -C "$T" rev-list --max-parents=0 HEAD)
+        if [ -z "${PRISTINE_SAID:-}" ]; then
+            echo "note: couldn't download SDL $SDL_V ($(tail -1 "$W/fetch.log"));" >&2
+            echo "      using the working tree's first git commit as pristine SDL:" >&2
+            echo "      $(git -C "$T" log -1 --format='%h %s' "$first")" >&2
+            PRISTINE_SAID=1
+        fi
         mkdir -p "$PRISTINE"
-        git -C "$T" archive "$(git -C "$T" rev-list --max-parents=0 HEAD)" | tar x -C "$PRISTINE"
+        git -C "$T" archive "$first" | tar x -C "$PRISTINE"
     else
         echo "can't get pristine SDL $SDL_V ($SDL_URL)" >&2
         exit 2
@@ -65,7 +75,13 @@ if [ $CHECK = 0 ]; then
         mkdir -p "$(dirname "$PRISTINE/$f")"
         cp "$T/$f" "$PRISTINE/$f"
         git -C "$PRISTINE" add -N "$f"
-        git -C "$PRISTINE" diff --no-prefix -- "$f" | grep -v '^index ' > "$p.new"
+        # (grep finds nothing when the file is back to pristine: not an error)
+        { git -C "$PRISTINE" diff --no-color --no-ext-diff --no-prefix -- "$f" |
+              grep -v '^index ' || true; } > "$p.new"
+        if [ ! -s "$p.new" ]; then
+            echo "$(basename "$p"): $f is the same as pristine SDL now; delete the .p" >&2
+            rm "$p.new"; bad=1; continue
+        fi
         if cmp -s "$p" "$p.new"; then rm "$p.new"; else mv "$p.new" "$p"; echo "updated $(basename "$p")"; fi
     done
     # A clean pristine tree again for the check below
@@ -83,6 +99,16 @@ for f in $(for p in "$P"/*.p; do target "$p"; done | sort -u); do
         bad=1
     fi
 done
+# ...and nothing else in the source may differ from pristine SDL plus the
+# .p files: a changed file no .p covers (after a .p was removed, say)
+# would otherwise be built without anyone knowing. Generated and build
+# files are left out.
+extra=$(diff -rq "$PRISTINE" "$T" -x .git -x build -x build-ro -x autom4te.cache \
+            -x .overlay-sum -x configure -x 'configure~' 2>&1 || true)
+if [ -n "$extra" ]; then
+    echo "$extra" | sed 's/^/not covered by the .p files: /'
+    bad=1
+fi
 if [ $bad = 0 ]; then
     echo "SDL overlay: the .p files match the working tree ($(ls "$P"/*.p | wc -l) files)"
 else

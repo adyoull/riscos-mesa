@@ -406,7 +406,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
      SDL_WindowData *driverdata;
  
      driverdata = (SDL_WindowData *) SDL_calloc(1, sizeof(*driverdata));
-@@ -41,21 +429,263 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
+@@ -41,21 +429,280 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
          return SDL_OutOfMemory();
      }
      driverdata->window = window;
@@ -491,9 +491,12 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +            window->w = d->render_w;
 +            window->h = d->render_h;
 +        }
-+        RISCOS_WimpCreateWindow(_this, window, SDL_TRUE);
-+        RISCOS_ApplyPointerVisibility(_this);
-+        return;
++        if (RISCOS_WimpCreateWindow(_this, window, SDL_TRUE) >= 0) {
++            RISCOS_ApplyPointerVisibility(_this);
++            return;
++        }
++        /* No full window to be had (the Wimp short of memory, say): the
++           single tasking kind instead, below, rather than neither */
 +    }
 +    if (!fullscreen && vdata->full_window && vdata->wimp_sdl_window == window &&
 +        !window->is_destroying) {
@@ -540,14 +543,12 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    }
 +}
 +
++static void RISCOS_WimpFitWindow(_THIS, SDL_Window * window);
++
 +void
 +RISCOS_SetWindowSize(_THIS, SDL_Window * window)
 +{
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
-+    int xeig, yeig, w_os, h_os;
-+    RISCOS_WindowState state;
-+    RISCOS_Box extent;
-+    _kernel_swi_regs regs;
 +
 +    if (!RISCOS_IsWindowed(vdata) || vdata->wimp_sdl_window != window || vdata->full_window)
 +        return;
@@ -563,6 +564,22 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +            window->h = d->render_h;
 +        }
 +    }
++    RISCOS_WimpFitWindow(_this, window);
++}
++
++/* 2026: (re)size the desktop window for the window's shown size, the
++   current mode's OS units per pixel and the window scale (worked out
++   again: a mode change between EX0 and EX1 changes it), keeping its top
++   left corner. */
++static void
++RISCOS_WimpFitWindow(_THIS, SDL_Window * window)
++{
++    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
++    int xeig, yeig, w_os, h_os;
++    RISCOS_WindowState state;
++    RISCOS_Box extent;
++    _kernel_swi_regs regs;
++
 +    xeig = RISCOS_WimpReadEig(4);
 +    yeig = RISCOS_WimpReadEig(5);
 +    RISCOS_ChooseWindowScale(_this, window);
@@ -674,7 +691,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
      if (!driverdata)
          return;
  
-@@ -63,6 +693,62 @@ RISCOS_DestroyWindow(_THIS, SDL_Window * window)
+@@ -63,6 +710,69 @@ RISCOS_DestroyWindow(_THIS, SDL_Window * window)
      window->driverdata = NULL;
  }
  
@@ -701,11 +718,14 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    return (d && d->render_w) ? SDL_TRUE : SDL_FALSE;
 +}
 +
-+/* 2026: see SDL_riscoswindow.h. A full window takes the new screen's
-+   size; the program is told its window was resized (unless it has a
-+   render size, which is simply stretched to the new screen). */
++/* 2026: see SDL_riscoswindow.h. A desktop window is fitted to the new
++   mode's OS units per pixel (and window scale), so the picture and the
++   mouse stay right across a change between 90 and 180 dpi. A full window
++   takes the new screen's size; the program is told its window was
++   resized (unless it has a render size, which is simply stretched to the
++   new screen). */
 +void
-+RISCOS_FullWindowModeChanged(_THIS)
++RISCOS_WindowModeChanged(_THIS)
 +{
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +    SDL_Window *window = vdata->wimp_sdl_window;
@@ -714,8 +734,12 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    _kernel_swi_regs regs;
 +    int w, h, xeig, yeig;
 +
-+    if (!vdata->full_window || !window)
++    if (!RISCOS_IsWindowed(vdata) || !window || !vdata->wimp_window)
 +        return;
++    if (!vdata->full_window) {
++        RISCOS_WimpFitWindow(_this, window);
++        return;
++    }
 +    d = (SDL_WindowData *) window->driverdata;
 +    xeig = RISCOS_WimpReadEig(4);
 +    yeig = RISCOS_WimpReadEig(5);

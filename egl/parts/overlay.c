@@ -109,9 +109,22 @@ static int ovl_available(void)
    EGL_FALSE. Returns -1 off, 1 on, 0 unset (the program decides). */
 static int ovl_user_setting(void)
 {
-    const char *v = getenv("EGL$Overlay");
-    if (!v)
-        return 0;
+    /* Read with OS_ReadVarVal into our own buffer, not getenv: UnixLib's
+       getenv for a name with a '$' frees and remakes one static buffer on
+       every call, unlocked, which would invalidate a string the program
+       got from getenv earlier, and isn't safe between threads. This runs
+       at every swap. A value too long for the buffer is neither on nor
+       off. */
+    char v[8];
+    _kernel_swi_regs r;
+    r.r[0] = (int) "EGL$Overlay";
+    r.r[1] = (int) v;
+    r.r[2] = (int) sizeof v - 1;
+    r.r[3] = 0;
+    r.r[4] = 3;                                 /* expanded to a string */
+    if (_kernel_swi(OS_ReadVarVal, &r, &r) != NULL || r.r[2] < 0 || r.r[2] >= (int) sizeof v)
+        return 0;                               /* unset (or too long) */
+    v[r.r[2]] = 0;
     if (strcasecmp(v, "off") == 0 || strcasecmp(v, "no") == 0 || strcmp(v, "0") == 0)
         return -1;
     if (strcasecmp(v, "on") == 0 || strcasecmp(v, "yes") == 0 || strcmp(v, "1") == 0)
@@ -197,6 +210,8 @@ static int ovl_create(egl_surface *surf, const screen_info *s)
             return 0;                   /* can't have one of this size or format */
         surf->ovl_id = r.r[0];
         surf->ovl_type = r.r[1] & 0xFF;
+        surf->ovl_min_w = r.r[2]; surf->ovl_min_h = r.r[3];   /* the sizes it can be */
+        surf->ovl_max_w = r.r[4]; surf->ovl_max_h = r.r[5];   /* shown at */
         for (b = 0; b < banks; b++) {
             if (ovl_call(OVL_SWI(MAP), surf->ovl_id, b) != NULL)
                 break;
@@ -232,6 +247,11 @@ static int ovl_place(egl_surface *surf, const window_state *ws, const screen_inf
     _kernel_swi_regs r;
     int dw, dh;
     shown_size(surf, ws, s, &dw, &dh);      /* > the surface: scaled by the overlay */
+    /* A size the overlay said it can't be shown at (Create's R2-R5) would
+       be shown wrongly with no error, so plot instead */
+    if (dw < surf->ovl_min_w || dh < surf->ovl_min_h ||
+        (surf->ovl_max_w > 0 && dw > surf->ovl_max_w) || (surf->ovl_max_h > 0 && dh > surf->ovl_max_h))
+        return 0;
     if (surf->ovl_placed[0] == ws->scroll_x && surf->ovl_placed[1] == ws->scroll_y &&
         surf->ovl_placed[2] == dw && surf->ovl_placed[3] == dh)
         return 1;
@@ -257,22 +277,46 @@ static int ovl_place(egl_surface *surf, const window_state *ws, const screen_inf
     return 1;
 }
 
+/* The window a nested (child) window sits in, or -1 for a top-level one
+   (or a Wimp without nested windows, which leaves R3 alone). */
+static int window_parent(int handle)
+{
+    _kernel_swi_regs r;
+    window_state w;
+    w.handle = handle;
+    r.r[1] = (int) &w;
+    r.r[2] = 0x4B534154;                        /* "TASK": nested window details */
+    r.r[3] = -1;
+    if (_kernel_swi(Wimp_GetWindowState, &r, &r) != NULL)
+        return -1;
+    return r.r[3];
+}
+
 /* Is the window closed, or is any window or menu above it in the stack
    over its visible area? Each window's "behind" word is the handle of the
-   window just in front of it (-1 at the front). */
+   window just in front of it (-1 at the front). For a child window, that
+   stack holds only its siblings in the parent, so the parent's own stack
+   (and its parent's) is checked too: a menu or another task's window over
+   the parent covers the child as well. */
 static int ovl_covered(const window_state *ws)
 {
-    window_state w;
-    int h, n;
+    window_state w, c;
+    int h, n, level, parent;
     if (!(ws->flags & WINDOW_FLAG_OPEN))
         return 1;                               /* not open (closed, iconised) */
-    for (h = ws->behind, n = 0; h != -1 && n < 256; n++) {
-        if (!get_window_state(h, &w))
-            return 1;                           /* can't tell: be safe */
-        if ((w.flags & WINDOW_FLAG_OPEN) && w.x0 < ws->x1 && w.x1 > ws->x0 &&
-            w.y0 < ws->y1 && w.y1 > ws->y0)
-            return 1;
-        h = w.behind;
+    c = *ws;
+    for (level = 0; level < 8; level++) {
+        for (h = c.behind, n = 0; h != -1 && n < 256; n++) {
+            if (!get_window_state(h, &w))
+                return 1;                       /* can't tell: be safe */
+            if ((w.flags & WINDOW_FLAG_OPEN) && w.x0 < ws->x1 && w.x1 > ws->x0 &&
+                w.y0 < ws->y1 && w.y1 > ws->y0)
+                return 1;
+            h = w.behind;
+        }
+        parent = window_parent(c.handle);
+        if (parent == -1 || parent == 0 || !get_window_state(parent, &c))
+            return 0;
     }
     return 0;
 }
@@ -453,7 +497,15 @@ static int ovl_update(egl_display *d, egl_surface *surf, const screen_info *s, i
         surf->ovl_run = surf->ovl_run > 0 && now - surf->ovl_swap_cs <= OVL_GAP_CS ? surf->ovl_run + 1 : 1;
         surf->ovl_swap_cs = now;
     }
-    if (!get_window_state(surf->handle, &ws) || !ovl_still_usable(d, surf, &ws, s, new_frame))
+    if (!get_window_state(surf->handle, &ws)) {
+        /* The window has gone (deleted under a surface that's still
+           current, say): nothing can be shown in it, so the overlay goes
+           too, rather than staying over everything. */
+        if (surf->ovl_id)
+            ovl_destroy(surf);
+        return 0;
+    }
+    if (!ovl_still_usable(d, surf, &ws, s, new_frame))
         return 0;
     /* Stopped swapping (a paused video): back to the plotted sprite, which
        the Wimp keeps right under menus and windows with no help. The
@@ -465,6 +517,11 @@ static int ovl_update(egl_display *d, egl_surface *surf, const screen_info *s, i
         covered = surf->ovl_type == OVL_TYPE_BASIC && ovl_covered(&ws);
     if (covered) {
         ovl_hide(d, surf, &ws, s, !new_frame);
+        /* This frame goes to the sprite, not the overlay: the overlay's
+           last frame is now out of date, so it mustn't be shown again
+           (on an uncover before the next swap); wait for a new one. */
+        if (new_frame)
+            surf->ovl_last = -1;
         return 0;
     }
     if (surf->ovl_state == OVL_OFF) {

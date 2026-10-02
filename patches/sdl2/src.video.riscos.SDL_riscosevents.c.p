@@ -1,7 +1,7 @@
 diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents.c
 --- src/video/riscos/SDL_riscosevents.c
 +++ src/video/riscos/SDL_riscosevents.c
-@@ -23,15 +23,108 @@
+@@ -23,15 +23,110 @@
  #if SDL_VIDEO_DRIVER_RISCOS
  
  #include "../../events/SDL_events_c.h"
@@ -13,6 +13,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  #include "SDL_riscosvideo.h"
  #include "SDL_riscosevents_c.h"
 +#include "SDL_riscoswindow.h"
++#include "SDL_riscosmodes.h"
 +#include "SDL_riscosopengl.h"
  #include "scancodes_riscos.h"
  
@@ -94,7 +95,8 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +        break;
 +    case 0x400C1: /* Message_ModeChange: the desktop's screen mode changed */
 +        RISCOS_UpdateEigs(_this);                /* OS units per pixel may have too */
-+        RISCOS_FullWindowModeChanged(_this);     /* a full window fills the new screen */
++        RISCOS_DesktopModeChanged(_this);        /* SDL's desktop display mode */
++        RISCOS_WindowModeChanged(_this);         /* the window fits the new mode */
 +        break;
 +    case 0:  /* Message_Quit */
 +        riscos_quit.shutdown_pending = SDL_FALSE;
@@ -110,7 +112,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  static SDL_Scancode
  SDL_RISCOS_translate_keycode(int keycode)
  {
-@@ -50,6 +143,44 @@ SDL_RISCOS_translate_keycode(int keycode)
+@@ -50,6 +145,44 @@ SDL_RISCOS_translate_keycode(int keycode)
      return scancode;
  }
  
@@ -155,7 +157,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  void
  RISCOS_PollKeyboard(_THIS)
  {
-@@ -57,6 +188,17 @@ RISCOS_PollKeyboard(_THIS)
+@@ -57,6 +190,17 @@ RISCOS_PollKeyboard(_THIS)
      Uint8 key = 2;
      int i;
  
@@ -173,7 +175,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
      /* Check for key releases */
      for (i = 0; i < RISCOS_MAX_KEYS_PRESSED; i++) {
          if (driverdata->key_pressed[i] != 255) {
-@@ -67,6 +209,10 @@ RISCOS_PollKeyboard(_THIS)
+@@ -67,6 +211,10 @@ RISCOS_PollKeyboard(_THIS)
          }
      }
  
@@ -184,7 +186,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
      /* Check for key presses */
      while (key < 0xff) {
          key = _kernel_osbyte(121, key + 1, 0) & 0xff;
-@@ -111,36 +257,169 @@ static const Uint8 mouse_button_map[] = {
+@@ -111,36 +259,179 @@ static const Uint8 mouse_button_map[] = {
      SDL_BUTTON_X2 + 3
  };
  
@@ -238,7 +240,17 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +    y = ((state.open.visible.y1 - state.open.scroll_y) - ptr.y) >> yeig;
 +    /* screen pixels -> SDL pixels: the window may be scaled (wscale, and a
 +       GL render size stretched over it; see RISCOS_ShownW) */
-+    {
++    if (window->driverdata && ((SDL_WindowData *) window->driverdata)->gl_egl) {
++        /* A GL window on the EGL path: EGL stretches the frame over the
++           window's visible area, which is smaller than the work area if
++           the window doesn't fit on the screen. So map across that. */
++        int vw = (state.open.visible.x1 - state.open.visible.x0) >> xeig;
++        int vh = (state.open.visible.y1 - state.open.visible.y0) >> yeig;
++        x = (ptr.x - state.open.visible.x0) >> xeig;
++        y = (state.open.visible.y1 - ptr.y) >> yeig;
++        if (vw > 0 && vw != window->w) x = (int)(((long long)x * window->w) / vw);
++        if (vh > 0 && vh != window->h) y = (int)(((long long)y * window->h) / vh);
++    } else {
 +        int ww = RISCOS_ShownW(window) * (driverdata->wscale_x > 0 ? driverdata->wscale_x : 1);
 +        int wh = RISCOS_ShownH(window) * (driverdata->wscale_y > 0 ? driverdata->wscale_y : 1);
 +        if (ww != window->w) x = (int)(((long long)x * window->w) / ww);
@@ -361,7 +373,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  int
  RISCOS_InitEvents(_THIS)
  {
-@@ -165,10 +444,349 @@ RISCOS_InitEvents(_THIS)
+@@ -165,10 +456,349 @@ RISCOS_InitEvents(_THIS)
      return 0;
  }
  

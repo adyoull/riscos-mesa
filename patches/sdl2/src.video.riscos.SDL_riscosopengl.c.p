@@ -2,7 +2,7 @@ diff --git src/video/riscos/SDL_riscosopengl.c src/video/riscos/SDL_riscosopengl
 new file mode 100644
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.c
-@@ -0,0 +1,808 @@
+@@ -0,0 +1,815 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -546,7 +546,14 @@ new file mode 100644
 +       time); otherwise, or if it still hasn't come, hold the frame and show
 +       it from the event loop (RISCOS_GL_Idle), unless a newer one comes
 +       first. */
-+    if (eglSwapWouldWaitRISCOS(gl_dpy, data->egl_surface)) {
++    /* Only the event loop's thread holds frames: RISCOS_GL_Idle shows them
++       from PumpEvents, on that thread (EGL's current surface is per
++       thread, and gl_pending isn't locked). Another thread swaps now: EGL
++       waits at most until the next vsync.
++       A held frame is shown as the surface is when the event loop gets to
++       it, so a program that pumps events after starting to draw its next
++       frame can have that partly drawn frame shown until it swaps. */
++    if (SDL_ThreadID() == vdata->main_thread && eglSwapWouldWaitRISCOS(gl_dpy, data->egl_surface)) {
 +        for (tries = 0; vdata->gl_swap_interval > 0 && tries < 3; tries++) {
 +            if (!RISCOS_WimpDelay(_this, 10))
 +                break;

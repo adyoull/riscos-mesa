@@ -42,4 +42,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: host-test-logs
-          path: /tmp/riscos-mesa-tests/*.log
+          path: |
+            /tmp/riscos-mesa-tests/**/*.log
+            src/*.log

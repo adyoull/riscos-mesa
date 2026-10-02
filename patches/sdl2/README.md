@@ -155,7 +155,9 @@ It contains:
     hardware overlay (`EGL_RISCOS_overlay`); unset, `EGL$Overlay` decides.
     A frame EGL would have to wait a vsync for is held and shown from
     PumpEvents (`RISCOS_GL_Idle`), which also keeps the overlay right
-    while nothing is swapped, so a swap never blocks the desktop.
+    while nothing is swapped, so a swap never blocks the desktop. Only
+    the event loop's thread holds frames; a GL thread's swap waits (at
+    most a vsync) instead.
   - On the EGL path the EX0 EY0 2x window scale is EGL's stretch too
     (the surface always renders at the SDL window size).
   - Checked by `tests/host-harness/harness.c` (the driver file, both
@@ -194,6 +196,17 @@ It contains:
   1.6 times as fast (`sdlblitbench`; figures in the CHANGELOG).
   riscos-openttd gets them only if it configures with the same two
   options; without them `SDL_blit_A.c` is the same as before.
+- Desktop mode changes (2026-10-02, from a code review): on
+  Message_ModeChange the driver reads the eig factors and SDL's desktop
+  display mode again (`RISCOS_DesktopModeChanged`, new
+  `src.video.riscos.SDL_riscosmodes.h.p`; not while SDL has set a mode of
+  its own), and fits the desktop window to the new mode
+  (`RISCOS_WindowModeChanged`): a window's scale and extent are worked
+  out again, so its picture and the mouse stay right across a change
+  between 90 and 180 dpi; a full window takes the new screen's size. A
+  full window that can't be made falls back to single tasking full
+  screen. On the EGL path the mouse is mapped across the window's visible
+  area, which EGL stretches the frame over.
 - `sdl2-configure.ac.host.p`: OpenTTD's triplet fix (arm-riscos-gnueabihf
   is not Linux). `sdl2-configure.ac.osmesa.p`: the OSMesa option.
   `sdl2-configure.ac.simd.p`: the ARM blitters (above).
