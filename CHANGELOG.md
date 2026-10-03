@@ -6,6 +6,12 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-12 (in development)
 
+- SDL overlay: `sdl2-configure.ac.simd.p` didn't apply after the GCCSDK
+  autobuilder's own `configure.ac.p`, which adds lines at the same place,
+  so riscos-openttd's SDL build stopped (reported by riscos-openttd). The
+  ARM blitter checks now go earlier in the RISC OS section, and
+  `tools/sdl-overlay-regen.sh --check` checks the configure patches apply
+  after the autobuilder's too. No change to what is built.
 - **glPushMatrix after glBegin/glEnd drew with the wrong matrix** (a Mesa
   classic swrast bug, new patch `riscos-push-flush`). Found by the Warzone
   2100 port, whose skirmish screen lost its buttons; any OpenGL 1.x program

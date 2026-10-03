@@ -229,6 +229,11 @@ The older `sdl2-riscos-framebuffer.p` from the buildkit is superseded by
 
 The four `sdl2-configure.ac.*.p` files patch the same file in turn (in
 name order), so the script only checks them: edit those by hand.
+--check also applies them after the GCCSDK autobuilder's own libsdl2
+`configure.ac.p` (riscos-openttd builds with that recipe), when it finds the
+autobuilder (`GCCSDK_AUTOBUILDER=<dir>`, or next to `GCCSDK_ENV`): that patch
+changes the RISC OS section too, so a hunk whose context it touches fails
+there although it applies to pristine SDL.
 
 `build/build-sdl2.sh` notices when the `.p` files have changed since its
 tree was made (after a `git pull`, say) and stops if the tree no longer

@@ -109,6 +109,26 @@ if [ -n "$extra" ]; then
     echo "$extra" | sed 's/^/not covered by the .p files: /'
     bad=1
 fi
+# The GCCSDK autobuilder's libsdl2 recipe (which riscos-openttd builds
+# with) has its own configure.ac.p, applied before ours (name order), and
+# it changes the RISC OS section too. Ours must still apply after it.
+AB=${GCCSDK_AUTOBUILDER:-${GCCSDK_ENV:-}/../src/riscos-gccsdk/autobuilder}
+ABP=$AB/libraries/sdl/libsdl2/configure.ac.p
+if [ -f "$ABP" ]; then
+    unpack_pristine
+    if (cd "$PRISTINE" && patch -s -p0 < "$ABP"); then
+        for p in "$P"/sdl2-configure.ac.*.p; do
+            (cd "$PRISTINE" && patch -s -p0 -F0 < "$p" > "$W/ab.log" 2>&1) || {
+                echo "does not apply after the GCCSDK autobuilder's configure.ac.p: $(basename "$p")"
+                bad=1; }
+        done
+    else
+        echo "note: the GCCSDK autobuilder's configure.ac.p doesn't apply to SDL $SDL_V; not checked" >&2
+    fi
+else
+    echo "note: no GCCSDK autobuilder libsdl2 recipe found (GCCSDK_AUTOBUILDER=<autobuilder dir>);" >&2
+    echo "      not checked that the configure.ac patches apply after its configure.ac.p" >&2
+fi
 if [ $bad = 0 ]; then
     echo "SDL overlay: the .p files match the working tree ($(ls "$P"/*.p | wc -l) files)"
 else
