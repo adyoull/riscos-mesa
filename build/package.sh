@@ -13,6 +13,17 @@ source "$(dirname "$0")/env.sh"
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 V=${1:?usage: package.sh VERSION}
 mkdir -p "$HERE/dist"
+# Nothing released may name the build machine's directories (source paths
+# from __FILE__ or debug information): RO_CFLAGS maps them to
+# "riscos-mesa" (-ffile-prefix-map), and this checks every program and
+# library before packaging.
+leaks=$(find "$STAGE" -type f \( -name '*,e1f' -o -name '*,ff8' -o -name '*.a' \) -print0 |
+        xargs -0 grep -l -a -i -E "$HOME/|/home/|/root/|claude" 2>/dev/null || true)
+if [ -n "$leaks" ]; then
+  echo "build paths in these files (rebuild them with the current RO_CFLAGS):" >&2
+  echo "$leaks" | sed "s|^$STAGE/|  stage/|" >&2
+  exit 1
+fi
 TMP=$(mktemp -d)
 cp -r "$STAGE/tests" "$TMP/riscos-mesa-tests"
 cp "$HERE/LICENCES.txt" "$TMP/riscos-mesa-tests/Licences,fff"

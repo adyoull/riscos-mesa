@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <kernel.h>
 #include <swis.h>
 #include <EGL/egl.h>
@@ -196,7 +197,10 @@ int rw_redirect_output(const char *var)
     if (!o || !*o || (out = freopen(o, "w+", stdout)) == NULL)
         return 0;
     setvbuf(stdout, NULL, _IOLBF, 0);
-    if (freopen(o, "a", stderr) != NULL)
+    /* RISC OS lets a file be open for writing only once: a second freopen
+       fails and leaves stderr closed. So stderr shares stdout's file. */
+    fflush(stderr);
+    if (dup2(fileno(stdout), fileno(stderr)) >= 0)
         setvbuf(stderr, NULL, _IONBF, 0);
     return 1;
 }

@@ -18,7 +18,7 @@ cd mesa-$V
 # added to the end of the list is applied to an existing tree. (A patch
 # that is changed isn't re-applied: remove src/mesa-20.3.5 to start
 # again, or rebase with tools/mesa-branch.sh.)
-PATCHES="riscos riscos-speed riscos-glsl-decode riscos-glsl-batch gcc13-vectorizer riscos-startup riscos-size-limit riscos-span-speed riscos-direct-rows riscos-uncompressed riscos-fast-tex riscos-fast-fog riscos-fastest riscos-eglimage riscos-osmesa-buffers"
+PATCHES="riscos riscos-speed riscos-glsl-decode riscos-glsl-batch gcc13-vectorizer riscos-startup riscos-size-limit riscos-span-speed riscos-direct-rows riscos-uncompressed riscos-fast-tex riscos-fast-fog riscos-fastest riscos-eglimage riscos-osmesa-buffers riscos-push-flush"
 STAMP=.riscos-patches-applied
 if [ ! -f $STAMP ]; then
   echo "src/mesa-$V has no $STAMP (made by a much older build script):" >&2

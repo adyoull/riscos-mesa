@@ -236,6 +236,16 @@ After changing any of these patches, apply them to a host Mesa tree,
 rebuild it and run tests/run-all.sh (rendering and performance checks in
 tests/host-harness/mesa).
 
+mesa-20.3.5-riscos-push-flush.patch
+    main/matrix.c: glPushMatrix flushes the vertices still buffered from
+    glBegin/glEnd before it changes the matrix stack, as glPopMatrix and
+    the other matrix calls do. Without it classic swrast drew them with
+    the pushed matrix: Warzone 2100's textured quads, drawn with a
+    texture-matrix scale, vanished once its text code pushed the texture
+    matrix. Found and reduced by the Warzone 2100 port; checked by
+    tests/host-harness/mesa/render-matrix.c (host and ARM). Upstream
+    Mesa's classic drivers are gone, so it stays here.
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean

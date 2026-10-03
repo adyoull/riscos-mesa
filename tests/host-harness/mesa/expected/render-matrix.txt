@@ -1,0 +1,4 @@
+matrix push after glBegin/glEnd, variant 0: 3 of 3 quads drawn
+matrix push after glBegin/glEnd, variant 1: 3 of 3 quads drawn
+matrix push after glBegin/glEnd, variant 2: 3 of 3 quads drawn
+matrix push after glBegin/glEnd, variant 3: 3 of 3 quads drawn

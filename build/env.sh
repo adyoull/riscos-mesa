@@ -21,7 +21,11 @@ export CC=$HOST-gcc CXX=$HOST-g++ AR=$HOST-ar RANLIB=$HOST-ranlib STRIP=$HOST-st
 # the old Pi 2-and-later build.
 : "${RO_FPU:=vfpv3}"
 export RO_FPU
-export RO_CFLAGS="-O3 -mtune=cortex-a72 -mfpu=$RO_FPU -mfloat-abi=hard -fstack-clash-protection"
+# -ffile-prefix-map: source paths that end up in programs (__FILE__ in
+# asserts, debug information) name the repository, not the build machine's
+# directories (build/package.sh checks).
+RO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+export RO_CFLAGS="-O3 -mtune=cortex-a72 -mfpu=$RO_FPU -mfloat-abi=hard -fstack-clash-protection -ffile-prefix-map=$RO_ROOT=riscos-mesa"
 # Let meson/configure find our libs (zlib etc.) and nothing from the build host.
 export PKG_CONFIG_LIBDIR="$STAGE/lib/pkgconfig:$STAGE/share/pkgconfig"
 export PKG_CONFIG_SYSROOT_DIR=
@@ -29,13 +33,13 @@ mkdir -p "$STAGE" "$SRC"
 
 # Build directories remember the FPU they were configured for: autotools and
 # meson don't notice a flags change, so a different RO_FPU starts afresh.
-fresh_build_dir() {   # dir
-  if [ -d "$1" ] && [ "$(cat "$1/.ro-fpu" 2>/dev/null)" != "$RO_FPU" ]; then
-    echo "$1: built for another FPU (or before RO_FPU existed), starting afresh"
+fresh_build_dir() {   # dir: starts afresh when the FPU or compiler flags change
+  if [ -d "$1" ] && [ "$(cat "$1/.ro-fpu" 2>/dev/null)" != "$RO_FPU $RO_CFLAGS" ]; then
+    echo "$1: built with other compiler flags (or another FPU), starting afresh"
     rm -rf "$1"
   fi
   mkdir -p "$1"
-  echo "$RO_FPU" > "$1/.ro-fpu"
+  echo "$RO_FPU $RO_CFLAGS" > "$1/.ro-fpu"
 }
 
 # Pinned sources: each downloaded tarball's version, URL and SHA-256, in one

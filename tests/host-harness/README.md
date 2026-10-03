@@ -60,3 +60,20 @@ on the left and 880 Hz on the right, about a second each, in that order.
 The host builds are kept in `OUT` and redone when the patch changes.
 
     SRC=<where build-sdl2.sh and build-openal.sh left their sources> tests/host-harness/openal/run.sh
+
+
+## `qemu/`: RISC OS's alignment rules for the ARM checks
+
+RISC OS aborts on an unaligned load or store; Linux and plain qemu-arm
+don't. `qemu/build-qemu.sh` builds QEMU 8.2.2 with a patch that traps them
+as RISC OS does (`QEMU_ARM_ALIGN_TRAP=1`, with `QEMU_ARM_ALIGN_IGNORE`
+exempting code ranges). `qemu/trapped-ranges.py` works out, from a static
+program's link map, the ranges to exempt, so that only libOSMesa and the
+check itself are trapped (glibc's string functions use unaligned loads).
+With `QEMU_ALIGN` set, `mesa/arm/run-arm.sh` runs every check this way; an
+unaligned access stops it with SIGBUS (exit status 135). The checks that
+deliberately use byte-misaligned buffers skip those cases, as RISC OS
+colour buffers are word aligned. Details in `qemu/README.md`.
+
+    tests/host-harness/qemu/build-qemu.sh /tmp/qemu-at
+    QEMU_ALIGN=/tmp/qemu-at/qemu-arm tests/host-harness/mesa/arm/run-arm.sh

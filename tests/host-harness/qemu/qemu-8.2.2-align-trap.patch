@@ -1,0 +1,51 @@
+--- a/target/arm/cpu.c	2026-09-27 10:17:15.219681922 +0100
++++ b/target/arm/cpu.c	2026-09-27 08:15:03.630149013 +0100
+@@ -319,6 +319,11 @@
+                                          CPACR, CP10, 3);
+         env->cp15.cpacr_el1 = FIELD_DP64(env->cp15.cpacr_el1,
+                                          CPACR, CP11, 3);
++        /* riscos-ffmpeg test rig: RISC OS runs with alignment faults on */
++        if (getenv("QEMU_ARM_ALIGN_TRAP")) {
++            env->cp15.sctlr_el[1] |= SCTLR_A;
++            env->cp15.sctlr_el[3] |= SCTLR_A;
++        }
+ #endif
+         if (arm_feature(env, ARM_FEATURE_V8)) {
+             env->cp15.rvbar = cpu->rvbar_prop;
+--- a/target/arm/tcg/translate.c	2026-09-27 10:17:18.190295177 +0100
++++ b/target/arm/tcg/translate.c	2026-09-27 08:33:15.221924076 +0100
+@@ -9140,6 +9140,34 @@
+ #endif
+     dc->fp_excp_el = EX_TBFLAG_ANY(tb_flags, FPEXC_EL);
+     dc->align_mem = EX_TBFLAG_ANY(tb_flags, ALIGN_MEM);
++#ifdef CONFIG_USER_ONLY
++    /* riscos-ffmpeg test rig: QEMU_ARM_ALIGN_IGNORE="lo-hi,lo-hi,..." (hex)
++     * lists code (the C library) that keeps unaligned access working while
++     * everything else runs with SCTLR.A semantics, as on RISC OS. */
++    if (dc->align_mem) {
++        static int nr = -1;
++        static unsigned long lo[4096], hi[4096];
++        if (nr < 0) {
++            const char *e = getenv("QEMU_ARM_ALIGN_IGNORE");
++            nr = 0;
++            while (e && *e && nr < 4096) {
++                char *end;
++                lo[nr] = strtoul(e, &end, 16);
++                if (*end != '-') break;
++                hi[nr] = strtoul(end + 1, &end, 16);
++                nr++;
++                if (*end != ',') break;
++                e = end + 1;
++            }
++        }
++        for (int i = 0; i < nr; i++) {
++            if (dc->base.pc_first >= lo[i] && dc->base.pc_first < hi[i]) {
++                dc->align_mem = false;
++                break;
++            }
++        }
++    }
++#endif
+     dc->pstate_il = EX_TBFLAG_ANY(tb_flags, PSTATE__IL);
+     dc->fgt_active = EX_TBFLAG_ANY(tb_flags, FGT_ACTIVE);
+     dc->fgt_svc = EX_TBFLAG_ANY(tb_flags, FGT_SVC);

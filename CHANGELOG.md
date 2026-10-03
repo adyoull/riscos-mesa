@@ -6,6 +6,29 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-12 (in development)
 
+- **glPushMatrix after glBegin/glEnd drew with the wrong matrix** (a Mesa
+  classic swrast bug, new patch `riscos-push-flush`). Found by the Warzone
+  2100 port, whose skirmish screen lost its buttons; any OpenGL 1.x program
+  that pushes a matrix right after immediate-mode drawing could lose what
+  it drew. Relink to get the fix.
+- **The output helpers lost stderr on RISC OS** (`riscos_output.c`,
+  `riscos_wimpwin.c`): RISC OS lets a file be open for writing only once,
+  so the second `freopen` failed and closed stderr. stdout now shares the
+  file with `dup2`. `riscos_output.c` can also send output to a default
+  (`-DOUTPUT_DEFAULT='"/dev/null"'`). Found by the Warzone 2100 and Freeciv
+  ports.
+- **No build paths in released programs:** `-ffile-prefix-map` in the
+  build flags, and `build/package.sh` refuses to package a program or
+  library that names the build machine's directories (6 programs did).
+  Changing the compiler flags now rebuilds Mesa, SDL and GLU from fresh.
+- **ARM checks with RISC OS's alignment rules:** `tests/host-harness/qemu`
+  builds a QEMU that traps unaligned accesses as RISC OS does (from the
+  riscos-ffmpeg port); `QEMU_ALIGN=` runs the Mesa checks under it.
+- **Porting guide:** what other ports learnt: open a file for writing
+  once, the 128 MB dynamic area limit, keeping the desktop alive while
+  loading, the "EMT trap" at start-up (an earlier program's leftover
+  ARMEABISupport record: restart), crash reports, CMake flags, old C++
+  and `-fno-delete-null-pointer-checks`, AIF for TaskWindows.
 - **Fixes from a code review of 20.3.5-10 and -11:**
   - EGL overlays: a window uncovered after frames were swapped while it
     was covered no longer shows the overlay's older frame again; an

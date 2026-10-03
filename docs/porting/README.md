@@ -54,6 +54,20 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
   asked.
 - To use `eglRedrawWindowRISCOS` and the other RISC OS EGL calls, define
   `EGL_EGLEXT_PROTOTYPES` before including `EGL/eglext_riscos.h`.
+- **CMake:** setting `CMAKE_C_FLAGS` / `CMAKE_CXX_FLAGS` on the command line
+  replaces the toolchain file's flags, `-mfpu` and
+  `-fstack-clash-protection` included. Add flags in the toolchain file,
+  or append (`-DCMAKE_C_FLAGS_INIT=...`).
+- **Older C++:** GCC 6 and later delete `if (this == NULL)` tests, which
+  some old engines rely on. `-fno-delete-null-pointer-checks` keeps them
+  (YSFlight crashed without it).
+- **Build paths:** `__FILE__` (in `assert`s and logging) puts the build
+  machine's directories into the program. `-ffile-prefix-map=<your
+  source directory>=<name>` replaces them; riscos-mesa's builds do this.
+- **Programs started from a TaskWindow:** a big ELF program can fail with
+  "Wimpslot not big enough to run ELF program". Converting it to AIF
+  (`elf2aif`; GCCSDK's needs a fix for programs over 32 MB, which the
+  riscos-openttd port carries) and setting a WimpSlot in `!Run` avoids it.
 
 **Windows and the event loop**
 
@@ -100,6 +114,15 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
   variable that the `!Run` file sets, and show the newest line in the
   title bar. `ports/sdl2-tests/riscos_output.c` does the same with no
   change to the program at all.
+- **RISC OS lets a file be open for writing only once.** Sending stdout
+  and stderr to the same file with two `freopen` calls fails on the
+  second, and a failed `freopen` leaves that stream closed: everything
+  written to it is lost. Open the file once and `dup2` it to the other
+  stream, as the helpers do (from 20.3.5-12; found by the Warzone 2100
+  and Freeciv ports).
+- **Don't set a system variable other programs read** (such as a
+  program-wide log or icon variable): set one named after your program.
+  A shared one is inherited by every program started afterwards.
 
 **Threads**
 
@@ -117,6 +140,40 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
 - EGL follows EGL 1.4's thread rules (from 20.3.5-8): each thread has
   its own current context, so a program that loads textures in a second
   thread with a shared context ports as it is. It won't render faster.
+
+**Memory**
+
+- **A dynamic area holds at most 128 MB** on RISC OS 5, whatever size is
+  asked for. UnixLib 5.0.3.1 carries the heap on into further areas
+  (`<App> Heap 2`, `3`...), so `malloc` can use more; a program that
+  makes its own dynamic area for a bigger heap gets 128 MB.
+- **Contiguous memory** (OS_Memory 12, then OS_DynamicArea 21, for DMA or
+  the GPU) can take the page at &8000 the program runs from; RISC OS then
+  moves the program, which ARMEABISupport 1.08 doesn't notice. See
+  "Crashes" below. Ask for memory wholly below or above that page.
+
+**Keeping the desktop alive**
+
+- During a long load, process events (`SDL_PumpEvents`, or one
+  `Wimp_Poll`) about every 50 ms, or the whole desktop stops until it
+  finishes.
+- Don't spin while waiting: wait in `Wimp_PollIdle` (SDL's `SDL_Delay`
+  and `SDL_WaitEvent` do). UnixLib's `select()` busy-waits in a Wimp task.
+
+**Crashes**
+
+- **"EMT trap" (code 6) when a program starts**, at its first stack
+  growth, often inside UnixLib's `__riscosify`, whatever the program: an
+  earlier program's record in ARMEABISupport 1.08 was left behind when
+  RISC OS moved that program (see Memory). Restart the computer;
+  `*ARMEABISupport_Info` lists the records. It isn't a fault in the
+  program that crashes.
+- **A crash report:** a handler for SIGSEGV, SIGBUS, SIGILL and SIGEMT
+  that prints `_kernel_last_oserror()` and calls `__write_backtrace`,
+  then `_exit(2)`, tells you where (riscos-openttd does this).
+- **Unaligned accesses** abort on RISC OS but not on Linux. Test the
+  ARM code under a QEMU that traps them as RISC OS does
+  (`tests/host-harness/qemu`, from 20.3.5-12).
 
 **Other programs**
 

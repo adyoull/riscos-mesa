@@ -8,6 +8,12 @@
  * is drawn into an aligned buffer and into one a byte off alignment, so
  * both ways are checked: the two hashes of a case must be the same, and
  * the same as expected/render-rows.txt (see run.sh).
+ *
+ * The misaligned buffer is only for this check: on RISC OS a colour buffer
+ * must be word aligned (EGL's always are), as Mesa writes whole pixels
+ * (glClear, for one) and RISC OS aborts on an unaligned word store. So
+ * RENDER_ROWS_ALIGNED_ONLY=1 (arm/run-arm.sh with RISC OS's alignment
+ * rules) leaves those cases out.
  * Usage: render-rows
  * Part of riscos-mesa, MIT licence.
  */
@@ -101,7 +107,7 @@ int main(void)
     unsigned char *raw = malloc(W * H * 4 + 1);
     unsigned char *misaligned = raw + 1;
     OSMesaContext ctx = OSMesaCreateContextExt(OSMESA_RGBA, 0, 0, 0, NULL);
-    int n;
+    int n, aligned_only = getenv("RENDER_ROWS_ALIGNED_ONLY") != NULL;
 
     if (!ctx || !aligned || !raw) {
         fprintf(stderr, "setup failed\n");
@@ -112,10 +118,12 @@ int main(void)
         OSMesaMakeCurrent(ctx, aligned, GL_UNSIGNED_BYTE, W, H);
         scene(n);
         a = hash(aligned);
+        printf("%s aligned %08x\n", names[n], a);
+        if (aligned_only)
+            continue;
         OSMesaMakeCurrent(ctx, misaligned, GL_UNSIGNED_BYTE, W, H);
         scene(n);
         m = hash(misaligned);
-        printf("%s aligned %08x\n", names[n], a);
         printf("%s misaligned %08x\n", names[n], m);
     }
     OSMesaDestroyContext(ctx);

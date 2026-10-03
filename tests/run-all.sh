@@ -41,7 +41,9 @@
 #   arm             the rendering checks on the RISC OS build of Mesa under
 #                   qemu-arm emulating a Cortex-A8, the oldest CPU supported
 #                   (tests/host-harness/mesa/arm); only with ARM=1,
-#                   as it takes a few minutes
+#                   as it takes a few minutes. With QEMU_ALIGN=<a qemu-arm
+#                   from tests/host-harness/qemu/build-qemu.sh>, unaligned
+#                   accesses fault as they do on RISC OS
 #   sdl-arm         SDL's ARM SIMD and NEON blitters through SDL's API,
 #                   against its C code, on emulated NEON and SIMD-only
 #                   CPUs (tests/host-harness/sdl-arm); only with ARM=1

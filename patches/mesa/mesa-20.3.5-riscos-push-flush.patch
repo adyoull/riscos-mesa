@@ -1,0 +1,21 @@
+Flush buffered vertices before glPushMatrix()
+
+push_matrix() changed the matrix stack (and could realloc it) without
+FLUSH_VERTICES(), unlike pop_matrix() and the other matrix calls, so
+immediate-mode primitives still in the vbo_exec buffer were then drawn by
+classic swrast/tnl with the pushed matrix. Found by the Warzone 2100 port
+(textured quads drawn with a texture-matrix scale vanished once QuesoGLC
+pushed the texture matrix); checked by tests/host-harness/mesa/render-matrix.
+
+diff --git a/src/mesa/main/matrix.c b/src/mesa/main/matrix.c
+--- a/src/mesa/main/matrix.c
++++ b/src/mesa/main/matrix.c
+@@ -293,6 +293,8 @@
+ push_matrix(struct gl_context *ctx, struct gl_matrix_stack *stack,
+             GLenum matrixMode, const char *func)
+ {
++   FLUSH_VERTICES(ctx, 0);
++
+    if (stack->Depth + 1 >= stack->MaxDepth) {
+       if (ctx->Transform.MatrixMode == GL_TEXTURE) {
+          _mesa_error(ctx, GL_STACK_OVERFLOW, "%s(mode=GL_TEXTURE, unit=%d)",
