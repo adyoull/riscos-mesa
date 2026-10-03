@@ -1,0 +1,8 @@
+linear, pixel fog, floor: ok
+linear, vertex fog, floor: ok
+linear, vertex fog, floor, red fog: ok
+exp, pixel fog, floor: ok
+exp2, pixel fog, floor: ok
+exp, vertex fog, walls: ok
+exp2, vertex fog, walls: ok
+linear, vertex fog, walls: ok

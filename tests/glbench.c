@@ -6,7 +6,7 @@
  *     glbench > result
  * Usage: glbench [width height [seconds_per_scene [scene]]] [-o file]
  *   defaults 640 480 2, all scenes
- *   scene: clear, cube, tex, blend, tris or glsl to run just that one.
+ *   scene: clear, cube, tex, blend, tris, glsl or fog to run just that one.
  *   -o file: write the results to file (and still show them). Use this
  *            instead of "> file": UnixLib's start-up redirection has been
  *            seen to crash in a TaskWindow.
@@ -256,11 +256,49 @@ static void s_glsl(int i)
     s_cube(i);
 }
 
+/* Fogged, smooth-shaded, untextured triangles over the whole view: a
+ * sky cylinder round the eye and a ground grid, with GL_EXP fog and depth
+ * testing, as a flight game draws its sky and ground (YSFlight). */
+static void fog_setup(void)
+{
+    static const float fc[4] = {0.75f, 0.8f, 0.85f, 1};
+    view();
+    glEnable(GL_DEPTH_TEST); glShadeModel(GL_SMOOTH);
+    glEnable(GL_FOG); glFogi(GL_FOG_MODE, GL_EXP); glFogf(GL_FOG_DENSITY, 0.1f);
+    glFogfv(GL_FOG_COLOR, fc);
+}
+
+static void s_fog(int i)
+{
+    int k, z;
+    glClear(GL_DEPTH_BUFFER_BIT);   /* the cylinder covers the view */
+    glPushMatrix();
+    glRotatef(i * 2.0f, 0, 1, 0);
+    glBegin(GL_QUAD_STRIP);         /* sky: radius 15, 32 sides */
+    for (k = 0; k <= 32; k++) {
+        float a = (float)(2 * M_PI * k / 32), s = (float)sin(a), c = (float)cos(a);
+        glColor3f(0.3f + 0.2f * s, 0.5f, 0.9f); glVertex3f(15 * c, 9, 15 * s);
+        glColor3f(0.8f, 0.8f + 0.1f * c, 0.9f); glVertex3f(15 * c, -9, 15 * s);
+    }
+    glEnd();
+    glPopMatrix();
+    for (z = 0; z < 8; z++) {       /* ground: 8 x 8 quads, z -3 to -19 */
+        glBegin(GL_QUAD_STRIP);
+        for (k = 0; k <= 8; k++) {
+            float x = -12 + 3 * k, z0 = -3 - 2 * z, z1 = z0 - 2;
+            glColor3f(0.2f + 0.05f * ((k + z) & 1), 0.5f, 0.2f); glVertex3f(x, -2, z0);
+            glColor3f(0.25f, 0.45f + 0.05f * (k & 1), 0.2f);     glVertex3f(x, -2, z1);
+        }
+        glEnd();
+    }
+}
+
 /* ---------------- harness ---------------- */
 static void reset_state(void)
 {
     glUseProgram(0);
     glDisable(GL_LIGHTING); glDisable(GL_DEPTH_TEST); glDisable(GL_TEXTURE_2D); glDisable(GL_BLEND);
+    glDisable(GL_FOG);
     glDisableClientState(GL_VERTEX_ARRAY); glDisableClientState(GL_NORMAL_ARRAY);
     glColor4f(1, 1, 1, 1);
 }
@@ -328,6 +366,7 @@ int main(int argc, char **argv)
         if (glsl_setup())                              run("glsl",  "GLSL 1.20 per-pixel shaded cube", s_glsl);
         else out("glsl   shader compile failed\n");
     }
+    if (WANT("fog"))   { reset_state(); fog_setup();   run("fog",   "fogged smooth sky and ground, depth-tested", s_fog); }
     out("\ntotal %.1f s\n", hr_seconds() - start);
     OSMesaDestroyContext(ctx);
     return 0;

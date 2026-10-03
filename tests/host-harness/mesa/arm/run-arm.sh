@@ -41,7 +41,7 @@ arm-linux-gnueabihf-objcopy --redefine-sym errno=ro_errno_shim \
     "$OUT/libOSMesa.a"
 $CC -c -O2 -mfloat-abi=hard "$HERE/shim.c" -o "$OUT/shim.o"
 
-CHECKS="render-fixed render-rows render-tex render-image render-matrix glsl-basic glsl-control glsl-edge"
+CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog glsl-basic glsl-control glsl-edge"
 for c in $CHECKS; do
     $CC -c -O2 -w -mfpu=${RO_FPU:-vfpv3} -mfloat-abi=hard -I"$STAGE/include" "$HERE/../$c.c" -o "$OUT/$c.o"
     $CXX -static -o "$OUT/$c" "$OUT/$c.o" "$OUT/shim.o" "$OUT/libOSMesa.a" \
@@ -82,6 +82,7 @@ for d in "16 0" "24 0" "24 8" "32 0"; do run "$OUT/render-fixed" $d; done > "$OU
 run "$OUT/render-rows" > "$OUT/this/render-rows.txt"
 run "$OUT/render-tex" > "$OUT/this/render-tex.txt"
 run "$OUT/render-matrix" > "$OUT/this/render-matrix.txt"
+run "$OUT/render-fog" > "$OUT/this/render-fog.txt"
 run "$OUT/render-image" > "$OUT/this/render-image.txt" || true
 run "$OUT/glsl-basic" > "$OUT/this/glsl-basic.txt"
 run "$OUT/glsl-control" > "$OUT/this/glsl-control.txt"

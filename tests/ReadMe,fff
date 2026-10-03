@@ -62,8 +62,9 @@ Run in this order and note the output:
 
 6. glbench [width height [seconds [scene]]] [-o file]
    Software GL benchmark, no desktop involved: clear, lit cube, full-screen
-   texture, blending, 12288 triangles and GLSL, in ms per frame. Scene
-   names: clear cube tex blend tris glsl. Use -o file to save the results
+   texture, blending, 12288 triangles, GLSL and a fogged sky and ground
+   (new in 20.3.5-12), in ms per frame. Scene
+   names: clear cube tex blend tris glsl fog. Use -o file to save the results
    (rather than "> file"). Reports the address and RISC OS error if
    anything crashes.
 

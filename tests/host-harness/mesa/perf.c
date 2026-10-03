@@ -6,7 +6,7 @@
  * percent shows up reliably.
  *
  * Usage: perf SCENE FRAMES
- *   SCENE: clear, cube, tex, blend, tris or glsl (as in glbench), or
+ *   SCENE: clear, cube, tex, blend, tris, glsl or fog (as in glbench), or
  *   startup: create and bind the context, then stop (FRAMES ignored)
  *   Renders at 320x240 with 24-bit depth and 8-bit stencil, like
  *   glbench's defaults but smaller, so valgrind is quick.
@@ -49,6 +49,7 @@ int main(int argc, char **argv)
     else if (!strcmp(scene, "tex"))   { tex_setup();   frame = s_tex; }
     else if (!strcmp(scene, "blend")) { blend_setup(); frame = s_blend; }
     else if (!strcmp(scene, "tris"))  { tris_setup();  frame = s_tris; }
+    else if (!strcmp(scene, "fog"))   { fog_setup();   frame = s_fog; }
     else if (!strcmp(scene, "glsl")) {
         if (!glsl_setup()) {
             fprintf(stderr, "shader compile failed\n");

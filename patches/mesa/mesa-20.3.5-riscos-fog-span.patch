@@ -1,0 +1,181 @@
+Integer fog for 8-bit colour spans
+
+_swrast_fog_rgba_span blended every pixel in floats: a division by w,
+three byte-to-float and three float-to-byte conversions and, with
+GL_NICEST, an expf(). For spans of 8-bit colours with an interpolated
+fog coordinate (all triangles) the pixel is now blended as one 32-bit
+word in integers, with the fog factor as 0..256. With per-vertex fog
+(the default fog hint) the factor is worked out exactly every 8 pixels
+and linearly in between; with GL_NICEST it is still worked out for
+every pixel. Pictures differ from before by at most 1 in a channel;
+alpha is unchanged. Asked for by the YSFlight port (fogged sky and
+ground, 15-17% of a frame in _swrast_fog_rgba_span); checked by
+tests/host-harness/mesa/render-fog.
+
+diff --git a/src/mesa/swrast/s_fog.c b/src/mesa/swrast/s_fog.c
+--- a/src/mesa/swrast/s_fog.c
++++ b/src/mesa/swrast/s_fog.c
+@@ -23,7 +23,9 @@
+  */
+ 
+ 
++#include <string.h>
+ #include "c99_math.h"
++#include "util/u_endian.h"
+ #include "main/errors.h"
+ #include "main/glheader.h"
+ #include "main/macros.h"
+@@ -122,6 +124,138 @@ else {										\
+    }										\
+ }
+ 
++/*
++ * riscos-mesa: fog for spans of 8-bit colours (what OSMesa, EGL, SDL and
++ * GLUT draw into) whose fog coordinate is interpolated across the span
++ * (every triangle; not points or fragment programs, which keep a fog
++ * array and use FOG_LOOP below). FOG_LOOP works in floats: per pixel a
++ * division, three byte-to-float and three float-to-byte conversions and,
++ * for pixel fog, an expf(). Here a pixel is blended as one 32-bit word,
++ * red and blue together and green on its own, with the fog factor as
++ * 0..256; it differs from FOG_LOOP by at most 1 in a channel. Alpha is
++ * left alone, as before.
++ *
++ * With per-vertex fog (the fog hint at GL_FASTEST or GL_DONT_CARE, the
++ * default) the factor itself is interpolated perspective-correctly across
++ * the span, factor = coord / w. It is worked out exactly every 8 pixels
++ * and linearly in between, as Mesa's GL_FASTEST textured spans do for
++ * texture coordinates. With GL_NICEST (pixel fog, from the fog
++ * coordinate) it is worked out exactly for every pixel, as before.
++ */
++#define RO_FOG_ONE 65536      /* fog factor 1.0, 8.8 fixed point of 0..256 */
++#define RO_FOG_STEP 8
++
++/* a fog factor in [0, 1] as 0..RO_FOG_ONE (NaN as 0) */
++static inline GLint
++ro_fog_fixed(GLfloat f)
++{
++   if (!(f > 0.0F))
++      return 0;
++   if (f >= 1.0F)
++      return RO_FOG_ONE;
++   return (GLint) (f * (GLfloat) RO_FOG_ONE + 0.5F);
++}
++
++/* p = f * p + (1 - f) * fog, f = 0..256; fogRB = red | blue << 16,
++ * fogG = green; alpha (the top byte: RGBA in memory, little endian) is
++ * kept */
++static inline void
++ro_fog_pixel(GLubyte *px, GLuint f, GLuint fogRB, GLuint fogG)
++{
++   const GLuint nf = 256 - f;
++   GLuint p, rb, g;
++   memcpy(&p, px, 4);
++   rb = (((p & 0x00ff00ffu) * f + fogRB * nf) >> 8) & 0x00ff00ffu;
++   g = ((p & 0x0000ff00u) * f + fogG * nf) & 0x00ff0000u;
++   p = (p & 0xff000000u) | rb | (g >> 8);
++   memcpy(px, &p, 4);
++}
++
++static void
++ro_fog_span_ubyte(const struct gl_context *ctx, const SWcontext *swrast,
++                  SWspan *span)
++{
++   GLubyte (*rgba)[4] = span->array->rgba8;
++   const GLuint n = span->end;
++   const GLuint fogR = (GLuint) (CLAMP(ctx->Fog.Color[RCOMP], 0.0F, 1.0F) * 255.0F + 0.5F);
++   const GLuint fogG = (GLuint) (CLAMP(ctx->Fog.Color[GCOMP], 0.0F, 1.0F) * 255.0F + 0.5F) << 8;
++   const GLuint fogB = (GLuint) (CLAMP(ctx->Fog.Color[BCOMP], 0.0F, 1.0F) * 255.0F + 0.5F);
++   const GLuint fogRB = fogR | fogB << 16;
++   const GLfloat fog0 = span->attrStart[VARYING_SLOT_FOGC][0];
++   const GLfloat fogStep = span->attrStepX[VARYING_SLOT_FOGC][0];
++   const GLfloat w0 = span->attrStart[VARYING_SLOT_POS][3];
++   const GLfloat wStep = span->attrStepX[VARYING_SLOT_POS][3];
++   GLuint i;
++
++   STATIC_ASSERT(RCOMP == 0 && GCOMP == 1 && BCOMP == 2 && ACOMP == 3);
++   if (!UTIL_ARCH_LITTLE_ENDIAN)
++      return;     /* not reached: see _swrast_fog_rgba_span */
++
++   if (!swrast->_PreferPixelFog) {
++      /* blend factors, interpolated: exact every RO_FOG_STEP pixels */
++      GLint f0 = ro_fog_fixed(fabsf(fog0) / w0);
++      i = 0;
++      while (i < n) {
++         const GLuint m = MIN2(RO_FOG_STEP, n - i);
++         const GLint f1 = ro_fog_fixed(fabsf(fog0 + fogStep * (GLfloat) (i + m))
++                                       / (w0 + wStep * (GLfloat) (i + m)));
++         const GLint df = (f1 - f0) / (GLint) m;
++         GLint f = f0;
++         const GLuint end = i + m;
++         for (; i < end; i++) {
++            ro_fog_pixel(rgba[i], (GLuint) f >> 8, fogRB, fogG);
++            f += df;
++         }
++         f0 = f1;
++      }
++      return;
++   }
++
++   /* fog coordinates: the factor for every pixel, as FOG_LOOP does */
++   switch (ctx->Fog.Mode) {
++   case GL_LINEAR:
++      {
++         const GLfloat fogEnd = ctx->Fog.End;
++         const GLfloat fogScale = (ctx->Fog.Start == ctx->Fog.End)
++            ? 1.0F : 1.0F / (ctx->Fog.End - ctx->Fog.Start);
++         for (i = 0; i < n; i++) {
++            const GLfloat c = fabsf(fog0 + fogStep * (GLfloat) i)
++                              / (w0 + wStep * (GLfloat) i);
++            ro_fog_pixel(rgba[i], (GLuint) ro_fog_fixed((fogEnd - c) * fogScale) >> 8,
++                         fogRB, fogG);
++         }
++      }
++      break;
++   case GL_EXP:
++      {
++         const GLfloat density = -ctx->Fog.Density;
++         for (i = 0; i < n; i++) {
++            const GLfloat c = fabsf(fog0 + fogStep * (GLfloat) i)
++                              / (w0 + wStep * (GLfloat) i);
++            ro_fog_pixel(rgba[i], (GLuint) ro_fog_fixed(expf(density * c)) >> 8,
++                         fogRB, fogG);
++         }
++      }
++      break;
++   case GL_EXP2:
++      {
++         const GLfloat negDensitySquared = -ctx->Fog.Density * ctx->Fog.Density;
++         for (i = 0; i < n; i++) {
++            const GLfloat c = fabsf(fog0 + fogStep * (GLfloat) i)
++                              / (w0 + wStep * (GLfloat) i);
++            GLfloat t = negDensitySquared * c * c;
++            if (t < FLT_MIN_10_EXP)
++               t = FLT_MIN_10_EXP;
++            ro_fog_pixel(rgba[i], (GLuint) ro_fog_fixed(expf(t)) >> 8, fogRB, fogG);
++         }
++      }
++      break;
++   default:
++      _mesa_problem(ctx, "Bad fog mode in _swrast_fog_rgba_span");
++   }
++}
++
++
+ /**
+  * Apply fog to a span of RGBA pixels.
+  * The fog value are either in the span->array->fog array or interpolated from
+@@ -138,6 +272,14 @@ _swrast_fog_rgba_span( const struct gl_context *ctx, SWspan *span )
+    assert(swrast->_FogEnabled);
+    assert(span->arrayMask & SPAN_RGBA);
+ 
++   /* riscos-mesa: 8-bit colours with an interpolated fog coordinate */
++   if (span->array->ChanType == GL_UNSIGNED_BYTE &&
++       !(span->arrayAttribs & VARYING_BIT_FOGC) &&
++       UTIL_ARCH_LITTLE_ENDIAN) {
++      ro_fog_span_ubyte(ctx, swrast, span);
++      return;
++   }
++
+    /* compute (scaled) fog color */
+    if (span->array->ChanType == GL_UNSIGNED_BYTE) {
+       rFog = ctx->Fog.Color[RCOMP] * 255.0F;

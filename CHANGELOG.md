@@ -6,6 +6,17 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-12 (in development)
 
+- **Fog is faster** (new patch `riscos-fog-span`). Fog on triangles used
+  to be blended in floating point for every pixel, with a division and
+  six conversions. Now it's done in integers, and with the default fog
+  hint the fog amount is worked out exactly every 8 pixels and
+  interpolated in between. Pictures change by at most 1 in a colour
+  channel. Asked for by the YSFlight port, whose fogged sky and ground
+  spent 15-17% of a frame in fog. On the host, Mesa's fog work is 14%
+  less and glbench's new `fog` scene 4% faster; the Pi, whose floating
+  point division and conversions cost more, hasn't been measured yet.
+  New check `render-fog` compares fog with the expected value worked out
+  from each pixel's depth; `render-tex`'s fogged cases have new hashes.
 - SDL overlay: `sdl2-configure.ac.simd.p` didn't apply after the GCCSDK
   autobuilder's own `configure.ac.p`, which adds lines at the same place,
   so riscos-openttd's SDL build stopped (reported by riscos-openttd). The

@@ -16,17 +16,17 @@ tex flat clamp nearest fog f185d94c maxdiff 1 diff 3322
 tex flat clamp linear nofog 06f63c1a maxdiff 0 diff 0
 tex flat clamp linear fog 06f63c1a maxdiff 0 diff 0
 tex tilted repeat nearest nofog 8d9e04de maxdiff 1 diff 7601
-tex tilted repeat nearest fog abd73794 maxdiff 1 diff 5255
+tex tilted repeat nearest fog ec3df491 maxdiff 1 diff 5593
 tex tilted repeat linear nofog 93a753cb maxdiff 2 diff 11915
-tex tilted repeat linear fog 665fd19d maxdiff 2 diff 11599
+tex tilted repeat linear fog d1db75dc maxdiff 2 diff 11606
 tex tilted edge nearest nofog 5ec16d4b maxdiff 1 diff 6437
-tex tilted edge nearest fog b097d40f maxdiff 1 diff 4673
+tex tilted edge nearest fog a210e816 maxdiff 1 diff 4914
 tex tilted edge linear nofog fcc6b3c8 maxdiff 2 diff 10206
-tex tilted edge linear fog d3b05e16 maxdiff 2 diff 9786
+tex tilted edge linear fog 98142731 maxdiff 2 diff 9869
 tex tilted clamp nearest nofog 5ec16d4b maxdiff 1 diff 6437
-tex tilted clamp nearest fog b097d40f maxdiff 1 diff 4673
+tex tilted clamp nearest fog a210e816 maxdiff 1 diff 4914
 tex tilted clamp linear nofog 89cdf59a maxdiff 0 diff 0
-tex tilted clamp linear fog 9993bf79 maxdiff 0 diff 0
+tex tilted clamp linear fog 31c6d2c4 maxdiff 0 diff 0
 fastest flat repeat nearest nofog 87e2541d maxdiff 1 diff 8554
 fastest flat repeat nearest fog 87e2541d maxdiff 1 diff 8554
 fastest flat repeat linear nofog 387aca9c maxdiff 2 diff 14900
@@ -40,17 +40,17 @@ fastest flat clamp nearest fog f185d94c maxdiff 1 diff 3322
 fastest flat clamp linear nofog 06f63c1a maxdiff 0 diff 0
 fastest flat clamp linear fog 06f63c1a maxdiff 0 diff 0
 fastest tilted repeat nearest nofog 8d9e04de maxdiff 1 diff 7601
-fastest tilted repeat nearest fog abd73794 maxdiff 1 diff 5255
+fastest tilted repeat nearest fog ec3df491 maxdiff 1 diff 5593
 fastest tilted repeat linear nofog ffdf0d7a maxdiff 2 diff 11915
-fastest tilted repeat linear fog 2187d3ca maxdiff 2 diff 11599
+fastest tilted repeat linear fog fb34d8b8 maxdiff 2 diff 11605
 fastest tilted edge nearest nofog 5ec16d4b maxdiff 1 diff 6437
-fastest tilted edge nearest fog b097d40f maxdiff 1 diff 4673
+fastest tilted edge nearest fog a210e816 maxdiff 1 diff 4914
 fastest tilted edge linear nofog 8b5ffc2b maxdiff 2 diff 10205
-fastest tilted edge linear fog 31f549aa maxdiff 2 diff 9785
+fastest tilted edge linear fog ce553c66 maxdiff 2 diff 9868
 fastest tilted clamp nearest nofog 5ec16d4b maxdiff 1 diff 6437
-fastest tilted clamp nearest fog b097d40f maxdiff 1 diff 4673
+fastest tilted clamp nearest fog a210e816 maxdiff 1 diff 4914
 fastest tilted clamp linear nofog 89cdf59a maxdiff 0 diff 0
-fastest tilted clamp linear fog 9993bf79 maxdiff 0 diff 0
+fastest tilted clamp linear fog 31c6d2c4 maxdiff 0 diff 0
 mipmap flat nearest-nearest exact 8763e3f1
 mipmap flat nearest-nearest fastest 387aca9c maxdiff 2 diff 14900 mean 27
 mipmap flat linear-nearest exact 8763e3f1

@@ -34,7 +34,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 : "${LIB:=$M/build/src/mesa/drivers/osmesa}" "${TOL:=2}" "${FRAMES:=8}" "${OUT:=/tmp/mesa-perf}"
 command -v valgrind >/dev/null || { echo "needs valgrind" >&2; exit 1; }
 mkdir -p "$OUT"
-SCENES="clear cube tex blend tris glsl"
+SCENES="clear cube tex blend tris glsl fog"
 ROWS="startup $SCENES"
 GCC=$(gcc -dumpfullversion)
 
