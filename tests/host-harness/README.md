@@ -22,7 +22,11 @@ it sends: Message_PreQuit (acknowledged; the desktop shutdown restarted with
 Ctrl-Shift-F12 only when the program quits in answer to it), Message_Quit
 (SDL_APP_TERMINATING and SDL_QUIT, then the driver quits for a program that
 carries on), the close icon (SDL_WINDOWEVENT_CLOSE), the icon bar menu's
-Quit, and the keys passed on to the Wimp. Like the GL harness it runs on a
+Quit, the keys passed on to the Wimp, and keys read from a fake keyboard
+(OS_Byte 121/129/196): a tap gives one SDL_KEYDOWN and no repeats, a held
+key repeats after the keyboard's delay and at its rate, only the newest key
+repeats, *FX 11,0 stops repeats, and a slow frame gives one repeat, not a
+burst. Like the GL harness it runs on a
 stack below 2 GB and is built -no-pie, as the driver passes blocks to SWIs
 as 32-bit addresses.
 

@@ -1,8 +1,9 @@
 /*
  * wimp-events.c - host test of the SDL RISC OS driver's Wimp event
  * handling (SDL_riscosevents.c): quitting from the desktop
- * (Message_PreQuit, Message_Quit), the close icon, the icon bar menu and
- * the keys handed to the Wimp.
+ * (Message_PreQuit, Message_Quit), the close icon, the icon bar menu, the
+ * keys handed to the Wimp, and key presses and auto-repeat read from the
+ * keyboard (OS_Byte 121/129, delay and rate from OS_Byte 196).
  *
  * The driver file is compiled in here (#include), so its static functions
  * can be given Wimp_Poll blocks directly. The SWIs it calls are recorded by
@@ -114,7 +115,28 @@ _kernel_oserror *_kernel_swi_c(int no, _kernel_swi_regs *in, _kernel_swi_regs *o
     *carry = 0;
     return _kernel_swi(no, in, out);
 }
-int _kernel_osbyte(int op, int x, int y) { (void)op; (void)x; (void)y; return 0xff; }
+/* A fake keyboard: the internal key numbers held down, and the
+   auto-repeat delay and rate (centiseconds) */
+static unsigned char keys_down[256];
+static int kb_delay = 50, kb_rate = 8;
+int _kernel_osbyte(int op, int x, int y)
+{
+    int k;
+    switch (op) {
+    case 121:                   /* scan from key x: the first held, or 255 */
+        for (k = x & 0xff; k < 255; k++)
+            if (keys_down[k]) return k;
+        return 0xff;
+    case 129:                   /* negative INKEY: is key (x ^ 0xff) held? */
+        if ((y & 0xff) == 0xff)
+            return keys_down[(x ^ 0xff) & 0xff] ? 0xffff : 0;
+        return 0xff;
+    case 196:                   /* R1 = delay, R2 = rate */
+        return (kb_delay & 0xff) | (kb_rate & 0xff) << 8;
+    default:
+        return 0xff;
+    }
+}
 
 /* ---- SDL, as far as the driver uses it ---- */
 
@@ -127,7 +149,21 @@ int SDL_SendMouseMotion(SDL_Window *w, SDL_MouseID id, int rel, int x, int y)
 { motion_x = x; motion_y = y; mouse.x = x; mouse.y = y; return 0; }
 int SDL_SendMouseButton(SDL_Window *w, SDL_MouseID id, Uint8 s, Uint8 b) { return 0; }
 int SDL_SendMouseWheel(SDL_Window *w, SDL_MouseID id, float x, float y, SDL_MouseWheelDirection d) { return 0; }
-int SDL_SendKeyboardKey(Uint8 state, SDL_Scancode sc) { return 0; }
+/* What SDL would make of the key events: SDL marks a press of a key it
+   already has down as a repeat */
+static int n_press, n_repeat, n_release;
+static unsigned char sdl_down[SDL_NUM_SCANCODES];
+int SDL_SendKeyboardKey(Uint8 state, SDL_Scancode sc)
+{
+    if (state == SDL_PRESSED) {
+        if (sdl_down[sc]) n_repeat++; else n_press++;
+        sdl_down[sc] = 1;
+    } else {
+        if (sdl_down[sc]) n_release++;
+        sdl_down[sc] = 0;
+    }
+    return 0;
+}
 int SDL_SendKeyboardText(const char *t) { return 0; }
 void SDL_ToggleModState(const SDL_Keymod m, const SDL_bool on) { }
 int SDL_GetDisplayBounds_REAL(int i, SDL_Rect *r) { r->x = r->y = 0; r->w = 1920; r->h = 1080; return 0; }
@@ -413,6 +449,98 @@ static void test_keys(void)
     }
 }
 
+/* Key presses read from the keyboard: one SDL_KEYDOWN per press, then
+   repeats after the keyboard's delay and at its rate, as the desktop
+   gives them (reported by the fheroes2 port: every poll gave a repeat). */
+static void kb_poll_until(Uint32 end)
+{
+    for (; ticks <= end; ticks += 16)
+        RISCOS_PollKeyboard(&device);
+}
+static void kb_reset(void)
+{
+    int i;
+    memset(keys_down, 0, sizeof keys_down);
+    RISCOS_PollKeyboard(&device);             /* release everything */
+    n_press = n_repeat = n_release = 0;
+    for (i = 0; i < RISCOS_MAX_KEYS_PRESSED; i++)
+        vdata.key_pressed[i] = 255;
+    vdata.repeat_key = 255;
+    memset(sdl_down, 0, sizeof sdl_down);
+}
+static void test_keyboard(void)
+{
+    vdata.has_caret = SDL_TRUE;
+    vdata.repeat_key = 255;
+    memset(vdata.key_pressed, 255, sizeof vdata.key_pressed);
+    kb_delay = 50; kb_rate = 8;
+    ticks = 1000;
+
+    /* a tap: 400 ms, shorter than the 500 ms delay */
+    kb_reset();
+    keys_down[112] = 1;                        /* Escape */
+    kb_poll_until(1400);
+    keys_down[112] = 0;
+    kb_poll_until(1432);
+    CHECK(n_press == 1 && n_repeat == 0 && n_release == 1,
+          "a 400 ms tap: 1 press, 0 repeats, 1 release (%d, %d, %d)", n_press, n_repeat, n_release);
+
+    /* held for 1 s: repeats from 500 ms, every 80 ms */
+    kb_reset();
+    ticks = 2000;
+    keys_down[57] = 1;                         /* up arrow */
+    kb_poll_until(2992);
+    CHECK(n_press == 1 && n_repeat == 7, "held 1 s, delay 50, rate 8: 1 press, 7 repeats (%d, %d)",
+          n_press, n_repeat);
+    keys_down[57] = 0;
+    kb_poll_until(3100);
+    CHECK(n_release == 1, "released once (%d)", n_release);
+
+    /* no auto-repeat (*FX 11,0) */
+    kb_reset();
+    kb_delay = 0;
+    ticks = 4000;
+    keys_down[57] = 1;
+    kb_poll_until(5500);
+    CHECK(n_press == 1 && n_repeat == 0, "*FX 11,0: no repeats (%d, %d)", n_press, n_repeat);
+    kb_delay = 50;
+
+    /* two keys: only the newest repeats; releasing it stops the repeats */
+    kb_reset();
+    ticks = 6000;
+    keys_down[57] = 1;
+    kb_poll_until(6200);
+    keys_down[41] = 1;                         /* down arrow */
+    kb_poll_until(6900);
+    CHECK(n_press == 2 && n_repeat == 3 && vdata.repeat_key == 41,
+          "second key held 700 ms: 2 presses, 3 repeats of the second (%d, %d, key %d)",
+          n_press, n_repeat, vdata.repeat_key);
+    keys_down[41] = 0;
+    n_repeat = 0;
+    kb_poll_until(8000);
+    CHECK(n_repeat == 0 && n_release == 1, "after releasing it: no repeats, 1 release (%d, %d)",
+          n_repeat, n_release);
+
+    /* a slow frame gives one repeat, not a burst */
+    kb_reset();
+    ticks = 9000;
+    keys_down[57] = 1;
+    RISCOS_PollKeyboard(&device);
+    ticks = 11000;
+    RISCOS_PollKeyboard(&device);
+    CHECK(n_press == 1 && n_repeat == 1, "a 2 s gap between polls: 1 repeat (%d)", n_repeat);
+    ticks += 16;
+    RISCOS_PollKeyboard(&device);
+    CHECK(n_repeat == 1, "and the next comes a rate period later (%d)", n_repeat);
+
+    /* losing the input focus releases the key and stops the repeats */
+    vdata.has_caret = SDL_FALSE;
+    RISCOS_PollKeyboard(&device);
+    CHECK(n_release == 1 && vdata.repeat_key == 255, "focus lost: released (%d)", n_release);
+    vdata.has_caret = SDL_TRUE;
+    kb_reset();
+}
+
 /* Pointer positions: screen pixels -> SDL pixels, with a 2x window scale
    and with a GL render size (SDL_RISCOS_GL_RENDER_SIZE) stretched over the
    window or the screen. */
@@ -474,6 +602,7 @@ static void *run(void *arg)
     test_full_window_click();
     test_quit();
     test_keys();
+    test_keyboard();
     test_icon_sprite_name();
     test_mouse();
     return NULL;

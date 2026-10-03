@@ -74,6 +74,15 @@ Run in this order and note the output:
    first lines say whether SDL found NEON and ARM SIMD, which it uses
    for these from 20.3.5-10.
 
+6c. sdlkeys [-o file] [-t seconds]   (new in 20.3.5-12)
+   SDL's key events. Double-click sdl-keys: a small window whose title
+   counts key presses ("down"), repeats and releases ("up"). Tap a key:
+   1 down and 1 up, no repeats. Hold one: repeats start after the
+   keyboard's auto-repeat delay and come at its rate (*Configure Delay
+   and Repeat); after *FX 11,0 there are none. Until 20.3.5-12 every
+   frame a key was held gave a repeat. Escape quits; the events are in
+   KeyLog.
+
 7. egltest  (the new EGL library)
    The egl-* Obey files run each case with a double-click and save the
    results next to them (eglcheck, eglwindow, eglfull, ...).

@@ -211,6 +211,17 @@ It contains:
   is not Linux). `sdl2-configure.ac.osmesa.p`: the OSMesa option.
   `sdl2-configure.ac.simd.p`: the ARM blitters (above).
 
+- Key repeats (2026-10-03, reported by the fheroes2 port): the keyboard
+  scan (OS_Byte 121) sees every key held, and upstream sent each one as a
+  press on every poll, so SDL gave a repeat every frame and a tap acted
+  several times. Now only new presses are sent, and the newest key held
+  repeats as on the desktop: after the auto-repeat delay and at the rate
+  (OS_Byte 196: R1 delay, R2 rate, centiseconds; 0 = none), one repeat
+  per poll at most. A key that doesn't fit in the six-key table is
+  ignored (upstream sent it on every poll and never released it).
+  `SDL_riscosevents.c`, `SDL_riscosvideo.h`; host-tested by
+  `tests/host-harness/sdl-wimp`.
+
 The older `sdl2-riscos-framebuffer.p` from the buildkit is superseded by
 `src.video.riscos.SDL_riscosframebuffer.c.p` and must not be applied.
 

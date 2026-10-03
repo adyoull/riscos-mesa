@@ -6,6 +6,16 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-12 (in development)
 
+- **SDL: a key press no longer repeats on every frame** (reported by the
+  fheroes2 port). The RISC OS driver sent every held key again at each
+  poll, so SDL gave a repeat (`event.key.repeat`) each frame: a 100 ms tap
+  at 60 fps arrived as a press and about 6 repeats, and programs that act
+  on every KEYDOWN acted several times (fheroes2's quit dialog closed
+  straight away). Now a press is sent once, and a held key repeats as on
+  the desktop, after the keyboard's auto-repeat delay and at its rate
+  (none after `*FX 11,0`). New test `sdlkeys` (Obey file `sdl-keys`)
+  counts the events; the host harness checks the timing. Relink to get
+  the fix.
 - **Fog is faster** (new patch `riscos-fog-span`). Fog on triangles used
   to be blended in floating point for every pixel, with a division and
   six conversions. Now it's done in integers, and with the default fog

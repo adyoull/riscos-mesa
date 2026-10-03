@@ -9,10 +9,13 @@ diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
  
  #define RISCOS_MAX_KEYS_PRESSED 6
  
-@@ -31,8 +32,82 @@ typedef struct SDL_VideoData
+@@ -31,8 +32,85 @@ typedef struct SDL_VideoData
  {
      int last_mouse_buttons;
      Uint8 key_pressed[RISCOS_MAX_KEYS_PRESSED];
++    Uint8 repeat_key;           /* 2026: the key that auto-repeats (the last one
++                                   pressed and still held), or 255 */
++    Uint32 repeat_due;          /* 2026: when it next repeats (SDL_GetTicks) */
 +
 +    /* 2026: windowed (Wimp) mode. Only one SDL window at a time can be a
 +       desktop window (wimp_sdl_window); any other window is created full

@@ -1,0 +1,3 @@
+| riscos-mesa SDL test: key presses and auto-repeat. Tap and hold keys; the title counts them. Escape quits. Events are logged to KeyLog.
+Dir <Obey$Dir>
+Run sdlkeys -o KeyLog
