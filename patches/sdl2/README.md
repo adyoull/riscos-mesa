@@ -222,6 +222,14 @@ It contains:
   `SDL_riscosevents.c`, `SDL_riscosvideo.h`; host-tested by
   `tests/host-harness/sdl-wimp`.
 
+- Audit fixes (2026-10-04): the pointer counts as in the window only over
+  its work area (`Wimp_GetPointerInfo` icon -1), so dragging the window by
+  its title bar or clicking its close icon no longer reaches the program;
+  window y coordinates treat the visible area's top (y1) as exclusive, so
+  the top row is reachable and rows aren't one out; and
+  `sdl2-config`/`sdl2.pc` give `-lEGL` before `-lOSMesa` (libSDL2 always
+  needs it), so ports built with pkg-config, CMake or autotools link.
+
 The older `sdl2-riscos-framebuffer.p` from the buildkit is superseded by
 `src.video.riscos.SDL_riscosframebuffer.c.p` and must not be applied.
 

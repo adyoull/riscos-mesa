@@ -481,7 +481,10 @@ int __riscos_dispmanx_window(const void *native_window, int *id, int *w, int *h)
     r.r[1] = (int) (p + sizeof *nw);
     if (_kernel_swi_c(OS_ValidateAddress, &r, &r, &carry) != NULL || carry)
         return 0;                   /* not readable memory: not ours */
-    if (!find(nw->element) || nw->width <= 0 || nw->height <= 0)
+    /* at most 4096 (libEGL's MAX_PBUFFER): OSMesa can't draw a larger
+       buffer, and larger sizes overflowed the sprite size */
+    if (!find(nw->element) || nw->width <= 0 || nw->height <= 0 ||
+        nw->width > 4096 || nw->height > 4096)
         return 0;
     *id = (int) nw->element;
     *w = nw->width;

@@ -258,7 +258,10 @@ static EGLSurface create_window_surface(EGLDisplay dpy, EGLConfig config,
         }
     }
     if (have_w || have_h) {
-        if (!have_w || !have_h || s->w < 1 || s->h < 1 || s->handle < 0)
+        /* at most MAX_PBUFFER, as OSMesa can't draw a larger buffer
+           (larger ones also overflowed the sprite size) */
+        if (!have_w || !have_h || s->w < 1 || s->h < 1 || s->w > MAX_PBUFFER ||
+            s->h > MAX_PBUFFER || s->handle < 0)
             goto bad_attr;
         s->fixed = 1;
     }
@@ -904,10 +907,17 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw,
 
     if (ds) {
         screen_info scr;
+        int changed = 0;
         read_screen(&scr);
-        if ((ds->kind == SURF_WINDOW && update_window_buffer(ds, &scr) < 0) ||
-            (rs != ds && rs->kind == SURF_WINDOW && update_window_buffer(rs, &scr) < 0))
+        if (ds->kind == SURF_WINDOW && (changed = update_window_buffer(ds, &scr)) < 0)
             return EGL_FALSE;
+        if (rs != ds && rs->kind == SURF_WINDOW && update_window_buffer(rs, &scr) < 0) {
+            /* the draw surface has a new buffer already: a context still
+               current on it must move to it (the old one has been freed) */
+            if (changed > 0)
+                surface_changed(ds);
+            return EGL_FALSE;
+        }
     }
     if (!make_current(d, t, c, ds, rs))
         return fail(EGL_BAD_ALLOC);

@@ -250,7 +250,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  }
  
  static const Uint8 mouse_button_map[] = {
-@@ -111,36 +294,179 @@ static const Uint8 mouse_button_map[] = {
+@@ -111,36 +294,185 @@ static const Uint8 mouse_button_map[] = {
      SDL_BUTTON_X2 + 3
  };
  
@@ -279,7 +279,11 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +        return;
 +
 +    buttons = ptr.buttons & 7;
-+    inside = (ptr.window == driverdata->wimp_window) ? SDL_TRUE : SDL_FALSE;
++    /* 2026: the work area only (icon -1): over the title bar, scroll bars
++       and border icons the Wimp gives our window handle too, with icons -2
++       to -13, and a drag of the window or a click on its close icon is not
++       the program's (a drag started inside still is, below) */
++    inside = (ptr.window == driverdata->wimp_window && ptr.icon == -1) ? SDL_TRUE : SDL_FALSE;
 +    /* 2026: a click that was pressed and released between two polls (easy
 +       when a frame takes 100 ms or more, as with software OpenGL) was never
 +       seen. The Wimp's Mouse_Click event records it: report the press now
@@ -301,7 +305,9 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +        inside = SDL_TRUE;
 +
 +    x = (ptr.x - (state.open.visible.x0 - state.open.scroll_x)) >> xeig;
-+    y = ((state.open.visible.y1 - state.open.scroll_y) - ptr.y) >> yeig;
++    /* (visible.y1 is exclusive: the top row of pixels starts 1 OS unit
++       below it, so it's row 0) */
++    y = ((state.open.visible.y1 - state.open.scroll_y - 1) - ptr.y) >> yeig;
 +    /* screen pixels -> SDL pixels: the window may be scaled (wscale, and a
 +       GL render size stretched over it; see RISCOS_ShownW) */
 +    if (window->driverdata && ((SDL_WindowData *) window->driverdata)->gl_egl) {
@@ -311,7 +317,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +        int vw = (state.open.visible.x1 - state.open.visible.x0) >> xeig;
 +        int vh = (state.open.visible.y1 - state.open.visible.y0) >> yeig;
 +        x = (ptr.x - state.open.visible.x0) >> xeig;
-+        y = (state.open.visible.y1 - ptr.y) >> yeig;
++        y = (state.open.visible.y1 - 1 - ptr.y) >> yeig;
 +        if (vw > 0 && vw != window->w) x = (int)(((long long)x * window->w) / vw);
 +        if (vh > 0 && vh != window->h) y = (int)(((long long)y * window->h) / vh);
 +    } else {
@@ -437,7 +443,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  int
  RISCOS_InitEvents(_THIS)
  {
-@@ -150,6 +476,7 @@ RISCOS_InitEvents(_THIS)
+@@ -150,6 +482,7 @@ RISCOS_InitEvents(_THIS)
  
      for (i = 0; i < RISCOS_MAX_KEYS_PRESSED; i++)
          driverdata->key_pressed[i] = 255;
@@ -445,7 +451,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  
      status = (_kernel_osbyte(202, 0, 255) & 0xFF);
      SDL_ToggleModState(KMOD_NUM,    (status & (1 << 2)) == 0);
-@@ -165,10 +492,349 @@ RISCOS_InitEvents(_THIS)
+@@ -165,10 +498,349 @@ RISCOS_InitEvents(_THIS)
      return 0;
  }
  

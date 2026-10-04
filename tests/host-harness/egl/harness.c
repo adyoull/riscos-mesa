@@ -1539,6 +1539,82 @@ static void test_threads(void)
     eglDestroySurface(dpy, th.busy_surf);
 }
 
+/* Found by the 2026-10-04 audit */
+static void test_audit_fixes(void)
+{
+    EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 16, EGL_WINDOW_BIT | EGL_PBUFFER_BIT);
+    EGLContext ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+    EGLint pa[] = { EGL_WIDTH, 64, EGL_HEIGHT, 64, EGL_NONE };
+    EGLint big[] = { EGL_WORK_AREA_X_RISCOS, 0, EGL_WORK_AREA_Y_RISCOS, 0,
+                     EGL_WORK_AREA_WIDTH_RISCOS, 64, EGL_WORK_AREA_HEIGHT_RISCOS, 262145, EGL_NONE };
+    EGLSurface s1, s2, a, b;
+    unsigned char px[4];
+    int i;
+
+    /* A work area larger than OSMesa can draw is refused (its sprite size
+       overflowed: a small sprite for a huge surface) */
+    fake_open_window(0x1000, 200, 300, 400, 460, 0, 0);
+    CHECK(eglCreateWindowSurface(dpy, cfg, 0x1000, big) == EGL_NO_SURFACE &&
+          eglGetError() == EGL_BAD_ATTRIBUTE, "work area 64x262145 refused");
+    big[5] = 4097;
+    big[7] = 1;
+    CHECK(eglCreateWindowSurface(dpy, cfg, 0x1000, big) == EGL_NO_SURFACE &&
+          eglGetError() == EGL_BAD_ATTRIBUTE, "work area 4097x1 refused");
+
+    /* The same context moved to other surfaces: what it drew before (still
+       queued in Mesa) goes to the old surface, not the new one */
+    s1 = eglCreatePbufferSurface(dpy, cfg, pa);
+    s2 = eglCreatePbufferSurface(dpy, cfg, pa);
+    eglMakeCurrent(dpy, s2, s2, ctx);
+    clear(1, 0, 0);
+    glFinish();
+    eglMakeCurrent(dpy, s1, s1, ctx);
+    clear(0, 0, 0);
+    glColor3f(0, 1, 0);
+    glBegin(GL_QUADS);
+    glVertex2f(-1, -1); glVertex2f(1, -1); glVertex2f(1, 1); glVertex2f(-1, 1);
+    glEnd();
+    CHECK(eglMakeCurrent(dpy, s2, s2, ctx), "same context, other surfaces");
+    glReadPixels(32, 32, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+    CHECK(px[0] == 255 && px[1] == 0, "the queued quad didn't land in the new surface (%d,%d,%d)",
+          px[0], px[1], px[2]);
+    eglMakeCurrent(dpy, s1, s1, ctx);
+    glReadPixels(32, 32, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+    CHECK(px[0] == 0 && px[1] == 255, "it's in the old one (%d,%d,%d)", px[0], px[1], px[2]);
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, s1);
+    eglDestroySurface(dpy, s2);
+
+    /* eglMakeCurrent re-makes the draw surface's buffer (its window was
+       resized), then fails on the read surface (its window is gone): the
+       context, still current, must draw into the new buffer, not the freed
+       old one */
+    fake_open_window(0x1000, 200, 300, 400, 460, 0, 0);
+    fake_open_window(0x2000, 100, 100, 300, 260, 0, 0);
+    a = eglCreateWindowSurface(dpy, cfg, 0x1000, NULL);
+    b = eglCreateWindowSurface(dpy, cfg, 0x2000, NULL);
+    CHECK(a && b && eglMakeCurrent(dpy, a, a, ctx), "two window surfaces, one current");
+    clear(0, 0, 1);
+    fake_open_window(0x1000, 0, 0, 1200, 900, 0, 0);       /* 600x450 pixels */
+    for (i = 0; i < FAKE_MAX_WINDOWS; i++)
+        if (fake_windows[i].handle == 0x2000)
+            fake_windows[i].handle = 0;
+    CHECK(!eglMakeCurrent(dpy, a, b, ctx) && eglGetError() == EGL_BAD_NATIVE_WINDOW,
+          "read surface's window gone: refused");
+    CHECK(eglGetCurrentContext() == ctx && eglGetCurrentSurface(EGL_DRAW) == a,
+          "the context is still current on the draw surface");
+    glViewport(0, 0, 600, 450);
+    memset(fake_screen.mem, 0, fake_screen.w * fake_screen.h * 4);
+    clear(0, 1, 0);
+    eglSwapBuffers(dpy, a);
+    CHECK(box_is(0, 30, 600, 450, GREEN), "it drew into the draw surface's new buffer");
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, a);
+    eglDestroySurface(dpy, b);
+    eglDestroyContext(dpy, ctx);
+    fake_open_window(0x1000, 200, 300, 400, 460, 0, 0);
+}
+
 static void *run(void *arg)
 {
     (void) arg;
@@ -1557,6 +1633,7 @@ static void *run(void *arg)
     test_debug();
     test_current_rules();
     test_threads();
+    test_audit_fixes();
     test_gles(dpy);
     test_dispmanx(dpy);
     test_eig0();

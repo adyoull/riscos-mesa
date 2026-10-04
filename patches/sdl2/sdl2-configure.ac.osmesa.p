@@ -21,7 +21,7 @@
 +                    AC_DEFINE(SDL_VIDEO_OPENGL, 1, [ ])
 +                    AC_DEFINE(SDL_VIDEO_OPENGL_OSMESA, 1, [ ])
 +                    SUMMARY_video="${SUMMARY_video} opengl(osmesa)"
-+                    EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lOSMesa -lstdc++ -lz -lm"
++                    EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lEGL -lOSMesa -lstdc++ -lz -lm"
 +                else
 +                    AC_MSG_ERROR([--enable-video-riscos-osmesa given but libOSMesa was not found])
 +                fi

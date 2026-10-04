@@ -68,7 +68,7 @@ static int calls_to(int swi, _kernel_swi_regs *last, RISCOS_Message *message)
 /* ---- fake RISC OS ---- */
 
 #define WINDOW_H 0x1234
-static int fake_ptr_on, fake_ptr[2];
+static int fake_ptr_on, fake_ptr[2], fake_ptr_icon = -1;     /* -1: the work area */
 
 _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
 {
@@ -89,7 +89,7 @@ _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out
         memset((void *)(intptr_t)in->r[1], 0, sizeof(RISCOS_Pointer));
         if (fake_ptr_on) {
             RISCOS_Pointer *p = (RISCOS_Pointer *)(intptr_t)in->r[1];
-            p->x = fake_ptr[0]; p->y = fake_ptr[1]; p->window = WINDOW_H;
+            p->x = fake_ptr[0]; p->y = fake_ptr[1]; p->window = WINDOW_H; p->icon = fake_ptr_icon;
         }
         break;
     case Wimp_GetWindowState:
@@ -551,21 +551,49 @@ static void test_mouse(void)
     fake_ptr_on = 1;
     vdata.xeig = vdata.yeig = 1;
     mouse.x = mouse.y = -1;
-    fake_ptr[0] = 100 + 2 * 160; fake_ptr[1] = 900 - 2 * 120;       /* pixel 160,120 in */
+    /* rows run down from the visible area's top, y1 = 900, which is
+       exclusive: pixel row r is OS units 900-2(r+1) to 900-2r-1 */
+    fake_ptr[0] = 100 + 2 * 160; fake_ptr[1] = 900 - 2 * 120 - 1;   /* pixel 160,120 in */
     RISCOS_PollMouse(&device);
     CHECK(motion_x == 160 && motion_y == 120, "1:1 window: pixel 160,120 (%d,%d)", motion_x, motion_y);
     vdata.wscale_x = vdata.wscale_y = 2;
     RISCOS_PollMouse(&device);
     CHECK(motion_x == 80 && motion_y == 60, "2x window: 80,60 (%d,%d)", motion_x, motion_y);
     vdata.wscale_x = vdata.wscale_y = 1;
+    /* the top row and the top left pixel are reachable (y1 is exclusive) */
+    fake_ptr[0] = 100; fake_ptr[1] = 899;
+    RISCOS_PollMouse(&device);
+    CHECK(mouse.x == 0 && mouse.y == 0, "top left OS unit: pixel 0,0 (%d,%d)", mouse.x, mouse.y);
+    fake_ptr[1] = 898;
+    RISCOS_PollMouse(&device);
+    CHECK(mouse.y == 0, "the row's lower OS unit: still row 0 (%d)", mouse.y);
+    fake_ptr[1] = 897;
+    RISCOS_PollMouse(&device);
+    CHECK(mouse.y == 1, "next unit down: row 1 (%d)", mouse.y);
+    /* over the title bar (the Wimp gives our window, icon -3): not ours */
+    fake_ptr_icon = -3; fake_ptr[1] = 920;
+    motion_x = motion_y = -7;
+    RISCOS_PollMouse(&device);
+    CHECK(motion_x == -7 && !vdata.pointer_in, "title bar: no motion, pointer not in the window");
+    fake_ptr_icon = -1;
+    fake_ptr[0] = 100 + 2 * 160; fake_ptr[1] = 900 - 2 * 120 - 1;
+    RISCOS_PollMouse(&device);
+    CHECK(vdata.pointer_in && mouse.x == 160 && mouse.y == 120, "back in the work area (%d,%d)", mouse.x, mouse.y);
+    vdata.wscale_x = vdata.wscale_y = 1;
     window.driverdata = &wd;
     wd.render_w = 160; wd.render_h = 60; wd.disp_w = 320; wd.disp_h = 240;
     window.w = 160; window.h = 60;
     RISCOS_PollMouse(&device);
     CHECK(motion_x == 80 && motion_y == 30, "render size 160x60 in a 320x240 window: 80,30 (%d,%d)", motion_x, motion_y);
-    fake_ptr[0] = 100 + 2 * 319; fake_ptr[1] = 900 - 2 * 239;       /* bottom right */
+    fake_ptr[0] = 100 + 2 * 319; fake_ptr[1] = 900 - 2 * 239 - 2;   /* bottom right */
     RISCOS_PollMouse(&device);
     CHECK(motion_x == 159 && motion_y == 59, "bottom right corner: 159,59 (%d,%d)", motion_x, motion_y);
+    /* a GL window on the EGL path, in a window: the same rows */
+    wd.gl_egl = 1;
+    fake_ptr[0] = 100; fake_ptr[1] = 898;
+    RISCOS_PollMouse(&device);
+    CHECK(mouse.y == 0, "EGL path, window: top row's lower OS unit is row 0 (%d)", mouse.y);
+    wd.gl_egl = 0;
     /* full screen (1920x1080), a GL window rendering at 960x540 */
     vdata.wimp_window = 0;
     device.windows = &window;

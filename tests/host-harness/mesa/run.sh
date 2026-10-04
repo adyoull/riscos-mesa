@@ -36,7 +36,7 @@ LIB=$M/build/src/mesa/drivers/osmesa
 [ -e "$LIB/libOSMesa.so.8" ] || { echo "no $LIB/libOSMesa.so.8: build Mesa first" >&2; exit 1; }
 mkdir -p "$OUT"
 
-CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog glsl-basic glsl-control glsl-edge"
+CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog render-paths glsl-basic glsl-control glsl-edge"
 for c in $CHECKS; do
     gcc -O2 -w -I"$M/include" "$HERE/$c.c" -o "$OUT/$c" \
         -L"$LIB" -lOSMesa -lm -Wl,-rpath,"$LIB"
@@ -52,6 +52,8 @@ run_all() {
       "$OUT/render-tex" > "$res/render-tex.txt"
       "$OUT/render-matrix" > "$res/render-matrix.txt"
       "$OUT/render-fog" > "$res/render-fog.txt"
+      # (a library before 20.3.5-12 crashes on its larger-fbo case)
+      "$OUT/render-paths" > "$res/render-paths.txt" || true
       # (exits 1 when a case differs, which the comparison reports; a
       # library before 20.3.5-7 lacks OSMesaSetImageLookup and can't run it)
       "$OUT/render-image" 2>/dev/null > "$res/render-image.txt" || true

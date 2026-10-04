@@ -6,6 +6,28 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-12 (in development)
 
+- **Fixes from a code audit** (2026-10-04):
+  - **Drawing into a framebuffer object could land in the window**
+    (depth-tested, untextured drawing, with any EGL, SDL or GLUT context),
+    and crashed with one larger than the window. OSMesa's own fast
+    triangles are now only used for the window, and not with
+    GL_DEPTH_CLAMP, which they ignored. GL_CLAMP with a GL_LINEAR filter
+    under GL_FASTEST lost the border colour. New Mesa patch
+    `riscos-audit-fixes`, checked by the new `render-paths`.
+  - **EGL:** when a window surface's buffer couldn't be re-made (a resize
+    or mode change with memory short, or eglMakeCurrent whose read
+    surface's window had gone) the current context drew into freed
+    memory. A new sprite is now made before the old one is freed, and a
+    context is never left on a freed buffer. Work area surfaces (and
+    DispmanX windows) larger than 4096 are refused: their size maths
+    overflowed into a sprite far too small. eglMakeCurrent with the same
+    context on other surfaces now flushes first, so what it drew lands in
+    the old surface.
+  - **SDL:** `sdl2-config` and `sdl2.pc` now give `-lEGL`, so ports built
+    with pkg-config, CMake or autotools link. In a window, clicks and drags
+    on the title bar and border icons no longer reach the program, and
+    the pointer's row is no longer one out (the top row can be reached).
+    Relink to get these.
 - **SDL: a key press no longer repeats on every frame** (reported by the
   fheroes2 port). The RISC OS driver sent every held key again at each
   poll, so SDL gave a repeat (`event.key.repeat`) each frame: a 100 ms tap

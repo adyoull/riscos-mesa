@@ -99,21 +99,23 @@ static int surface_changed(egl_surface *s)
     return 1;
 }
 
+/* Drop a hold on a surface; destroy it if it was waiting for that */
+static void drop_surface(egl_display *d, egl_surface *s)
+{
+    if (s && --s->bound == 0) {
+        s->thread = NULL;
+        if (s->destroy_pending)
+            unlink_surface(d, s);
+    }
+}
+
 /* Drop a context's hold on its surfaces; destroy those waiting for it */
 static void unbind_surfaces(egl_display *d, egl_context *c)
 {
-    egl_surface *s[2];
-    int i;
-    s[0] = c->draw;
-    s[1] = c->read;
+    egl_surface *draw = c->draw, *read = c->read;
     c->draw = c->read = NULL;
-    for (i = 0; i < 2; i++) {
-        if (s[i] && --s[i]->bound == 0) {
-            s[i]->thread = NULL;
-            if (s[i]->destroy_pending)
-                unlink_surface(d, s[i]);
-        }
-    }
+    drop_surface(d, draw);
+    drop_surface(d, read);
 }
 
 /* Thread t's context for one API stops being current */
@@ -139,11 +141,22 @@ static int make_current(egl_display *d, egl_thread *t, egl_context *c,
                         egl_surface *draw, egl_surface *read)
 {
     const int slot = API_SLOT(c->api);
+    egl_surface *old_draw = NULL, *old_read = NULL;
+    int rebind = 0, ok;
 
-    if (t->ctx[slot] && t->ctx[slot] != c)
+    if (t->ctx[slot] && t->ctx[slot] != c) {
         release_slot(d, t, slot);
-    else if (t->ctx[slot] == c)
-        unbind_surfaces(d, c);
+    } else if (t->ctx[slot] == c) {
+        /* The same context on new surfaces: what it has drawn but Mesa
+           still holds (immediate mode vertices) belongs to the old ones,
+           and they are let go only once the new ones are bound (an old
+           surface waiting to be destroyed is then freed while unbound). */
+        if (t->active == c)
+            glFlush();
+        old_draw = c->draw;
+        old_read = c->read;
+        rebind = 1;
+    }
     c->draw = draw;
     c->read = read;
     if (draw) {
@@ -156,5 +169,10 @@ static int make_current(egl_display *d, egl_thread *t, egl_context *c,
     }
     c->thread = t;
     t->ctx[slot] = c;
-    return activate(t, c);
+    ok = activate(t, c);
+    if (rebind) {
+        drop_surface(d, old_draw);
+        drop_surface(d, old_read);
+    }
+    return ok;
 }

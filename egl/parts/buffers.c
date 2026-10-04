@@ -102,12 +102,25 @@ static int screen_memory_usable(const egl_surface *surf, const screen_info *s)
            (s->line_length & 3) == 0;
 }
 
+/* A window surface's buffer couldn't be made (EGL error set). If its old
+   one had already been freed, a context still bound to the surface must not
+   go on drawing into it: rebinding finds no buffer and unbinds the context
+   (OSMesa then has no buffer to draw into). Returns -1. */
+static int buffer_failed(egl_surface *surf)
+{
+    if (!surf->pixels)
+        surface_changed(surf);
+    return -1;
+}
+
 /* Make a window surface's buffer fit the window and the screen mode.
-   Returns 1 if it changed, 0 if not, -1 on failure (EGL error set). */
+   Returns 1 if it changed, 0 if not, -1 on failure (EGL error set). On
+   failure the old buffer is kept where possible (a new sprite is made
+   before the old one is freed); where it isn't, see buffer_failed. */
 static int update_window_buffer(egl_surface *surf, const screen_info *s)
 {
     _kernel_swi_regs r;
-    int w, h, size, mode, sprite_h;
+    int w, h, size, mode, sprite_h, *area;
 
     if (!wanted_size(surf, s, &w, &h))
         return fail(EGL_BAD_NATIVE_WINDOW), -1;
@@ -152,30 +165,32 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
         surf->sprite_eig == (s->xeig << 4 | s->yeig))
         return 0;
 
-    free_buffers(surf);
+    /* (w and h are a window's or the screen's size, or at most MAX_PBUFFER
+       for work area, render size and DispmanX surfaces: no overflow) */
     sprite_h = h;
     if ((long) w * 4 * h < MIN_SPRITE_BYTES)
         sprite_h = (MIN_SPRITE_BYTES + w * 4 - 1) / (w * 4);
     size = 16 + 44 + w * 4 * sprite_h;
-    surf->area = (int *) malloc(size);
-    if (!surf->area)
-        return fail(EGL_BAD_ALLOC), -1;
-    surf->area[0] = size;
-    surf->area[1] = 0;
-    surf->area[2] = 16;
-    surf->area[3] = 16;
+    area = (int *) malloc(size);
+    if (!area)
+        return fail(EGL_BAD_ALLOC), buffer_failed(surf);
+    area[0] = size;
+    area[1] = 0;
+    area[2] = 16;
+    area[3] = 16;
     r.r[0] = SPRITEOP_CREATE;
-    r.r[1] = (int) surf->area;
+    r.r[1] = (int) area;
     r.r[2] = (int) "egl";
     r.r[3] = 0;                 /* no palette */
     r.r[4] = w;
     r.r[5] = sprite_h;
     r.r[6] = mode;
     if (_kernel_swi(OS_SpriteOp, &r, &r) != NULL) {
-        free(surf->area);
-        surf->area = NULL;
-        return fail(EGL_BAD_ALLOC), -1;
+        free(area);
+        return fail(EGL_BAD_ALLOC), buffer_failed(surf);
     }
+    free_buffers(surf);         /* only now that the new sprite exists */
+    surf->area = area;
     surf->sprite = (int *) ((char *) surf->area + surf->area[2]);
     surf->pixels = (char *) surf->sprite + surf->sprite[8];
     surf->w = w;

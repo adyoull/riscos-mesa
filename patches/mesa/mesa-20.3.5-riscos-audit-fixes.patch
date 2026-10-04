@@ -1,0 +1,92 @@
+Fast paths kept out of states they don't handle (2026-10-04 audit)
+
+- drivers/osmesa/osmesa.c: OSMesa's own depth-tested triangles and flat
+  lines write through osmesa->rowaddr, the window's (or OSMesaBuffer's)
+  rows. riscos-speed made them depend on the bound framebuffer's depth
+  format, so with a framebuffer object bound (any depth attachment, in a
+  24-bit context too) they drew into the window instead, and crashed with
+  an FBO larger than the window. They are now only used when the window
+  system framebuffer is bound, and not with GL_DEPTH_CLAMP, which they
+  don't apply.
+- swrast/s_context.c: _NEW_TRANSFORM (depth clamp) revalidates the
+  triangle function.
+- swrast/s_triangle.c: under GL_FASTEST the fast textured triangles can
+  use the magnification filter, so GL_CLAMP (which blends in the border
+  colour with GL_LINEAR) is only taken when both filters are GL_NEAREST.
+
+Checked by tests/host-harness/mesa/render-paths.c.
+
+--- a/src/mesa/drivers/osmesa/osmesa.c
++++ b/src/mesa/drivers/osmesa/osmesa.c
+@@ -40,6 +40,7 @@
+ #include "main/context.h"
+ #include "main/extensions.h"
+ #include "main/formats.h"
++#include "main/fbobject.h"
+ #include "main/framebuffer.h"
+ #include "main/macros.h"
+ #include "main/mipmap.h"
+@@ -239,6 +240,10 @@
+       return NULL;
+    }
+ 
++   /* riscos-mesa: as for triangles, only into the window's own rows */
++   if (!ctx->DrawBuffer || !_mesa_is_winsys_fbo(ctx->DrawBuffer))
++      return NULL;
++
+    if (ctx->RenderMode != GL_RENDER ||
+        ctx->Texture._MaxEnabledTexImageUnit == -1 ||
+        ctx->Light.ShadeModel != GL_FLAT ||
+@@ -496,6 +501,13 @@
+       return NULL;
+    }
+ 
++   /* riscos-mesa: these triangles write through osmesa->rowaddr, the
++    * window's (or OSMesaBuffer's) rows, so only when that is what's bound
++    * for drawing, not a framebuffer object; and they don't clamp depth. */
++   if (!ctx->DrawBuffer || !_mesa_is_winsys_fbo(ctx->DrawBuffer) ||
++       ctx->Transform.DepthClampNear || ctx->Transform.DepthClampFar)
++      return NULL;
++
+    if (ctx->RenderMode != GL_RENDER ||
+        ctx->Polygon.SmoothFlag ||
+        ctx->Polygon.StippleFlag ||
+--- a/src/mesa/swrast/s_triangle.c
++++ b/src/mesa/swrast/s_triangle.c
+@@ -56,10 +56,13 @@
+  * edges, which only the general path does). See WRAP_COORD.
+  */
+ static inline GLboolean
+-fast_tex_wrap(GLenum wrap, GLenum filter)
++fast_tex_wrap(GLenum wrap, GLenum minFilter, GLenum magFilter)
+ {
++   /* GL_CLAMP only when both filters are GL_NEAREST: under GL_FASTEST
++    * fast_tex_image picks the magnification filter for magnified
++    * triangles, and GL_LINEAR would need the border colour */
+    return wrap == GL_REPEAT || wrap == GL_CLAMP_TO_EDGE ||
+-          (wrap == GL_CLAMP && filter == GL_NEAREST);
++          (wrap == GL_CLAMP && minFilter == GL_NEAREST && magFilter == GL_NEAREST);
+ }
+ 
+ 
+@@ -1470,8 +1473,8 @@
+              && !_mesa_ati_fragment_shader_enabled(ctx)
+              && ctx->Texture._MaxEnabledTexImageUnit == 0
+              && ctx->Texture.Unit[0]._Current->Target == GL_TEXTURE_2D
+-             && fast_tex_wrap(samp->WrapS, minFilter)
+-             && fast_tex_wrap(samp->WrapT, minFilter)
++             && fast_tex_wrap(samp->WrapS, minFilter, magFilter)
++             && fast_tex_wrap(samp->WrapT, minFilter, magFilter)
+              && texObj2D->_Swizzle == SWIZZLE_NOOP
+              && swImg->_IsPowerOfTwo
+              && texImg->Border == 0
+--- a/src/mesa/swrast/s_context.c
++++ b/src/mesa/swrast/s_context.c
+@@ -301,6 +301,7 @@
+ 			      _NEW_RENDERMODE|			\
+                               _NEW_POLYGON|			\
+                               _NEW_DEPTH|			\
++                              _NEW_TRANSFORM| /* riscos-mesa: depth clamp */ \
+                               _NEW_STENCIL|			\
+                               _NEW_COLOR|			\
+                               _NEW_TEXTURE|			\

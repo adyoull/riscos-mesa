@@ -1,0 +1,13 @@
+fbo: context depth 24, fbo 64x64 depth 24, smooth triangle: ok
+fbo: context depth 24, fbo 64x64 depth 24, flat triangle: ok
+fbo: context depth 24, fbo 64x64 depth 16, smooth triangle: ok
+fbo: context depth 16, fbo 64x64 depth 16, smooth triangle: ok
+fbo: context depth 16, fbo 64x64 depth 16, flat lines: ok
+fbo: context depth 24, fbo 256x256 depth 24, smooth triangle: ok
+depth clamp, depth 16: ok
+depth clamp, depth 24: ok
+texture, GL_FASTEST, RGB GL_CLAMP min NEAREST mag LINEAR: ok
+texture, GL_FASTEST, RGBA GL_CLAMP min NEAREST mag LINEAR: ok
+texture, GL_FASTEST, RGBA GL_CLAMP min LINEAR mag NEAREST: ok
+texture, GL_FASTEST, RGBA GL_CLAMP NEAREST: ok
+texture, GL_FASTEST, RGB GL_CLAMP_TO_EDGE min NEAREST mag LINEAR: ok

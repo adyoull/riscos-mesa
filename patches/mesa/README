@@ -258,6 +258,16 @@ mesa-20.3.5-riscos-fog-span.patch
     ground spent 15-17% of a frame in fog. Checked against fog worked out
     from first principles by tests/host-harness/mesa/render-fog.c.
 
+mesa-20.3.5-riscos-audit-fixes.patch
+    Fixes from the 2026-10-04 audit, for states the fast paths didn't
+    handle. OSMesa's own depth-tested triangles and lines (osmesa.c) are
+    only used when the window's framebuffer is bound, not a framebuffer
+    object (they drew into the window instead, and crashed with an FBO
+    larger than it), and not with GL_DEPTH_CLAMP. Under GL_FASTEST the
+    fast textured triangles take GL_CLAMP only when both filters are
+    GL_NEAREST (with GL_LINEAR it blends in the border colour). Checked by
+    tests/host-harness/mesa/render-paths.c.
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean
