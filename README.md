@@ -133,8 +133,9 @@ The zips store RISC OS filetypes. Releases are numbered after the Mesa version t
 - **Speed:** rendering is on the CPU, on one core.
   - Fixed-function GL and ES 1.1 are quick at desktop window sizes: aim
     for 320x240 to 640x480.
-  - Shaders (GLSL, ES 2.0) run through Mesa's interpreter and are several
-    times slower.
+  - Shaders (GLSL, ES 2.0) run through Mesa's interpreter, several pixels
+    at a time (with NEON where the CPU has it), and are several times
+    slower.
 - **Processors:** ARMv7 or later with VFPv3 (from 20.3.5-8; 20.3.5-7 and
   earlier need VFPv4, so a Pi 2 or later). Pi 2, 3 and 4 and Cortex-A15
   boards should work; tested on a Pi 4. Cortex-A8/A9 boards run the same

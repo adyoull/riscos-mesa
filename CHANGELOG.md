@@ -4,7 +4,18 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## 20.3.5-12 (in development)
+## 20.3.5-12: faster drawing and shaders, GLUT game mode at any size, fixes from a code audit
+
+Most 3D programs draw faster, with exactly the same picture apart from
+fog (at most 1 in a colour channel). glbench on a Raspberry Pi 4, against
+an early 20.3.5-12 development build: the GLSL scene takes 29% less time
+(38.0 to 26.9 ms a frame), depth clears 62% less, fog 52% less, lit
+drawing 12-43% less and textured drawing 17% less. GLUT game mode
+draws at the size the program asks for, and SDL key presses no longer
+repeat every frame. Also fixes from a code audit of EGL, SDL and Mesa's
+fast paths. Tested on a Pi 4: the speed-ups, the SDL key repeat, title
+bar clicks and pointer fixes; the rest on the host and under an emulated
+Cortex-A8.
 
 - **GLSL shaders use NEON where the CPU has it, with exactly the same
   picture** (new patch `riscos-glsl-neon`). Simple shader instructions
