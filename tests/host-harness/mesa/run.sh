@@ -36,7 +36,7 @@ LIB=$M/build/src/mesa/drivers/osmesa
 [ -e "$LIB/libOSMesa.so.8" ] || { echo "no $LIB/libOSMesa.so.8: build Mesa first" >&2; exit 1; }
 mkdir -p "$OUT"
 
-CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog render-paths glsl-basic glsl-control glsl-edge"
+CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog render-paths glsl-basic glsl-control glsl-edge glsl-special"
 for c in $CHECKS; do
     gcc -O2 -w -I"$M/include" "$HERE/$c.c" -o "$OUT/$c" \
         -L"$LIB" -lOSMesa -lm -Wl,-rpath,"$LIB"
@@ -59,7 +59,9 @@ run_all() {
       "$OUT/render-image" 2>/dev/null > "$res/render-image.txt" || true
       "$OUT/glsl-basic" > "$res/glsl-basic.txt"
       "$OUT/glsl-control" > "$res/glsl-control.txt"
-      "$OUT/glsl-edge" 2>/dev/null > "$res/glsl-edge.txt" )
+      "$OUT/glsl-edge" 2>/dev/null > "$res/glsl-edge.txt"
+      # (new in 20.3.5-12)
+      "$OUT/glsl-special" > "$res/glsl-special.txt" 2>/dev/null || true )
 }
 
 run_all "$LIB" "$OUT/this"

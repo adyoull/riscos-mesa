@@ -1,5 +1,4 @@
-riscos-mesa: NEON in the GLSL/ARB batch interpreter (TEST BUILD, not
-in the release build list yet).
+riscos-mesa: NEON in the GLSL/ARB batch interpreter.
 
 While every lane of a batch is active and the batch is a multiple of four
 fragments, runs of plain instructions (no relative addressing, negation

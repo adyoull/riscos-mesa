@@ -41,7 +41,7 @@ arm-linux-gnueabihf-objcopy --redefine-sym errno=ro_errno_shim \
     "$OUT/libOSMesa.a"
 $CC -c -O2 -mfloat-abi=hard "$HERE/shim.c" -o "$OUT/shim.o"
 
-CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog render-paths glsl-basic glsl-control glsl-edge"
+CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog render-paths glsl-basic glsl-control glsl-edge glsl-special"
 for c in $CHECKS; do
     $CC -c -O2 -w -mfpu=${RO_FPU:-vfpv3} -mfloat-abi=hard -I"$STAGE/include" "$HERE/../$c.c" -o "$OUT/$c.o"
     $CXX -static -o "$OUT/$c" "$OUT/$c.o" "$OUT/shim.o" "$OUT/libOSMesa.a" \
@@ -88,6 +88,10 @@ run "$OUT/render-image" > "$OUT/this/render-image.txt" || true
 run "$OUT/glsl-basic" > "$OUT/this/glsl-basic.txt"
 run "$OUT/glsl-control" > "$OUT/this/glsl-control.txt"
 run "$OUT/glsl-edge" > "$OUT/this/glsl-edge.txt"
+run "$OUT/glsl-special" > "$OUT/this/glsl-special.txt"
+# The GLSL interpreter's NEON code (the shim reports a CPU with NEON) must
+# give exactly what the C code gives, NaN cases included
+MESA_NO_NEON=1 run "$OUT/glsl-special" > "$OUT/this/glsl-special.c.txt"
 
 fail=0
 for c in $CHECKS; do
@@ -101,5 +105,11 @@ for c in $CHECKS; do
         fail=1
     fi
 done
+if cmp -s "$OUT/this/glsl-special.txt" "$OUT/this/glsl-special.c.txt"; then
+    printf "ok    %-13s %5d cases NEON = C (ARM)\n" glsl-special "$(wc -l < "$OUT/this/glsl-special.txt")"
+else
+    printf "FAIL  %-13s NEON and C differ (ARM)\n" glsl-special
+    fail=1
+fi
 [ $fail = 0 ] && echo "the RISC OS build renders exactly as expected" || echo "results in $OUT/this"
 exit $fail

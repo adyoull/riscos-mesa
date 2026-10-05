@@ -6,6 +6,18 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-12 (in development)
 
+- **GLSL shaders use NEON where the CPU has it, with exactly the same
+  picture** (new patch `riscos-glsl-neon`). Simple shader instructions
+  (add, multiply, multiply-add, min, max, compare, dot products, moves)
+  are worked out for four pixels at once. NEON treats tiny numbers and
+  NaNs differently from the VFP code, so wherever one turns up the
+  instruction is worked out again the old way: the output is bit-identical
+  (about 8,400 generated test shaders, and a new check `glsl-special` of
+  denormals, NaNs and infinities, under qemu-arm with NEON and without).
+  CPUs without NEON run the old code, at the same speed; setting the
+  system variable `MESA_NO_NEON` turns it off. glbench on a Raspberry Pi 4,
+  640x480, three interleaved runs each: glsl 28.89 ms to 26.93 ms per
+  frame (7% less, 34.6 to 37.1 fps); the other scenes the same.
 - **Faster GLSL shaders, with exactly the same picture** (new patch
   `riscos-glsl-wmask`). The shader interpreter works out only the
   components an instruction writes (most instructions in a compiled
