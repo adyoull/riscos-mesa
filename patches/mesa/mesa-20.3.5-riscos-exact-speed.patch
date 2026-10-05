@@ -1,0 +1,187 @@
+Faster 2D textures, depth clears and colour material, same pixels
+
+- swrast/s_triangle.c: the fast textured spans skip the double multiply by
+  1/q when it is exactly 1 (2D and orthographic drawing, and GL_FASTEST
+  segments): (float) (s * 1.0) is s itself.
+- swrast/s_depth.c: 24-bit depth buffers without stencil (Z24_X8, what
+  EGL, SDL and GLUT use) are cleared with a plain fill (a memset when the
+  three depth bytes match, as for 1.0 and 0.0), not a read, mask and
+  write per value; the unused byte is never read.
+- tnl/t_vb_light.c: with GL_COLOR_MATERIAL, the derived light/material
+  values are worked out again only when a vertex's colour differs from
+  the last one's (compared bit for bit, as words), not for every vertex.
+
+Every picture is unchanged: the rendering checks give the same hashes, and
+every glbench scene's colour and depth match the previous build exactly.
+
+--- a/src/mesa/swrast/s_depth.c
++++ b/src/mesa/swrast/s_depth.c
+@@ -614,10 +614,10 @@
+    height = ctx->DrawBuffer->_Ymax - ctx->DrawBuffer->_Ymin;
+ 
+    mapMode = GL_MAP_WRITE_BIT;
++   /* riscos-mesa: only the stencil formats need their other byte read
++    * back (see below) */
+    if (rb->Format == MESA_FORMAT_Z24_UNORM_S8_UINT ||
+-       rb->Format == MESA_FORMAT_Z24_UNORM_X8_UINT ||
+-       rb->Format == MESA_FORMAT_S8_UINT_Z24_UNORM ||
+-       rb->Format == MESA_FORMAT_X8_UINT_Z24_UNORM) {
++       rb->Format == MESA_FORMAT_S8_UINT_Z24_UNORM) {
+       mapMode |= GL_MAP_READ_BIT;
+    }
+ 
+@@ -681,12 +681,40 @@
+             mask = 0xff;
+ 
+          _mesa_pack_float_z_row(rb->Format, 1, &clear, &clearVal);
+-         for (i = 0; i < height; i++) {
+-            GLuint *row = (GLuint *) map;
+-            for (j = 0; j < width; j++) {
+-               row[j] = (row[j] & mask) | clearVal;
++         if (rb->Format == MESA_FORMAT_Z24_UNORM_X8_UINT ||
++             rb->Format == MESA_FORMAT_X8_UINT_Z24_UNORM) {
++            /* riscos-mesa: the X8 byte is unused (nothing reads it: depth
++             * reads mask it off), so the clear is a plain fill rather than a
++             * read, mask and write of every value; and a fill of one byte
++             * value when the depth's three bytes are all the same (clearing
++             * to 1.0 or 0.0), with the unused byte set to match. This is
++             * the depth buffer EGL, SDL and GLUT ask for. */
++            const GLubyte b = clearVal >> (mask == 0xff ? 8 : 0);
++            const GLuint fill = b * 0x01010101u;
++            if ((fill & ~mask) == clearVal) {
++               for (i = 0; i < height; i++) {
++                  memset(map, b, width * 4);
++                  map += rowStride;
++               }
++            }
++            else {
++               for (i = 0; i < height; i++) {
++                  GLuint *row = (GLuint *) map;
++                  for (j = 0; j < width; j++) {
++                     row[j] = clearVal;
++                  }
++                  map += rowStride;
++               }
++            }
++         }
++         else {
++            for (i = 0; i < height; i++) {
++               GLuint *row = (GLuint *) map;
++               for (j = 0; j < width; j++) {
++                  row[j] = (row[j] & mask) | clearVal;
++               }
++               map += rowStride;
+             }
+-            map += rowStride;
+          }
+ 
+       }
+--- a/src/mesa/swrast/s_triangle.c
++++ b/src/mesa/swrast/s_triangle.c
+@@ -886,6 +886,20 @@
+    (q_constant ? inv_q_constant :					\
+                  (tex_coord[2] ? (1.0 / tex_coord[2]) : 1.0))
+ 
++/* riscos-mesa: s/q and t/q for the current pixel. When 1/q is exactly 1
++ * along the span (2D and orthographic drawing, and every GL_FASTEST
++ * segment), s/q is s itself: (float) (s * 1.0) gives s's own bits, so
++ * skipping the double multiply and the conversions changes nothing. */
++#define PERSP_ST(S_TMP, T_TMP)						\
++   if (q_one) {								\
++      S_TMP = tex_coord[0];						\
++      T_TMP = tex_coord[1];						\
++   } else {								\
++      const GLdouble invQ = PERSP_INV_Q;				\
++      S_TMP = (GLfloat) (tex_coord[0] * invQ);				\
++      T_TMP = (GLfloat) (tex_coord[1] * invQ);				\
++   }
++
+ #define SPAN_NEAREST(DO_TEX,COMP)					\
+ 	if (!info->clamp) {						\
+ 	   SPAN_NEAREST_WRAP(DO_TEX, COMP, 0, 0);			\
+@@ -895,9 +909,8 @@
+ 
+ #define SPAN_NEAREST_WRAP(DO_TEX, COMP, CLAMP_S, CLAMP_T)		\
+ 	for (i = 0; i < count; i++) {				\
+-           const GLdouble invQ = PERSP_INV_Q;				\
+-           GLfloat s_tmp = (GLfloat) (tex_coord[0] * invQ);		\
+-           GLfloat t_tmp = (GLfloat) (tex_coord[1] * invQ);		\
++           GLfloat s_tmp, t_tmp;					\
++           PERSP_ST(s_tmp, t_tmp);					\
+            GLint s = WRAP_COORD(util_ifloor(s_tmp), CLAMP_S, info->smask); \
+            GLint t = WRAP_COORD(util_ifloor(t_tmp), CLAMP_T, info->tmask); \
+            GLint pos = (t << info->twidth_log2) + s;			\
+@@ -922,9 +935,8 @@
+ 
+ #define SPAN_LINEAR_CLAMP(DO_TEX,COMP)					\
+ 	for (i = 0; i < count; i++) {				\
+-           const GLdouble invQ = PERSP_INV_Q;				\
+-           const GLfloat s_tmp = (GLfloat) (tex_coord[0] * invQ);	\
+-           const GLfloat t_tmp = (GLfloat) (tex_coord[1] * invQ);	\
++           GLfloat s_tmp, t_tmp;					\
++           PERSP_ST(s_tmp, t_tmp);					\
+            const GLfixed s_fix = FloatToFixed(s_tmp) - FIXED_HALF;	\
+            const GLfixed t_fix = FloatToFixed(t_tmp) - FIXED_HALF;      \
+            const GLint s = FixedToInt(FixedFloor(s_fix));		\
+@@ -945,9 +957,8 @@
+ 
+ #define SPAN_LINEAR_REPEAT(DO_TEX,COMP)					\
+ 	for (i = 0; i < count; i++) {				\
+-           const GLdouble invQ = PERSP_INV_Q;				\
+-           const GLfloat s_tmp = (GLfloat) (tex_coord[0] * invQ);	\
+-           const GLfloat t_tmp = (GLfloat) (tex_coord[1] * invQ);	\
++           GLfloat s_tmp, t_tmp;					\
++           PERSP_ST(s_tmp, t_tmp);					\
+            const GLfixed s_fix = FloatToFixed(s_tmp) - FIXED_HALF;	\
+            const GLfixed t_fix = FloatToFixed(t_tmp) - FIXED_HALF;      \
+            const GLint s = FixedToInt(FixedFloor(s_fix)) & info->smask;	\
+@@ -995,6 +1006,7 @@
+    tex_step[2] = span->attrStepX[VARYING_SLOT_TEX0][3];
+    GLboolean q_constant = (tex_step[2] == 0.0F);
+    GLdouble inv_q_constant = tex_coord[2] ? (1.0 / tex_coord[2]) : 1.0;
++   GLboolean q_one = q_constant && inv_q_constant == 1.0;
+ 
+    /* riscos-mesa: under GL_PERSPECTIVE_CORRECTION_HINT GL_FASTEST
+     * (info->subdivide), the span is drawn in segments of PERSP_SEGMENT
+@@ -1028,6 +1040,7 @@
+          tex_step[2] = 0.0F;
+          q_constant = GL_TRUE;
+          inv_q_constant = 1.0;
++         q_one = GL_TRUE;
+       }
+ 
+    switch (info->filter) {
+--- a/src/mesa/tnl/t_vb_light.c
++++ b/src/mesa/tnl/t_vb_light.c
+@@ -198,13 +198,30 @@
+ update_materials(struct gl_context *ctx, struct light_stage_data *store)
+ {
+    GLuint i;
++   GLboolean changed = GL_FALSE;
+ 
+    for (i = 0 ; i < store->mat_count ; i++) {
+       /* update the material */
+-      COPY_CLEAN_4V(store->mat[i].current, store->mat[i].size, store->mat[i].ptr);
++      /* riscos-mesa: and note whether it changed. Consecutive vertices
++       * often have the same colour (one per polygon or object), and then
++       * the derived light/material values below, worked out for every
++       * enabled light, would come out the same as they are: they are only
++       * worked out again when a value changes (compared bit for bit). */
++      typedef GLuint word_alias __attribute__((may_alias));
++      GLfloat v[4];
++      const word_alias *nw = (const word_alias *) v;
++      const word_alias *cw = (const word_alias *) store->mat[i].current;
++      COPY_CLEAN_4V(v, store->mat[i].size, store->mat[i].ptr);
++      /* (bit for bit, as words: memcmp is a call into the C library) */
++      if (nw[0] != cw[0] || nw[1] != cw[1] || nw[2] != cw[2] || nw[3] != cw[3]) {
++         COPY_4V(store->mat[i].current, v);
++         changed = GL_TRUE;
++      }
+       /* increment src vertex color pointer */
+       STRIDE_F(store->mat[i].ptr, store->mat[i].stride);
+    }
++   if (!changed)
++      return;
+ 
+    /* recompute derived light/material values */
+    _mesa_update_material( ctx, store->mat_bitmask );

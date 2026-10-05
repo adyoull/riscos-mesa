@@ -6,6 +6,17 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-12 (in development)
 
+- **Faster with no change to the picture** (new patch `riscos-exact-speed`;
+  every rendering check and glbench scene is bit-for-bit the same).
+  Measured as ARM instructions per frame under qemu:
+  - clearing a 24-bit depth buffer (what EGL, SDL and GLUT use) takes
+    half the work: glbench's clear scene -53%, cube -19%;
+  - 2D and orthographic textured drawing -5%;
+  - lit drawing with `GL_COLOR_MATERIAL` and a colour per polygon -11%
+    (the light/material values are worked out again only when the colour
+    changes);
+  - fog -32%: the integer fog read and wrote pixels with `memcpy`, which
+    is a library call on ARM, so it gained less on a Pi than on a PC.
 - **GLUT game mode draws at the resolution the program asks for**
   (`glutGameModeString`), stretched over the screen, instead of always at
   the desktop's: a program asking for 640x480 on a 1920x1080 desktop draws

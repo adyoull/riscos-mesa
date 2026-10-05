@@ -255,8 +255,11 @@ mesa-20.3.5-riscos-fog-span.patch
     with GL_NICEST still for every pixel. Pictures differ by at most 1 in
     a channel (so render-tex's fogged cases have new hashes); alpha is
     unchanged. Asked for by the YSFlight port, whose fogged sky and
-    ground spent 15-17% of a frame in fog. Checked against fog worked out
-    from first principles by tests/host-harness/mesa/render-fog.c.
+    ground spent 15-17% of a frame in fog. Pixels are read and written as
+    aligned words (memcpy of 4 bytes is a library call on ARM without
+    unaligned access, which made the first version slower there).
+    Checked against fog worked out from first principles by
+    tests/host-harness/mesa/render-fog.c.
 
 mesa-20.3.5-riscos-audit-fixes.patch
     Fixes from the 2026-10-04 audit, for states the fast paths didn't
@@ -267,6 +270,19 @@ mesa-20.3.5-riscos-audit-fixes.patch
     fast textured triangles take GL_CLAMP only when both filters are
     GL_NEAREST (with GL_LINEAR it blends in the border colour). Checked by
     tests/host-harness/mesa/render-paths.c.
+
+mesa-20.3.5-riscos-exact-speed.patch
+    Speed-ups that leave every picture the same, bit for bit (checked:
+    the rendering checks' hashes, and each glbench scene's colour and
+    depth against the previous build). The fast textured spans skip the
+    double multiply by 1/q when it is exactly 1 (2D and orthographic
+    drawing, GL_FASTEST segments): 5% on glbench's tex scene. 24-bit depth
+    buffers without stencil (what EGL, SDL and GLUT use) are cleared with
+    a plain fill instead of a read, mask and write per value: clears take
+    half the work. With GL_COLOR_MATERIAL, the light/material values are
+    worked out again only when a vertex's colour changes, not for every
+    vertex: 11% on a lit scene coloured per triangle. (Figures are ARM
+    instruction counts under qemu.)
 
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
