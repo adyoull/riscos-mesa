@@ -6,6 +6,15 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-12 (in development)
 
+- **Faster GLSL shaders, with exactly the same picture** (new patch
+  `riscos-glsl-wmask`). The shader interpreter works out only the
+  components an instruction writes (most instructions in a compiled
+  fragment shader write one), and checks its cached copy of the shader a
+  word at a time rather than a byte at a time. ARM instructions per frame
+  under qemu: glbench's glsl scene 29% fewer (22.6M to 16.1M, with
+  UnixLib's memcmp), a vertex-heavy GLSL scene 30% fewer. Every GLSL
+  rendering check, about 8,400 generated test shaders and glbench's
+  scenes give bit-identical output. Not yet timed on a Pi.
 - **Faster with no change to the picture** (new patch `riscos-exact-speed`;
   every rendering check and glbench scene is bit-for-bit the same).
   glbench on a Raspberry Pi 4, 640x480, ms per frame (12g against this,

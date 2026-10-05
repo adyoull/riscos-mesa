@@ -15,7 +15,14 @@ the same thing. For each arithmetic opcode this tool:
     general FETCH4/FETCH1/STORE4;
   - changes the few places that refer to one-pixel state: the address
     register (per pixel: laneAddr[k]), derivatives (machine->CurElement is
-    set to the pixel's column) and SWZ's source pointer (lane_src_pointer).
+    set to the pixel's column) and SWZ's source pointer (lane_src_pointer);
+  - for opcodes that work component by component (each result[i] is the
+    same expression of the operands' [i] components), adds fast copies for
+    the write masks .x and .xyz, which work out and store only those
+    components: the same expression, the same operand components, so the
+    same bits. (Shaders compiled from GLSL do most of their work in .x and
+    .xyz; the four-component code worked out every component and threw
+    the others away.)
 
 Control-flow opcodes (IF, ELSE, ENDIF, loops, BRK, CONT, KIL, RET, END, CAL,
 subroutines, NOP) are written by hand in _mesa_execute_program_batch() and
@@ -71,6 +78,91 @@ def per_lane(inner):
     return inner
 
 
+DECL = re.compile(r'^\s*GLfloat ((?:\w+\[4\], )*\w+\[4\]);\s*$')
+FETCH = re.compile(r'^\s*FETCH4\((\d), (\w+)\);\s*$')
+RESULT = re.compile(r'^\s*result\[(\d)\] = (.*);\s*$')
+
+
+def componentwise(inner):
+    """For an opcode whose result is worked out component by component:
+    (its fetches as (operand, variable), and result[0]'s expression). For
+    a plain copy (FETCH4 into a variable, then STORE4 of it) the
+    expression is that variable's [0]. Otherwise None."""
+    lines = [l for l in inner.split('\n') if l.strip()]
+    body = []
+    depth = 0
+    for l in lines:            # drop the DEBUG_PROG printf block
+        t = l.strip()
+        if t.startswith('if (DEBUG_PROG)'):
+            depth = 1
+            continue
+        if depth:
+            depth += t.count('{') - t.count('}')
+            if t == '}' and depth <= 0:
+                depth = 0
+            continue
+        body.append(t)
+    if body[:1] != ['{'] or body[-1:] != ['}']:
+        return None
+    body = body[1:-1]
+    if not body or not DECL.match(body[0]):
+        return None
+    fetches, results, store = [], {}, None
+    for t in body[1:]:
+        m = FETCH.match(t)
+        if m:
+            fetches.append((m.group(1), m.group(2)))
+            continue
+        m = RESULT.match(t)
+        if m:
+            results[int(m.group(1))] = m.group(2)
+            continue
+        m = re.match(r'^STORE4\((\w+)\);$', t)
+        if m and store is None:
+            store = m.group(1)
+            continue
+        return None
+    if not fetches or store is None:
+        return None
+    names = [v for _, v in fetches]
+    if not results:
+        # a copy: FETCH4(n, v); STORE4(v);
+        if len(fetches) != 1 or store != names[0]:
+            return None
+        return fetches, names[0] + '[0]'
+    if store != 'result' or sorted(results) != [0, 1, 2, 3]:
+        return None
+    e0 = results[0]
+    if re.search(r'\[[1-3]\]', e0) or '[0]' not in e0:
+        return None
+    for i in (1, 2, 3):
+        if results[i] != e0.replace('[0]', '[%d]' % i):
+            return None
+    # every [0] must be on one of the fetched operands
+    for ref in re.findall(r'(\w+)\[0\]', e0):
+        if ref not in names:
+            return None
+    return fetches, e0
+
+
+def masked_fast(fetches, e0, comps):
+    """Fast-path lane code for a write mask of the first comps components."""
+    names = ', '.join('%s[4]' % v for _, v in fetches)
+    text = '         {\n            GLfloat %s;\n' % names
+    for n, v in fetches:
+        if comps == 1:
+            text += '            FETCH1F(%s, %s);\n' % (n, v)
+        else:
+            text += '            FETCH4F(%s, %s);\n' % (n, v)
+    text += '            {\n               GLfloat *d_ = lbd[k] + bod;\n'
+    for i in range(comps):
+        text += '               const GLfloat r%d_ = %s;\n' % (i, e0.replace('[0]', '[%d]' % i))
+    for i in range(comps):
+        text += '               d_[%d] = r%d_;\n' % (i, i)
+    text += '            }\n         }\n'
+    return text
+
+
 def generate(src):
     out = []
     for case in interpreter_cases(src):
@@ -88,6 +180,18 @@ def generate(src):
                      .replace('FETCH1(', 'FETCH1F(')
                      .replace('STORE4(', 'STORE4F('))
         text = header + '         if (!exec) break;\n'
+        cw = componentwise(inner) if fast != inner else None
+        if cw:
+            fetches, e0 = cw
+            text += ('         if (di->fast && wmask == WRITEMASK_X) {\n'
+                     '         FOR_LANES {\n' + masked_fast(fetches, e0, 1) +
+                     '         } END_LANES\n'
+                     '         }\n'
+                     '         else if (di->fast && wmask == WRITEMASK_XYZ) {\n'
+                     '         FOR_LANES {\n' + masked_fast(fetches, e0, 3) +
+                     '         } END_LANES\n'
+                     '         }\n'
+                     '         else ')
         if fast != inner:
             text += ('         if (di->fast) {\n'
                      '         FOR_LANES {\n' + fast +

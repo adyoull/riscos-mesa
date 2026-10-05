@@ -284,6 +284,18 @@ mesa-20.3.5-riscos-exact-speed.patch
     vertex: 11% on a lit scene coloured per triangle. (Figures are ARM
     instruction counts under qemu.)
 
+mesa-20.3.5-riscos-glsl-wmask.patch
+    Faster GLSL and ARB shaders, bit for bit the same (checked: the GLSL
+    rendering checks on the host and under qemu-arm, about 8,400 generated
+    shaders against the previous build, and glbench's scenes). The batch
+    interpreter computes only the components an instruction writes when it
+    writes just .x or just .xyz with a component-wise opcode (ADD, MUL,
+    MAD, MOV, MIN, MAX, ...); compiled fragment shaders are mostly .x
+    writes, and these computed all four components and then masked. The
+    check that a shader's cached decode is still current compares words,
+    not bytes with UnixLib's byte-at-a-time memcmp. 25-29% fewer ARM
+    instructions in glbench's glsl scene, 30% in a vertex-heavy GLSL scene.
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean

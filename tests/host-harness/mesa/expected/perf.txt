@@ -1,10 +1,10 @@
 # instructions: startup = whole program up to the first context
 # being current; scenes = per frame, 320x240; gcc 13.3.0
-startup 10323495
+startup 10323504
 clear 411934
-cube 1580464
+cube 1580469
 tex 11734606
 blend 24910337
 tris 16435656
-glsl 19571714
-fog 11798280
+glsl 15948221
+fog 11798285
