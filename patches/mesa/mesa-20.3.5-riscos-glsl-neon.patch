@@ -1,0 +1,431 @@
+riscos-mesa: NEON in the GLSL/ARB batch interpreter (TEST BUILD, not
+in the release build list yet).
+
+While every lane of a batch is active and the batch is a multiple of four
+fragments, runs of plain instructions (no relative addressing, negation
+or saturation) with ABS ADD CMP DP2 DP3 DP4 LRP MAD MAX MIN MOV MUL SGE
+SLT SUB, whose destination is a temporary or output and not one of its
+sources, are run four lanes at a time with NEON (ro_neon_run): the same
+IEEE operations in the same order as the C.
+
+NEON flushes denormals to zero and gives the default NaN, where VFP (as
+UnixLib sets it up) keeps denormals and passes NaN operands through. So
+each group checks its operands for 0 < |x| < 2^-30 (with operands of 0
+or at least 2^-30 no product or sum of products here can be a denormal)
+and its arithmetic results for NaN; if any lane hits one, the C code runs
+the instruction again for every lane. Output is bit-identical to the C
+code (checked under qemu-arm: the fuzz shader sets, edge cases with
+denormals and NaNs, glbench's scenes).
+
+Used only when VFPSupport_Features reports Advanced SIMD (MVFR1 SIMD
+load/store, integer and single precision); the system variable
+MESA_NO_NEON turns it off. GCC compiles only ro_neon_run with NEON
+(#pragma GCC target), so the rest still runs on VFPv3-only machines.
+
+--- a/src/mesa/program/prog_execute.c
++++ b/src/mesa/program/prog_execute.c
+@@ -418,6 +418,8 @@
+    struct dec_src src[3];
+    struct dec_dst dst;
+    GLboolean fast;     /* batch: plain operands, see decode_program */
++   GLubyte neon;       /* batch: NEON can run it: its sources (neon_ok) */
++   GLubyte neon_in;    /* ... and it reads an input register */
+ };
+ 
+ struct prog_decoded {
+@@ -439,10 +441,69 @@
+      { 0, 0, PB_ZERO, PF_SLOW, { 0, 1, 2, 3 } },
+      { 0, 0, PB_ZERO, PF_SLOW, { 0, 1, 2, 3 } } },
+    { 0, 0, PB_DUMMY, 1 },
+-   GL_FALSE
++   GL_FALSE, 0, 0
+ };
+ 
+ 
++/*
++ * riscos-mesa: can the batch executor's NEON code (ro_neon_inst) run this
++ * fast instruction? Its opcode is one it has, the destination a temporary
++ * or output, and every source a temporary, input, parameter, system value
++ * or zero; and the destination isn't a source (but see below).
++ * \return  the number of sources, or 0 if not.
++ */
++static GLubyte
++neon_ok(const struct prog_instruction *inst, const struct dec_inst *di,
++        GLubyte *reads_input)
++{
++   const GLuint wmask = inst->DstReg.WriteMask & WRITEMASK_XYZW;
++   GLboolean dot = GL_FALSE, overlap = GL_FALSE;
++   GLuint nsrc, k;
++
++   switch (inst->Opcode) {
++   case OPCODE_ABS: case OPCODE_MOV:
++      nsrc = 1; break;
++   case OPCODE_DP2: case OPCODE_DP3: case OPCODE_DP4:
++      dot = GL_TRUE;
++      /* fall through */
++   case OPCODE_ADD: case OPCODE_SUB: case OPCODE_MUL: case OPCODE_MIN:
++   case OPCODE_MAX: case OPCODE_SGE: case OPCODE_SLT:
++      nsrc = 2; break;
++   case OPCODE_MAD: case OPCODE_CMP: case OPCODE_LRP:
++      nsrc = 3; break;
++   default:
++      return GL_FALSE;
++   }
++   if (!di->fast || !wmask ||
++       (di->dst.base != PB_TEMP && di->dst.base != PB_OUTPUT))
++      return GL_FALSE;
++   *reads_input = 0;
++   for (k = 0; k < nsrc; k++) {
++      const struct dec_src *ds = &di->src[k];
++      switch (ds->base) {
++      case PB_INPUT:
++         *reads_input = 1;
++         break;
++      case PB_TEMP: case PB_OUTPUT: case PB_PARAM: case PB_SYSVAL:
++      case PB_ZERO:
++         break;
++      default:
++         return GL_FALSE;
++      }
++      if (ds->base == di->dst.base && ds->boff == di->dst.boff)
++         overlap = GL_TRUE;
++   }
++   /* NEON may hand an instruction back to the C code after storing its
++    * results (ro_neon_run), so its sources mustn't include the
++    * destination; MOV and ABS never are, and run a component at a time */
++   if (overlap && (dot || (inst->Opcode != OPCODE_MOV &&
++                           inst->Opcode != OPCODE_ABS) ||
++                   (wmask & (wmask - 1))))
++      return 0;
++   return nsrc;
++}
++
++
+ static void
+ decode_src(const struct gl_program *prog, const struct prog_src_register *src,
+            struct dec_src *d)
+@@ -668,6 +729,7 @@
+             if (dec->d[i].src[k].flags & (PF_SLOW | PF_NEG))
+                fast = GL_FALSE;
+          dec->d[i].fast = fast;
++         dec->d[i].neon = neon_ok(inst, &dec->d[i], &dec->d[i].neon_in);
+       }
+       if (inst->Opcode == OPCODE_CAL || inst->Opcode == OPCODE_BGNSUB)
+          dec->hasCall = GL_TRUE;
+@@ -1946,6 +2008,265 @@
+ }
+ 
+ 
++/*
++ * riscos-mesa: NEON for the batch interpreter (a test build).
++ *
++ * When every lane of a batch is active, a plain instruction (decode's
++ * "fast": no relative addressing, negation or saturation) with one of the
++ * opcodes below is run for four lanes at a time with NEON, one vector per
++ * component.  The results are the same as the VFP code's: the same IEEE
++ * single-precision operations in the same order (NEON's multiply and add
++ * round like VFP's, and MIN/MAX/CMP/SGE/SLT use the same comparisons as the
++ * C), except that NEON always flushes denormal numbers (below about
++ * 1.2e-38) to zero and gives the default NaN.
++ *
++ * Only used when the CPU has NEON (VFPSupport_Features: MVFR1 says Advanced
++ * SIMD load/store, integer and single precision); other ARMv7 machines run
++ * the C code.  Setting the system variable MESA_NO_NEON turns it off.
++ */
++#if defined(__riscos__) && defined(__arm__) && defined(__ARM_EABI__)
++#define RO_NEON_BATCH 1
++#include <kernel.h>
++#include <swis.h>
++
++static int ro_neon_state = -1;
++
++static GLboolean
++ro_have_neon(void)
++{
++   if (unlikely(ro_neon_state < 0)) {
++      int have = 0;
++      if (!getenv("MESA_NO_NEON")) {
++         _kernel_swi_regs r;
++         r.r[0] = 0;
++         if (_kernel_swi(VFPSupport_Features, &r, &r) == NULL &&
++             (r.r[2] & 0xFFF00) == 0x11100)
++            have = 1;
++      }
++      ro_neon_state = have;
++   }
++   return ro_neon_state;
++}
++
++#pragma GCC push_options
++#pragma GCC target("fpu=neon")
++#include <arm_neon.h>
++
++/* Four lanes' copies of one float: lane i at p + i * 4, or (ls == 0)
++ * the same for every lane */
++static inline float32x4_t
++neon_ld(const GLfloat *p, GLint ls)
++{
++   float32x4_t v;
++   if (!ls)
++      return vld1q_dup_f32(p);
++   v = vld1q_dup_f32(p);
++   v = vld1q_lane_f32(p + 4, v, 1);
++   v = vld1q_lane_f32(p + 8, v, 2);
++   return vld1q_lane_f32(p + 12, v, 3);
++}
++
++/* ... and the store to a destination register: lane i at d + i * 4 */
++static inline void
++neon_st(GLfloat *d, float32x4_t v)
++{
++   vst1q_lane_f32(d, v, 0);
++   vst1q_lane_f32(d + 4, v, 1);
++   vst1q_lane_f32(d + 8, v, 2);
++   vst1q_lane_f32(d + 12, v, 3);
++}
++
++/*
++ * Where NEON and VFP could differ. NEON flushes denormals to zero and
++ * gives the default NaN; VFP (as UnixLib sets it up) keeps denormals and
++ * passes a NaN operand through. So the NEON code checks:
++ *  - each operand: 0 < |x| < 2^-30 (a denormal, or small enough that a
++ *    product or a sum of products could be one). An operand of 0 or at
++ *    least 2^-30 keeps every product and sum these opcodes make a multiple
++ *    of 2^-106 or zero, and so never a denormal;
++ *  - each arithmetic result: NaN.
++ * If any lane hits one, the instruction is run again by the C code (the
++ * destination is never a source: see neon_ok).
++ */
++static inline uint32x4_t
++neon_tiny(float32x4_t x)
++{
++   /* the bits without the sign, minus 1: below 2^-30's, less 1 */
++   const uint32x4_t b = vshlq_n_u32(vreinterpretq_u32_f32(x), 1);
++   return vcltq_u32(vsubq_u32(b, vdupq_n_u32(1)),
++                    vdupq_n_u32((0x30800000u << 1) - 1));
++}
++
++static inline uint32x4_t
++neon_nan(float32x4_t r)
++{
++   return vmvnq_u32(vceqq_f32(r, r));
++}
++
++/* One written component c at a time, for every group of four lanes:
++ * A, B and C are source 0, 1 and 2's component for the lanes, R the
++ * result; CHK is ORed into bad. */
++#define NEON_COMPONENTWISE(NS, EXPR, CHK)                             \
++   for (c = 0; c < 4; c++) {                                          \
++      const GLfloat *p0, *p1, *p2;                                    \
++      GLfloat *d;                                                     \
++      if (!(wmask & (1u << c)))                                       \
++         continue;                                                    \
++      p0 = sp[0] + sw[0][c];                                          \
++      p1 = sp[1] + sw[1][c];                                          \
++      p2 = sp[2] + sw[2][c];                                          \
++      d = d0 + c;                                                     \
++      for (g = 0; g < ng; g++) {                                      \
++         const float32x4_t A = neon_ld(p0, ls[0]);                    \
++         const float32x4_t B = (NS) > 1 ? neon_ld(p1, ls[1]) : A;     \
++         const float32x4_t C = (NS) > 2 ? neon_ld(p2, ls[2]) : A;     \
++         const float32x4_t R = (EXPR);                                \
++         (void) B; (void) C;                                          \
++         bad = vorrq_u32(bad, (CHK));                                 \
++         neon_st(d, R);                                               \
++         p0 += gs[0];                                                 \
++         p1 += gs[1];                                                 \
++         p2 += gs[2];                                                 \
++         d += 16;                                                     \
++      }                                                               \
++   }
++
++#define T1 neon_tiny(A)
++#define T2 vorrq_u32(neon_tiny(A), neon_tiny(B))
++#define T3 vorrq_u32(T2, neon_tiny(C))
++
++/*
++ * Run instructions pc, pc + 1, ... for lanes 0..4*ng-1, all active, while
++ * neon_ok passed for them (and their inputs, if any, are in consecutive
++ * columns: in_cont).
++ * \return  the next instruction to run, times 2, plus 1 if the C code must
++ *          run it (NEON's result could differ from the C's: see above).
++ */
++static GLuint __attribute__((noinline))
++ro_neon_run(const struct gl_program *program, const struct prog_decoded *dec,
++            GLuint pc, GLfloat *(*lb)[PB_LANES], GLuint ng, GLboolean in_cont)
++{
++   const GLuint numInst = program->arb.NumInstructions;
++   const float32x4_t zero = vdupq_n_f32(0.0F), one = vdupq_n_f32(1.0F);
++   const uint32x4_t sign = vdupq_n_u32(0x80000000u);
++
++   do {
++   const struct prog_instruction *inst = program->arb.Instructions + pc;
++   const struct dec_inst *di = dec->d + pc;
++   const GLuint op = inst->Opcode;
++   const GLuint wmask = inst->DstReg.WriteMask & WRITEMASK_XYZW;
++   const GLuint nsrc = di->neon;
++   const GLfloat *sp[3];
++   GLint ls[3], gs[3];
++   const GLubyte *sw[3];
++   GLuint i, g, c;
++   GLfloat *const d0 = lb[di->dst.base][0] + di->dst.boff;
++   uint32x4_t bad = vdupq_n_u32(0);
++   uint32x2_t b2;
++
++   for (i = 0; i < 3; i++) {
++      const struct dec_src *ds = &di->src[i < nsrc ? i : 0];
++      const GLuint b = ds->base;
++      /* lane k at k * 4, or the same for every lane */
++      ls[i] = (b == PB_TEMP || b == PB_OUTPUT || b == PB_INPUT) ? 4 : 0;
++      gs[i] = ls[i] * 4;
++      sp[i] = lb[b][0] + ds->boff;
++      sw[i] = ds->swz;
++   }
++
++   if (op == OPCODE_DP2 || op == OPCODE_DP3 || op == OPCODE_DP4) {
++      /* the C's order: ((a0*b0 + a1*b1) + a2*b2) + a3*b3 */
++      const GLuint nc = op == OPCODE_DP2 ? 2 : op == OPCODE_DP3 ? 3 : 4;
++      for (g = 0; g < ng; g++) {
++         const GLfloat *p0 = sp[0] + g * gs[0], *p1 = sp[1] + g * gs[1];
++         GLfloat *d = d0 + g * 16;
++         float32x4_t s = zero;
++         for (c = 0; c < nc; c++) {
++            const float32x4_t A = neon_ld(p0 + sw[0][c], ls[0]);
++            const float32x4_t B = neon_ld(p1 + sw[1][c], ls[1]);
++            const float32x4_t m = vmulq_f32(A, B);
++            s = c ? vaddq_f32(s, m) : m;
++            bad = vorrq_u32(bad, T2);
++         }
++         bad = vorrq_u32(bad, neon_nan(s));
++         if (wmask == WRITEMASK_XYZW) {
++            float32x4x4_t v;
++            v.val[0] = v.val[1] = v.val[2] = v.val[3] = s;
++            vst4q_f32(d, v);
++         }
++         else {
++            for (c = 0; c < 4; c++)
++               if (wmask & (1u << c))
++                  neon_st(d + c, s);
++         }
++      }
++   }
++   else {
++      switch (op) {
++      case OPCODE_MOV:                             /* the bits */
++         NEON_COMPONENTWISE(1, A, vdupq_n_u32(0));
++         break;
++      case OPCODE_ABS:                             /* the sign bit off */
++         NEON_COMPONENTWISE(1, vreinterpretq_f32_u32(
++                               vbicq_u32(vreinterpretq_u32_f32(A), sign)),
++                            vdupq_n_u32(0));
++         break;
++      case OPCODE_ADD:
++         NEON_COMPONENTWISE(2, vaddq_f32(A, B),
++                            vorrq_u32(T2, neon_nan(R)));
++         break;
++      case OPCODE_SUB:
++         NEON_COMPONENTWISE(2, vsubq_f32(A, B),
++                            vorrq_u32(T2, neon_nan(R)));
++         break;
++      case OPCODE_MUL:
++         NEON_COMPONENTWISE(2, vmulq_f32(A, B),
++                            vorrq_u32(T2, neon_nan(R)));
++         break;
++      case OPCODE_MIN:                             /* a < b ? a : b */
++         NEON_COMPONENTWISE(2, vbslq_f32(vcltq_f32(A, B), A, B), T2);
++         break;
++      case OPCODE_MAX:                             /* a > b ? a : b */
++         NEON_COMPONENTWISE(2, vbslq_f32(vcgtq_f32(A, B), A, B), T2);
++         break;
++      case OPCODE_SGE:
++         NEON_COMPONENTWISE(2, vbslq_f32(vcgeq_f32(A, B), one, zero), T2);
++         break;
++      case OPCODE_SLT:
++         NEON_COMPONENTWISE(2, vbslq_f32(vcltq_f32(A, B), one, zero), T2);
++         break;
++      case OPCODE_MAD:                             /* a * b + c */
++         NEON_COMPONENTWISE(3, vaddq_f32(vmulq_f32(A, B), C),
++                            vorrq_u32(T3, neon_nan(R)));
++         break;
++      case OPCODE_CMP:                             /* a < 0 ? b : c */
++         NEON_COMPONENTWISE(3, vbslq_f32(vcltq_f32(A, zero), B, C), T1);
++         break;
++      case OPCODE_LRP:                             /* a * b + (1 - a) * c */
++         NEON_COMPONENTWISE(3, vaddq_f32(vmulq_f32(A, B),
++                                         vmulq_f32(vsubq_f32(one, A), C)),
++                            vorrq_u32(T3, neon_nan(R)));
++         break;
++      default:
++         unreachable("checked by neon_ok");
++      }
++   }
++   b2 = vorr_u32(vget_low_u32(bad), vget_high_u32(bad));
++   if (vget_lane_u32(vpmax_u32(b2, b2), 0))
++      return pc * 2 + 1;               /* the C code runs it again */
++   pc++;
++   } while (pc < numInst && dec->d[pc].neon &&
++            (in_cont || !dec->d[pc].neon_in));
++   return pc * 2;
++}
++#undef NEON_COMPONENTWISE
++#undef T1
++#undef T2
++#undef T3
++#pragma GCC pop_options
++#endif /* RO_NEON_BATCH */
++
++
+ /**
+  * Run a fragment program for n (<= PROG_BATCH_LANES) fragments, the
+  * columns cols[0..n-1] of machine->Attribs.  Call
+@@ -1989,10 +2310,40 @@
+    }
+ 
+    SET_EXEC(n == PB_LANES ? ~0u : (1u << n) - 1);
++#ifdef RO_NEON_BATCH
++   /* NEON for groups of four lanes, while every lane is active */
++   const GLuint fullmask = exec;
++   GLuint ng = 0;
++   GLboolean in_cont = GL_TRUE;
++   if ((n & 3) == 0 && ro_have_neon()) {
++      ng = n / 4;
++      for (k0 = 1; k0 < n; k0++)
++         if (cols[k0] != cols[0] + k0)
++            in_cont = GL_FALSE;
++   }
++#endif
+ 
+    for (pc = 0; pc < numInst; pc++) {
+-      const struct prog_instruction *inst = program->arb.Instructions + pc;
+-      const struct dec_inst *di = dec->d + pc;
++      const struct prog_instruction *inst;
++      const struct dec_inst *di;
++#ifdef RO_NEON_BATCH
++      if (ng && dec->d[pc].neon && exec == fullmask &&
++          (in_cont || !dec->d[pc].neon_in)) {
++         const GLuint r = ro_neon_run(program, dec, pc, lb, ng, in_cont);
++         numExec += (r >> 1) - pc;
++         if (numExec > maxExec)
++            return -1;
++         pc = r >> 1;
++         if (!(r & 1)) {
++            pc--;
++            continue;
++         }
++         /* else the C code runs instruction pc (for every lane) */
++      }
++#endif
++      inst = program->arb.Instructions + pc;
++      di = dec->d + pc;
++      {
+       PREP_OPS
+ 
+       switch (inst->Opcode) {
+@@ -4340,6 +4691,7 @@
+          return dead;
+       }
+ 
++      }
+       numExec++;
+       if (numExec > maxExec)
+          return -1;

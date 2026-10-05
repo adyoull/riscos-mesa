@@ -296,6 +296,15 @@ mesa-20.3.5-riscos-glsl-wmask.patch
     not bytes with UnixLib's byte-at-a-time memcmp. 25-29% fewer ARM
     instructions in glbench's glsl scene, 30% in a vertex-heavy GLSL scene.
 
+mesa-20.3.5-riscos-glsl-neon.patch  (test build, branch glsl-neon-test)
+    NEON in the GLSL batch interpreter: plain ADD, MUL, MAD, DP3 and the
+    like run four fragments at a time, with the C code's operations in
+    the C code's order. Where NEON and VFP could differ (denormals, NaNs)
+    the C code runs the instruction again, so the output is bit-identical.
+    Only on CPUs with NEON (VFPSupport_Features); MESA_NO_NEON turns it
+    off. About 6% fewer ARM instructions in glbench's glsl scene; waiting
+    for Pi timings to decide whether it is worth keeping.
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean
