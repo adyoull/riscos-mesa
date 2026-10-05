@@ -8,15 +8,28 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 - **Faster with no change to the picture** (new patch `riscos-exact-speed`;
   every rendering check and glbench scene is bit-for-bit the same).
-  Measured as ARM instructions per frame under qemu:
-  - clearing a 24-bit depth buffer (what EGL, SDL and GLUT use) takes
-    half the work: glbench's clear scene -53%, cube -19%;
-  - 2D and orthographic textured drawing -5%;
-  - lit drawing with `GL_COLOR_MATERIAL` and a colour per polygon -11%
-    (the light/material values are worked out again only when the colour
-    changes);
-  - fog -32%: the integer fog read and wrote pixels with `memcpy`, which
-    is a library call on ARM, so it gained less on a Pi than on a PC.
+  glbench on a Raspberry Pi 4, 640x480, ms per frame (12g against this,
+  three interleaved runs each, all within 0.02 ms):
+
+  | Scene | Before | After | |
+  | --- | --- | --- | --- |
+  | clear | 1.51 | 0.58 | 2.6 times as fast |
+  | cube | 3.11 | 1.78 | 43% less |
+  | tex | 24.15 | 19.98 | 17% less |
+  | tris | 11.07 | 9.78 | 12% less |
+  | glsl | 38.01 | 36.74 | 3% less |
+  | fog | 25.20 | 12.12 | 2.1 times as fast |
+  | blend | 20.69 | 20.57 | the same |
+
+  - clearing a 24-bit depth buffer (what EGL, SDL and GLUT use) is a
+    plain fill: every 3D program clears it each frame;
+  - 2D and orthographic textured drawing skips a multiply and two
+    conversions that can't change the result;
+  - with `GL_COLOR_MATERIAL` the light/material values are worked out
+    again only when a vertex's colour changes (11% fewer instructions in
+    a lit scene coloured per polygon; not in glbench);
+  - the integer fog read and wrote pixels with `memcpy`, a library call
+    on ARM: it now reads them directly.
 - **GLUT game mode draws at the resolution the program asks for**
   (`glutGameModeString`), stretched over the screen, instead of always at
   the desktop's: a program asking for 640x480 on a 1920x1080 desktop draws
@@ -70,8 +83,8 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   interpolated in between. Pictures change by at most 1 in a colour
   channel. Asked for by the YSFlight port, whose fogged sky and ground
   spent 15-17% of a frame in fog. On the host, Mesa's fog work is 14%
-  less and glbench's new `fog` scene 4% faster; the Pi, whose floating
-  point division and conversions cost more, hasn't been measured yet.
+  less and glbench's new `fog` scene 4% faster. On a Pi 4 the fog scene
+  takes 12.1 ms a frame instead of 25.2 (with the memcpy fix below).
   New check `render-fog` compares fog with the expected value worked out
   from each pixel's depth; `render-tex`'s fogged cases have new hashes.
 - SDL overlay: `sdl2-configure.ac.simd.p` didn't apply after the GCCSDK
