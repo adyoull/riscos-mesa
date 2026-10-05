@@ -122,7 +122,9 @@ static void fghReadVisibleArea( SFG_Window *window )
 }
 
 /* A top-level window's size and position in GLUT terms (pixels, from the
-   top left of the screen) from its visible area. */
+   top left of the screen) from its visible area. A window with a render
+   size (game mode at another resolution) is that size to the program,
+   whatever its size on the screen. */
 static void fghVisibleToGlut( SFG_Window *window, int *x, int *y, int *w, int *h )
 {
     const int *v = window->State.pWState.Visible;
@@ -130,6 +132,46 @@ static void fghVisibleToGlut( SFG_Window *window, int *x, int *y, int *w, int *h
     *y = ( SCREEN_TOP - v[3] ) >> YEIG;
     *w = ( v[2] - v[0] ) >> XEIG;
     *h = ( v[3] - v[1] ) >> YEIG;
+    if( window->State.pWState.RenderW > 0 )
+    {
+        *w = window->State.pWState.RenderW;
+        *h = window->State.pWState.RenderH;
+    }
+}
+
+/* Screen position (OS units) to a top-level window's client pixels: its
+   render size's if it has one (EGL stretches the frame over the visible
+   area), else the screen's. */
+void fghRiscosScreenToClient( SFG_Window *top, int sx, int sy, int *x, int *y )
+{
+    const SFG_PlatformWindowState *ws = &top->State.pWState;
+    const int *v = ws->Visible;
+    int px = ( sx - v[0] ) >> XEIG, py = ( v[3] - 1 - sy ) >> YEIG;
+    if( ws->RenderW > 0 )
+    {
+        int vw = ( v[2] - v[0] ) >> XEIG, vh = ( v[3] - v[1] ) >> YEIG;
+        if( vw > 0 )
+            px = (int) ( (long long) px * ws->RenderW / vw );
+        if( vh > 0 )
+            py = (int) ( (long long) py * ws->RenderH / vh );
+    }
+    *x = px;
+    *y = py;
+}
+
+/* The other way: a top-level window's client pixel to screen pixels from
+   its visible area's top left (the middle of the screen pixels a render
+   pixel covers). */
+static void fghClientToScreenPixels( SFG_Window *top, int *x, int *y )
+{
+    const SFG_PlatformWindowState *ws = &top->State.pWState;
+    const int *v = ws->Visible;
+    if( ws->RenderW > 0 )
+    {
+        int vw = ( v[2] - v[0] ) >> XEIG, vh = ( v[3] - v[1] ) >> YEIG;
+        *x = (int) ( ( 2LL * *x + 1 ) * vw / ( 2 * ws->RenderW ) );
+        *y = (int) ( ( 2LL * *y + 1 ) * vh / ( 2 * ws->RenderH ) );
+    }
 }
 
 void fghRiscosTakeFocus( SFG_Window *window )
@@ -341,7 +383,15 @@ static void fghCreateSurface( SFG_Window *window )
         return;
     if( window->Parent )
     {
+        /* (in a window with a render size, the subwindow is placed where
+           its origin is shown, and drawn unscaled) */
         fghRiscosClientOrigin( window, &x, &y );
+        if( top->State.pWState.RenderW > 0 )
+        {
+            const int *v = top->State.pWState.Visible;
+            x = (int) ( (long long) x * ( ( v[2] - v[0] ) >> XEIG ) / top->State.pWState.RenderW );
+            y = (int) ( (long long) y * ( ( v[3] - v[1] ) >> YEIG ) / top->State.pWState.RenderH );
+        }
         attributes[0] = EGL_WORK_AREA_X_RISCOS;      attributes[1] = x << XEIG;
         attributes[2] = EGL_WORK_AREA_Y_RISCOS;      attributes[3] = -( y << YEIG );
         attributes[4] = EGL_WORK_AREA_WIDTH_RISCOS;  attributes[5] = window->State.Width  > 0 ? window->State.Width  : 1;
@@ -349,7 +399,28 @@ static void fghCreateSurface( SFG_Window *window )
         attributes[8] = EGL_NONE;
     }
     else
-        attributes[0] = EGL_NONE;
+    {
+        int n = 0;
+        if( window->State.pWState.RenderW > 0 )
+        {
+            /* game mode at a resolution other than the screen's: draw at
+               that size, stretched over the screen (by the hardware overlay
+               where there is one, else by the sprite plot) */
+            attributes[n++] = EGL_RENDER_WIDTH_RISCOS;
+            attributes[n++] = window->State.pWState.RenderW;
+            attributes[n++] = EGL_RENDER_HEIGHT_RISCOS;
+            attributes[n++] = window->State.pWState.RenderH;
+        }
+        if( window->State.pWState.GameMode )
+        {
+            /* Game mode covers the desktop: a hardware overlay (VideoOverlay,
+               on a Raspberry Pi) saves copying every frame to the screen.
+               EGL plots instead where there's none, or EGL$Overlay is off. */
+            attributes[n++] = EGL_OVERLAY_RISCOS;
+            attributes[n++] = EGL_TRUE;
+        }
+        attributes[n] = EGL_NONE;
+    }
 
     pc->Surface = eglCreateWindowSurface( fgDisplay.pDisplay.Display, pc->Config,
                                           (EGLNativeWindowType) top->Window.Handle,
@@ -508,6 +579,15 @@ void fgPlatformOpenWindow( SFG_Window* window, const char* title,
 
     if( gameMode )
     {
+        /* The whole screen, drawn at the resolution the program asked for
+           (glutGameModeString; see fgPlatformChangeDisplayMode) and
+           stretched over it, rather than changing the screen mode. */
+        window->State.pWState.GameMode = 1;
+        if( w != fgDisplay.ScreenWidth || h != fgDisplay.ScreenHeight )
+        {
+            window->State.pWState.RenderW = w;
+            window->State.pWState.RenderH = h;
+        }
         x = y = 0;
         w = fgDisplay.ScreenWidth;
         h = fgDisplay.ScreenHeight;
@@ -771,6 +851,16 @@ void fgPlatformFullScreenToggle( SFG_Window *window )
     else
     {
         window->State.IsFullscreen = GL_FALSE;
+        if( ws->RenderW > 0 || ws->GameMode )
+        {
+            /* the game mode window leaving full screen: an ordinary window
+               of the size the program sees */
+            ws->Normal[0] = ws->Normal[1] = 0;
+            ws->Normal[2] = ws->RenderW > 0 ? ws->RenderW : window->State.Width;
+            ws->Normal[3] = ws->RenderW > 0 ? ws->RenderH : window->State.Height;
+            ws->RenderW = ws->RenderH = 0;
+            ws->GameMode = 0;
+        }
         fghReplaceWimpWindow( window, ( fgState.DisplayMode & GLUT_BORDERLESS ) != 0,
                               ws->Normal[0], ws->Normal[1], ws->Normal[2], ws->Normal[3] );
     }
@@ -821,8 +911,11 @@ void fgPlatformWarpPointer( int x, int y )
     if( !top || !top->State.pWState.Open )
         return;
     fghRiscosClientOrigin( window, &ox, &oy );
-    sx = top->State.pWState.Visible[0] + ( ( ox + x ) << XEIG );
-    sy = top->State.pWState.Visible[3] - ( ( oy + y ) << YEIG ) - ( 1 << YEIG );
+    x += ox;
+    y += oy;
+    fghClientToScreenPixels( top, &x, &y );
+    sx = top->State.pWState.Visible[0] + ( x << XEIG );
+    sy = top->State.pWState.Visible[3] - ( y << YEIG ) - ( 1 << YEIG );
     block[1] = sx & 255; block[2] = ( sx >> 8 ) & 255;
     block[3] = sy & 255; block[4] = ( sy >> 8 ) & 255;
     block[0] = 3;                       /* set mouse position */
@@ -851,8 +944,9 @@ void fghPlatformGetCursorPos( const SFG_Window *window, GLboolean client, SFG_XY
     if( client && top && top->State.pWState.Open )
     {
         fghRiscosClientOrigin( (SFG_Window *) window, &ox, &oy );
-        mouse_pos->X = ( ( block[0] - top->State.pWState.Visible[0] ) >> XEIG ) - ox;
-        mouse_pos->Y = ( ( top->State.pWState.Visible[3] - 1 - block[1] ) >> YEIG ) - oy;
+        fghRiscosScreenToClient( top, block[0], block[1], &mouse_pos->X, &mouse_pos->Y );
+        mouse_pos->X -= ox;
+        mouse_pos->Y -= oy;
     }
     else
     {

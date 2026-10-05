@@ -51,7 +51,7 @@ expect() {  # file pattern description
 cd $OUT
 demo one $D/One/one.c
 MENUS=1 FRAMES=10 KEYS=27,n,n,n,c10:10:2,s2,c275:20:1,s5:0,u PPM=one.ppm ./one </dev/null >one.txt 2>&1 || true
-expect one.txt "current window is 1280x720" "game mode covers the screen"
+expect one.txt "current window is 800x600" "game mode at the resolution the demo asks for (800x600)"
 expect one.txt "leaving gamemode" "Escape leaves game mode"
 expect one.txt 'menu "one"' "Wimp menu built from a GLUT menu"
 expect one.txt "menuID is 3" "Menu button opens the menu attached to GLUT_RIGHT_BUTTON; choice made"
@@ -81,6 +81,23 @@ cp $D/Fractals_random/fractals.dat .
 demo fractrand $D/Fractals_random/fractals_random.c
 FRAMES=20 KEYS=n PPM=fr.ppm ./fractrand </dev/null >fr.txt 2>&1 || true
 expect fr.txt "plots [1-9][0-9]" "single-buffered window drawn from the idle callback is shown"
+gcc -no-pie -O1 -w -std=gnu99 -I$R/tests/host-harness/ovl/fake -I$H -I$H/fake \
+    -c $R/tests/host-harness/ovl/fake_ovl.c -o $OUT/fake_ovl.o
+demo glutpaths $R/tests/host-harness/glut/glutpaths.c $OUT/fake_ovl.o
+FRAMES=30 KEYS=c640:360,u,n PPM=gm.ppm ./glutpaths gamemode </dev/null >gm.txt 2>&1 || true
+expect gm.txt "game mode 640x360, window 640x360" "game mode at the resolution asked for (640x360 on a 1280x720 screen)"
+expect gm.txt "reshape 640x360" "game mode reshape callback: the requested size"
+expect gm.txt "screen top left 0000ff, bottom right 00ff00, just above and left of the middle 0000ff" \
+  "game mode frame stretched over the whole screen"
+expect gm.txt "click 320,180" "game mode pointer mapped to the render size"
+OVL=1 FRAMES=30 KEYS=n PPM=gmo.ppm ./glutpaths gamemode </dev/null >gmo.txt 2>&1 || true
+expect gmo.txt "overlay 640x360, showing buffer [0-9]" "game mode through a hardware overlay where there is one (Pi)"
+FRAMES=500 KEYS=n PPM=st.ppm ./glutpaths slowtimer </dev/null >st.txt 2>&1 || true
+expect st.txt "slowtimer: 2 timer calls" "single-buffered window with a slow timer runs"
+expect st.txt "plots [0-4]," "  ... and isn't copied to the screen while the timer waits"
+FRAMES=500 KEYS=n PPM=dt.ppm ./glutpaths drawtimer </dev/null >dt.txt 2>&1 || true
+expect dt.txt "drawtimer: 20 timer calls" "single-buffered window drawn from a timer runs"
+expect dt.txt "plots \(1[5-9]\|2[0-9]\)," "  ... and each frame it draws is shown"
 gcc -no-pie -O1 -w -std=gnu99 -D__riscos__ -DFREEGLUT_GLES -Dmain=app_main -I${STAGE:-$R/stage}/include $INC \
     $R/tests/host-harness/glut/es2tri.c $OUT/egl_riscos.o $OUT/fake_riscos.o $OUT/portrun.o \
     $OUT/gles/libglut.a -o $OUT/es2tri -L$O -lOSMesa -lpthread -lm -Wl,-rpath,$O

@@ -83,6 +83,10 @@ struct tagSFG_PlatformWindowState
     int         Borderless;     /* created without title bar and tools */
     int         Normal[4];      /* before full screen: x, y, width, height (pixels) */
     int         Dirty;          /* single-buffered: drawn to since last shown */
+    int         RenderW, RenderH;   /* top level: a render size stretched over the
+                                   window (game mode at a resolution other than
+                                   the screen's), or 0 */
+    int         GameMode;       /* the game mode window */
     char        Title[256];     /* the title bar (indirected) */
 };
 
@@ -117,6 +121,7 @@ void  fghRiscosClientOrigin( struct tagSFG_Window *window, int *x, int *y );
 void  fghRiscosPresent( struct tagSFG_Window *window );
 void  fghRiscosReadScreen( void );
 void  fghRiscosTakeFocus( struct tagSFG_Window *window );
+void  fghRiscosScreenToClient( struct tagSFG_Window *top, int sx, int sy, int *x, int *y );
 
 /* fg_main_riscos.c */
 int   fghRiscosPointerHidden( void );

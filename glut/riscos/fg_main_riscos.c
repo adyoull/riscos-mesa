@@ -171,8 +171,9 @@ static void fghClientXY( SFG_Window *window, int sx, int sy, int *x, int *y )
     SFG_Window *top = fghRiscosTopWindow( window );
     int ox, oy;
     fghRiscosClientOrigin( window, &ox, &oy );
-    *x = ( ( sx - top->State.pWState.Visible[0] ) >> fgDisplay.pDisplay.XEig ) - ox;
-    *y = ( ( top->State.pWState.Visible[3] - 1 - sy ) >> fgDisplay.pDisplay.YEig ) - oy;
+    fghRiscosScreenToClient( top, sx, sy, x, y );
+    *x -= ox;
+    *y -= oy;
 }
 
 /* The window under the pointer at sx, sy (OS units) over Wimp window handle */
@@ -630,8 +631,24 @@ static int fghWatching( void )
 
 /* -- Wimp events ---------------------------------------------------------- */
 
+/* Is a window already waiting to be destroyed (fgAddToWindowDestroyList)? */
+static int fghDestroyPending( SFG_Window *window )
+{
+    SFG_WindowList *w;
+    for( w = (SFG_WindowList *) fgStructure.WindowsToDestroy.First; w;
+         w = (SFG_WindowList *) w->node.Next )
+        if( w->window == window )
+            return 1;
+    return 0;
+}
+
 static void fghCloseRequest( SFG_Window *window )
 {
+    /* A second close request for a window already on its way out (the
+       game mode window left by the first, with GLUT_ACTION_GLUTMAINLOOP_
+       RETURNS) would destroy it a second time: freed twice */
+    if( fghDestroyPending( window ) )
+        return;
     if( window == fgStructure.GameModeWindow )
         glutLeaveGameMode( );           /* destroys it */
     else
@@ -727,26 +744,61 @@ static void fghHandleEvent( int reason, int *block )
     }
 }
 
+/*
+ * Single-buffered programs may draw from idle or timer callbacks (and
+ * glFlush): show their windows, at most every 20 ms, while an idle
+ * callback runs or after a timer has gone off. A timer that has gone off
+ * has left the head of the timer list, or been set again (a new trigger
+ * time); while none has, nothing new needs showing. (They used to be shown
+ * every 20 ms all the same: 50 copies a second to the screen for a program
+ * with a slow timer.) Timers that redraw through glutPostRedisplay are
+ * shown after the display callback anyway. Returns 1 if windows were
+ * marked to be shown.
+ */
+static int fghMarkIfDrawn( void )
+{
+    static fg_time_t last;
+    static SFG_Timer *seen_timer;
+    static fg_time_t seen_trigger;
+    static int timer_fired;
+    SFG_Timer *t = (SFG_Timer *) fgState.Timers.First;
+    fg_time_t now;
+
+    if( t != seen_timer || ( t && t->TriggerTime != seen_trigger ) )
+    {
+        if( seen_timer || !t )
+            timer_fired = 1;
+        seen_timer = t;
+        seen_trigger = t ? t->TriggerTime : 0;
+    }
+    if( !fgState.IdleCallback && !timer_fired )
+        return 0;
+    now = fgPlatformSystemTime( );
+    if( now - last < 20 )
+        return 0;
+    last = now;
+    timer_fired = 0;
+    fghMarkSingleBuffered( );
+    return 1;
+}
+
+static void fghPresentAll( void )
+{
+    SFG_Window *window;
+    for( window = (SFG_Window *) fgStructure.Windows.First; window;
+         window = (SFG_Window *) window->Node.Next )
+        if( !window->IsMenu )
+            fghPresentDirty( window );
+}
+
 void fgPlatformProcessSingleEvent( void )
 {
     int block[ 64 ], reason, i;
-    SFG_Window *window;
     _kernel_swi_regs r;
 
     FREEGLUT_EXIT_IF_NOT_INITIALISED ( "glutMainLoopEvent" );
 
-    /* Single-buffered programs may draw from idle or timer callbacks (and
-       glFlush): show their windows every 20 ms while those run. */
-    if( fgState.IdleCallback || fgState.Timers.First )
-    {
-        static fg_time_t last;
-        fg_time_t now = fgPlatformSystemTime( );
-        if( now - last >= 20 )
-        {
-            last = now;
-            fghMarkSingleBuffered( );
-        }
-    }
+    fghMarkIfDrawn( );
 
     if( fghPendingReason >= 0 )
     {
@@ -772,11 +824,7 @@ void fgPlatformProcessSingleEvent( void )
 
     fghPollPointer( );
     fghPollKeys( );
-
-    for( window = (SFG_Window *) fgStructure.Windows.First; window;
-         window = (SFG_Window *) window->Node.Next )
-        if( !window->IsMenu )
-            fghPresentDirty( window );
+    fghPresentAll( );
 }
 
 /*
@@ -807,6 +855,9 @@ void fgPlatformSleepForEvents( fg_time_t msec )
 
     if( fghPendingReason >= 0 )
         return;
+    /* what a timer just drew, shown before waiting for the next one */
+    if( fghMarkIfDrawn( ) )
+        fghPresentAll( );
     if( fghWatching( ) && msec > FAST_POLL_MS )
         msec = FAST_POLL_MS;
     overlays = fghOverlaysInUse( );

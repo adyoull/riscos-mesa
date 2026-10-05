@@ -229,6 +229,7 @@ GLUTproc fgPlatformGetGLUTProcAddress( const char* procName )
 /*
  * Game mode is a borderless window covering the whole desktop, in the
  * current screen mode: changing the mode would change it for every task.
+ * It draws at the resolution the program asked for, stretched (below).
  * Other tasks keep running (their windows are just covered).
  */
 
@@ -240,12 +241,27 @@ void fgPlatformRestoreState( void )
 {
 }
 
+/*
+ * The game mode window is drawn at the resolution glutGameModeString asked
+ * for and stretched over the screen (EGL_RENDER_WIDTH/HEIGHT_RISCOS), so a
+ * program asking for 640x480 draws 640x480 pixels, not the desktop's
+ * 1920x1080 (6.75 times as many). Without a resolution, or one EGL can't
+ * draw (over 4096), it's the screen's. Colour depth and refresh rate are
+ * the screen's.
+ */
+#define GAME_MODE_MAX 4096
+
 GLboolean fgPlatformChangeDisplayMode( GLboolean haveToTest )
 {
-    (void) haveToTest;
     fghRiscosReadScreen( );
-    fgState.GameModeSize.X  = fgDisplay.ScreenWidth;
-    fgState.GameModeSize.Y  = fgDisplay.ScreenHeight;
+    if( haveToTest )
+        return GL_TRUE;
+    if( fgState.GameModeSize.X < 1 || fgState.GameModeSize.Y < 1 ||
+        fgState.GameModeSize.X > GAME_MODE_MAX || fgState.GameModeSize.Y > GAME_MODE_MAX )
+    {
+        fgState.GameModeSize.X  = fgDisplay.ScreenWidth;
+        fgState.GameModeSize.Y  = fgDisplay.ScreenHeight;
+    }
     fgState.GameModeDepth   = 32;
     fgState.GameModeRefresh = 60;
     return GL_TRUE;

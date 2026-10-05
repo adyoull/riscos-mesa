@@ -66,8 +66,19 @@ saying so.
   frame is drawn at the new size.
 - `glutFullScreen` and game mode (`glutEnterGameMode`) replace it with a
   window without a title bar that covers the screen. **The screen mode
-  isn't changed** (that would change it for every task): the game mode
-  size is the desktop's, and other tasks keep running underneath.
+  isn't changed** (that would change it for every task), and other tasks
+  keep running underneath.
+- **Game mode draws at the resolution the program asks for**
+  (`glutGameModeString("640x480")`), stretched over the whole screen, so
+  a program asking for 640x480 on a 1920x1080 desktop draws 640x480
+  pixels, not 6.75 times as many. The program sees that size
+  (`glutGameModeGet`, `glutGet(GLUT_WINDOW_WIDTH)`, the reshape callback,
+  the pointer). Without a resolution, or above 4096, it's the desktop's.
+  The colour depth and refresh rate are the desktop's.
+- Game mode asks EGL for a hardware overlay (VideoOverlay, on a Raspberry
+  Pi), which does the stretching and saves copying each frame to the
+  screen. On other machines, or with `EGL$Overlay` set to `off`, the frame
+  is plotted (stretched by `OS_SpriteOp`), as any window is.
 - `GLUT_BORDERLESS` in the display mode gives windows without a title bar.
 - `glutIconifyWindow` closes the window, like `glutHideWindow`.
 
@@ -76,8 +87,9 @@ saying so.
 - `GLUT_RGB`/`GLUT_RGBA`, `GLUT_DOUBLE` or `GLUT_SINGLE`, `GLUT_DEPTH`,
   `GLUT_STENCIL` and `GLUT_ALPHA` are supported.
 - **`GLUT_SINGLE` works**: the window is shown after each display
-  callback, and every 20 ms while an idle or timer callback runs, so
-  programs that draw with `glFlush` and never swap appear as they should.
+  callback, every 20 ms while an idle callback runs, and after a timer
+  callback has run, so programs that draw with `glFlush` and never swap
+  appear as they should. A window isn't shown again while nothing has run.
 - Not available: `GLUT_MULTISAMPLE` (you get an ordinary window, as GLUT
   gives on displays without it), `GLUT_ACCUM` (no accumulation buffer:
   `glAccum` reports `GL_INVALID_OPERATION`), `GLUT_STEREO`, `GLUT_INDEX`
@@ -152,6 +164,8 @@ build of freeglut.
 - **Speed.** Rendering is on the CPU. Fixed-function programs are fine at
   400x400 or so; big windows full of shaded, lit geometry are slow.
   Programs that ask for huge default windows are worth making smaller.
+  In game mode, ask for a modest resolution (`glutGameModeString`): it's
+  stretched over the screen.
   Textured programs: see "Speed" in [README.md](README.md) for what keeps
   textures on the fast path.
 - **`GLUT_ACCUM`.** Motion blur, depth-of-field and anti-aliasing demos

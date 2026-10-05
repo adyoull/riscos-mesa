@@ -6,6 +6,20 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-12 (in development)
 
+- **GLUT game mode draws at the resolution the program asks for**
+  (`glutGameModeString`), stretched over the screen, instead of always at
+  the desktop's: a program asking for 640x480 on a 1920x1080 desktop draws
+  a seventh of the pixels it did. The program sees that size, and the
+  pointer is mapped to it. Game mode asks for a hardware overlay
+  (VideoOverlay, on a Raspberry Pi), which stretches the frame and saves
+  copying it to the screen; other machines plot it, stretched, as before.
+- **GLUT single-buffered windows aren't copied to the screen again and
+  again while nothing draws**: with a timer set, they used to be shown
+  every 20 ms whether it had gone off or not (50 copies a second for a
+  program with a one-second timer). They're now shown after a timer runs,
+  and what a timer draws is shown before the wait for the next one.
+- GLUT: closing the game mode window with
+  `GLUT_ACTION_GLUTMAINLOOP_RETURNS` set no longer frees it twice.
 - **Fixes from a code audit** (2026-10-04):
   - **Drawing into a framebuffer object could land in the window**
     (depth-tested, untextured drawing, with any EGL, SDL or GLUT context),

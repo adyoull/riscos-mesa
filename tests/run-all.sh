@@ -29,7 +29,7 @@
 #                   (tests/host-harness/openal; the first run builds a host
 #                   SDL and OpenAL, about a minute)
 #   glut            freeglut's RISC OS back end driving freeglut's demos
-#                   (tests/host-harness/glut, 23 checks); needs GLU=<a host
+#                   (tests/host-harness/glut, 32 checks); needs GLU=<a host
 #                   libGLU.a>, otherwise skipped
 #   examples        the devkit's example programs (devkit/examples) on the
 #                   fake RISC OS: what reaches the screen, and the tune
