@@ -14,7 +14,10 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   under qemu: glbench's glsl scene 29% fewer (22.6M to 16.1M, with
   UnixLib's memcmp), a vertex-heavy GLSL scene 30% fewer. Every GLSL
   rendering check, about 8,400 generated test shaders and glbench's
-  scenes give bit-identical output. Not yet timed on a Pi.
+  scenes give bit-identical output. glbench on a Raspberry Pi 4,
+  640x480, three interleaved runs each: glsl 36.94 ms to 29.07 ms per
+  frame (21% less, 27.1 to 34.4 fps); the other scenes, which don't use
+  shaders, the same.
 - **Faster with no change to the picture** (new patch `riscos-exact-speed`;
   every rendering check and glbench scene is bit-for-bit the same).
   glbench on a Raspberry Pi 4, 640x480, ms per frame (12g against this,
