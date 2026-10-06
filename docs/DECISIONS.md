@@ -118,6 +118,14 @@ re-exports. How to change it: `patches/sdl2/README.md`.
   a Pi 4: NEON gained nothing, and VFPv3 is as fast as VFPv4 there
   (every glbench scene within 0.5%) while also running on Cortex-A8/A9
   machines. Not the Pi 1 or Zero: they're ARMv6.
+- **NEON only where it is checked at run time and gives the same
+  answer** (from 20.3.5-12): the GLSL interpreter's NEON code is one
+  function compiled with `#pragma GCC target("fpu=neon")`, used when
+  VFPSupport_Features reports Advanced SIMD; everything else stays VFPv3.
+  NEON flushes denormals and gives the default NaN, so wherever an
+  operand is tiny or a result is a NaN the C code redoes the instruction:
+  output stays bit-identical (`glsl-special` checks it with and without
+  NEON under qemu-arm). 7% on glbench's GLSL scene on a Pi 4.
 - **SDL's ARM NEON and SIMD blitters are on** (from 20.3.5-10), with
   SDL's run-time CPU check, so a machine without NEON uses the ARMv6 SIMD
   ones or the C code. Their per-pixel alpha routines leave the

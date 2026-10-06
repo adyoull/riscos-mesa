@@ -14,8 +14,11 @@ examples, the ported demos and the devkit's six examples all run there. A
 GL programs multitask properly. In 20.3.5-10, a 1024x768 SDL window
 rendering at 640x480 goes from 78 fps to 214 fps through the hardware
 overlay, and SDL draws sprites with soft edges about 1.6 times as fast.
-Not tried on a Pi yet: menus over the overlay, the overlay in full screen
-or across mode changes, and SDL's multitasking full screen.
+20.3.5-12 draws faster with the same picture: on a Pi 4, GLSL shaders
+take 29% less time, fog half, depth clears 62% less and lit drawing
+12-43% less. Not tried on a Pi yet: menus over the overlay, the overlay
+in full screen or across mode changes, SDL's multitasking full screen,
+and GLUT's game mode at the requested size.
 
 ## Three ways in
 
@@ -47,7 +50,9 @@ or across mode changes, and SDL's multitasking full screen.
    and don't replace it:
    - **freeglut (GLUT)** with a native RISC OS back end: GLUT windows are
      Wimp windows, GLUT menus are Wimp menus, and GLUT programs usually
-     build unchanged. See [glut/README.md](glut/README.md).
+     build unchanged. Game mode draws at the resolution the program asks
+     for, stretched over the screen (through the hardware overlay on a
+     Pi). See [glut/README.md](glut/README.md).
    - [Porting guides](docs/porting/README.md), each with a worked port in
      `ports/`: GLUT programs (freeglut's demos), Mesa's EGL demos (eglut),
      the *OpenGL ES 2.0 Programming Guide* samples (esUtil), SDL 2 GL

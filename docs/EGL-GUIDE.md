@@ -708,18 +708,19 @@ Rendering is Mesa's software rasteriser on one CPU core, so keep scenes simple a
 | Same, no vsync | ~67 fps | 9.2 ms / 5.7 ms |
 | Same, direct to screen | ~100 fps | 9.9 ms / 0 ms |
 
-The window and full screen figures are from the 20.3.5-4 tests; rendering has got faster since. The riscos-mesa benchmark (`glbench`, 640x480, 24-bit depth + stencil, 20.3.5-7, ms per frame and frames per second):
+The window and full screen figures are from the 20.3.5-4 tests; rendering has got faster since. The riscos-mesa benchmark (`glbench`, Pi 4, 640x480, 24-bit depth + 8-bit stencil, 20.3.5-12, ms per frame and frames per second):
 
 | Scene | ms | fps |
 | --- | --- | --- |
-| clear | 1.51 | 664 |
-| lit cube | 3.11 | 322 |
-| 12288 lit triangles | 11.06 | 90 |
-| 4 blended full-screen quads | 20.45 | 49 |
-| full-screen bilinear texture | 23.47 | 43 |
-| GLSL per-pixel shaded cube | 38.05 | 26 |
+| clear colour + depth | 0.58 | 1720 |
+| lit cube | 1.78 | 560 |
+| 12288 lit triangles | 9.78 | 102 |
+| fogged sky and ground, depth-tested | 12.21 | 82 |
+| full-screen bilinear texture | 19.99 | 50 |
+| 4 blended full-screen quads | 20.53 | 49 |
+| GLSL per-pixel shaded cube | 26.93 | 37 |
 
-**GLSL is slow**: shaders run through Mesa's interpreter, so fixed-function GL is several times faster for the same result.
+**GLSL is slower**: shaders run through Mesa's interpreter, so fixed-function GL is faster for the same result. The interpreter runs a batch of pixels together, works out only the parts of each result an instruction writes, and uses NEON for four pixels at once where the CPU has it (the picture is the same either way; setting the system variable `MESA_NO_NEON` turns NEON off).
 
 **Getting speed out of the renderer**
 
@@ -729,6 +730,10 @@ The window and full screen figures are from the 20.3.5-4 tests; rendering has go
   - Mipmaps, or different minification and magnification filters, use the general path unless you set `glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST)`. Then each triangle uses one mipmap level, and perspective is corrected every 16 pixels instead of every pixel. Without the hint, rendering is exact.
   - Generic compressed formats (`GL_COMPRESSED_RGBA` and so on) are stored uncompressed, so they cost nothing. Explicit S3TC formats are decoded for every texel: avoid them.
   - Several texture units, combiners and shaders take the general path.
+- **Ask for a 24-bit depth buffer.** From 20.3.5-12 clearing one is a plain fill (glbench's colour and depth clear takes 62% less time than before); 16-bit depth buffers are cleared value by value as before. Programs clear every frame.
+- **Fog** on smooth-shaded triangles is blended in integers, worked out exactly every 8 pixels under the default fog hint (a picture can differ by at most 1 in a colour channel).
+- **Lighting with `GL_COLOR_MATERIAL`** is set up again only when a vertex's colour changes, so give a whole polygon or object one colour where you can.
+- **Turn `GL_BLEND` off for opaque drawing.** Blending reads every pixel back first, even when the source is fully opaque.
 - **Blending and colour masks** read the destination in place when it's a plain 32-bit buffer, so they're cheaper than they were, but each blended layer still costs a full pass over its pixels.
 - **Surfaces, textures and viewports** are at most 4096 pixels each way.
 

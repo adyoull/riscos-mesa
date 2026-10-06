@@ -4,6 +4,15 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## 20.3.5-13 (in development)
+
+- **Docs brought up to 20.3.5-12:** the EGL guide's glbench table (Pi 4,
+  now with the fog scene) and speed advice (24-bit depth buffers clear
+  fastest, colour material, fog, GL_BLEND off for opaque drawing, NEON
+  and `MESA_NO_NEON`); the README's Pi results and GLUT game mode; the
+  devkit guide's speed tips; the freeglut demos' ReadMe; DECISIONS on
+  run-time-checked NEON.
+
 ## 20.3.5-12: faster drawing and shaders, GLUT game mode at any size, fixes from a code audit
 
 Most 3D programs draw faster, with exactly the same picture apart from

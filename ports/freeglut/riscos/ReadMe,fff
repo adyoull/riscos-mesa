@@ -14,7 +14,9 @@ back end:
   choice made with Adjust leaves the menu open;
 - drawing goes through riscos-mesa's EGL and software OpenGL 2.1;
 - full screen and game mode cover the desktop with a window without a
-  title bar, in the current screen mode.
+  title bar, in the current screen mode; game mode draws at the
+  resolution the program asks for and stretches it over the screen
+  (through the hardware overlay on a Raspberry Pi).
 
 Mouse buttons: Select is GLUT's left button, Menu the middle one and
 Adjust the right one, as on the mouse.

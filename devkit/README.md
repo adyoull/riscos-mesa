@@ -510,6 +510,8 @@ The drawing is done by the processor, so every pixel costs time.
   catches.
 - **Prefer fixed-function OpenGL to shaders** where speed matters (see
   [Which way should I draw?](#which-way-should-i-draw)).
+- **Ask for a 24-bit depth buffer** (`EGL_DEPTH_SIZE` 24): it clears
+  fastest. And turn `GL_BLEND` off for things that aren't see-through.
 - **Textures:** power-of-two sizes (64, 128, 256...), `GL_CLAMP_TO_EDGE`
   rather than `GL_CLAMP`, and `GL_LINEAR` or `GL_NEAREST` filtering use
   the fast paths. The EGL guide (`docs/EGL-GUIDE.md`) lists the rest.
@@ -518,7 +520,7 @@ The drawing is done by the processor, so every pixel costs time.
   the picture is still.
 - **Measure** on your own machine: `glbench` in the riscos-mesa test
   programs (the `riscos-mesa-tests` zip on the project's releases page)
-  times six typical scenes.
+  times seven typical scenes.
 
 ---
 
