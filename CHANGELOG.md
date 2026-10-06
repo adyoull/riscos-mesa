@@ -50,6 +50,15 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   only when named: `texrgb` (a GL_RGB texture) and `texfast` (GL_RGB
   with GL_FASTEST).
 
+- **Faster transparency, with exactly the same picture** (new patch
+  `riscos-blend-neon`). Alpha blending with glBlendFunc(GL_SRC_ALPHA,
+  GL_ONE_MINUS_SRC_ALPHA), the usual way of drawing see-through things,
+  works on eight pixels at a time with NEON, and smooth-shaded and
+  one-colour drawing fill their colours four pixels at a time. Under
+  emulation glbench's blend scene runs about a third of the instructions
+  it did (not yet timed on a Pi). New check `render-blend` gives the
+  same result with and without NEON.
+
 ## 20.3.5-13: ETC1 textures, OpenGL ES 2.0 code in desktop GL, full screen swaps that don't block
 
 OpenGL ES programs written for the Raspberry Pi's GPU can load their ETC1

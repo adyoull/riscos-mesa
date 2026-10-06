@@ -1,0 +1,210 @@
+diff --git a/src/mesa/swrast/s_blend.c b/src/mesa/swrast/s_blend.c
+index 8479b0b..6f1cf0b 100644
+--- a/src/mesa/swrast/s_blend.c
++++ b/src/mesa/swrast/s_blend.c
+@@ -159,6 +159,70 @@ blend_transparency_ubyte(struct gl_context *ctx, GLuint n, const GLubyte mask[],
+ }
+ 
+ 
++#if defined(__riscos__) && defined(__arm__) && defined(__ARM_EABI__)
++/*
++ * riscos-mesa: blend_transparency_ubyte with NEON, eight pixels at a time,
++ * the same bit for bit. Each channel is DIV255((s - d) * t) + d, done as
++ * the C code does it ((x * 257 + 256) >> 16, arithmetic shift) in 32-bit
++ * lanes. The C code's special cases need no special handling: t == 0
++ * gives d and t == 255 gives s from the same sums (for every s - d in
++ * [-255, 255]); a pixel whose mask is 0 keeps its colour. A last part
++ * group of eight runs the C code.
++ */
++#define RO_NEON_BLEND 1
++#pragma GCC push_options
++#pragma GCC target("fpu=neon")
++#include <arm_neon.h>
++
++static inline uint8x8_t
++ro_div255_blend8(uint8x8_t s, uint8x8_t d, int16x4_t tlo, int16x4_t thi,
++                 int32x4_t c256, int32x4_t c257)
++{
++   const int16x8_t diff = vreinterpretq_s16_u16(vsubl_u8(s, d));
++   const int32x4_t plo = vmlaq_s32(c256, vmull_s16(vget_low_s16(diff), tlo), c257);
++   const int32x4_t phi = vmlaq_s32(c256, vmull_s16(vget_high_s16(diff), thi), c257);
++   const int16x8_t q = vcombine_s16(vshrn_n_s32(plo, 16), vshrn_n_s32(phi, 16));
++   return vmovn_u16(vreinterpretq_u16_s16(
++      vaddq_s16(q, vreinterpretq_s16_u16(vmovl_u8(d)))));
++}
++
++static void
++blend_transparency_ubyte_neon(struct gl_context *ctx, GLuint n,
++                              const GLubyte mask[], GLvoid *src,
++                              const GLvoid *dst, GLenum chanType)
++{
++   GLubyte *rgba = (GLubyte *) src;
++   const GLubyte *dest = (const GLubyte *) dst;
++   const int32x4_t c256 = vdupq_n_s32(256), c257 = vdupq_n_s32(257);
++   GLuint i;
++
++   for (i = 0; i + 8 <= n; i += 8) {
++      const uint8x8_t m = vld1_u8(mask + i);
++      const uint8x8_t on = vtst_u8(m, m);
++      uint8x8x4_t sv, dv, ov;
++      int16x8_t t;
++      GLuint c;
++      if (!vget_lane_u64(vreinterpret_u64_u8(m), 0))
++         continue;                      /* all eight masked out */
++      sv = vld4_u8(rgba + 4 * i);
++      dv = vld4_u8(dest + 4 * i);
++      t = vreinterpretq_s16_u16(vmovl_u8(sv.val[ACOMP]));
++      for (c = 0; c < 4; c++)
++         ov.val[c] = vbsl_u8(on, ro_div255_blend8(sv.val[c], dv.val[c],
++                                                  vget_low_s16(t),
++                                                  vget_high_s16(t),
++                                                  c256, c257),
++                             sv.val[c]);
++      vst4_u8(rgba + 4 * i, ov);
++   }
++   if (i < n)
++      blend_transparency_ubyte(ctx, n - i, mask + i, rgba + 4 * i,
++                               dest + 4 * i, chanType);
++}
++#pragma GCC pop_options
++#endif
++
++
+ static void
+ blend_transparency_ushort(struct gl_context *ctx, GLuint n, const GLubyte mask[],
+                           GLvoid *src, const GLvoid *dst, GLenum chanType)
+@@ -941,8 +1005,13 @@ _swrast_choose_blend_func(struct gl_context *ctx, GLenum chanType)
+       else
+ #endif
+       {
+-         if (chanType == GL_UNSIGNED_BYTE)
++         if (chanType == GL_UNSIGNED_BYTE) {
+             swrast->BlendFunc = blend_transparency_ubyte;
++#ifdef RO_NEON_BLEND
++            if (_mesa_ro_have_neon())
++               swrast->BlendFunc = blend_transparency_ubyte_neon;
++#endif
++         }
+          else if (chanType == GL_UNSIGNED_SHORT)
+             swrast->BlendFunc = blend_transparency_ushort;
+          else
+diff --git a/src/mesa/swrast/s_span.c b/src/mesa/swrast/s_span.c
+index 51cce1f..9674998 100644
+--- a/src/mesa/swrast/s_span.c
++++ b/src/mesa/swrast/s_span.c
+@@ -215,6 +215,72 @@ interpolate_active_attribs(struct gl_context *ctx, SWspan *span,
+ }
+ 
+ 
++#if defined(__riscos__) && defined(__arm__) && defined(__ARM_EABI__)
++/*
++ * riscos-mesa: interpolate_int_colors' smooth 8-bit loop with NEON, four
++ * pixels at a time, the same bit for bit: pixel k's colour is the start
++ * colour + k steps (wrapping as the C code's running sums do), shifted
++ * right by FIXED_SHIFT and cut to 8 bits as FixedToChan and the GLubyte
++ * store do. Returns how many pixels it did (a multiple of four), with
++ * the colours advanced past them; the C loop does the rest.
++ */
++#define RO_NEON_SPAN 1
++#pragma GCC push_options
++#pragma GCC target("fpu=neon")
++#include <arm_neon.h>
++
++static GLuint
++ro_neon_int_colors(GLubyte *dst, GLuint n, GLfixed *r, GLfixed *g,
++                   GLfixed *b, GLfixed *a, GLint dr, GLint dg, GLint db,
++                   GLint da)
++{
++   const GLfixed c0[4] = { *r, *g, *b, *a };
++   const GLint st[4] = { dr, dg, db, da };
++   const int32x4_t step = vld1q_s32(st);
++   const int32x4_t step2 = vaddq_s32(step, step);
++   const int32x4_t step4 = vaddq_s32(step2, step2);
++   int32x4_t p0 = vld1q_s32(c0);                /* pixel 0: R G B A */
++   int32x4_t p1 = vaddq_s32(p0, step);
++   int32x4_t p2 = vaddq_s32(p0, step2);
++   int32x4_t p3 = vaddq_s32(p1, step2);
++   GLuint i;
++   for (i = 0; i + 4 <= n; i += 4) {
++      const uint16x8_t lo = vcombine_u16(
++         vmovn_u32(vreinterpretq_u32_s32(vshrq_n_s32(p0, FIXED_SHIFT))),
++         vmovn_u32(vreinterpretq_u32_s32(vshrq_n_s32(p1, FIXED_SHIFT))));
++      const uint16x8_t hi = vcombine_u16(
++         vmovn_u32(vreinterpretq_u32_s32(vshrq_n_s32(p2, FIXED_SHIFT))),
++         vmovn_u32(vreinterpretq_u32_s32(vshrq_n_s32(p3, FIXED_SHIFT))));
++      vst1q_u8(dst + 4 * i, vcombine_u8(vmovn_u16(lo), vmovn_u16(hi)));
++      p0 = vaddq_s32(p0, step4);
++      p1 = vaddq_s32(p1, step4);
++      p2 = vaddq_s32(p2, step4);
++      p3 = vaddq_s32(p3, step4);
++   }
++   *r = vgetq_lane_s32(p0, 0);
++   *g = vgetq_lane_s32(p0, 1);
++   *b = vgetq_lane_s32(p0, 2);
++   *a = vgetq_lane_s32(p0, 3);
++   return i;
++}
++
++/* every pixel the one colour, four pixels a store; returns how many
++ * pixels it did (a multiple of four) */
++static GLuint
++ro_neon_fill_color(GLubyte *dst, GLuint n, const GLubyte color[4])
++{
++   GLuint c32, i;
++   uint8x16_t v;
++   memcpy(&c32, color, 4);
++   v = vreinterpretq_u8_u32(vdupq_n_u32(c32));
++   for (i = 0; i + 4 <= n; i += 4)
++      vst1q_u8(dst + 4 * i, v);
++   return i;
++}
++#pragma GCC pop_options
++#endif
++
++
+ /**
+  * Interpolate primary colors to fill in the span->array->rgba8 (or rgb16)
+  * color array.
+@@ -248,7 +314,12 @@ interpolate_int_colors(struct gl_context *ctx, SWspan *span)
+             color[GCOMP] = FixedToInt(span->green);
+             color[BCOMP] = FixedToInt(span->blue);
+             color[ACOMP] = FixedToInt(span->alpha);
+-            for (i = 0; i < n; i++) {
++            i = 0;
++#ifdef RO_NEON_SPAN
++            if (_mesa_ro_have_neon())
++               i = ro_neon_fill_color(rgba[0], n, color);
++#endif
++            for (; i < n; i++) {
+                COPY_4UBV(rgba[i], color);
+             }
+          }
+@@ -265,7 +336,12 @@ interpolate_int_colors(struct gl_context *ctx, SWspan *span)
+             color[GCOMP] = FixedToChan(span->green);
+             color[BCOMP] = FixedToChan(span->blue);
+             color[ACOMP] = FixedToChan(span->alpha);
+-            for (i = 0; i < n; i++) {
++            i = 0;
++#ifdef RO_NEON_SPAN
++            if (_mesa_ro_have_neon())
++               i = ro_neon_fill_color(rgba[0], n, color);
++#endif
++            for (; i < n; i++) {
+                COPY_4UBV(rgba[i], color);
+             }
+          }
+@@ -278,7 +354,13 @@ interpolate_int_colors(struct gl_context *ctx, SWspan *span)
+             GLint dg = span->greenStep;
+             GLint db = span->blueStep;
+             GLint da = span->alphaStep;
+-            for (i = 0; i < n; i++) {
++            i = 0;
++#ifdef RO_NEON_SPAN
++            if (n >= 4 && _mesa_ro_have_neon())
++               i = ro_neon_int_colors(rgba[0], n, &r, &g, &b, &a,
++                                      dr, dg, db, da);
++#endif
++            for (; i < n; i++) {
+                rgba[i][RCOMP] = FixedToChan(r);
+                rgba[i][GCOMP] = FixedToChan(g);
+                rgba[i][BCOMP] = FixedToChan(b);

@@ -382,6 +382,25 @@ mesa-20.3.5-riscos-tex-neon.patch
     GL_FASTEST hint included; arm/run-arm.sh requires NEON = C, and
     breaking either path, a channel or the RGB alpha fails it).
 
+mesa-20.3.5-riscos-blend-neon.patch
+    Faster alpha blending and smooth colour spans, bit for bit the same,
+    with NEON (VFPSupport; MESA_NO_NEON turns it off).
+    blend_transparency_ubyte (glBlendFunc(GL_SRC_ALPHA,
+    GL_ONE_MINUS_SRC_ALPHA), the usual transparency) does eight pixels at
+    a time: each channel is DIV255((s - d) * t) + d with the C code's own
+    (x * 257 + 256) >> 16 in 32-bit lanes, which also gives the C code's
+    special cases (t = 0 gives d, t = 255 gives s) without branches;
+    masked-out pixels keep their colour. interpolate_int_colors' 8-bit
+    smooth loop does four pixels a store (pixel k = start + k steps,
+    wrapping as the running sums do, >> FIXED_SHIFT, cut to 8 bits), and
+    its flat and one-colour loops store four pixels at a time. ARM
+    instructions per 320x240 frame under qemu: blend 17.25M -> 5.93M,
+    fog 12.86M -> 11.04M; the others unchanged. Checked by
+    tests/host-harness/mesa/render-blend.c (300 cases: random backgrounds,
+    alpha 0 and 1 corners, depth-masked spans, flat, one-colour and
+    unblended smooth spans; arm/run-arm.sh requires NEON = C, and breaking
+    the blend sum, a lane or the colour fill fails it).
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean
