@@ -176,6 +176,7 @@ static egl_surface *new_surface(egl_display *d, const egl_config *c, int kind)
     s->handle = 0;
     s->n_damage = -1;
     s->bank_vsync = -1;
+    s->plot_vsync = -1;
     s->ovl_want = -1;           /* hardware overlay only if asked for (or EGL$Overlay on) */
     s->ovl_last = -1;
     return s;

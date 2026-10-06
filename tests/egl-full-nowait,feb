@@ -1,0 +1,4 @@
+| riscos-mesa EGL test: full screen, the program doing other work while a swap
+| would wait for the vsync (eglSwapWouldWaitRISCOS). Compare with egl-full.
+Dir <Obey$Dir>
+Run egltest -f -k -o eglfullk

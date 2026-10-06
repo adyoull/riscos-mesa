@@ -1,0 +1,174 @@
+riscos-mesa: ETC1 textures in OpenGL ES, and GL_ARB_ES2_compatibility.
+
+- GL_OES_compressed_ETC1_RGB8_texture (and EXT_compressed_ETC1_RGB8_sub_
+  texture) in ES 1.1 and 2.0 contexts. ETC1 is the format the Raspberry
+  Pi's own GPU uses, so ES code written for the Pi often ships its
+  textures that way. The blocks are decoded when the texture is loaded
+  (Mesa's own decoder) and kept as an ordinary RGB texture, so it draws
+  through the fast textured paths instead of decoding every texel as it
+  is sampled. glCompressedTexSubImage2D updates whole 4x4 blocks (or up
+  to the image's edge); glTexSubImage2D and glCopyTexSubImage2D on an
+  ETC1 texture are refused, as for any ES compressed texture.
+- GL_ARB_ES2_compatibility in desktop GL contexts: OpenGL ES 2.0 shaders
+  (#version 100, precision qualifiers), glClearDepthf, glDepthRangef,
+  glGetShaderPrecisionFormat, GL_FIXED vertex attributes and the ES 2.0
+  limits queries, so a renderer written for GLES2 also builds against
+  desktop GL. The GL version stays 2.1.
+
+Checked by tests/host-harness/mesa/render-etc1.c and glsl-es2compat.c.
+
+--- a/src/mesa/main/extensions.c
++++ b/src/mesa/main/extensions.c
+@@ -120,6 +120,11 @@
+ void
+ _mesa_enable_sw_extensions(struct gl_context *ctx)
+ {
++   /* riscos-mesa: OpenGL ES 2.0 shaders and calls in desktop GL contexts
++    * (#version 100, glClearDepthf, GL_FIXED...), and ETC1 textures in
++    * ES contexts (decoded when loaded: see teximage.c) */
++   ctx->Extensions.ARB_ES2_compatibility = GL_TRUE;
++   ctx->Extensions.OES_compressed_ETC1_RGB8_texture = GL_TRUE;
+    ctx->Extensions.ARB_depth_clamp = GL_TRUE;
+    ctx->Extensions.ARB_depth_texture = GL_TRUE;
+    ctx->Extensions.ARB_draw_elements_base_vertex = GL_TRUE;
+--- a/src/mesa/main/teximage.c
++++ b/src/mesa/main/teximage.c
+@@ -55,6 +55,8 @@
+ #include "glformats.h"
+ #include "texstore.h"
+ #include "pbo.h"
++#include "texcompress_etc.h"
++#include "texcompress_etc.h"
+ 
+ 
+ /**
+@@ -1211,6 +1213,10 @@
+     * along compressed block boundaries.
+     */
+    _mesa_get_format_block_size_3d(destImage->TexFormat, &bw, &bh, &bd);
++   if (destImage->InternalFormat == GL_ETC1_RGB8_OES) {
++      bw = bh = 4;     /* riscos-mesa: stored decoded, updated in blocks */
++      bd = 1;
++   }
+ 
+    if (bw != 1 || bh != 1 || bd != 1) {
+       /* offset must be multiple of block size */
+@@ -2249,6 +2255,11 @@
+          return GL_TRUE;
+       }
+    }
++   if (texImage->InternalFormat == GL_ETC1_RGB8_OES) {   /* riscos-mesa */
++      _mesa_error(ctx, GL_INVALID_OPERATION,
++                  "%s(no compression for format)", callerName);
++      return GL_TRUE;
++   }
+ 
+    if (ctx->Version >= 30 || ctx->Extensions.EXT_texture_integer) {
+       /* both source and dest must be integer-valued, or neither */
+@@ -2605,6 +2616,11 @@
+          return GL_TRUE;
+       }
+    }
++   if (texImage->InternalFormat == GL_ETC1_RGB8_OES) {   /* riscos-mesa */
++      _mesa_error(ctx, GL_INVALID_OPERATION,
++                  "%s(no compression for format)", caller);
++      return GL_TRUE;
++   }
+ 
+    if (texImage->InternalFormat == GL_YCBCR_MESA) {
+       _mesa_error(ctx, GL_INVALID_OPERATION, "%s()", caller);
+@@ -2945,6 +2961,61 @@
+    return texObj;
+ }
+ 
++/*
++ * riscos-mesa: ETC1 textures (GL_OES_compressed_ETC1_RGB8_texture) are
++ * decoded when they are loaded and kept as an ordinary RGB texture, so
++ * they draw through the textured-triangle fast paths instead of decoding
++ * every texel as it is sampled. The application sees an ETC1 texture
++ * (its internal format), and only glCompressedTex(Sub)Image2D can load it.
++ */
++static mesa_format
++etc1_decoded_format(struct gl_context *ctx, struct gl_texture_object *texObj,
++                    GLenum target, GLint level)
++{
++   return _mesa_choose_texture_format(ctx, texObj, target, level,
++                                      GL_RGB8, GL_RGBA, GL_UNSIGNED_BYTE);
++}
++
++/* Decode width x height texels of ETC1 blocks (a PBO offset or pointer)
++ * and hand them to the driver as RGBA bytes: the whole image when
++ * sub == false, else the region at xoffset, yoffset. */
++static void
++etc1_load(struct gl_context *ctx, GLuint dims,
++          struct gl_texture_image *texImage, GLboolean sub,
++          GLint xoffset, GLint yoffset, GLint zoffset,
++          GLsizei width, GLsizei height, GLsizei depth,
++          GLsizei imageSize, const GLvoid *data)
++{
++   const GLubyte *src;
++   GLubyte *rgba;
++   src = _mesa_validate_pbo_compressed_teximage(ctx, dims, imageSize, data,
++                                                &ctx->Unpack,
++                                                sub ? "glCompressedTexSubImage"
++                                                    : "glCompressedTexImage");
++   if (!src)
++      return;
++   rgba = malloc((size_t) width * height * 4);
++   if (!rgba) {
++      _mesa_unmap_teximage_pbo(ctx, &ctx->Unpack);
++      _mesa_error(ctx, GL_OUT_OF_MEMORY, "glCompressedTexImage");
++      return;
++   }
++   _mesa_etc1_unpack_rgba8888(rgba, width * 4, src, ((width + 3) / 4) * 8,
++                              width, height);
++   _mesa_unmap_teximage_pbo(ctx, &ctx->Unpack);
++
++   /* ctx->DefaultPacking: tightly packed, no PBO */
++   if (sub)
++      ctx->Driver.TexSubImage(ctx, dims, texImage, xoffset, yoffset, zoffset,
++                              width, height, depth, GL_RGBA, GL_UNSIGNED_BYTE,
++                              rgba, &ctx->DefaultPacking);
++   else
++      ctx->Driver.TexImage(ctx, dims, texImage, GL_RGBA, GL_UNSIGNED_BYTE,
++                           rgba, &ctx->DefaultPacking);
++   free(rgba);
++}
++
++
+ /**
+  * Common code to implement all the glTexImage1D/2D/3D functions,
+  * glCompressedTexImage1D/2D/3D and glTextureImage1D/2D/3DEXT
+@@ -3046,6 +3117,8 @@
+        * image data.  The internalFormat was error checked earlier.
+        */
+       texFormat = _mesa_glenum_to_compressed_format(internalFormat);
++      if (texFormat == MESA_FORMAT_ETC1_RGB8)
++         texFormat = etc1_decoded_format(ctx, texObj, target, level);
+    }
+    else {
+       /* In case of HALF_FLOAT_OES or FLOAT_OES, find corresponding sized
+@@ -3144,7 +3217,11 @@
+ 
+             /* Give the texture to the driver.  <pixels> may be null. */
+             if (width > 0 && height > 0 && depth > 0) {
+-               if (compressed) {
++               if (compressed && internalFormat == GL_ETC1_RGB8_OES) {
++                  etc1_load(ctx, dims, texImage, GL_FALSE, 0, 0, 0,
++                            width, height, depth, imageSize, pixels);
++               }
++               else if (compressed) {
+                   ctx->Driver.CompressedTexImage(ctx, dims, texImage,
+                                                  imageSize, pixels);
+                }
+@@ -5663,6 +5740,10 @@
+    _mesa_lock_texture(ctx, texObj);
+    {
+       if (width > 0 && height > 0 && depth > 0) {
++         if (texImage->InternalFormat == GL_ETC1_RGB8_OES)
++            etc1_load(ctx, dims, texImage, GL_TRUE, xoffset, yoffset, zoffset,
++                      width, height, depth, imageSize, data);
++         else
+          ctx->Driver.CompressedTexSubImage(ctx, dims, texImage,
+                                            xoffset, yoffset, zoffset,
+                                            width, height, depth,

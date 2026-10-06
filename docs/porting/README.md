@@ -228,7 +228,9 @@ Everything runs on the CPU:
     are small, as in terrain and models) and corrects perspective every
     16 pixels instead of every pixel.
   - Asking for compressed textures (`GL_COMPRESSED_RGBA` and the other
-    generic formats) costs nothing: they are stored uncompressed.
+    generic formats) costs nothing: they are stored uncompressed. ETC1
+    textures in OpenGL ES (the Raspberry Pi GPU's format, from 20.3.5-13)
+    are decoded once, when loaded, and then cost nothing either.
     Explicit S3TC formats are stored compressed and decoded for every
     texel, which is slow; avoid them.
   - More than one texture unit, texture environment combiners, or

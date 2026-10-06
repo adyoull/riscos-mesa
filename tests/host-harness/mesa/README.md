@@ -21,6 +21,8 @@ Renders a few thousand cases and compares a hash of every image with
 | `glsl-control.c` | indexed uniform arrays, loops with break/continue, nested if/else, discard, gl_FrontFacing, uniforms changed between draws, program switches, ARB programs (one replaced in place) |
 | `glsl-edge.c` | early return, derivatives, per-pixel loop counts, discard in loops, gl_FragDepth, projective and LOD texturing, a runaway loop |
 | `glsl-special.c` | denormals, NaNs and infinities in shaders (the NEON code hands these back to the C code); the NaN cases are "undefined" here, and `arm/run-arm.sh` checks they match with NEON and with `MESA_NO_NEON` |
+| `glsl-es2compat.c` | GL_ARB_ES2_compatibility in a desktop GL context: `#version 100` shaders draw what `#version 120` ones do, GL_FIXED attributes, glClearDepthf/glDepthRangef, the ES 2.0 queries |
+| `render-etc1.c` | ETC1 textures in ES 1.1 and 2.0: every texel against an ETC1 decoder written from the specification, sub-images, mipmap levels, the errors, and the same picture as the texels loaded as GL_RGB |
 
     M=<mesa-20.3.5 with patches/mesa applied, built in $M/build> ./run.sh
 

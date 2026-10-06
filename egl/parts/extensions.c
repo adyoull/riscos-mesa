@@ -567,10 +567,13 @@ EGLAPI EGLBoolean EGLAPIENTRY eglCheckOverlaysRISCOS(EGLDisplay dpy)
    when fewer than its swap interval of vsyncs have passed since the last
    switch. A program with other work (decoding the next video frame) does
    that and swaps on its next pass instead (riscos-ffmpeg's Reel found the
-   blocking wait cost a 60 fps player most of a frame). Always false where
-   waiting is part of showing the frame (full screen single buffer: the
-   plot is timed to the vsync) or where there is no wait (a plotted
-   window, swap interval 0). */
+   blocking wait cost a 60 fps player most of a frame).
+   Full screen with one buffer (the sprite plot, timed to just after a
+   vsync): true unless the vsync the swap needs is due within SWAP_SOON_US
+   (3 ms), so a program that asks between short pieces of work waits at
+   most that long. False until the vsync timing is known (after a few
+   swaps, and only with a HAL counter): then the swap waits as it always
+   did. False where there is no wait (a plotted window, swap interval 0). */
 EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS(EGLDisplay dpy, EGLSurface surface)
 {
     egl_display *d;
@@ -583,6 +586,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS(EGLDisplay dpy, EGLSurface 
     if (s->kind == SURF_WINDOW && s->swap_interval > 0) {
         if (s->handle == HANDLE_SCREEN && s->banks)
             wait = s->bank_vsync >= 0 && vsyncs_since(s->bank_vsync) < s->swap_interval;
+        else if (s->handle == HANDLE_SCREEN)
+            wait = plot_wait_us(s) > SWAP_SOON_US;
         else if (s->handle >= 0 && s->ovl_shown)
             wait = vsync_counter() == s->ovl_vsync;
     }

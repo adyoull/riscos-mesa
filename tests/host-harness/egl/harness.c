@@ -1540,6 +1540,84 @@ static void test_threads(void)
 }
 
 /* Found by the 2026-10-04 audit */
+/* eglSwapWouldWaitRISCOS on a full screen surface plotted after the vsync
+   (one buffer): with the vsync timing known (a HAL counter, a few swaps),
+   true unless the vsync the swap needs is due within 3 ms; false while the
+   timing isn't known; and the swap interval counts from the last plot. */
+static void test_swap_soon(void)
+{
+    EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 16, EGL_WINDOW_BIT);
+    EGLContext ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+    EGLSurface fs = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, NULL);
+    long long t;
+    int i, v, plots;
+
+    CHECK(fs != EGL_NO_SURFACE && eglMakeCurrent(dpy, fs, fs, ctx), "screen surface (one buffer)");
+    eglSwapInterval(dpy, 1);
+    /* no HAL counter: the timing is never known, and it never says wait */
+    fake_time_us = -1;
+    for (i = 0; i < 5; i++) {
+        clear(1, 0, 0);
+        eglSwapBuffers(dpy, fs);
+    }
+    CHECK(!eglSwapWouldWaitRISCOS(dpy, fs), "no HAL counter: wouldn't wait");
+
+    /* with one: vsyncs every 16667 us */
+    fake_time_us = 1000;
+    fake_vsyncs = 0;
+    CHECK(!eglSwapWouldWaitRISCOS(dpy, fs), "timing not known yet: wouldn't wait");
+    for (i = 0; i < 5; i++) {
+        clear(0, 1, 0);
+        fake_advance_us(5000);              /* drawing */
+        eglSwapBuffers(dpy, fs);
+    }
+    CHECK(fake_time_us % 16667 == 0 && fake_vsyncs == 5, "each swap waited for the next vsync (%d)", fake_vsyncs);
+    fake_advance_us(2000);
+    CHECK(eglSwapWouldWaitRISCOS(dpy, fs), "2 ms after a vsync: a swap would wait (14.7 ms)");
+    fake_advance_us(11500);
+    CHECK(eglSwapWouldWaitRISCOS(dpy, fs), "3.2 ms before the vsync: still would");
+    fake_advance_us(500);
+    CHECK(!eglSwapWouldWaitRISCOS(dpy, fs), "2.7 ms before the vsync: wouldn't");
+    t = fake_time_us;
+    v = fake_vsyncs;
+    plots = fake_plots;
+    clear(0, 0, 1);
+    eglSwapBuffers(dpy, fs);
+    CHECK(fake_vsyncs == v + 1 && fake_time_us - t < 3000 && fake_plots > plots &&
+          box_is(0, 0, 640, 480, BLUE_TBGR), "the swap waited %lld us for one vsync and plotted",
+          fake_time_us - t);
+    /* a vsync goes by while drawing: the swap waits for the next one */
+    fake_advance_us(17000);
+    CHECK(eglSwapWouldWaitRISCOS(dpy, fs), "a vsync passed unseen, the next is 16 ms off: would wait");
+
+    /* interval 2 counts from the last plot */
+    eglSwapInterval(dpy, 2);
+    eglSwapBuffers(dpy, fs);                /* (waits for the next vsync) */
+    v = fake_vsyncs;
+    fake_advance_us(20000);                 /* one vsync passes while drawing */
+    CHECK(fake_vsyncs == v + 1, "one vsync passed");
+    CHECK(eglSwapWouldWaitRISCOS(dpy, fs), "interval 2, 13.3 ms to the second vsync: would wait");
+    fake_advance_us(11500);
+    CHECK(!eglSwapWouldWaitRISCOS(dpy, fs), "1.8 ms to it: wouldn't");
+    eglSwapBuffers(dpy, fs);
+    CHECK(fake_vsyncs == v + 2 && fake_time_us % 16667 == 0,
+          "interval 2: the swap waited for the second vsync since the last plot only (%d)", fake_vsyncs - v);
+
+    /* a window surface never waits for a vsync */
+    fake_open_window(0x1000, 200, 300, 400, 460, 0, 0);
+    {
+        EGLSurface ws = eglCreateWindowSurface(dpy, cfg, 0x1000, NULL);
+        eglMakeCurrent(dpy, ws, ws, ctx);
+        CHECK(!eglSwapWouldWaitRISCOS(dpy, ws), "a window: wouldn't wait");
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(dpy, ws);
+    }
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, fs);
+    eglDestroyContext(dpy, ctx);
+    fake_time_us = -1;
+}
+
 static void test_audit_fixes(void)
 {
     EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 16, EGL_WINDOW_BIT | EGL_PBUFFER_BIT);
@@ -1634,6 +1712,7 @@ static void *run(void *arg)
     test_current_rules();
     test_threads();
     test_audit_fixes();
+    test_swap_soon();
     test_gles(dpy);
     test_dispmanx(dpy);
     test_eig0();

@@ -1,0 +1,29 @@
+ES 2.0: GL_OES_compressed_ETC1_RGB8_texture listed, sub_texture listed
+ES 2.0: load 18x14: error 0
+ES 2.0: decoded texels: ok (0 differ)
+ES 2.0: sub image 8x4 at 4,4: error 0
+ES 2.0: after the sub image: ok (0 differ)
+ES 2.0: edge sub image 2x2 at 16,12: error 0
+ES 2.0: after the edge sub image: ok (0 differ)
+ES 2.0: unaligned sub image offset: error 0x502
+ES 2.0: wrong image size: error 0x501
+ES 2.0: glTexSubImage2D on ETC1: error 0x502
+ES 2.0: glCopyTexSubImage2D on ETC1: error 0x502
+ES 2.0: glTexImage2D with ETC1: error 0x502
+ES 2.0: mipmap levels 1-4: error 0
+ES 1.1: GL_OES_compressed_ETC1_RGB8_texture listed, sub_texture listed
+ES 1.1: load 18x14: error 0
+ES 1.1: decoded texels: ok (0 differ)
+ES 1.1: sub image 8x4 at 4,4: error 0
+ES 1.1: after the sub image: ok (0 differ)
+ES 1.1: edge sub image 2x2 at 16,12: error 0
+ES 1.1: after the edge sub image: ok (0 differ)
+ES 1.1: unaligned sub image offset: error 0x502
+ES 1.1: wrong image size: error 0x501
+ES 1.1: glTexSubImage2D on ETC1: error 0x502
+ES 1.1: glCopyTexSubImage2D on ETC1: error 0x502
+ES 1.1: glTexImage2D with ETC1: error 0x502
+ES 1.1: mipmap levels 1-4: error 0
+ES 1.1: level 1 (9x7) sampled: ok (0 differ)
+ES 1.1: level 2 (4x3) sampled: ok (0 differ)
+ES 1.1: perspective bilinear ETC1 = GL_RGB: ok (0 bytes differ)

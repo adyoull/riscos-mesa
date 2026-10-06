@@ -113,6 +113,136 @@ static void wait_vsyncs(int n)
         _kernel_osbyte(OSBYTE_WAIT_VSYNC, 0, 0);
 }
 
+/*
+ * When the next vsync will come, for eglSwapWouldWaitRISCOS on a full
+ * screen surface plotted after the vsync (one buffer). The plot has to
+ * start just after a vsync, so eglSwapBuffers waits for one; a program
+ * with other work (decoding video) asks first and swaps only when that
+ * wait will be short (SWAP_SOON_US), doing its work meanwhile.
+ *
+ * The time comes from HAL counter 0 (the centisecond timer, read to the
+ * microsecond, as tests/hrtime.c does). Each time OS_Byte 19 returns, a
+ * vsync has just happened: its time and the vsync counter then give the
+ * phase, and the vsyncs counted over a run of swaps give the period.
+ */
+#define SWAP_SOON_US 3000
+
+static int hal_state;                       /* 1 usable; else asked again each time */
+static unsigned int hal_rate, hal_period;
+static long long vs_time = -1;              /* us: when a vsync was last seen to happen */
+static int vs_count;                        /* the vsync counter then */
+static long long vs_first = -1;             /* start of the run measuring the period */
+static int vs_run;                          /* vsyncs since vs_first */
+static int vs_period;                       /* us, 0 not known yet */
+
+static int hal_call(int entry, unsigned int *out)
+{
+    _kernel_swi_regs r;
+    r.r[0] = 0;                             /* counter 0: the centisecond timer */
+    r.r[8] = 0;                             /* OS_Hardware 0: call a HAL routine */
+    r.r[9] = entry;
+    if (_kernel_swi(OS_Hardware, &r, &r) != NULL)
+        return 0;
+    *out = (unsigned int) r.r[0];
+    return 1;
+}
+
+static unsigned int monotonic_cs(void)
+{
+    _kernel_swi_regs r;
+    _kernel_swi(OS_ReadMonotonicTime, &r, &r);
+    return (unsigned int) r.r[0];
+}
+
+/* Microseconds (monotonic), or -1 if there's no HAL counter to read. */
+static long long now_us(void)
+{
+    unsigned int cs1, cs2, cnt;
+    if (hal_state != 1) {
+        /* HAL_CounterRate 19, HAL_CounterPeriod 20: one reload a cs */
+        if (hal_call(19, &hal_rate) && hal_call(20, &hal_period) && hal_rate >= 10000 &&
+            hal_period + hal_rate / 10000 + 1 >= hal_rate / 100 &&
+            hal_period <= hal_rate / 100 + hal_rate / 10000 + 1)
+            hal_state = 1;
+        else
+            return -1;
+    }
+    do {
+        cs1 = monotonic_cs();
+        if (!hal_call(21, &cnt)) {          /* HAL_CounterRead: counts down */
+            hal_state = 0;
+            return -1;
+        }
+        cs2 = monotonic_cs();
+    } while (cs1 != cs2);
+    if (cnt > hal_period)
+        cnt = hal_period;
+    return (long long) cs1 * 10000 +
+           (long long) (hal_period - cnt) * 1000000 / hal_rate;
+}
+
+/* Call just after OS_Byte 19 returned: a vsync has just happened. */
+static void note_vsync(void)
+{
+    long long t = now_us();
+    int c = vsync_counter();
+    if (t < 0)
+        return;
+    if (vs_time >= 0) {
+        int n = (vs_count - c) & 0xFF;
+        long long dt = t - vs_time;
+        if (n > 0 && dt > 0 && dt < 2000000 && dt / n >= 4000 && dt / n <= 50000 &&
+            (!vs_period || (dt / n > vs_period - vs_period / 20 &&
+                            dt / n < vs_period + vs_period / 20))) {
+            if (vs_first < 0) {
+                vs_first = vs_time;
+                vs_run = 0;
+            }
+            vs_run += n;
+            if (vs_run >= 3)
+                vs_period = (int) ((t - vs_first) / vs_run);
+        } else {
+            /* a long gap, or a different refresh rate: measure again */
+            vs_first = -1;
+            if (n > 0 && dt > 0 && dt / n >= 4000 && dt / n <= 50000 && dt < 2000000)
+                vs_period = 0;
+        }
+    }
+    vs_time = t;
+    vs_count = c;
+}
+
+/* Vsyncs a swap of a one-buffer full screen surface waits for: its swap
+   interval counted from its last plot, and at least the next one (the
+   plot is timed to it). */
+static int plot_vsyncs_needed(const egl_surface *surf)
+{
+    int n = surf->swap_interval;
+    if (surf->plot_vsync >= 0)
+        n -= vsyncs_since(surf->plot_vsync);
+    return n < 1 ? 1 : n;
+}
+
+/* How long, in us, eglSwapBuffers on that surface would wait now, or -1
+   if that isn't known (no HAL counter, too few swaps yet, or the timing
+   and the vsync counter disagree). */
+static long long plot_wait_us(const egl_surface *surf)
+{
+    long long t = now_us(), since, next;
+    int seen;
+    if (t < 0 || vs_time < 0 || !vs_period)
+        return -1;
+    since = t - vs_time;
+    seen = (vs_count - vsync_counter()) & 0xFF;
+    if (since < 0 || since > 200LL * vs_period)
+        return -1;
+    if (seen > since / vs_period + 1 || seen + 1 < since / vs_period)
+        return -1;
+    next = vs_time + (long long) (seen + 1) * vs_period;
+    next += (long long) (plot_vsyncs_needed(surf) - 1) * vs_period;
+    return next > t ? next - t : 0;
+}
+
 static int get_window_state(int handle, window_state *ws)
 {
     _kernel_swi_regs r;
@@ -566,8 +696,13 @@ static void present_fullscreen(egl_surface *surf, const screen_info *s, const os
         surf->pixels = surf->bank_addr[surf->draw_bank];
         return;
     }
-    /* one buffer: the wait times the plot to just after a vsync */
-    wait_vsyncs(surf->swap_interval);
+    /* one buffer: the wait times the plot to just after a vsync (the
+       swap interval counts from the last plot) */
+    if (surf->swap_interval > 0) {
+        wait_vsyncs(plot_vsyncs_needed(surf));
+        note_vsync();
+        surf->plot_vsync = vsync_counter();
+    }
     if (surf->direct || !surf->sprite)
         return;
     all.x0 = 0; all.y0 = 0;

@@ -335,7 +335,7 @@ EGLint rb;
 eglQuerySurface(dpy, surf, EGL_RENDER_BUFFER, &rb);   /* what you actually got */
 ```
 
-- **Vsync:** `eglSwapInterval(dpy, n)` waits for n vertical syncs (`OS_Byte 19`) on each swap; the default is 1, and 0 means don't wait.
+- **Vsync:** `eglSwapInterval(dpy, n)` shows each frame for at least n vertical syncs (`OS_Byte 19`); the default is 1, and 0 means don't wait. With the sprite plot the swap always waits for the next vsync (the plot starts just after it), so a program with other work can ask `eglSwapWouldWaitRISCOS` first and do that work instead of blocking (see [Reference: RISC OS additions](#reference-risc-os-additions)).
 - **Direct and banks need** a 32bpp mode in the config's colour order; otherwise the library falls back to the sprite plot. Check `EGL_RENDER_BUFFER` or `EGL_SCREEN_BANKS_RISCOS` to see what you got.
 - **Bank surfaces don't keep their contents** between frames (`EGL_SWAP_BEHAVIOR` is `EGL_BUFFER_DESTROYED`). Setting `EGL_BUFFER_PRESERVED` with `eglSurfaceAttrib` switches back to the sprite plot. The library returns the display to bank 1 when the surface is destroyed and at exit.
 - **Mode changes** are picked up at the next swap: the surface takes the new size.
@@ -438,6 +438,8 @@ eglMakeCurrent(dpy, surf, surf, ctx);
 `tests/glestest.c` is a complete example: ES 1.1 or 2.0 in a desktop window, full screen and into a sprite.
 
 - Link as for desktop GL: `-lEGL -lOSMesa -lstdc++ -lz -lm`. The ES functions (including ES 1.1's `glOrthof`, `glFrustumf` and fixed-point calls) are in libOSMesa.
+- **ETC1 textures** (`GL_OES_compressed_ETC1_RGB8_texture`, from 20.3.5-13), the format the Raspberry Pi's GPU uses: `glCompressedTexImage2D` with `GL_ETC1_RGB8_OES` works in ES 1.1 and 2.0. They are decoded once, when loaded, and then draw as fast as any RGB texture. `glCompressedTexSubImage2D` updates them in whole 4x4 blocks.
+- **ES 2.0 code in a desktop GL context** (`GL_ARB_ES2_compatibility`, from 20.3.5-13): `#version 100` shaders with precision qualifiers, `glClearDepthf`, `glDepthRangef`, `glGetShaderPrecisionFormat` and `GL_FIXED` vertex attributes also work in an OpenGL 2.1 context, so a renderer written for GLES2 can be built for desktop GL too.
 - ES 3.x gives `EGL_BAD_MATCH`: the renderer lacks what ES 3.0 needs.
 - A desktop GL context and an ES context can't share objects.
 - A thread can have one desktop GL context and one ES context current at the same time (EGL keeps one per API). `eglBindAPI` chooses which one `eglGetCurrentContext` reports and which one GL calls go to.
@@ -535,7 +537,20 @@ Re-checks every surface shown through a hardware overlay: hides the overlay (and
 EGLBoolean eglSwapWouldWaitRISCOS(EGLDisplay dpy, EGLSurface surface);
 ```
 
-`EGL_TRUE` when `eglSwapBuffers` on the surface would block right now waiting for a vsync that swapping a little later wouldn't need: a surface shown through a hardware overlay, or a full screen surface with screen banks, when fewer than its swap interval of vsyncs have passed since its last switch. Do other work and swap on the next pass. `EGL_FALSE` everywhere else, including a full screen sprite plot (its wait times the plot to the vsync, so it can't be skipped) and swap interval 0. Extension `EGL_RISCOS_overlay`.
+`EGL_TRUE` when `eglSwapBuffers` on the surface would block right now waiting for a vsync that swapping a little later wouldn't need. Do other work and swap on the next pass:
+
+- a surface shown through a hardware overlay, or a full screen surface with screen banks: when fewer than its swap interval of vsyncs have passed since its last switch;
+- a full screen sprite plot (from 20.3.5-13): the plot has to start just after a vsync, so the swap always waits for one; this says `EGL_TRUE` unless that vsync is due within 3 ms. A program that asks between short pieces of work (a few ms each) swaps within 3 ms of the vsync, instead of blocking for up to a whole frame. It needs the vsync timing, which the library learns from the first few swaps and HAL counter 0 (the centisecond timer, read to the microsecond); until then, or without it, it says `EGL_FALSE` and the swap waits as it always did.
+
+`EGL_FALSE` for a window that is plotted (it never waits) and for swap interval 0. Extension `EGL_RISCOS_overlay`.
+
+```c
+/* a video player's main loop, full screen */
+if (frame_ready && !eglSwapWouldWaitRISCOS(dpy, surf))
+    eglSwapBuffers(dpy, surf);              /* waits 3 ms at most */
+else
+    decode_some();                          /* a few ms of other work */
+```
 
 All four are also available through `eglGetProcAddress` (`PFNEGLREDRAWWINDOWRISCOSPROC`, `PFNEGLPLOTSURFACERISCOSPROC`, `PFNEGLCHECKOVERLAYSRISCOSPROC`, `PFNEGLSWAPWOULDWAITRISCOSPROC`).
 
@@ -544,7 +559,7 @@ All four are also available through `eglGetProcAddress` (`PFNEGLREDRAWWINDOWRISC
 | Call | RISC OS behaviour |
 | --- | --- |
 | `eglSwapBuffers` (window) | `Wimp_UpdateWindow` over the surface and plot; never waits for vsync. Through a hardware overlay: copy into an overlay buffer and show it, waiting for a vsync only if none has passed since the last frame |
-| `eglSwapBuffers` (full screen) | Sprite plot and direct: waits for vsync `swap interval` times, then shows the frame. Screen banks: waits only until `swap interval` vsyncs have passed since the last switch |
+| `eglSwapBuffers` (full screen) | Sprite plot and direct: waits for the next vsync, or until `swap interval` vsyncs have passed since the last frame was shown if that's later, then shows the frame. Screen banks: waits only until `swap interval` vsyncs have passed since the last switch |
 | `eglSwapBuffers` (pbuffer, pixmap) | No effect |
 | `eglSwapInterval` | 0 to 4; applies to the current surface |
 | `eglWaitClient`, `eglWaitGL` | `glFinish` |
@@ -728,7 +743,7 @@ The window and full screen figures are from the 20.3.5-4 tests; rendering has go
 - **Textured triangles have a fast path.** It takes one 2D texture, a power of two in size, RGB or RGBA (8 bits a channel), in `GL_REPEAT` or `GL_CLAMP_TO_EDGE` mode (or `GL_CLAMP` with `GL_NEAREST`), with or without fog. Anything else goes through the general path, which can be much slower per pixel.
   - Use `GL_CLAMP_TO_EDGE`, not `GL_CLAMP`, with `GL_LINEAR`: `GL_CLAMP` blends in the border colour at the edges, which only the general path does.
   - Mipmaps, or different minification and magnification filters, use the general path unless you set `glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST)`. Then each triangle uses one mipmap level, and perspective is corrected every 16 pixels instead of every pixel. Without the hint, rendering is exact.
-  - Generic compressed formats (`GL_COMPRESSED_RGBA` and so on) are stored uncompressed, so they cost nothing. Explicit S3TC formats are decoded for every texel: avoid them.
+  - Generic compressed formats (`GL_COMPRESSED_RGBA` and so on) are stored uncompressed, so they cost nothing, and ETC1 (OpenGL ES) is decoded once when loaded. Explicit S3TC formats are decoded for every texel: avoid them.
   - Several texture units, combiners and shaders take the general path.
 - **Ask for a 24-bit depth buffer.** From 20.3.5-12 clearing one is a plain fill (glbench's colour and depth clear takes 62% less time than before); 16-bit depth buffers are cleared value by value as before. Programs clear every frame.
 - **Fog** on smooth-shaded triangles is blended in integers, worked out exactly every 8 pixels under the default fog hint (a picture can differ by at most 1 in a colour channel).

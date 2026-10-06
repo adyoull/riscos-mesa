@@ -21,6 +21,15 @@
 fake_screen_t fake_screen;
 fake_window_t fake_windows[FAKE_MAX_WINDOWS];
 int fake_vsyncs, fake_update_calls, fake_redraw_calls, fake_plots;
+long long fake_time_us = -1;
+int fake_vsync_us = 16667;
+
+void fake_advance_us(long long us)
+{
+    long long before = fake_time_us / fake_vsync_us;
+    fake_time_us += us;
+    fake_vsyncs += (int) (fake_time_us / fake_vsync_us - before);
+}
 int fake_sprite_creates;
 int fake_force_redraws, fake_force_rect[5], fake_scaled_plots;
 int fake_wimp_nulls, fake_wimp_script[FAKE_SCRIPT_MAX][4], fake_wimp_script_len;
@@ -480,7 +489,14 @@ static _kernel_oserror *swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
         break;
     }
     case 0x42:      /* OS_ReadMonotonicTime: centiseconds */
-        r.r[0] = fake_wimp_polls * 2;
+        r.r[0] = fake_time_us >= 0 ? (int) (fake_time_us / 10000) : fake_wimp_polls * 2;
+        break;
+    case 0x7A:      /* OS_Hardware 0: HAL counter 0 at 1 MHz, 10000 a cs */
+        if (fake_time_us < 0 || r.r[8] != 0 || r.r[0] != 0) { e = error("OS_Hardware not faked"); break; }
+        if (r.r[9] == 19) r.r[0] = 1000000;                         /* HAL_CounterRate */
+        else if (r.r[9] == 20) r.r[0] = 10000;                      /* HAL_CounterPeriod */
+        else if (r.r[9] == 21) r.r[0] = 10000 - (int) (fake_time_us % 10000);   /* HAL_CounterRead (counts down) */
+        else e = error("HAL entry not faked");
         break;
     case 0x400CB:   /* Wimp_GetWindowState */
         block = (int *) (long) r.r[1];
@@ -573,7 +589,11 @@ int _kernel_osbyte(int op, int x, int y)
 {
     (void) y;
     int banks = fake_screen.da_size / (fake_screen.w * fake_screen.h * 4);
-    if (op == 19) fake_vsyncs++;
+    if (op == 19) {
+        fake_vsyncs++;
+        if (fake_time_us >= 0)
+            fake_time_us = (fake_time_us / fake_vsync_us + 1) * fake_vsync_us;
+    }
     if (op == 176) return (-fake_vsyncs) & 0xFF;        /* the vsync counter counts down */
     if (op == 106) { fake_pointer_shape = x; return 0; }
     if (op == 121) {                     /* keyboard scan / test one key */

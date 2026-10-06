@@ -106,6 +106,15 @@ Run in this order and note the output:
       desktop is frozen while it runs and redrawn afterwards.
       egl-full          sprite plotted after the vsync wait (default)
       egl-full-novsync  the same without waiting (maximum speed)
+      egl-full-nowait   as egl-full, but the program asks
+                        eglSwapWouldWaitRISCOS before each swap and does
+                        other work while the swap would wait (new in
+                        20.3.5-13). Results "eglfullk": "present" (the
+                        time blocked in the swap, plus the plot) should be
+                        at most about 3 ms more than the plot, well under
+                        egl-full's, with the time freed for other work on
+                        the next line; and no more tearing than egl-full
+                        (the plot still starts just after a vsync).
       egl-direct        draws straight into the visible screen (tears)
       egl-banks         EXPERIMENTAL: 3 screen banks, switched at vsync
       egl-tear          a white bar sweeping across black, plotted as

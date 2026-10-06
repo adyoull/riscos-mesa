@@ -306,6 +306,18 @@ mesa-20.3.5-riscos-glsl-neon.patch
     (VFPSupport_Features); MESA_NO_NEON turns it off. glsl 7% faster on a
     Pi 4.
 
+mesa-20.3.5-riscos-es-extras.patch
+    GL_OES_compressed_ETC1_RGB8_texture (and its sub_texture extension) in
+    OpenGL ES 1.1 and 2.0: ETC1, the Raspberry Pi GPU's texture format, is
+    decoded when a texture is loaded (Mesa's decoder) and kept as an RGB
+    texture, so it draws through the fast paths; glCompressedTexSubImage2D
+    updates whole blocks, and glTexSubImage2D / glCopyTexSubImage2D on it
+    are refused. GL_ARB_ES2_compatibility in desktop GL contexts: GLSL ES
+    #version 100 shaders, glClearDepthf/glDepthRangef, precision queries,
+    GL_FIXED attributes (the version stays 2.1). Checked by
+    tests/host-harness/mesa/render-etc1.c and glsl-es2compat.c (both fail
+    without this patch).
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean

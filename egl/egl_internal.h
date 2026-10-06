@@ -117,6 +117,12 @@
 #endif
 #ifndef OS_ReadDynamicArea
 #define OS_ReadDynamicArea  0x5C
+#ifndef OS_Hardware
+#define OS_Hardware         0x7A
+#endif
+#ifndef OS_ReadMonotonicTime
+#define OS_ReadMonotonicTime 0x42
+#endif
 #endif
 #ifndef OS_ChangeDynamicArea
 #define OS_ChangeDynamicArea 0x2A
@@ -169,6 +175,7 @@ typedef struct egl_surface {
     int draw_bank;              /* bank being drawn (1..banks) */
     int rw, rh;                 /* EGL_RENDER_WIDTH/HEIGHT_RISCOS: render size, scaled to the window or screen (0 = follow it) */
     int bank_vsync;             /* vsync counter (OS_Byte 176) at the last bank switch, -1 none */
+    int plot_vsync;             /* full screen, one buffer: the vsync counter at the last plot, -1 none */
     void *bank_addr[MAX_BANKS + 1];
     int no_banks;               /* don't try screen banks (failed, or preserved contents wanted) */
     int want_banks;             /* banks asked for at creation: 0 (sprite plot), 2 or 3 */

@@ -21,6 +21,13 @@ typedef struct {
 extern fake_screen_t fake_screen;
 extern fake_window_t fake_windows[FAKE_MAX_WINDOWS];
 extern int fake_vsyncs, fake_update_calls, fake_redraw_calls, fake_plots;
+/* A clock with a HAL counter (OS_Hardware), for the vsync timing: off
+   (-1, OS_Hardware fails) unless a test sets it. Then vsyncs come every
+   fake_vsync_us, at multiples of it; OS_Byte 19 moves the clock to the
+   next one, and fake_advance_us() moves it on, counting the vsyncs passed. */
+extern long long fake_time_us;
+extern int fake_vsync_us;
+void fake_advance_us(long long us);
 extern int fake_sprite_creates;           /* OS_SpriteOp 15 calls */
 /* Wimp_ForceRedraw calls and the last rectangle (window, x0, y0, x1, y1) */
 extern int fake_force_redraws, fake_force_rect[5];

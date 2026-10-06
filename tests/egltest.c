@@ -37,6 +37,13 @@
  *                                the overlay with -w -V, else by the plot.
  *                                In a window, S switches between that and
  *                                the window's own size.
+ *   egltest -f -k                 full screen, and before each swap asks
+ *                                eglSwapWouldWaitRISCOS: while it says a
+ *                                swap would wait, does 0.5 ms pieces of
+ *                                "other work" (as a video player decodes).
+ *                                The summary shows the time a frame spent
+ *                                blocked in the swap, and the time freed
+ *                                for other work.
  *   egltest -w -D                 damage demo: after the first frame only the
  *                                middle of the window is redrawn and shown
  *                                (EGL_EXT_buffer_age and
@@ -464,6 +471,7 @@ static void wimp_end(void)
 static int fx_x = 32, fx_y = -32, fx_w = 160, fx_h = 120;  /* -F x,y,w,h */
 static int fx_appcopy, fx_first;                             /* -A, -O */
 static int damage_demo;                                       /* -D */
+static int keep_busy;                                         /* -k */
 static int *fx_area, *fx_spr;
 static int fx_errors;
 static EGLint fx_last_error;
@@ -857,7 +865,7 @@ static int run_fullscreen(int direct, int interval, double limit)
     EGLint attrs[] = { EGL_RENDER_BUFFER, direct ? EGL_SINGLE_BUFFER : EGL_BACK_BUFFER,
                        EGL_SCREEN_BANKS_RISCOS, want_banks, EGL_NONE, 0, EGL_NONE, 0, EGL_NONE };
     int bar = 0;
-    double t0, t1, t2, tstart, render = 0, present = 0;
+    double t0, t1, t2, tstart, render = 0, present = 0, freed = 0;
     long frames = 0;
     float a = 0;
     int in_desktop;
@@ -905,6 +913,18 @@ static int run_fullscreen(int direct, int interval, double limit)
             scene(w, h, a, 0.1f, 0.25f, 0.1f);
         }
         glFinish();
+        if (keep_busy) {
+            /* -k: other work in 0.5 ms pieces while a swap would block */
+            double w0 = hr_seconds(), w;
+            while (eglSwapWouldWaitRISCOS(dpy, fs)) {
+                w = hr_seconds();
+                while (hr_seconds() - w < 0.0005)
+                    ;
+                if (hr_seconds() - w0 > 0.1)
+                    break;                  /* (never more than 100 ms) */
+            }
+            freed += hr_seconds() - w0;
+        }
         t1 = hr_seconds();
         eglSwapBuffers(dpy, fs);
         t2 = hr_seconds();
@@ -927,6 +947,10 @@ static int run_fullscreen(int direct, int interval, double limit)
         w, h, how,
         interval, frames, t2 - tstart, frames / (t2 - tstart), 1000 * render / frames,
         1000 * present / frames);
+    if (keep_busy)
+        say("  -k: %.2f ms per frame freed for other work while a swap would have waited "
+            "(present above is the time still blocked in the swap, plus the plot)\n",
+            1000 * freed / frames);
     if (want_banks && banks == 0)
         say("  (no screen banks: not enough screen memory, or not a 32bpp mode in this colour order)\n");
     if (direct && rb != EGL_SINGLE_BUFFER)
@@ -957,6 +981,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-A")) fx_appcopy = 1;
         else if (!strcmp(argv[i], "-O")) fx_first = 1;
         else if (!strcmp(argv[i], "-D")) damage_demo = 1;
+        else if (!strcmp(argv[i], "-k")) keep_busy = 1;
         else if (!strcmp(argv[i], "-n")) overlay_opt = -1;
         else if (!strcmp(argv[i], "-V")) overlay_opt = 1;
         else if (!strcmp(argv[i], "-S") && i + 1 < argc) {

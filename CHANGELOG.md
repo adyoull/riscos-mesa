@@ -6,6 +6,35 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-13 (in development)
 
+- **ETC1 textures in OpenGL ES** (`GL_OES_compressed_ETC1_RGB8_texture`,
+  new patch `riscos-es-extras`). ETC1 is the texture format the Raspberry
+  Pi's own GPU uses, so ES code written for the Pi often ships its
+  textures that way; they failed to load before. They are decoded once,
+  when loaded, and then draw as fast as any RGB texture.
+  `glCompressedTexSubImage2D` updates them in whole 4x4 blocks. New check
+  `render-etc1` (every texel against an ETC1 decoder written from the
+  specification, sub-images, mipmaps, the errors).
+- **OpenGL ES 2.0 code in a desktop GL context**
+  (`GL_ARB_ES2_compatibility`): `#version 100` shaders with precision
+  qualifiers, `glClearDepthf`, `glDepthRangef`,
+  `glGetShaderPrecisionFormat` and `GL_FIXED` vertex attributes now work
+  in an OpenGL 2.1 context, so a renderer written for GLES2 builds for
+  desktop GL as well. New check `glsl-es2compat`.
+- **Full screen: `eglSwapWouldWaitRISCOS` now works for the sprite plot**
+  (the default full screen method), as riscos-ffmpeg's Reel asked. The
+  plot has to start just after a vsync, so a swap always waited for one,
+  blocking the program for up to a frame (about 8 ms on average at
+  60 Hz). Now `eglSwapWouldWaitRISCOS` says `EGL_TRUE` unless that vsync is
+  due within 3 ms, so a program that asks between short pieces of work
+  (decoding video) swaps without blocking for more than 3 ms. The library
+  learns the vsync timing from the first few swaps and the HAL counter;
+  until then, or without one, it says `EGL_FALSE` and the swap waits as
+  before. Programs that don't ask are unaffected. Also: with a swap
+  interval of 2 or more, the interval now counts from the last frame
+  shown (a frame that took longer to draw no longer waits the whole
+  interval again), as with screen banks. New test `egl-full-nowait`
+  (`egltest -f -k`); the EGL host harness checks the timing with a fake
+  clock (479 checks). Not yet run on a Pi.
 - **Docs brought up to 20.3.5-12:** the EGL guide's glbench table (Pi 4,
   now with the fog scene) and speed advice (24-bit depth buffers clear
   fastest, colour material, fog, GL_BLEND off for opaque drawing, NEON
