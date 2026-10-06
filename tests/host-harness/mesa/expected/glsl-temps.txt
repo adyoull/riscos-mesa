@@ -1,0 +1,1 @@
+400 temporaries' worth of values, array indexed at run time, a loop: ok

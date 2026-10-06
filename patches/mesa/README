@@ -328,10 +328,12 @@ mesa-20.3.5-riscos-glsl-jit.patch
     cached by program contents in a 512 KB arena (emptied and refilled
     when full). Not bit-identical, by the owner's decision (2026-10-06):
     the rule for the JIT is no visible difference. SIN/COS, EX2/LG2/POW
-    and RSQ use their own approximations (about 1e-7 relative); RCP uses
-    VFP divides, as exact as the C code, because an estimate 1 ulp out
-    turns a / a into 0.99999994 and floor() or mod() of that a whole step
-    out (found on the Pi); NEON flushes denormals. Checked by tests/host-harness/mesa/glsl-jit.c
+    and RSQ use their own approximations (about 1e-7 relative, sin/cos
+    3e-7 absolute up to +-30); RCP uses VFP divides, as exact as the C
+    code, because an estimate 1 ulp out turns a / a into 0.99999994 and
+    floor() or mod() of that a whole step out (found on the Pi); for the
+    same reason sin(0), cos(0), 2^n and log2(2^n) come out exact, as libm
+    gives them; NEON flushes denormals. Checked by tests/host-harness/mesa/glsl-jit.c
     (typical shaders within 2 of 255, random shaders from
     tools/gen-jit-shaders.py), under qemu-arm (arm/run-arm.sh; the exact
     checks run with MESA_NO_JIT). Only on CPUs with NEON; MESA_NO_JIT or
@@ -340,6 +342,19 @@ mesa-20.3.5-riscos-glsl-jit.patch
     needs them, init_machine's per-span part is done once per span, and
     colour outputs are stored without store_outputs' tests. glbench's
     glsl scene: 55% fewer ARM instructions under qemu.
+
+mesa-20.3.5-riscos-temps.patch
+    GLSL programs that need more than 256 temporaries work. Mesa compacts
+    a program's temporaries, but gives up when an array is indexed at run
+    time, and Mesa IR can then use more than MAX_PROGRAM_TEMPS (256): the
+    interpreters read zeros and dropped writes beyond it, so loop counters
+    never changed ("Infinite loop detected in fragment program") and
+    colours were wrong. MAX_PROGRAM_TEMPS is now 4096 (all an instruction's
+    index can hold). The batch interpreter's registers are sized to the
+    temporaries the program uses rather than all 4096 (the full 2 MB only
+    for programs with relative addressing). Bit-identical for every
+    program that worked before. Checked by
+    tests/host-harness/mesa/glsl-temps.c (Mesa 20.3.5 fails it).
 
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic

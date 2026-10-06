@@ -45,7 +45,7 @@ arm-linux-gnueabihf-objcopy --redefine-sym errno=ro_errno_shim \
     "$OUT/libOSMesa.a"
 $CC -c -O2 -mfloat-abi=hard "$HERE/shim.c" -o "$OUT/shim.o"
 
-CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog render-paths glsl-basic glsl-control glsl-edge glsl-special glsl-es2compat render-etc1"
+CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog render-paths glsl-basic glsl-control glsl-edge glsl-special glsl-es2compat render-etc1 glsl-temps"
 for c in $CHECKS glsl-jit; do
     $CC -c -O2 -w -mfpu=${RO_FPU:-vfpv3} -mfloat-abi=hard -I"$STAGE/include" "$HERE/../$c.c" -o "$OUT/$c.o"
     $CXX -static -o "$OUT/$c" "$OUT/$c.o" "$OUT/shim.o" "$OUT/libOSMesa.a" \
@@ -96,6 +96,7 @@ run "$OUT/glsl-edge" > "$OUT/this/glsl-edge.txt"
 run "$OUT/glsl-special" > "$OUT/this/glsl-special.txt"
 run "$OUT/glsl-es2compat" > "$OUT/this/glsl-es2compat.txt"
 run "$OUT/render-etc1" > "$OUT/this/render-etc1.txt"
+run "$OUT/glsl-temps" > "$OUT/this/glsl-temps.txt"
 # The GLSL interpreter's NEON code (the shim reports a CPU with NEON) must
 # give exactly what the C code gives, NaN cases included
 MESA_NO_NEON=1 run "$OUT/glsl-special" > "$OUT/this/glsl-special.c.txt"

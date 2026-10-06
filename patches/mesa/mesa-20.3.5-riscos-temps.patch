@@ -1,0 +1,95 @@
+diff --git a/src/mesa/main/config.h b/src/mesa/main/config.h
+index 4ea2e64..f93d3ea 100644
+--- a/src/mesa/main/config.h
++++ b/src/mesa/main/config.h
+@@ -197,7 +197,13 @@
+ #define MAX_PROGRAM_MATRICES           8
+ #define MAX_PROGRAM_MATRIX_STACK_DEPTH 4
+ #define MAX_PROGRAM_CALL_DEPTH         8
+-#define MAX_PROGRAM_TEMPS              256
++/* riscos-mesa: 4096 (all INST_INDEX_BITS allow), not 256. GLSL compiled
++ * to Mesa IR can use more than 256 temporaries when the register
++ * reallocation gives up (it does for programs with arrays indexed at run
++ * time), and the interpreters then read zeros and drop writes for the
++ * rest: wrong colours, and loops whose counters never change ("Infinite
++ * loop detected in fragment program"). */
++#define MAX_PROGRAM_TEMPS              4096
+ #define MAX_PROGRAM_ADDRESS_REGS       1
+ #define MAX_SAMPLERS                   MAX_TEXTURE_IMAGE_UNITS
+ #define MAX_PROGRAM_INPUTS             32
+diff --git a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
+index f9b1ffe..e458cd7 100644
+--- a/src/mesa/program/prog_execute.c
++++ b/src/mesa/program/prog_execute.c
+@@ -433,6 +433,8 @@ struct prog_decoded {
+    struct dec_inst *d;
+    GLboolean hasCall;                      /* CAL/BGNSUB: no batch mode */
+    GLfloat *btemps, *bouts;                /* batch registers, see below */
++   GLuint numTemps;                        /* temporaries the program uses */
++   GLuint btempsCap;                       /* ... and btemps has room for */
+    /* riscos-mesa JIT (ro_jit_arm.c) */
+    void *jit;                              /* its struct rj_prog, or NULL */
+    unsigned jitGen;                        /* rj_gen when jit was set */
+@@ -683,6 +685,7 @@ decode_program(struct gl_program_machine *machine,
+    }
+    dec->prog = NULL;   /* invalid until complete */
+    dec->hasCall = GL_FALSE;
++   dec->numTemps = 1;
+    dec->jitChecked = GL_FALSE;
+ 
+    if (num > dec->capInst) {
+@@ -742,6 +745,25 @@ decode_program(struct gl_program_machine *machine,
+       }
+       if (inst->Opcode == OPCODE_CAL || inst->Opcode == OPCODE_BGNSUB)
+          dec->hasCall = GL_TRUE;
++      /* riscos-mesa: the temporaries the batch registers need room for
++       * (all of them if any is reached by relative addressing) */
++      for (k = 0; k < 3; k++) {
++         const struct prog_src_register *s = &inst->SrcReg[k];
++         if (s->File == PROGRAM_TEMPORARY) {
++            if (s->RelAddr)
++               dec->numTemps = MAX_PROGRAM_TEMPS;
++            else if (s->Index >= 0 && s->Index < MAX_PROGRAM_TEMPS &&
++                     (GLuint) s->Index >= dec->numTemps)
++               dec->numTemps = s->Index + 1;
++         }
++      }
++      if (inst->DstReg.File == PROGRAM_TEMPORARY) {
++         if (inst->DstReg.RelAddr)
++            dec->numTemps = MAX_PROGRAM_TEMPS;
++         else if (inst->DstReg.Index < MAX_PROGRAM_TEMPS &&
++                  inst->DstReg.Index >= dec->numTemps)
++            dec->numTemps = inst->DstReg.Index + 1;
++      }
+    }
+ 
+    dec->insts = prog->arb.Instructions;
+@@ -1992,18 +2014,17 @@ _mesa_program_batch_ok(struct gl_program_machine *machine,
+    dec = machine->Decoded;
+    if (dec->hasCall)
+       return GL_FALSE;
+-   if (!dec->btemps) {
+-      dec->btemps = malloc(MAX_PROGRAM_TEMPS * PB_LANES * 4 * sizeof(GLfloat));
+-      dec->bouts = malloc(MAX_PROGRAM_OUTPUTS * PB_LANES * 4 * sizeof(GLfloat));
+-      if (!dec->btemps || !dec->bouts) {
+-         free(dec->btemps);
+-         free(dec->bouts);
+-         dec->btemps = dec->bouts = NULL;
+-         return GL_FALSE;
+-      }
+-      memset(dec->btemps, 0, MAX_PROGRAM_TEMPS * PB_LANES * 4 * sizeof(GLfloat));
+-      memset(dec->bouts, 0, MAX_PROGRAM_OUTPUTS * PB_LANES * 4 * sizeof(GLfloat));
++   /* riscos-mesa: batch temporaries for the registers the program uses,
++    * not all MAX_PROGRAM_TEMPS (4096 * 32 lanes would be 2 MB) */
++   if (!dec->btemps || dec->btempsCap < dec->numTemps) {
++      free(dec->btemps);
++      dec->btemps = calloc(dec->numTemps, PB_LANES * 4 * sizeof(GLfloat));
++      dec->btempsCap = dec->btemps ? dec->numTemps : 0;
+    }
++   if (!dec->bouts)
++      dec->bouts = calloc(MAX_PROGRAM_OUTPUTS, PB_LANES * 4 * sizeof(GLfloat));
++   if (!dec->btemps || !dec->bouts)
++      return GL_FALSE;
+    return GL_TRUE;
+ }
+ 

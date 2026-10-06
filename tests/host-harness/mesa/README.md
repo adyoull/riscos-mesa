@@ -24,6 +24,7 @@ Renders a few thousand cases and compares a hash of every image with
 | `glsl-es2compat.c` | GL_ARB_ES2_compatibility in a desktop GL context: `#version 100` shaders draw what `#version 120` ones do, GL_FIXED attributes, glClearDepthf/glDepthRangef, the ES 2.0 queries |
 | `render-etc1.c` | ETC1 textures in ES 1.1 and 2.0: every texel against an ETC1 decoder written from the specification, sub-images, mipmap levels, the errors, and the same picture as the texels loaded as GL_RGB |
 | `glsl-jit.c` | The shader JIT against the interpreter (ARM only: `arm/run-arm.sh`; the host build has no JIT and it says so): 21 typical shaders within 2 of 255 (a few pixels for ones with hard edges), and random shaders from `tools/gen-jit-shaders.py`, fewer than 1 pixel in 200 off by more than 2. Not a hash comparison: the JIT isn't bit-identical by design |
+| `glsl-temps.c` | A GLSL program needing more than 256 temporaries (a long chain of values and an array indexed at run time, which stops Mesa compacting them) draws the right colours and its loop ends. Mesa 20.3.5 itself fails it |
 
     M=<mesa-20.3.5 with patches/mesa applied, built in $M/build> ./run.sh
 
