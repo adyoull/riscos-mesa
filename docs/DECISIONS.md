@@ -8,8 +8,9 @@ be worked out again. Each says what would have to change to revisit it.
 - **20.3.5 is the last Mesa with the classic software renderer (swrast)
   behind OSMesa.** 21.0 and later have only the Gallium drivers. OSMesa
   itself went in 25.2 (25.1.x is the last release with it).
-- **Classic swrast suits a single slow core.** It's plain C with no JIT,
-  and it has fast paths for the fixed-function GL most RISC OS programs
+- **Classic swrast suits a single slow core.** It's plain C (Mesa itself
+  has no JIT there; from 20.3.5-14 riscos-mesa adds a small shader JIT and
+  hand-written NEON spans of its own, see below), and it has fast paths for the fixed-function GL most RISC OS programs
   and older games use. Most of the project's speed work is in those paths
   (`patches/mesa`).
 - **What it gives: OpenGL 2.1 (compatibility), OpenGL ES 1.1 and 2.0.**

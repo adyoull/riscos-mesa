@@ -737,7 +737,20 @@ The window and full screen figures are from the 20.3.5-4 tests; rendering has go
 
 **NEON:** on CPUs that have it (every Pi 2 and later), the commonest per-pixel work runs four or eight pixels at a time: bilinear (`GL_LINEAR`) RGBA and RGB textures with `GL_MODULATE` or `GL_REPLACE` (and `GL_DECAL` for RGB), the usual transparency (`glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)`), and smooth and one-colour fills. The picture is exactly the same either way. Setting the system variable `MESA_NO_NEON` (`*Set MESA_NO_NEON 1`) turns it all off, for comparison.
 
-**GLSL is slower** than fixed-function GL for the same result, but less than it was: Mesa's interpreter runs a batch of pixels together, and the arithmetic between its loops, IFs and texture reads is compiled into NEON code (a JIT, from 20.3.5-14) that works on four pixels at once. The compiled code may differ from the interpreter by a step in 255 here and there (sin, exp, log, pow and 1/sqrt use their own approximations); `*Set MESA_NO_JIT 1` turns it off. Without NEON the interpreter runs as before.
+**GLSL is slower** than fixed-function GL for the same result, but less than it was, because of the shader JIT (from 20.3.5-14; see below). `*Set MESA_NO_JIT 1` turns it off.
+
+**How shaders are made faster: the JIT**
+
+A JIT ("just in time" compiler) turns code into machine code while the program runs. riscos-mesa has a small one of its own for GLSL fragment shaders, the per-pixel part of a shader.
+
+- **Before:** Mesa's classic renderer runs shaders through an interpreter. It reads each instruction of the compiled shader, works out what it means and does it, for a batch of pixels, then moves on to the next. Much of the time goes on reading instructions and moving values in and out of memory rather than on the arithmetic itself.
+- **Now:** the first time a shader is drawn, riscos-mesa looks for runs of plain arithmetic in it (adds, multiplies, dot products, mix, clamp, sin, pow and so on), between the parts it leaves to the interpreter: loops, IFs, discards and texture reads. Each run is translated into ARM NEON code that does four pixels at once and keeps values in NEON registers between instructions. The interpreter still runs the shader, and calls the compiled code for those runs.
+- **Kept and reused:** the compiled code is stored by what the shader contains, in a 512 KB area inside the program (so a program needs about half a megabyte more WimpSlot), and reused every frame. The processor is told about new code with `OS_SynchroniseCodeAreas`, as RISC OS requires.
+- **Accuracy:** sin, cos, exp, log, pow and 1/sqrt use approximations of their own, accurate to about 1 part in 10 million, so a colour can come out a step in 255 different from the interpreter's here and there. Everything else is computed as the interpreter computes it. It's checked against the interpreter on typical shaders and on hundreds of random ones, under emulation and on a Raspberry Pi 4. This is the one speed-up in riscos-mesa that isn't bit-for-bit identical, by design: no visible difference is the rule.
+- **Speed:** glbench's shaded cube went from 27.1 ms to 13.3 ms a frame on a Pi 4. Texture reads and the per-pixel work around the shader (interpolating inputs, depth, writing the colour) aren't compiled, so shaders are still slower than fixed-function GL for the same picture.
+- **When it's used:** only on processors with NEON (every Pi 2 and later); others run the interpreter as before. `*Set MESA_NO_JIT 1` before a program starts turns it off, for comparison or if you suspect it.
+
+The fixed-function speed-ups (textures, blending, colour fills) aren't a JIT: they're NEON code written by hand for the commonest cases, and give exactly the same pixels as the C code.
 
 **Getting speed out of the renderer**
 

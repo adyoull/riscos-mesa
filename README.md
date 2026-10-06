@@ -22,7 +22,9 @@ screen program work instead of waiting for the vsync in its swap (5.6 ms
 a frame back with a light scene on a Pi 4). 20.3.5-14 uses NEON for
 textures, transparency and GLSL shaders: on a Pi 4 a bilinear texture
 draws in half the time, blending in half, and shaders twice as
-fast, with the same picture (shaders within a step in 255); TORCS,
+fast, with the same picture (shaders within a step in 255; they're now
+compiled to ARM code by a small JIT of our own, explained in the EGL
+guide's "How shaders are made faster"); TORCS,
 YSFlight and Warzone 2100 run 14-30% faster. Not tried on a Pi yet: menus over the overlay, the overlay
 in full screen or across mode changes, SDL's multitasking full screen,
 and GLUT's game mode at the requested size.
