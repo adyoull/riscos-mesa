@@ -263,7 +263,22 @@ Run in this order and note the output:
                    scaled by the sprite plot: compare its fps with
                    egl-full's. Results: "eglscaledfull"
 
-   l) More programs, in separate zips, each with its own ReadMe:
+   l) ETC1 textures and ES 2.0 code in desktop GL (new in 20.3.5-13).
+      Two of riscos-mesa's rendering checks, built for RISC OS. Each runs
+      for a second and saves a text file here; please send both.
+        gl-etc1       ETC1 textures (the Raspberry Pi GPU's compressed
+                      format) in OpenGL ES 1.1 and 2.0: every texel
+                      against a decoder written from the specification,
+                      partial updates, mipmap levels, and what must be
+                      refused. Results "etc1check": every check line ends
+                      "ok", and the error lines give 0 for the things that
+                      work and 0x501/0x502 for the five that must fail.
+        gl-es2compat  OpenGL ES 2.0 shaders (#version 100) and calls in a
+                      desktop OpenGL 2.1 context. Results "es2check": the
+                      lines end "ok" or "error 0", and the third line's
+                      number should be a538745e.
+
+   m) More programs, in separate zips, each with its own ReadMe:
       riscos-mesa-hello_pi   the Raspberry Pi's hello_triangle,
                              hello_triangle2 and hello_teapot, rebuilt
       riscos-mesa-ports      Mesa's EGL demos (gears etc.) and SDL 2's

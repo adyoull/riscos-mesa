@@ -1,0 +1,6 @@
+| riscos-mesa: ETC1 textures in OpenGL ES 1.1 and 2.0 (new in 20.3.5-13).
+| Saves its results in "etc1check": every line should say "ok", or an
+| error number as listed in the ReadMe.
+Dir <Obey$Dir>
+WimpSlot -min 16000K
+Run etc1check { > etc1check }
