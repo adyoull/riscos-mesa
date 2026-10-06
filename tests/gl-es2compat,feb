@@ -1,6 +1,6 @@
 | riscos-mesa: OpenGL ES 2.0 shaders and calls in a desktop GL context
 | (GL_ARB_ES2_compatibility, new in 20.3.5-13). Saves its results in
-| "es2check".
+| "ResultES2".
 Dir <Obey$Dir>
 WimpSlot -min 16000K
-Run es2check { > es2check }
+Run es2check { > ResultES2 }

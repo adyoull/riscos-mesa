@@ -270,11 +270,11 @@ Run in this order and note the output:
                       format) in OpenGL ES 1.1 and 2.0: every texel
                       against a decoder written from the specification,
                       partial updates, mipmap levels, and what must be
-                      refused. Results "etc1check": every check line ends
+                      refused. Results "ResultETC1": every check line ends
                       "ok", and the error lines give 0 for the things that
                       work and 0x501/0x502 for the five that must fail.
         gl-es2compat  OpenGL ES 2.0 shaders (#version 100) and calls in a
-                      desktop OpenGL 2.1 context. Results "es2check": the
+                      desktop OpenGL 2.1 context. Results "ResultES2": the
                       lines end "ok" or "error 0", and the third line's
                       number should be a538745e.
 
