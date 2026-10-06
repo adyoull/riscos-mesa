@@ -238,3 +238,123 @@ undefined 230 4x4 ortho fastest modulate clamp-s range 2e+06: cb92db6e
 undefined 237 64x64 persp fastest modulate clamp-s range 2e+06: 489e7270
 238 256x32 persp fastest modulate clamp-s range 2.5: 17d1ebd6
 239 8x128 persp fastest modulate clamp-s range 40: 7730e0c3
+240 RGB 4x4 ortho nicest replace repeat range 2.5: bf575414
+241 RGB 16x8 ortho nicest replace repeat range 2.5: 601eb2db
+242 RGB 64x64 ortho nicest decal repeat range 40: 4944ade5
+243 RGB 256x32 ortho nicest replace repeat range 2.5: a6cea986
+undefined 244 RGB 8x128 ortho nicest replace repeat range 2e+06: 62ea61e6
+245 RGB 4x4 persp nicest decal repeat range 40: e8d9c7c0
+246 RGB 16x8 persp nicest replace repeat range 2.5: ff177e49
+247 RGB 64x64 persp nicest replace repeat range 2.5: 20ad84ed
+248 RGB 256x32 persp nicest decal repeat range 40: 77a07d55
+249 RGB 8x128 persp nicest replace repeat range 2.5: fe9b113c
+250 RGB 4x4 ortho fastest replace repeat range 2.5: 14784ed2
+undefined 251 RGB 16x8 ortho fastest decal repeat range 2e+06: f77acbff
+252 RGB 64x64 ortho fastest replace repeat range 2.5: 349f82f0
+253 RGB 256x32 ortho fastest replace repeat range 2.5: 01a5ea23
+254 RGB 8x128 ortho fastest decal repeat range 40: 1b8d072f
+255 RGB 4x4 persp fastest replace repeat range 2.5: 24667b76
+256 RGB 16x8 persp fastest replace repeat range 2.5: 7e87e5c4
+257 RGB 64x64 persp fastest decal repeat range 40: 2c663215
+undefined 258 RGB 256x32 persp fastest replace repeat range 2e+06: a34f5111
+259 RGB 8x128 persp fastest replace repeat range 2.5: 45ffc8e0
+260 RGB 4x4 ortho nicest decal repeat range 40: 3eea3472
+261 RGB 16x8 ortho nicest modulate repeat range 2.5: 6c6392b8
+262 RGB 64x64 ortho nicest modulate repeat range 2.5: c28b787c
+263 RGB 256x32 ortho nicest decal repeat range 40: a8de900e
+264 RGB 8x128 ortho nicest modulate repeat range 2.5: 20296585
+undefined 265 RGB 4x4 persp nicest modulate repeat range 2e+06: 997c1ee7
+266 RGB 16x8 persp nicest decal repeat range 40: 634314b4
+267 RGB 64x64 persp nicest modulate repeat range 2.5: 9f9c1828
+268 RGB 256x32 persp nicest modulate repeat range 2.5: 211810e4
+269 RGB 8x128 persp nicest decal repeat range 40: 1a1d6f26
+270 RGB 4x4 ortho fastest modulate repeat range 2.5: 98a01702
+271 RGB 16x8 ortho fastest modulate repeat range 2.5: f119a652
+undefined 272 RGB 64x64 ortho fastest decal repeat range 2e+06: 2cef16b1
+273 RGB 256x32 ortho fastest modulate repeat range 2.5: b36f1b8b
+274 RGB 8x128 ortho fastest modulate repeat range 2.5: b262523d
+275 RGB 4x4 persp fastest decal repeat range 40: 119df5bd
+276 RGB 16x8 persp fastest modulate repeat range 2.5: 7f70cb6d
+277 RGB 64x64 persp fastest modulate repeat range 2.5: d491d7e5
+278 RGB 256x32 persp fastest decal repeat range 40: 2e774549
+undefined 279 RGB 8x128 persp fastest modulate repeat range 2e+06: d25d31b4
+280 RGB 4x4 ortho nicest replace clamp range 2.5: 47cca25f
+281 RGB 16x8 ortho nicest decal clamp range 40: c9c1b3fd
+282 RGB 64x64 ortho nicest replace clamp range 2.5: 8b4d8e78
+283 RGB 256x32 ortho nicest replace clamp range 2.5: be278aca
+284 RGB 8x128 ortho nicest decal clamp range 40: e2a4ea62
+285 RGB 4x4 persp nicest replace clamp range 2.5: 172bc46a
+undefined 286 RGB 16x8 persp nicest replace clamp range 2e+06: 294c0190
+287 RGB 64x64 persp nicest decal clamp range 40: db59f053
+288 RGB 256x32 persp nicest replace clamp range 2.5: 4f5c2c60
+289 RGB 8x128 persp nicest replace clamp range 2.5: 0ded319f
+290 RGB 4x4 ortho fastest decal clamp range 40: 5633f9af
+291 RGB 16x8 ortho fastest replace clamp range 2.5: 10817015
+292 RGB 64x64 ortho fastest replace clamp range 2.5: 40a63196
+undefined 293 RGB 256x32 ortho fastest decal clamp range 2e+06: c1ff73e9
+294 RGB 8x128 ortho fastest replace clamp range 2.5: 1a29278c
+295 RGB 4x4 persp fastest replace clamp range 2.5: 0f78fd47
+296 RGB 16x8 persp fastest decal clamp range 40: 4b84f2f3
+297 RGB 64x64 persp fastest replace clamp range 2.5: 350a717e
+298 RGB 256x32 persp fastest replace clamp range 2.5: 72a55a5d
+299 RGB 8x128 persp fastest decal clamp range 40: 4f8c687e
+undefined 300 RGB 4x4 ortho nicest modulate clamp range 2e+06: e022b1d7
+301 RGB 16x8 ortho nicest modulate clamp range 2.5: 21cc8552
+302 RGB 64x64 ortho nicest decal clamp range 40: 61c1bf19
+303 RGB 256x32 ortho nicest modulate clamp range 2.5: e2f5b945
+304 RGB 8x128 ortho nicest modulate clamp range 2.5: 49edbedf
+305 RGB 4x4 persp nicest decal clamp range 40: 7ca1608b
+306 RGB 16x8 persp nicest modulate clamp range 2.5: e711f876
+undefined 307 RGB 64x64 persp nicest modulate clamp range 2e+06: 9e307c32
+308 RGB 256x32 persp nicest decal clamp range 40: 485182cb
+309 RGB 8x128 persp nicest modulate clamp range 2.5: 7beb2dea
+310 RGB 4x4 ortho fastest modulate clamp range 2.5: 392df3b1
+311 RGB 16x8 ortho fastest decal clamp range 40: 3f2317ce
+312 RGB 64x64 ortho fastest modulate clamp range 2.5: c4f4ae87
+313 RGB 256x32 ortho fastest modulate clamp range 2.5: 5291fbb9
+undefined 314 RGB 8x128 ortho fastest decal clamp range 2e+06: da9b40de
+315 RGB 4x4 persp fastest modulate clamp range 2.5: 94509338
+316 RGB 16x8 persp fastest modulate clamp range 2.5: 21bb0a62
+317 RGB 64x64 persp fastest decal clamp range 40: 680710d2
+318 RGB 256x32 persp fastest modulate clamp range 2.5: c9628dfa
+319 RGB 8x128 persp fastest modulate clamp range 2.5: e179fc79
+320 RGB 4x4 ortho nicest decal clamp-s range 40: 6c72cbe9
+undefined 321 RGB 16x8 ortho nicest replace clamp-s range 2e+06: af2847fa
+322 RGB 64x64 ortho nicest replace clamp-s range 2.5: 5ad7a4f4
+323 RGB 256x32 ortho nicest decal clamp-s range 40: f326aa76
+324 RGB 8x128 ortho nicest replace clamp-s range 2.5: 37b2f62b
+325 RGB 4x4 persp nicest replace clamp-s range 2.5: 00465e65
+326 RGB 16x8 persp nicest decal clamp-s range 40: ffbf80ff
+327 RGB 64x64 persp nicest replace clamp-s range 2.5: 5d2abfa0
+undefined 328 RGB 256x32 persp nicest replace clamp-s range 2e+06: 39354701
+329 RGB 8x128 persp nicest decal clamp-s range 40: 857b7e86
+330 RGB 4x4 ortho fastest replace clamp-s range 2.5: 0796d368
+331 RGB 16x8 ortho fastest replace clamp-s range 2.5: 64494cd2
+332 RGB 64x64 ortho fastest decal clamp-s range 40: f90d7ce3
+333 RGB 256x32 ortho fastest replace clamp-s range 2.5: 8dd47fe5
+334 RGB 8x128 ortho fastest replace clamp-s range 2.5: 6e36b339
+undefined 335 RGB 4x4 persp fastest decal clamp-s range 2e+06: 37cfb904
+336 RGB 16x8 persp fastest replace clamp-s range 2.5: 16be535e
+337 RGB 64x64 persp fastest replace clamp-s range 2.5: c5c970e5
+338 RGB 256x32 persp fastest decal clamp-s range 40: a48982fd
+339 RGB 8x128 persp fastest replace clamp-s range 2.5: 3ef7393b
+340 RGB 4x4 ortho nicest modulate clamp-s range 2.5: cf5bbf70
+341 RGB 16x8 ortho nicest decal clamp-s range 40: be454590
+undefined 342 RGB 64x64 ortho nicest modulate clamp-s range 2e+06: 39cd3acf
+343 RGB 256x32 ortho nicest modulate clamp-s range 2.5: 7f35d3c9
+344 RGB 8x128 ortho nicest decal clamp-s range 40: 7f4e7c90
+345 RGB 4x4 persp nicest modulate clamp-s range 2.5: b67d5a4b
+346 RGB 16x8 persp nicest modulate clamp-s range 2.5: fd4ad1f8
+347 RGB 64x64 persp nicest decal clamp-s range 40: 917c646d
+348 RGB 256x32 persp nicest modulate clamp-s range 2.5: 3dff3fdc
+undefined 349 RGB 8x128 persp nicest modulate clamp-s range 2e+06: 00b5a40b
+350 RGB 4x4 ortho fastest decal clamp-s range 40: 84599616
+351 RGB 16x8 ortho fastest modulate clamp-s range 2.5: ebda8556
+352 RGB 64x64 ortho fastest modulate clamp-s range 2.5: f566eacd
+353 RGB 256x32 ortho fastest decal clamp-s range 40: 0e602eca
+354 RGB 8x128 ortho fastest modulate clamp-s range 2.5: 85ee447a
+355 RGB 4x4 persp fastest modulate clamp-s range 2.5: 26706f6a
+undefined 356 RGB 16x8 persp fastest decal clamp-s range 2e+06: 58d75de7
+357 RGB 64x64 persp fastest modulate clamp-s range 2.5: 48de9081
+358 RGB 256x32 persp fastest modulate clamp-s range 2.5: 0ee45c67
+359 RGB 8x128 persp fastest decal clamp-s range 40: 4067a436

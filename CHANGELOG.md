@@ -35,13 +35,19 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 - **Faster bilinear texturing, with exactly the same picture** (new patch
   `riscos-tex-neon`). The commonest textured drawing (a smooth-filtered
-  RGBA texture, modulated by the colour or replacing it) works on four
-  pixels at a time with NEON, and the rounding it does for every pixel no
-  longer calls the C library. On a Raspberry Pi 4 glbench's tex scene
-  went from 19.95 ms to 11.16 ms a frame (1.8 times as fast; 17.46 ms
-  with NEON turned off, from the rounding change alone), and the new
-  check `render-texspan` gives the same result with and without NEON
-  there, as under emulation.
+  RGBA or RGB texture, modulated by the colour or replacing it, and RGB
+  textures drawn with the GL_FASTEST hint too) works on four pixels at a
+  time with NEON, and the rounding it does for every pixel no longer
+  calls the C library. On a Raspberry Pi 4 an earlier build of this,
+  for RGBA textures only, took glbench's tex scene from 19.95 ms to
+  11.16 ms a frame (1.8 times as fast; 17.46 ms with NEON turned off,
+  from the rounding change alone), and the new check `render-texspan`
+  gave the same result with and without NEON there, as under emulation.
+  The current build does it in about a fifth fewer instructions again,
+  and RGB textures in less than half the instructions of the C code
+  (not yet timed on a Pi). glbench has two extra scenes, run only when
+  named: `texrgb` (a GL_RGB texture) and `texfast` (GL_RGB with
+  GL_FASTEST).
 
 ## 20.3.5-13: ETC1 textures, OpenGL ES 2.0 code in desktop GL, full screen swaps that don't block
 

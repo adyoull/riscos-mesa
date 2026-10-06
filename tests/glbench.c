@@ -146,6 +146,10 @@ static void s_cube(int i)
 }
 
 static GLuint tex;
+/* variants of tex, run only when named: texrgb (a GL_RGB texture) and
+ * texfast (GL_RGB with the GL_FASTEST perspective hint: Mesa's affine
+ * textured triangles, which RGBA8 textures don't use) */
+static int tex_rgb, tex_fastest;
 static void tex_setup(void)
 {
     static unsigned char img[256 * 256 * 4];
@@ -158,8 +162,10 @@ static void tex_setup(void)
     glGenTextures(1, &tex); glBindTexture(GL_TEXTURE_2D, tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, img);
+    glTexImage2D(GL_TEXTURE_2D, 0, tex_rgb ? GL_RGB : GL_RGBA, 256, 256, 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, img);
     ortho(); glEnable(GL_TEXTURE_2D);
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, tex_fastest ? GL_FASTEST : GL_DONT_CARE);
 }
 
 static void s_tex(int i)
@@ -367,6 +373,10 @@ int main(int argc, char **argv)
         else out("glsl   shader compile failed\n");
     }
     if (WANT("fog"))   { reset_state(); fog_setup();   run("fog",   "fogged smooth sky and ground, depth-tested", s_fog); }
+    if (only && !strcmp(only, "texrgb"))  { reset_state(); tex_rgb = 1; tex_setup();
+                                            run("texrgb", "tex with a GL_RGB texture", s_tex); }
+    if (only && !strcmp(only, "texfast")) { reset_state(); tex_rgb = tex_fastest = 1; tex_setup();
+                                            run("texfast", "texrgb with the GL_FASTEST hint (affine)", s_tex); }
     out("\ntotal %.1f s\n", hr_seconds() - start);
     OSMesaDestroyContext(ctx);
     return 0;

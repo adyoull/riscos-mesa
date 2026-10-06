@@ -47,6 +47,8 @@ int main(int argc, char **argv)
     if (!strcmp(scene, "clear"))       frame = s_clear;
     else if (!strcmp(scene, "cube"))  { lit_setup();   frame = s_cube; }
     else if (!strcmp(scene, "tex"))   { tex_setup();   frame = s_tex; }
+    else if (!strcmp(scene, "texrgb"))  { tex_rgb = 1; tex_setup(); frame = s_tex; }
+    else if (!strcmp(scene, "texfast")) { tex_rgb = tex_fastest = 1; tex_setup(); frame = s_tex; }
     else if (!strcmp(scene, "blend")) { blend_setup(); frame = s_blend; }
     else if (!strcmp(scene, "tris"))  { tris_setup();  frame = s_tris; }
     else if (!strcmp(scene, "fog"))   { fog_setup();   frame = s_fog; }

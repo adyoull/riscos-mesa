@@ -1,9 +1,11 @@
 /*
  * render-texspan.c - riscos-mesa rendering check: the fast textured
- * spans (persp_textured_triangle), in particular the NEON bilinear RGBA8
- * span (patch riscos-tex-neon), against the C code.
+ * spans (persp_textured_triangle, and affine_textured_triangle under
+ * GL_FASTEST), in particular the NEON bilinear RGBA8 and RGB spans (patch
+ * riscos-tex-neon), against the C code.
  *
- * 240 cases of two triangles each with a GL_LINEAR RGBA8 texture:
+ * 360 cases of two triangles each with a GL_LINEAR texture (RGBA8; from
+ * case 240 GL_RGB, and GL_DECAL):
  * textures of 4x4 to 256x32 texels, GL_REPEAT or GL_CLAMP_TO_EDGE on each
  * axis, GL_MODULATE or GL_REPLACE, orthographic and perspective views,
  * GL_FASTEST and GL_NICEST perspective hints, smooth vertex colours,
@@ -64,24 +66,32 @@ int main(void)
    glEnable(GL_TEXTURE_2D);
    glShadeModel(GL_SMOOTH);
 
-   for (c = 0; c < 240; c++) {
+   for (c = 0; c < 360; c++) {
       const int *sz = sizes[c % 5];
       const int persp = (c / 5) & 1;
       const int fastest = (c / 10) & 1;
       const int modulate = (c / 20) & 1;
+      /* cases 240 on: GL_RGB textures (stored BGR), GL_DECAL too */
+      const int fmt = c < 240 ? 0 : 1;
+      const GLenum env = c >= 240 && c % 3 == 2 ? GL_DECAL :
+                         modulate ? GL_MODULATE : GL_REPLACE;
       const int wraps = (c / 40) % 3;          /* 0 repeat, 1 clamp, 2 mixed */
       const float range = (c % 7 == 6) ? 2.0e6f : (c % 3 == 2) ? 40.0f : 2.5f;
       int v;
 
       for (i = 0; i < sz[0] * sz[1] * 4; i++)
          img[i] = (unsigned char) rnd();
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sz[0], sz[1], 0, GL_RGBA,
-                   GL_UNSIGNED_BYTE, img);
+      if (fmt == 1)
+         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, sz[0], sz[1], 0, GL_RGB,
+                      GL_UNSIGNED_BYTE, img);
+      else
+         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sz[0], sz[1], 0, GL_RGBA,
+                      GL_UNSIGNED_BYTE, img);
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
                       wraps == 0 ? GL_REPEAT : GL_CLAMP_TO_EDGE);
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
                       wraps == 1 ? GL_CLAMP_TO_EDGE : GL_REPEAT);
-      glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, modulate ? GL_MODULATE : GL_REPLACE);
+      glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, env);
       glHint(GL_PERSPECTIVE_CORRECTION_HINT, fastest ? GL_FASTEST : GL_NICEST);
 
       glMatrixMode(GL_PROJECTION);
@@ -127,10 +137,11 @@ int main(void)
        * lroundf's answer differs between machines (long is 64 bits on
        * the host): "undefined", left out of the comparison with
        * expected/ but still compared between NEON and the C code */
-      printf("%s%3d %dx%d %s %s %s %s range %g: %08x\n",
-             range > 1e6f ? "undefined " : "", c, sz[0], sz[1],
+      printf("%s%3d %s%dx%d %s %s %s %s range %g: %08x\n",
+             range > 1e6f ? "undefined " : "", c,
+             fmt == 1 ? "RGB " : "", sz[0], sz[1],
              persp ? "persp" : "ortho", fastest ? "fastest" : "nicest",
-             modulate ? "modulate" : "replace",
+             env == GL_DECAL ? "decal" : modulate ? "modulate" : "replace",
              wraps == 0 ? "repeat" : wraps == 1 ? "clamp" : "clamp-s",
              range, hash());
    }

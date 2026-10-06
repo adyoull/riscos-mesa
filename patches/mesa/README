@@ -361,17 +361,26 @@ mesa-20.3.5-riscos-tex-neon.patch
     spans' per-pixel FloatToFixed (lroundf(x * 2048)) is worked out inline
     (SpanFloatToFixed): lroundf is a C function in UnixLib and was half
     the instructions of a textured span. (Only there: used in triangle
-    set-up too it made glbench's tris scene 3% slower on a Pi 4.) With NEON (VFPSupport; MESA_NO_NEON
-    turns it off), the commonest perspective/orthographic textured span,
-    GL_LINEAR on an RGBA8 texture (GL_RGBA + GL_UNSIGNED_BYTE) with
-    GL_MODULATE or GL_REPLACE, either wrap mode, does four pixels at a
-    time: texture coordinates still stepped one pixel at a time in
-    single precision as before, lroundf done exactly for four lanes, the
-    same integer filtering and modulation sums. Coordinates beyond
-    2^31 / 2048 (or NaN) go to the C code. glbench's tex scene: 52% fewer
-    ARM instructions under qemu. Checked by
-    tests/host-harness/mesa/render-texspan.c (240 cases; arm/run-arm.sh
-    requires NEON = C, and a broken NEON span fails it).
+    set-up too it made glbench's tris scene 3% slower on a Pi 4.) With NEON
+    (VFPSupport; MESA_NO_NEON turns it off), the commonest textured spans
+    do four pixels at a time: GL_LINEAR on an RGBA8 texture (GL_RGBA +
+    GL_UNSIGNED_BYTE) with GL_MODULATE or GL_REPLACE, or on an RGB one
+    (GL_RGB, stored BGR) with GL_MODULATE, GL_REPLACE or GL_DECAL, either
+    wrap mode, in the perspective-correct triangles and (RGB only: RGBA8
+    textures never take them) the GL_FASTEST affine ones. Texture
+    coordinates are still stepped one pixel at a time as before (single
+    precision in perspective, fixed point in affine), lroundf is done
+    exactly for four lanes, and the integer filtering and modulation sums
+    are the same, done one colour channel at a time for four pixels (RGB
+    texels gathered with VLD3 lane loads, so no unaligned access).
+    Coordinates beyond 2^31 / 2048 (or NaN) go to the C code.
+    ARM instructions per frame under qemu (glbench at 320x240; texrgb and
+    texfast are tex with a GL_RGB texture, and with GL_FASTEST too; they
+    run only when named): tex 16.27M -> 6.30M, texrgb 15.35M -> 6.47M,
+    texfast 8.53M -> 5.01M. Checked by
+    tests/host-harness/mesa/render-texspan.c (360 cases, RGB ones and the
+    GL_FASTEST hint included; arm/run-arm.sh requires NEON = C, and
+    breaking either path, a channel or the RGB alpha fails it).
 
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic

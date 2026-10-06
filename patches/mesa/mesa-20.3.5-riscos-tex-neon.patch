@@ -78,32 +78,70 @@ index b60748b..44943bc 100644
  #define IntToFixed(I)   ((I) << FIXED_SHIFT)
  #define FixedToInt(X)   ((X) >> FIXED_SHIFT)
 diff --git a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
-index fb885be..578f4a9 100644
+index fb885be..cb81c20 100644
 --- a/src/mesa/swrast/s_triangle.c
 +++ b/src/mesa/swrast/s_triangle.c
-@@ -864,6 +864,220 @@ struct persp_info
- #define PERSP_SEGMENT 16
+@@ -401,6 +401,433 @@ ilerp_2d(GLint ia, GLint ib, GLint v00, GLint v10, GLint v01, GLint v11)
+    const GLchan *tex11 = info->texture + COMPS * ((t1 << info->twidth_log2) + s1)
  
  
 +/*
-+ * riscos-mesa: NEON for the commonest textured span, bilinear filtering of
-+ * an RGBA8 texture (MESA_FORMAT_R8G8B8A8_UNORM, what GL_RGBA +
-+ * GL_UNSIGNED_BYTE gives) with GL_MODULATE or GL_REPLACE, four pixels at a
-+ * time. The output is the same bit for bit as SPAN_LINEAR's: the texture
-+ * coordinates are stepped one pixel at a time in single precision as
-+ * there (PERSP_ST included), SpanFloatToFixed's rounding is done exactly
-+ * (ro_lround4), and the filtering and modulation are the same integer
-+ * sums (ilerp: a + ((w * (b - a)) >> 11); MODULATE: c * (s + 1) >> 19).
-+ * Coordinates too big for that (2^31 / FIXED_SCALE texels) or NaN send
-+ * their group of four to the C code below, which is SPAN_LINEAR's per
-+ * pixel. Used when the CPU has NEON (VFPSupport); MESA_NO_NEON turns it
-+ * off.
++ * riscos-mesa: NEON for the commonest textured spans, bilinear filtering
++ * of an RGBA8 texture (MESA_FORMAT_R8G8B8A8_UNORM, what GL_RGBA +
++ * GL_UNSIGNED_BYTE gives) or a BGR one (what GL_RGB gives) with
++ * GL_MODULATE or GL_REPLACE (or GL_DECAL for RGB), four pixels at a time,
++ * in both fast textured triangles: fast_persp_span (ro_neon_persp_linear)
++ * and affine_span (ro_neon_affine_linear; RGB only, as RGBA8 textures
++ * never take the affine triangles). The output is the same bit for
++ * bit as SPAN_LINEAR's:
++ *  - the texture coordinates are stepped one pixel at a time as there
++ *    (single precision and PERSP_ST in persp, fixed point in affine), and
++ *    persp's SpanFloatToFixed rounding is done exactly (ro_lround4);
++ *  - texels are read as bytes R G B A whatever the format (ro_texel),
++ *    and the four of a sample are those LINEAR_TEXELS_CLAMP (and, the
++ *    same ones, SPAN_LINEAR_REPEAT) use;
++ *  - the filtering and the texture environment are the same integer sums
++ *    (ilerp: a + ((w * (b - a)) >> 11); MODULATE: c * (s + 1) >> 19).
++ * In persp, coordinates too big for that (2^31 / FIXED_SCALE texels) or
++ * NaN send their group of four to the C code (ro_tex_pixel, SPAN_LINEAR's
++ * per pixel), as does a part group at the end of a span. Used when the
++ * CPU has NEON (VFPSupport); MESA_NO_NEON turns it off.
 + */
 +#if defined(__riscos__) && defined(__arm__) && defined(__ARM_EABI__)
 +#define RO_NEON_TEX 1
 +#pragma GCC push_options
 +#pragma GCC target("fpu=neon")
 +#include <arm_neon.h>
++
++/* what the span's colour does with the texture sample */
++#define RO_TEX_REPLACE      0   /* REPLACE (DECAL for RGB) */
++#define RO_TEX_MODULATE     1
++#define RO_TEX_RGB_REPLACE  2   /* LINEAR_RGB_REPLACE: alpha from the colour */
++
++/* the texture, from persp_info or affine_info */
++struct ro_tex {
++   const GLchan *texture;
++   GLenum format;
++   GLint smask, tmask, twidth_log2;
++   GLboolean clamp_s, clamp_t;
++};
++
++#define RO_TEX_FROM(INFO) \
++   { (INFO)->texture, (INFO)->format, (INFO)->smask, (INFO)->tmask, \
++     (INFO)->twidth_log2, (INFO)->clamp_s, (INFO)->clamp_t }
++
++/* texel n of the texture as bytes R G B A (A = CHAN_MAX for RGB, as
++ * LINEAR_RGB has it) */
++static inline GLuint
++ro_texel(const GLchan *texture, GLenum format, GLint n)
++{
++   if (format == MESA_FORMAT_R8G8B8A8_UNORM)
++      return ((const GLuint *) texture)[n];
++   else {                               /* MESA_FORMAT_BGR_UNORM8: B G R */
++      const GLchan *p = texture + 3 * n;
++      return p[2] | (GLuint) p[1] << 8 | (GLuint) p[0] << 16 | 0xFF000000u;
++   }
++}
 +
 +/* lroundf for four lanes; lanes out of int range or NaN set *bad */
 +static inline int32x4_t
@@ -128,181 +166,382 @@ index fb885be..578f4a9 100644
 +   return vandq_s32(c, vdupq_n_s32(mask));
 +}
 +
-+/* the C code for one pixel (s_tmp, t_tmp already worked out) */
++/* the C code for one pixel, from its fixed point texel coordinates (less
++ * FIXED_HALF) */
 +static inline void
-+ro_linear_rgba8_pixel(const struct persp_info *info, const GLfixed *col,
-+                      GLfloat s_tmp, GLfloat t_tmp, GLboolean modulate,
-+                      GLchan *dest)
++ro_tex_pixel(const struct ro_tex *tx, const GLfixed *col,
++             GLfixed s_fix, GLfixed t_fix, int mode, GLchan *dest)
 +{
-+   const GLfixed s_fix = SpanFloatToFixed(s_tmp) - FIXED_HALF;
-+   const GLfixed t_fix = SpanFloatToFixed(t_tmp) - FIXED_HALF;
 +   const GLint s = FixedToInt(FixedFloor(s_fix));
 +   const GLint t = FixedToInt(FixedFloor(t_fix));
 +   const GLfixed sf = s_fix & FIXED_FRAC_MASK;
 +   const GLfixed tf = t_fix & FIXED_FRAC_MASK;
-+   const GLint s0 = WRAP_COORD(s, info->clamp_s, info->smask);
-+   const GLint s1 = WRAP_COORD(s + 1, info->clamp_s, info->smask);
-+   const GLint t0 = WRAP_COORD(t, info->clamp_t, info->tmask);
-+   const GLint t1 = WRAP_COORD(t + 1, info->clamp_t, info->tmask);
-+   const GLchan *tex00 = info->texture + 4 * ((t0 << info->twidth_log2) + s0);
-+   const GLchan *tex01 = info->texture + 4 * ((t0 << info->twidth_log2) + s1);
-+   const GLchan *tex10 = info->texture + 4 * ((t1 << info->twidth_log2) + s0);
-+   const GLchan *tex11 = info->texture + 4 * ((t1 << info->twidth_log2) + s1);
++   const GLint s0 = WRAP_COORD(s, tx->clamp_s, tx->smask);
++   const GLint s1 = WRAP_COORD(s + 1, tx->clamp_s, tx->smask);
++   const GLint t0 = WRAP_COORD(t, tx->clamp_t, tx->tmask);
++   const GLint t1 = WRAP_COORD(t + 1, tx->clamp_t, tx->tmask);
++   const GLuint x00 = ro_texel(tx->texture, tx->format, (t0 << tx->twidth_log2) + s0);
++   const GLuint x01 = ro_texel(tx->texture, tx->format, (t0 << tx->twidth_log2) + s1);
++   const GLuint x10 = ro_texel(tx->texture, tx->format, (t1 << tx->twidth_log2) + s0);
++   const GLuint x11 = ro_texel(tx->texture, tx->format, (t1 << tx->twidth_log2) + s1);
 +   GLuint c;
 +   for (c = 0; c < 4; c++) {
-+      const GLchan v = (GLchan) ilerp_2d(sf, tf, tex00[c], tex01[c], tex10[c], tex11[c]);
-+      dest[c] = modulate ? (GLchan) ((GLuint) col[c] * (v + 1u) >> (FIXED_SHIFT + 8)) : v;
++      const GLuint sh = 8 * c;
++      const GLchan v = (GLchan) ilerp_2d(sf, tf, x00 >> sh & 255, x01 >> sh & 255,
++                                         x10 >> sh & 255, x11 >> sh & 255);
++      dest[c] = mode == RO_TEX_MODULATE ?
++         (GLchan) ((GLuint) col[c] * (v + 1u) >> (FIXED_SHIFT + 8)) : v;
++   }
++   if (mode == RO_TEX_RGB_REPLACE)
++      dest[3] = (GLchan) FixedToInt(col[3]);
++}
++
++/* the colours of four pixels as vectors, one per channel: lane k is the
++ * colour col + k * step, as the C code's per pixel steps give (wrapping
++ * the same way) */
++struct ro_cols {
++   GLfixed col[4];         /* the next group's first pixel */
++   GLfixed step[4];
++   int32x4_t kstep[4];     /* 0, step, 2 step, 3 step */
++};
++
++static inline void
++ro_cols_init(struct ro_cols *c, const SWspan *span)
++{
++   static const int32_t k4[4] = { 0, 1, 2, 3 };
++   const int32x4_t k = vld1q_s32(k4);
++   GLuint i;
++   c->col[0] = span->red;
++   c->col[1] = span->green;
++   c->col[2] = span->blue;
++   c->col[3] = span->alpha;
++   c->step[0] = span->redStep;
++   c->step[1] = span->greenStep;
++   c->step[2] = span->blueStep;
++   c->step[3] = span->alphaStep;
++   for (i = 0; i < 4; i++)
++      c->kstep[i] = vmulq_n_s32(k, c->step[i]);
++}
++
++static inline void
++ro_cols_done(const struct ro_cols *c, SWspan *span)
++{
++   span->red = c->col[0];
++   span->green = c->col[1];
++   span->blue = c->col[2];
++   span->alpha = c->col[3];
++}
++
++/* one channel of four bilinear samples: a = texels 00 of the four pixels,
++ * then their 10s; b = their 01s, then their 11s (ilerp_2d's sums) */
++static inline int16x4_t
++ro_bilerp4(uint8x8_t a, uint8x8_t b, int16x4_t sf, int16x4_t tf)
++{
++   const int16x8_t x = vreinterpretq_s16_u16(vmovl_u8(a));
++   const int16x8_t y = vreinterpretq_s16_u16(vmovl_u8(b));
++   const int16x8_t d = vsubq_s16(y, x);
++   const int16x8_t m = vaddq_s16(x, vcombine_s16(
++      vshrn_n_s32(vmull_s16(vget_low_s16(d), sf), FIXED_SHIFT),
++      vshrn_n_s32(vmull_s16(vget_high_s16(d), sf), FIXED_SHIFT)));
++   const int16x4_t m0 = vget_low_s16(m), m1 = vget_high_s16(m);
++   return vadd_s16(m0, vshrn_n_s32(vmull_s16(vsub_s16(m1, m0), tf), FIXED_SHIFT));
++}
++
++/* MODULATE for one channel of four pixels: c * (sample + 1) >> 19,
++ * unsigned */
++static inline uint16x4_t
++ro_modulate4(int32x4_t c, int16x4_t v)
++{
++   const uint32x4_t vp1 = vaddq_u32(vmovl_u16(vreinterpret_u16_s16(v)), vdupq_n_u32(1));
++   return vmovn_u32(vshrq_n_u32(vmulq_u32(vreinterpretq_u32_s32(c), vp1),
++                                FIXED_SHIFT + 8));
++}
++
++#define RO_LD3(V, P, K) V = vld3_lane_u8((P), V, K)
++
++/* four pixels: texel coordinates sfix, tfix (less FIXED_HALF); colours
++ * from *cols (advanced past the four). Inlined into loops made for each
++ * format and mode (constants there). */
++static inline __attribute__((always_inline)) void
++ro_tex_group(const struct ro_tex *tx, GLenum format, int32x4_t sfix, int32x4_t tfix,
++             struct ro_cols *cols, int mode, GLchan *dest)
++{
++   const int32x4_t tw = vdupq_n_s32(tx->twidth_log2);
++   const int32x4_t si = vshrq_n_s32(sfix, FIXED_SHIFT);
++   const int32x4_t ti = vshrq_n_s32(tfix, FIXED_SHIFT);
++   const int32x4_t one = vdupq_n_s32(1);
++   const int32x4_t s0 = ro_wrap4(si, tx->clamp_s, tx->smask);
++   const int32x4_t s1 = ro_wrap4(vaddq_s32(si, one), tx->clamp_s, tx->smask);
++   const int32x4_t r0 = vshlq_s32(ro_wrap4(ti, tx->clamp_t, tx->tmask), tw);
++   const int32x4_t r1 = vshlq_s32(ro_wrap4(vaddq_s32(ti, one), tx->clamp_t, tx->tmask), tw);
++   const int16x4_t sf = vmovn_s32(vandq_s32(sfix, vdupq_n_s32(FIXED_FRAC_MASK)));
++   const int16x4_t tf = vmovn_s32(vandq_s32(tfix, vdupq_n_s32(FIXED_FRAC_MASK)));
++   /* texel numbers: the four pixels' 00s, 10s, 01s, 11s */
++   GLint o[16];
++   uint8x8_t a[4], b[4];       /* per channel R G B A, as ro_bilerp4 */
++   int16x4_t v[4];
++   uint16x4_t out[4];
++   GLuint c;
++   vst1q_s32(o, vaddq_s32(r0, s0));
++   vst1q_s32(o + 4, vaddq_s32(r1, s0));
++   vst1q_s32(o + 8, vaddq_s32(r0, s1));
++   vst1q_s32(o + 12, vaddq_s32(r1, s1));
++   if (format == MESA_FORMAT_R8G8B8A8_UNORM) {
++      const GLuint *t32 = (const GLuint *) tx->texture;
++      GLuint texel[16];
++      uint8x16x4_t p;
++      for (c = 0; c < 16; c++)
++         texel[c] = t32[o[c]];
++      p = vld4q_u8((const uint8_t *) texel);   /* bytes R G B A apart */
++      for (c = 0; c < 4; c++) {
++         a[c] = vget_low_u8(p.val[c]);
++         b[c] = vget_high_u8(p.val[c]);
++      }
++      for (c = 0; c < 4; c++)
++         v[c] = ro_bilerp4(a[c], b[c], sf, tf);
++   }
++   else {                                      /* BGR: bytes B G R */
++      const GLchan *t8 = tx->texture;
++      uint8x8x3_t pa, pb;
++      pa.val[0] = pa.val[1] = pa.val[2] = vdup_n_u8(0);
++      pb = pa;
++      RO_LD3(pa, t8 + 3 * o[0], 0);  RO_LD3(pa, t8 + 3 * o[1], 1);
++      RO_LD3(pa, t8 + 3 * o[2], 2);  RO_LD3(pa, t8 + 3 * o[3], 3);
++      RO_LD3(pa, t8 + 3 * o[4], 4);  RO_LD3(pa, t8 + 3 * o[5], 5);
++      RO_LD3(pa, t8 + 3 * o[6], 6);  RO_LD3(pa, t8 + 3 * o[7], 7);
++      RO_LD3(pb, t8 + 3 * o[8], 0);  RO_LD3(pb, t8 + 3 * o[9], 1);
++      RO_LD3(pb, t8 + 3 * o[10], 2); RO_LD3(pb, t8 + 3 * o[11], 3);
++      RO_LD3(pb, t8 + 3 * o[12], 4); RO_LD3(pb, t8 + 3 * o[13], 5);
++      RO_LD3(pb, t8 + 3 * o[14], 6); RO_LD3(pb, t8 + 3 * o[15], 7);
++      for (c = 0; c < 3; c++)
++         v[c] = ro_bilerp4(pa.val[2 - c], pb.val[2 - c], sf, tf);
++      v[3] = vdup_n_s16(CHAN_MAX);             /* LINEAR_RGB's alpha */
++   }
++   if (mode == RO_TEX_MODULATE) {
++      for (c = 0; c < 4; c++)
++         out[c] = ro_modulate4(vaddq_s32(vdupq_n_s32(cols->col[c]), cols->kstep[c]), v[c]);
++   }
++   else {
++      for (c = 0; c < 4; c++)
++         out[c] = vreinterpret_u16_s16(v[c]);
++      if (mode == RO_TEX_RGB_REPLACE)          /* alpha: FixedToInt */
++         out[3] = vmovn_u32(vreinterpretq_u32_s32(vshrq_n_s32(
++            vaddq_s32(vdupq_n_s32(cols->col[3]), cols->kstep[3]), FIXED_SHIFT)));
++   }
++   for (c = 0; c < 4; c++)
++      cols->col[c] += 4 * cols->step[c];
++   {
++      /* channels to pixels R G B A, low 8 bits (GLchan) */
++      const uint8x8_t rg = vmovn_u16(vcombine_u16(out[0], out[1]));
++      const uint8x8_t ba = vmovn_u16(vcombine_u16(out[2], out[3]));
++      const uint8x8x2_t z1 = vzip_u8(rg, ba);   /* R B R B.., G A G A.. */
++      const uint8x8x2_t z2 = vzip_u8(z1.val[0], z1.val[1]);
++      vst1q_u8(dest, vcombine_u8(z2.val[0], z2.val[1]));
 +   }
 +}
 +
-+static GLchan *
-+ro_neon_linear_rgba8(const struct persp_info *info, SWspan *span,
-+                     GLchan *dest, GLuint count,
-+                     GLfloat tex_coord[3], const GLfloat tex_step[3],
-+                     GLboolean q_one, GLboolean q_constant,
-+                     GLdouble inv_q_constant, GLboolean modulate)
-+{
-+   GLfixed col[4] = { span->red, span->green, span->blue, span->alpha };
-+   const GLfixed step[4] = { span->redStep, span->greenStep,
-+                             span->blueStep, span->alphaStep };
-+   const GLuint *tex = (const GLuint *) info->texture;
-+   const int32x4_t tw = vdupq_n_s32(info->twidth_log2);
-+   int32x4_t colv = vld1q_s32(col);
-+   const int32x4_t stepv = vld1q_s32(step);
-+   GLuint i, k;
++/* ro_tex_group made for each format and mode */
++typedef void ro_group_fn(const struct ro_tex *tx, int32x4_t sfix, int32x4_t tfix,
++                         struct ro_cols *cols, GLchan *dest);
++#define RO_GROUP_FN(NAME, F, M)                                           \
++static void __attribute__((noinline))                                     \
++NAME(const struct ro_tex *tx, int32x4_t sfix, int32x4_t tfix,             \
++     struct ro_cols *cols, GLchan *dest)                                  \
++{                                                                         \
++   ro_tex_group(tx, F, sfix, tfix, cols, M, dest);                        \
++}
++RO_GROUP_FN(ro_group_rgba8_modulate, MESA_FORMAT_R8G8B8A8_UNORM, RO_TEX_MODULATE)
++RO_GROUP_FN(ro_group_rgba8_replace, MESA_FORMAT_R8G8B8A8_UNORM, RO_TEX_REPLACE)
++RO_GROUP_FN(ro_group_bgr_modulate, MESA_FORMAT_BGR_UNORM8, RO_TEX_MODULATE)
++RO_GROUP_FN(ro_group_bgr_replace, MESA_FORMAT_BGR_UNORM8, RO_TEX_RGB_REPLACE)
++#undef RO_GROUP_FN
 +
++static ro_group_fn *
++ro_group_for(GLenum format, int mode)
++{
++   if (format == MESA_FORMAT_R8G8B8A8_UNORM)
++      return mode == RO_TEX_MODULATE ? ro_group_rgba8_modulate : ro_group_rgba8_replace;
++   return mode == RO_TEX_MODULATE ? ro_group_bgr_modulate : ro_group_bgr_replace;
++}
++
++/* the C code for pixels of a group */
++static inline void
++ro_tex_pixels(const struct ro_tex *tx, struct ro_cols *cols,
++              const GLfixed *sfix, const GLfixed *tfix, GLuint n,
++              int mode, GLchan *dest)
++{
++   GLuint k, c;
++   for (k = 0; k < n; k++) {
++      ro_tex_pixel(tx, cols->col, sfix[k], tfix[k], mode, dest + 4 * k);
++      for (c = 0; c < 4; c++)
++         cols->col[c] += cols->step[c];
++   }
++}
++
++/* s/q and t/q for the next n pixels, as PERSP_ST, stepping the texture
++ * coordinates tc (a local copy of fast_persp_span's tex_coord) */
++static inline __attribute__((always_inline)) void
++ro_persp_st(GLfloat *sv, GLfloat *tv, GLuint n, GLfloat tc[3],
++            const GLfloat ts[3], GLboolean q_one, GLboolean q_constant,
++            GLdouble inv_q_constant)
++{
++   GLuint k;
++   for (k = 0; k < n; k++) {
++      if (q_one) {
++         sv[k] = tc[0];
++         tv[k] = tc[1];
++      } else {
++         const GLdouble invQ = q_constant ? inv_q_constant :
++            (tc[2] ? (1.0 / tc[2]) : 1.0);
++         sv[k] = (GLfloat) (tc[0] * invQ);
++         tv[k] = (GLfloat) (tc[1] * invQ);
++      }
++      tc[0] += ts[0];
++      tc[1] += ts[1];
++      tc[2] += ts[2];
++   }
++}
++
++static inline __attribute__((always_inline)) GLchan *
++ro_neon_persp_loop(const struct ro_tex *tx, ro_group_fn *group, struct ro_cols *cols,
++                   GLchan *dest, GLuint count,
++                   GLfloat tex_coord[3], const GLfloat tex_step[3],
++                   GLboolean q_one, GLboolean q_constant,
++                   GLdouble inv_q_constant, int mode)
++{
++   /* local copies, which the compiler can keep in registers */
++   GLfloat tc[3] = { tex_coord[0], tex_coord[1], tex_coord[2] };
++   const GLfloat ts[3] = { tex_step[0], tex_step[1], tex_step[2] };
++   GLuint i, k;
 +   for (i = 0; i < count; ) {
 +      GLfloat sv[4], tv[4];
++      GLfixed sfix[4], tfix[4];
 +      const GLuint n = MIN2(4, count - i);
-+      for (k = 0; k < n; k++) {
-+         if (q_one) {
-+            sv[k] = tex_coord[0];
-+            tv[k] = tex_coord[1];
-+         } else {
-+            const GLdouble invQ = q_constant ? inv_q_constant :
-+               (tex_coord[2] ? (1.0 / tex_coord[2]) : 1.0);
-+            sv[k] = (GLfloat) (tex_coord[0] * invQ);
-+            tv[k] = (GLfloat) (tex_coord[1] * invQ);
-+         }
-+         tex_coord[0] += tex_step[0];
-+         tex_coord[1] += tex_step[1];
-+         tex_coord[2] += tex_step[2];
-+      }
 +      if (n == 4) {
 +         uint32x4_t bad = vdupq_n_u32(0);
-+         const int32x4_t sfix = vsubq_s32(ro_lround4(vmulq_n_f32(vld1q_f32(sv), FIXED_SCALE), &bad),
-+                                          vdupq_n_s32(FIXED_HALF));
-+         const int32x4_t tfix = vsubq_s32(ro_lround4(vmulq_n_f32(vld1q_f32(tv), FIXED_SCALE), &bad),
-+                                          vdupq_n_s32(FIXED_HALF));
-+         uint32x2_t b2 = vorr_u32(vget_low_u32(bad), vget_high_u32(bad));
++         int32x4_t sx, tx4;
++         uint32x2_t b2;
++         ro_persp_st(sv, tv, 4, tc, ts, q_one, q_constant, inv_q_constant);
++         sx = vsubq_s32(ro_lround4(vmulq_n_f32(vld1q_f32(sv), FIXED_SCALE), &bad),
++                        vdupq_n_s32(FIXED_HALF));
++         tx4 = vsubq_s32(ro_lround4(vmulq_n_f32(vld1q_f32(tv), FIXED_SCALE), &bad),
++                         vdupq_n_s32(FIXED_HALF));
++         b2 = vorr_u32(vget_low_u32(bad), vget_high_u32(bad));
 +         if (!(vget_lane_u32(b2, 0) | vget_lane_u32(b2, 1))) {
-+            const int32x4_t si = vshrq_n_s32(sfix, FIXED_SHIFT);
-+            const int32x4_t ti = vshrq_n_s32(tfix, FIXED_SHIFT);
-+            const int32x4_t one = vdupq_n_s32(1);
-+            const int32x4_t s0 = ro_wrap4(si, info->clamp_s, info->smask);
-+            const int32x4_t s1 = ro_wrap4(vaddq_s32(si, one), info->clamp_s, info->smask);
-+            const int32x4_t r0 = vshlq_s32(ro_wrap4(ti, info->clamp_t, info->tmask), tw);
-+            const int32x4_t r1 = vshlq_s32(ro_wrap4(vaddq_s32(ti, one), info->clamp_t, info->tmask), tw);
-+            GLint o[16];
-+            GLuint texel[16];
-+            vst1q_s32(o, vaddq_s32(r0, s0));
-+            vst1q_s32(o + 4, vaddq_s32(r0, s1));
-+            vst1q_s32(o + 8, vaddq_s32(r1, s0));
-+            vst1q_s32(o + 12, vaddq_s32(r1, s1));
-+            for (k = 0; k < 16; k++)
-+               texel[k] = tex[o[k]];
-+            {
-+               /* the weights, one per pixel, for each of its 4 channels */
-+               const int16x4_t sf4 = vmovn_s32(vandq_s32(sfix, vdupq_n_s32(FIXED_FRAC_MASK)));
-+               const int16x4_t tf4 = vmovn_s32(vandq_s32(tfix, vdupq_n_s32(FIXED_FRAC_MASK)));
-+               const int16x4x2_t sz = vzip_s16(sf4, sf4);
-+               const int16x4x2_t tz = vzip_s16(tf4, tf4);
-+               const int16x4x2_t sa = vzip_s16(sz.val[0], sz.val[0]);
-+               const int16x4x2_t sb = vzip_s16(sz.val[1], sz.val[1]);
-+               const int16x4x2_t ta = vzip_s16(tz.val[0], tz.val[0]);
-+               const int16x4x2_t tb = vzip_s16(tz.val[1], tz.val[1]);
-+               const int16x4_t ws[4] = { sa.val[0], sa.val[1], sb.val[0], sb.val[1] };
-+               const int16x4_t wt[4] = { ta.val[0], ta.val[1], tb.val[0], tb.val[1] };
-+               /* texels as 16-bit channels: [pixel][R G B A] */
-+               const uint8x16_t b00 = vreinterpretq_u8_u32(vld1q_u32(texel));
-+               const uint8x16_t b01 = vreinterpretq_u8_u32(vld1q_u32(texel + 4));
-+               const uint8x16_t b10 = vreinterpretq_u8_u32(vld1q_u32(texel + 8));
-+               const uint8x16_t b11 = vreinterpretq_u8_u32(vld1q_u32(texel + 12));
-+               int16x4_t res[4];
-+               GLuint h;
-+               for (h = 0; h < 2; h++) {
-+                  const int16x8_t a00 = vreinterpretq_s16_u16(vmovl_u8(h ? vget_high_u8(b00) : vget_low_u8(b00)));
-+                  const int16x8_t a01 = vreinterpretq_s16_u16(vmovl_u8(h ? vget_high_u8(b01) : vget_low_u8(b01)));
-+                  const int16x8_t a10 = vreinterpretq_s16_u16(vmovl_u8(h ? vget_high_u8(b10) : vget_low_u8(b10)));
-+                  const int16x8_t a11 = vreinterpretq_s16_u16(vmovl_u8(h ? vget_high_u8(b11) : vget_low_u8(b11)));
-+                  const int16x8_t d0 = vsubq_s16(a01, a00);
-+                  const int16x8_t d1 = vsubq_s16(a11, a10);
-+                  const int16x8_t m0 = vaddq_s16(a00, vcombine_s16(
-+                     vshrn_n_s32(vmull_s16(vget_low_s16(d0), ws[2 * h]), FIXED_SHIFT),
-+                     vshrn_n_s32(vmull_s16(vget_high_s16(d0), ws[2 * h + 1]), FIXED_SHIFT)));
-+                  const int16x8_t m1 = vaddq_s16(a10, vcombine_s16(
-+                     vshrn_n_s32(vmull_s16(vget_low_s16(d1), ws[2 * h]), FIXED_SHIFT),
-+                     vshrn_n_s32(vmull_s16(vget_high_s16(d1), ws[2 * h + 1]), FIXED_SHIFT)));
-+                  const int16x8_t d2 = vsubq_s16(m1, m0);
-+                  const int16x8_t v = vaddq_s16(m0, vcombine_s16(
-+                     vshrn_n_s32(vmull_s16(vget_low_s16(d2), wt[2 * h]), FIXED_SHIFT),
-+                     vshrn_n_s32(vmull_s16(vget_high_s16(d2), wt[2 * h + 1]), FIXED_SHIFT)));
-+                  res[2 * h] = vget_low_s16(v);
-+                  res[2 * h + 1] = vget_high_s16(v);
-+               }
-+               if (modulate) {
-+                  /* c * (sample + 1) >> 19, unsigned, for each pixel */
-+                  uint16x4_t o16[4];
-+                  for (k = 0; k < 4; k++) {
-+                     const uint32x4_t sp1 = vaddq_u32(vmovl_u16(vreinterpret_u16_s16(res[k])),
-+                                                      vdupq_n_u32(1));
-+                     o16[k] = vmovn_u32(vshrq_n_u32(vmulq_u32(vreinterpretq_u32_s32(colv), sp1),
-+                                                    FIXED_SHIFT + 8));
-+                     colv = vaddq_s32(colv, stepv);
-+                  }
-+                  vst1q_u8(dest, vcombine_u8(vmovn_u16(vcombine_u16(o16[0], o16[1])),
-+                                             vmovn_u16(vcombine_u16(o16[2], o16[3]))));
-+               }
-+               else {
-+                  vst1q_u8(dest, vcombine_u8(
-+                     vmovn_u16(vreinterpretq_u16_s16(vcombine_s16(res[0], res[1]))),
-+                     vmovn_u16(vreinterpretq_u16_s16(vcombine_s16(res[2], res[3])))));
-+                  colv = vaddq_s32(colv, vshlq_n_s32(stepv, 2));
-+               }
-+            }
++            group(tx, sx, tx4, cols, dest);
 +            dest += 16;
 +            i += 4;
 +            continue;
 +         }
 +      }
++      else
++         ro_persp_st(sv, tv, n, tc, ts, q_one, q_constant, inv_q_constant);
 +      /* the C code: a part group at the end, or coordinates out of range */
-+      vst1q_s32(col, colv);
 +      for (k = 0; k < n; k++) {
-+         ro_linear_rgba8_pixel(info, col, sv[k], tv[k], modulate, dest);
-+         col[0] += step[0];
-+         col[1] += step[1];
-+         col[2] += step[2];
-+         col[3] += step[3];
-+         dest += 4;
++         sfix[k] = SpanFloatToFixed(sv[k]) - FIXED_HALF;
++         tfix[k] = SpanFloatToFixed(tv[k]) - FIXED_HALF;
 +      }
-+      colv = vld1q_s32(col);
++      ro_tex_pixels(tx, cols, sfix, tfix, n, mode, dest);
++      dest += 4 * n;
 +      i += n;
 +   }
-+   vst1q_s32(col, colv);
-+   span->red = col[0];
-+   span->green = col[1];
-+   span->blue = col[2];
-+   span->alpha = col[3];
++   tex_coord[0] = tc[0];
++   tex_coord[1] = tc[1];
++   tex_coord[2] = tc[2];
 +   return dest;
++}
++
++/* fast_persp_span's SPAN_LINEAR; returns dest after the span */
++static GLchan *
++ro_neon_persp_linear(const struct ro_tex *tx, SWspan *span,
++                     GLchan *dest, GLuint count,
++                     GLfloat tex_coord[3], const GLfloat tex_step[3],
++                     GLboolean q_one, GLboolean q_constant,
++                     GLdouble inv_q_constant, int mode)
++{
++   struct ro_cols cols;
++   ro_group_fn *group = ro_group_for(tx->format, mode);
++   ro_cols_init(&cols, span);
++   /* q_one (2D and orthographic drawing) gets a loop of its own */
++   if (q_one)
++      dest = ro_neon_persp_loop(tx, group, &cols, dest, count, tex_coord,
++                                tex_step, GL_TRUE, GL_FALSE, 0.0, mode);
++   else
++      dest = ro_neon_persp_loop(tx, group, &cols, dest, count, tex_coord,
++                                tex_step, GL_FALSE, q_constant,
++                                inv_q_constant, mode);
++   ro_cols_done(&cols, span);
++   return dest;
++}
++
++/* affine_span's SPAN_LINEAR: the whole span, from span->intTex (BGR
++ * textures: RGBA8 ones don't take the affine triangles) */
++static void
++ro_neon_affine_linear(const struct ro_tex *tx, SWspan *span, int mode)
++{
++   ro_group_fn *group = ro_group_for(MESA_FORMAT_BGR_UNORM8, mode);
++   static const int32_t k4[4] = { 0, 1, 2, 3 };
++   struct ro_cols cols;
++   GLchan *dest = span->array->rgba[0];
++   const GLfixed ss = span->intTexStep[0], ts = span->intTexStep[1];
++   const int32x4_t k = vld1q_s32(k4);
++   const int32x4_t sk = vmulq_n_s32(k, ss), tk = vmulq_n_s32(k, ts);
++   GLfixed s = span->intTex[0], t = span->intTex[1];
++   const GLuint count = span->end;
++   GLuint i;
++
++   ro_cols_init(&cols, span);
++   for (i = 0; i + 4 <= count; i += 4) {
++      group(tx, vaddq_s32(vdupq_n_s32(s), sk), vaddq_s32(vdupq_n_s32(t), tk),
++            &cols, dest);
++      s += 4 * ss;
++      t += 4 * ts;
++      dest += 16;
++   }
++   for (; i < count; i++) {
++      ro_tex_pixels(tx, &cols, &s, &t, 1, mode, dest);
++      s += ss;
++      t += ts;
++      dest += 4;
++   }
++   ro_cols_done(&cols, span);
++   span->intTex[0] = s;
++   span->intTex[1] = t;
 +}
 +#pragma GCC pop_options
 +#endif /* NEON */
 +
 +
+ /* This function can handle GL_NEAREST or GL_LINEAR sampling of 2D RGB or RGBA
+  * textures with GL_REPLACE, GL_MODULATE, GL_BLEND, GL_DECAL or GL_ADD
+  * texture env modes.
+@@ -692,6 +1119,16 @@ affine_span(struct gl_context *ctx, SWspan *span,
+       span->intTex[1] -= FIXED_HALF;
+       switch (info->format) {
+       case MESA_FORMAT_BGR_UNORM8:
++#ifdef RO_NEON_TEX
++         if ((info->envmode == GL_MODULATE || info->envmode == GL_REPLACE ||
++              info->envmode == GL_DECAL) && _mesa_ro_have_neon()) {
++            const struct ro_tex tx = RO_TEX_FROM(info);
++            ro_neon_affine_linear(&tx, span,
++                                  info->envmode == GL_MODULATE ? RO_TEX_MODULATE :
++                                  RO_TEX_RGB_REPLACE);
++            break;
++         }
++#endif
+          switch (info->envmode) {
+          case GL_MODULATE:
+             SPAN_LINEAR(LINEAR_RGB;MODULATE,3);
+@@ -864,6 +1301,8 @@ struct persp_info
+ #define PERSP_SEGMENT 16
+ 
+ 
++
++
  static inline void
  fast_persp_span(struct gl_context *ctx, SWspan *span,
  		struct persp_info *info)
-@@ -937,8 +1151,8 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+@@ -937,8 +1376,8 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
  	for (i = 0; i < count; i++) {				\
             GLfloat s_tmp, t_tmp;					\
             PERSP_ST(s_tmp, t_tmp);					\
@@ -313,7 +552,7 @@ index fb885be..578f4a9 100644
             const GLint s = FixedToInt(FixedFloor(s_fix));		\
             const GLint t = FixedToInt(FixedFloor(t_fix));		\
             const GLfixed sf = s_fix & FIXED_FRAC_MASK;			\
-@@ -959,8 +1173,8 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+@@ -959,8 +1398,8 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
  	for (i = 0; i < count; i++) {				\
             GLfloat s_tmp, t_tmp;					\
             PERSP_ST(s_tmp, t_tmp);					\
@@ -324,16 +563,36 @@ index fb885be..578f4a9 100644
             const GLint s = FixedToInt(FixedFloor(s_fix)) & info->smask;	\
             const GLint t = FixedToInt(FixedFloor(t_fix)) & info->tmask;	\
             const GLfixed sf = s_fix & FIXED_FRAC_MASK;			\
-@@ -1158,6 +1372,15 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+@@ -1116,6 +1555,17 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+    case GL_LINEAR:
+       switch (info->format) {
+       case MESA_FORMAT_BGR_UNORM8:
++#ifdef RO_NEON_TEX
++         if ((info->envmode == GL_MODULATE || info->envmode == GL_REPLACE ||
++              info->envmode == GL_DECAL) && _mesa_ro_have_neon()) {
++            const struct ro_tex tx = RO_TEX_FROM(info);
++            dest = ro_neon_persp_linear(&tx, span, dest, count, tex_coord, tex_step,
++                                 q_one, q_constant, inv_q_constant,
++                                 info->envmode == GL_MODULATE ? RO_TEX_MODULATE :
++                                 RO_TEX_RGB_REPLACE);
++            break;
++         }
++#endif
+          switch (info->envmode) {
+          case GL_MODULATE:
+             SPAN_LINEAR(LINEAR_RGB;MODULATE,3);
+@@ -1158,6 +1608,17 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
           }
           break;
        case MESA_FORMAT_R8G8B8A8_UNORM:
 +#ifdef RO_NEON_TEX
 +         if ((info->envmode == GL_MODULATE || info->envmode == GL_REPLACE) &&
 +             _mesa_ro_have_neon()) {
-+            dest = ro_neon_linear_rgba8(info, span, dest, count, tex_coord, tex_step,
++            const struct ro_tex tx = RO_TEX_FROM(info);
++            dest = ro_neon_persp_linear(&tx, span, dest, count, tex_coord, tex_step,
 +                                 q_one, q_constant, inv_q_constant,
-+                                 info->envmode == GL_MODULATE);
++                                 info->envmode == GL_MODULATE ? RO_TEX_MODULATE :
++                                 RO_TEX_REPLACE);
 +            break;
 +         }
 +#endif
