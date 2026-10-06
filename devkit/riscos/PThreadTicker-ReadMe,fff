@@ -1,7 +1,7 @@
 PThreadTicker
 =============
 
-Version 0.03, from UnixLib v5.0.3.1 (riscos-unixlib).
+Version 0.03, from UnixLib v5.0.3.3 (riscos-unixlib).
 
 riscos-unixlib is an unofficial fork of GCCSDK's UnixLib, and
 PThreadTicker is not part of GCCSDK. Please report problems at

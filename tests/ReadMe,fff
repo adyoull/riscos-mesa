@@ -64,7 +64,10 @@ Run in this order and note the output:
    Software GL benchmark, no desktop involved: clear, lit cube, full-screen
    texture, blending, 12288 triangles, GLSL and a fogged sky and ground
    (new in 20.3.5-12), in ms per frame. Scene
-   names: clear cube tex blend tris glsl fog. Use -o file to save the results
+   names: clear cube tex blend tris glsl fog. Two more run only when named
+   (new in 20.3.5-14): texrgb (tex with a GL_RGB texture) and texfast
+   (texrgb with the GL_FASTEST hint). *Set MESA_NO_NEON 1 before running
+   it times the same scenes without NEON. Use -o file to save the results
    (rather than "> file"). Reports the address and RISC OS error if
    anything crashes.
 
@@ -190,7 +193,7 @@ Run in this order and note the output:
         Background: John Duffell's own site (now on the Internet Archive)
           has more details:
           https://web.archive.org/web/20110920080106/http://www.duffell.riscos.me.uk/
-      The programs are linked with UnixLib 5.0.3.1 (5.0.1 from 20.3.5-8), and
+      The programs are linked with UnixLib 5.0.3.3 (5.0.1 from 20.3.5-8), and
       al-tone first loads UnixLib's PThreadTicker module (PThrTicker, in
       this directory), which keeps the thread switcher safe while altest's
       sound thread runs. To check it's used, type

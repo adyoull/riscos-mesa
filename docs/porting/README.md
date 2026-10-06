@@ -144,7 +144,7 @@ A program that only calls EGL, OpenGL (up to 2.1) and OpenGL ES (1.1,
 **Memory**
 
 - **A dynamic area holds at most 128 MB** on RISC OS 5, whatever size is
-  asked for. UnixLib 5.0.3.1 carries the heap on into further areas
+  asked for. UnixLib 5.0.3.1 and later carry the heap on into further areas
   (`<App> Heap 2`, `3`...), so `malloc` can use more; a program that
   makes its own dynamic area for a bigger heap gets 128 MB.
 - **Contiguous memory** (OS_Memory 12, then OS_DynamicArea 21, for DMA or

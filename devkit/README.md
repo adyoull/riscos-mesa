@@ -464,9 +464,9 @@ so at that moment it wasn't there, and the other program crashed.
 Two things put that right:
 
 1. **Link with UnixLib 5.0.1 or later** (github.com/adyoull/riscos-unixlib;
-   5.0.3.1 is the newest, and is what riscos-mesa's own programs use. It
-   also makes threads run in programs that poll the Wimp often, as SDL
-   programs do).
+   5.0.3.3 is the newest, and is what riscos-mesa's own programs use.
+   From 5.0.3.1 it also makes threads run in programs that poll the Wimp
+   often, as SDL programs do).
    It keeps the ticker's code where it's always in memory. Build your
    GCCSDK with it, or copy its `libunixlib.a` into your GCCSDK (that
    project's README says how), or ask whoever supplied your GCCSDK
@@ -479,7 +479,7 @@ Two things put that right:
    ```
 
    The module is in this devkit's `riscos/` folder (version 0.03, which
-   programs linked with UnixLib 5.0.3.1 use; BSD licence, with its ReadMe
+   programs linked with UnixLib 5.0.3.1 or later use; BSD licence, with its ReadMe
    and Licence). The line asks for 0.01 on purpose: if an older copy is
    already loaded and in use it can't be replaced, and the program then
    runs its own copy of the code, which also works. A module is always
@@ -514,7 +514,12 @@ The drawing is done by the processor, so every pixel costs time.
   fastest. And turn `GL_BLEND` off for things that aren't see-through.
 - **Textures:** power-of-two sizes (64, 128, 256...), `GL_CLAMP_TO_EDGE`
   rather than `GL_CLAMP`, and `GL_LINEAR` or `GL_NEAREST` filtering use
-  the fast paths. The EGL guide (`docs/EGL-GUIDE.md`) lists the rest.
+  the fast paths. Fastest of all on a Pi 2 or later: `GL_LINEAR`, an RGB
+  or RGBA texture and `GL_MODULATE` or `GL_REPLACE`, which run on NEON.
+  The EGL guide (`docs/EGL-GUIDE.md`) lists the rest.
+- **For see-through things, use `glBlendFunc(GL_SRC_ALPHA,
+  GL_ONE_MINUS_SRC_ALPHA)`**: it's the blend that runs on NEON, about
+  twice as fast as the others.
 - **Don't draw frames nobody sees.** Pace with `Wimp_PollIdle` (about
   50 frames a second is plenty), and draw only when something changes if
   the picture is still.

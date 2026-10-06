@@ -1,6 +1,6 @@
 # RISC OS EGL programming guide
 
-For riscos-mesa v20.3.5-13 (October 2026). Andrew Youll.
+For riscos-mesa v20.3.5-14 (October 2026). Andrew Youll.
 
 > **New to OpenGL, EGL or cross-compiling?** Start with the devkit's
 > beginner's guide (`README.md` at the top of the devkit, `devkit/README.md`
@@ -723,19 +723,21 @@ Rendering is Mesa's software rasteriser on one CPU core, so keep scenes simple a
 | Same, no vsync | ~67 fps | 9.2 ms / 5.7 ms |
 | Same, direct to screen | ~100 fps | 9.9 ms / 0 ms |
 
-The window and full screen figures are from the 20.3.5-4 tests; rendering has got faster since. The riscos-mesa benchmark (`glbench`, Pi 4, 640x480, 24-bit depth + 8-bit stencil, 20.3.5-12, ms per frame and frames per second):
+The window and full screen figures are from the 20.3.5-4 tests; rendering has got faster since. The riscos-mesa benchmark (`glbench`, Pi 4, 640x480, 24-bit depth + 8-bit stencil, 20.3.5-14, ms per frame and frames per second):
 
 | Scene | ms | fps |
 | --- | --- | --- |
-| clear colour + depth | 0.58 | 1720 |
-| lit cube | 1.78 | 560 |
+| clear colour + depth | 0.56 | 1790 |
+| lit cube | 1.78 | 563 |
 | 12288 lit triangles | 9.78 | 102 |
-| fogged sky and ground, depth-tested | 12.21 | 82 |
-| full-screen bilinear texture | 19.99 | 50 |
-| 4 blended full-screen quads | 20.53 | 49 |
-| GLSL per-pixel shaded cube | 26.93 | 37 |
+| full-screen bilinear texture | 10.43 | 96 |
+| 4 blended full-screen quads | 10.26 | 97 |
+| fogged sky and ground, depth-tested | 12.12 | 83 |
+| GLSL per-pixel shaded cube | 13.28 | 75 |
 
-**GLSL is slower**: shaders run through Mesa's interpreter, so fixed-function GL is faster for the same result. The interpreter runs a batch of pixels together, works out only the parts of each result an instruction writes, and uses NEON for four pixels at once where the CPU has it (the picture is the same either way; setting the system variable `MESA_NO_NEON` turns NEON off).
+**NEON:** on CPUs that have it (every Pi 2 and later), the commonest per-pixel work runs four or eight pixels at a time: bilinear (`GL_LINEAR`) RGBA and RGB textures with `GL_MODULATE` or `GL_REPLACE` (and `GL_DECAL` for RGB), the usual transparency (`glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)`), and smooth and one-colour fills. The picture is exactly the same either way. Setting the system variable `MESA_NO_NEON` (`*Set MESA_NO_NEON 1`) turns it all off, for comparison.
+
+**GLSL is slower** than fixed-function GL for the same result, but less than it was: Mesa's interpreter runs a batch of pixels together, and the arithmetic between its loops, IFs and texture reads is compiled into NEON code (a JIT, from 20.3.5-14) that works on four pixels at once. The compiled code may differ from the interpreter by a step in 255 here and there (sin, exp, log, pow and 1/sqrt use their own approximations); `*Set MESA_NO_JIT 1` turns it off. Without NEON the interpreter runs as before.
 
 **Getting speed out of the renderer**
 

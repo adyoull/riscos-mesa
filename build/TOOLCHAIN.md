@@ -33,11 +33,12 @@ On a 1-CPU container this took about 30 minutes after the source was ready.
 The ld-riscos dynamic linker and the native (runs-on-RISC-OS) compiler steps
 of the recipe were skipped; static linking doesn't need them.
 
-## UnixLib 5.0.3.1 (riscos-unixlib)
+## UnixLib 5.0.3.3 (riscos-unixlib)
 
 riscos-mesa's release programs (tests, ports, examples) are linked with
-**UnixLib 5.0.3.1** from github.com/adyoull/riscos-unixlib: GCCSDK's
-UnixLib with the fixes the ports needed (5.0.1 until 20.3.5-10). riscos-unixlib is an unofficial fork, not made or
+**UnixLib 5.0.3.3** from github.com/adyoull/riscos-unixlib: GCCSDK's
+UnixLib with the fixes the ports needed (5.0.1 until 20.3.5-10, 5.0.3.1
+from 20.3.5-11 to 20.3.5-13). riscos-unixlib is an unofficial fork, not made or
 supported by the GCCSDK developers. The fixes that matter here:
 
 - the **pthread ticker fix**: the thread switcher's code runs from the
@@ -60,11 +61,19 @@ supported by the GCCSDK developers. The fixes that matter here:
   parent's thread timer, sound or stack; long sleeps; the monotonic
   clock; sound fixes. It comes with PThreadTicker 0.03, which 5.0.3.1
   programs need to use the module (with an older copy loaded they run
-  their own copy of its code, which also works).
+  their own copy of its code, which also works);
+- 5.0.3.2: `LLONG_MIN` is a negative `long long` (it compared as a big
+  positive number); `getservbyname_r` and friends exist; eventfd works
+  between threads;
+- 5.0.3.3: fixes from a code audit: threads waiting inside `read()`,
+  `write()` and stdio (`/dev/dsp`, `/dev/midi`) let other threads run;
+  `fork()` with threads running; `getservent`; a heap gap that capped
+  later heap areas; `swprintf`'s `%ls`/`%lc`; exit codes 128-255 reach
+  `waitpid`. Still PThreadTicker 0.03; no struct or argument changes.
 
 riscos-mesa's own libraries (`libOSMesa.a` etc.) don't contain UnixLib, so
 they work with any UnixLib; it's the programs linked with them that need
-5.0.1 or later (5.0.3.1 recommended). Either:
+5.0.1 or later (5.0.3.3 recommended). Either:
 
 - patch the GCCSDK source before building the toolchain
   (`patch -d riscos-gccsdk -p1 < patches/unixlib-riscos.diff` from that
@@ -72,8 +81,8 @@ they work with any UnixLib; it's the programs linked with them that need
 - replace an installed toolchain's library: copy the release's
   `libunixlib.a` over the one `arm-riscos-gnueabihf-gcc
   -print-file-name=libunixlib.a` names (keep the old one), and the
-  repository's `libunixlib/include/sched.h`, `unistd.h`, `sys/stat.h` and
-  `sys/mman.h` into the `include/` directory next to that `lib/` (check
+  repository's `libunixlib/include/sched.h`, `unistd.h`, `sys/stat.h`,
+  `sys/mman.h` and `limits.h` into the `include/` directory next to that `lib/` (check
   the release's `SHA256SUMS` first); or run `make sources install`
   in that repository, which does the same from source.
 

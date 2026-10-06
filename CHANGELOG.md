@@ -4,9 +4,31 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## 20.3.5-14 (in development)
+## 20.3.5-14: NEON texturing and blending, GLSL shaders compiled to ARM code
 
-- **GLSL shaders compiled to ARM code (a JIT), in testing** (new patch
+Drawing is much faster on CPUs with NEON (every Raspberry Pi 2 and later),
+with the same picture: on a Pi 4 at 640x480, glbench's bilinear texture
+scene takes 10.4 ms a frame instead of 20.0, its blending scene 10.3
+instead of 20.6, and its GLSL scene 13.3 instead of 27.1. Real programs
+relinked with the new devkit, timed on a Pi 4 against 20.3.5-13: TORCS
+7.9 -> 10.3 fps (1.30 times), YSFlight 18.7 -> 22.1 fps (1.18 times) and
+Warzone 2100 14 -> 16 fps (1.14 times), with no visible difference.
+Everything except the GLSL compiler draws exactly the same pixels as
+before; `*Set MESA_NO_NEON 1` turns all the NEON code off, and
+`*Set MESA_NO_JIT 1` only the GLSL compiler. Machines without NEON run
+the C code as before. Against plain
+Mesa 20.3.5, glbench's six original scenes now take 46 ms in all instead
+of 214 (4.6 times as fast).
+
+- **Programs linked with UnixLib 5.0.3.3** (was 5.0.3.1): riscos-unixlib's
+  fixes since then include `LLONG_MIN` (a positive number before),
+  threads waiting in `read()`/`write()` and stdio letting other threads
+  run, `fork()` with threads, and a heap gap that capped later heap
+  areas. Still PThreadTicker 0.03. riscos-mesa's libraries contain no
+  UnixLib, so programs built with the devkit use whichever UnixLib their
+  toolchain has.
+
+- **GLSL shaders compiled to ARM code (a JIT)** (new patch
   `riscos-glsl-jit`). Runs of shader arithmetic between the loops, IFs,
   discards and texture reads are compiled into NEON code that works on
   four pixels at once, keeping values in registers; the interpreter runs
@@ -23,7 +45,7 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   run found one random shader whose a / a came out just under 1 with the
   JIT, which mod() turned into a big difference: 1/x now divides exactly
   as the C code does, and that set of 400 shaders has no pixel more than
-  2 out under emulation (not yet re-run on the Pi).
+  2 out under emulation; the re-run on the Pi passed.
 
 - **GLSL shaders that need more than 256 temporaries now work** (new patch
   `riscos-temps`). Mesa usually compacts a shader's temporary values, but

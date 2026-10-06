@@ -19,7 +19,11 @@ take 29% less time, fog half, depth clears 62% less and lit drawing
 12-43% less. 20.3.5-13 loads the ETC1 textures that Pi ES programs
 ship, runs ES 2.0 shaders in a desktop GL context, and lets a full
 screen program work instead of waiting for the vsync in its swap (5.6 ms
-a frame back with a light scene on a Pi 4). Not tried on a Pi yet: menus over the overlay, the overlay
+a frame back with a light scene on a Pi 4). 20.3.5-14 uses NEON for
+textures, transparency and GLSL shaders: on a Pi 4 a bilinear texture
+draws in half the time, blending in half, and shaders twice as
+fast, with the same picture (shaders within a step in 255); TORCS,
+YSFlight and Warzone 2100 run 14-30% faster. Not tried on a Pi yet: menus over the overlay, the overlay
 in full screen or across mode changes, SDL's multitasking full screen,
 and GLUT's game mode at the requested size.
 
@@ -104,7 +108,7 @@ one thread: link it with UnixLib 5.0.1 or later
 pthread ticker fix, and load the PThreadTicker module (`riscos/PThrTicker`
 in the devkit) from its `!Run`, or it can crash other tasks when it
 multitasks. (That applies to any threaded program, SDL sound included.)
-Everything riscos-mesa ships is linked with UnixLib 5.0.3.1 (5.0.1 from 20.3.5-8 to 20.3.5-10).
+Everything riscos-mesa ships is linked with UnixLib 5.0.3.3 (5.0.3.1 from 20.3.5-11 to 20.3.5-13, 5.0.1 from 20.3.5-8 to 20.3.5-10).
 
 ## Download
 
