@@ -34,7 +34,13 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   shown (a frame that took longer to draw no longer waits the whole
   interval again), as with screen banks. New test `egl-full-nowait`
   (`egltest -f -k`); the EGL host harness checks the timing with a fake
-  clock (479 checks). Not yet run on a Pi.
+  clock (479 checks). On a Raspberry Pi 4 (1920x1200 full screen, 60 Hz,
+  a light 3.4 ms scene): time blocked in the swap, plot included, went
+  from 13.3 ms to 7.7 ms a frame, 5.6 ms a frame handed back to the
+  program, still 59.9 fps. With a 9.6 ms scene there is little to hand
+  back (0.4 ms: drawing and the 6 ms plot fill the frame), but it ran at
+  59.9 fps against 58.0. `egltest -k` no longer counts the freed time as
+  drawing time.
 - **Docs brought up to 20.3.5-12:** the EGL guide's glbench table (Pi 4,
   now with the fog scene) and speed advice (24-bit depth buffers clear
   fastest, colour material, fog, GL_BLEND off for opaque drawing, NEON

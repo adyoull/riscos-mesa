@@ -865,7 +865,7 @@ static int run_fullscreen(int direct, int interval, double limit)
     EGLint attrs[] = { EGL_RENDER_BUFFER, direct ? EGL_SINGLE_BUFFER : EGL_BACK_BUFFER,
                        EGL_SCREEN_BANKS_RISCOS, want_banks, EGL_NONE, 0, EGL_NONE, 0, EGL_NONE };
     int bar = 0;
-    double t0, t1, t2, tstart, render = 0, present = 0, freed = 0;
+    double t0, t1, t2, tr, tstart, render = 0, present = 0, freed = 0;
     long frames = 0;
     float a = 0;
     int in_desktop;
@@ -913,9 +913,10 @@ static int run_fullscreen(int direct, int interval, double limit)
             scene(w, h, a, 0.1f, 0.25f, 0.1f);
         }
         glFinish();
+        tr = hr_seconds();
         if (keep_busy) {
             /* -k: other work in 0.5 ms pieces while a swap would block */
-            double w0 = hr_seconds(), w;
+            double w0 = tr, w;
             while (eglSwapWouldWaitRISCOS(dpy, fs)) {
                 w = hr_seconds();
                 while (hr_seconds() - w < 0.0005)
@@ -928,7 +929,7 @@ static int run_fullscreen(int direct, int interval, double limit)
         t1 = hr_seconds();
         eglSwapBuffers(dpy, fs);
         t2 = hr_seconds();
-        render += t1 - t0;
+        render += tr - t0;                  /* (not the -k work) */
         present += t2 - t1;
         frames++;
         a += 2;
