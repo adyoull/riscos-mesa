@@ -226,10 +226,10 @@ index bfe5a1c..f9b1ffe 100644
        PREP_OPS
 diff --git a/src/mesa/program/ro_jit_arm.c b/src/mesa/program/ro_jit_arm.c
 new file mode 100644
-index 0000000..8a44218
+index 0000000..e2f949a
 --- /dev/null
 +++ b/src/mesa/program/ro_jit_arm.c
-@@ -0,0 +1,1492 @@
+@@ -0,0 +1,1517 @@
 +/*
 + * riscos-mesa: a JIT compiler for fragment programs (patch riscos-glsl-jit).
 + *
@@ -260,9 +260,10 @@ index 0000000..8a44218
 + * Precision. This is not bit-exact with the interpreter (the owner's
 + * decision, 2026-10-06: no visible difference is the rule for the JIT):
 + * NEON flushes denormals to zero, gives the default NaN and differs in
-+ * NaN ordering for MIN/MAX; RCP and RSQ use VRECPE/VRSQRTE with two
-+ * Newton-Raphson steps (about 1 ulp); SIN, COS, EX2, LG2 and POW use
-+ * polynomials accurate to about 1e-7 (relative; SIN/COS absolute, after
++ * NaN ordering for MIN/MAX; RCP divides with VFP, so it matches the
++ * C code (a / a must stay exactly 1 for floor and mod); RSQ uses
++ * VRSQRTE with two Newton-Raphson steps (about 1 ulp); SIN, COS, EX2, LG2
++ * and POW use polynomials accurate to about 1e-7 (relative; SIN/COS absolute, after
 + * reducing the argument in single precision, so very large arguments lose
 + * accuracy as they do on GPUs). The JIT check (glsl-jit) compares the two
 + * over thousands of generated shaders.
@@ -659,10 +660,10 @@ index 0000000..8a44218
 +
 +/* a register for a new value: pinned, holding nothing yet */
 +static int
-+rj_alloc(struct rj_cg *g)
++rj_alloc_in(struct rj_cg *g, int nregs)
 +{
 +   int i, best = -1;
-+   for (i = 0; i < 16; i++) {
++   for (i = 0; i < nregs; i++) {
 +      if (g->q[i].pin)
 +         continue;
 +      if (g->q[i].cls == RC_FREE) {
@@ -682,6 +683,12 @@ index 0000000..8a44218
 +   g->q[best].pin = 1;
 +   g->q[best].lru = ++g->clock;
 +   return best;
++}
++
++static int
++rj_alloc(struct rj_cg *g)
++{
++   return rj_alloc_in(g, 16);
 +}
 +
 +static void
@@ -1203,9 +1210,27 @@ index 0000000..8a44218
 +      }
 +      break;
 +   case OPCODE_RCP:
-+      a = rj_src(g, inst, 0, 0);
-+      s = rj_recip(g, a);
-+      rj_release(g, a);
++      /* 1/a exactly as the C code works it out (VFP divides, one lane
++       * at a time): an estimate 1 ulp out turns a / a into 0.99999994,
++       * and floor() or mod() of that is a whole step out */
++      {
++         int o, i;
++         a = rj_src(g, inst, 0, 0);
++         s = rj_alloc_in(g, 8);          /* q0-q7: they have S registers */
++         n3(g, N_VORR, s, a, a);
++         rj_release(g, a);
++         t = rj_k(g, 1.0f);
++         o = rj_alloc_in(g, 8);
++         n3(g, N_VORR, o, t, t);
++         rj_release(g, t);
++         for (i = 0; i < 4; i++) {
++            const GLuint sd = (GLuint) (s * 4 + i), sn = (GLuint) (o * 4 + i);
++            /* vdiv.f32 sd, sn, sd */
++            rj_emit(g, 0xEE800A00 | (sd & 1) << 22 | (sn >> 1) << 16 |
++                       (sd >> 1) << 12 | (sn & 1) << 7 | (sd & 1) << 5 | (sd >> 1));
++         }
++         rj_release(g, o);
++      }
 +      goto scalar;
 +   case OPCODE_RSQ:   /* 1 / sqrt(|a|) */
 +      {

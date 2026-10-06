@@ -327,9 +327,11 @@ mesa-20.3.5-riscos-glsl-jit.patch
     interpreter calls it at the run's first instruction. Compiled code is
     cached by program contents in a 512 KB arena (emptied and refilled
     when full). Not bit-identical, by the owner's decision (2026-10-06):
-    the rule for the JIT is no visible difference. SIN/COS, EX2/LG2/POW,
-    RCP and RSQ use their own approximations (about 1e-7 relative); NEON
-    flushes denormals. Checked by tests/host-harness/mesa/glsl-jit.c
+    the rule for the JIT is no visible difference. SIN/COS, EX2/LG2/POW
+    and RSQ use their own approximations (about 1e-7 relative); RCP uses
+    VFP divides, as exact as the C code, because an estimate 1 ulp out
+    turns a / a into 0.99999994 and floor() or mod() of that a whole step
+    out (found on the Pi); NEON flushes denormals. Checked by tests/host-harness/mesa/glsl-jit.c
     (typical shaders within 2 of 255, random shaders from
     tools/gen-jit-shaders.py), under qemu-arm (arm/run-arm.sh; the exact
     checks run with MESA_NO_JIT). Only on CPUs with NEON; MESA_NO_JIT or
