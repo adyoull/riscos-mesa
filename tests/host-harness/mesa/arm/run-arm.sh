@@ -17,6 +17,10 @@
 # OUT=<dir> sets the work directory (default /tmp/mesa-check-arm).
 # Set RO_FPU as for the build (default vfpv3). QEMU_CPU=cortex-a8 checks
 # that a VFPv3 build really runs on a Cortex-A8.
+# The rendering checks run with the shader JIT off (MESA_NO_JIT): they
+# compare with the interpreter's exact results. glsl-jit then compares
+# the JIT with the interpreter, on its typical shaders and JIT_SHADERS
+# (default 200) random ones from tools/gen-jit-shaders.py.
 # QEMU_ALIGN=<a qemu-arm built by ../../qemu/build-qemu.sh> runs the checks
 # with RISC OS's alignment rules: an unaligned load or store in Mesa (or in
 # a check) stops it with SIGBUS, as it would abort on RISC OS. glibc's
@@ -42,7 +46,7 @@ arm-linux-gnueabihf-objcopy --redefine-sym errno=ro_errno_shim \
 $CC -c -O2 -mfloat-abi=hard "$HERE/shim.c" -o "$OUT/shim.o"
 
 CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog render-paths glsl-basic glsl-control glsl-edge glsl-special glsl-es2compat render-etc1"
-for c in $CHECKS; do
+for c in $CHECKS glsl-jit; do
     $CC -c -O2 -w -mfpu=${RO_FPU:-vfpv3} -mfloat-abi=hard -I"$STAGE/include" "$HERE/../$c.c" -o "$OUT/$c.o"
     $CXX -static -o "$OUT/$c" "$OUT/$c.o" "$OUT/shim.o" "$OUT/libOSMesa.a" \
         "$STAGE/lib/libz.a" -lm -lpthread -Wl,-Map="$OUT/$c.map" 2>&1 | grep -v "warning:\|NOTE:" || true
@@ -78,6 +82,7 @@ run() {
     echo "$* kept failing" >&2
     return 1
 }
+export MESA_NO_JIT=1
 for d in "16 0" "24 0" "24 8" "32 0"; do run "$OUT/render-fixed" $d; done > "$OUT/this/render-fixed.txt"
 run "$OUT/render-rows" > "$OUT/this/render-rows.txt"
 run "$OUT/render-tex" > "$OUT/this/render-tex.txt"
@@ -94,6 +99,9 @@ run "$OUT/render-etc1" > "$OUT/this/render-etc1.txt"
 # The GLSL interpreter's NEON code (the shim reports a CPU with NEON) must
 # give exactly what the C code gives, NaN cases included
 MESA_NO_NEON=1 run "$OUT/glsl-special" > "$OUT/this/glsl-special.c.txt"
+unset MESA_NO_JIT
+python3 "$HERE/../../../../tools/gen-jit-shaders.py" 1 "${JIT_SHADERS:-200}" > "$OUT/jit-shaders.txt"
+run "$OUT/glsl-jit" "$OUT/jit-shaders.txt" > "$OUT/this/glsl-jit.txt" 2>/dev/null || true
 
 fail=0
 for c in $CHECKS; do
@@ -111,6 +119,12 @@ if cmp -s "$OUT/this/glsl-special.txt" "$OUT/this/glsl-special.c.txt"; then
     printf "ok    %-13s %5d cases NEON = C (ARM)\n" glsl-special "$(wc -l < "$OUT/this/glsl-special.txt")"
 else
     printf "FAIL  %-13s NEON and C differ (ARM)\n" glsl-special
+    fail=1
+fi
+if tail -1 "$OUT/this/glsl-jit.txt" | grep -qx PASS; then
+    printf "ok    %-13s %s (ARM)\n" glsl-jit "$(grep '^random' "$OUT/this/glsl-jit.txt" | sed 's/^random: //; s/;.*//')"
+else
+    printf "FAIL  %-13s the JIT and the interpreter differ (ARM): see %s\n" glsl-jit "$OUT/this/glsl-jit.txt"
     fail=1
 fi
 [ $fail = 0 ] && echo "the RISC OS build renders exactly as expected" || echo "results in $OUT/this"

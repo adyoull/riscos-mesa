@@ -4,6 +4,21 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## 20.3.5-14 (in development)
+
+- **GLSL shaders compiled to ARM code (a JIT), in testing** (new patch
+  `riscos-glsl-jit`). Runs of shader arithmetic between the loops, IFs,
+  discards and texture reads are compiled into NEON code that works on
+  four pixels at once, keeping values in registers; the interpreter runs
+  the rest and calls the compiled code. Under emulation glbench's GLSL
+  scene takes 55% fewer instructions (including less work around every
+  batch of pixels, which applies without the JIT too). Not bit-identical,
+  by decision: sin, exp, log, pow, 1/x and 1/sqrt(x) use their own
+  approximations (about 1 part in 10 million), so a colour can be 1 in
+  255 out here and there. Only on CPUs with NEON; `*Set MESA_NO_JIT 1`
+  turns it off. New check `glsl-jit` (typical and random shaders, JIT
+  against the interpreter, under qemu-arm). Not yet tried on a Pi.
+
 ## 20.3.5-13: ETC1 textures, OpenGL ES 2.0 code in desktop GL, full screen swaps that don't block
 
 OpenGL ES programs written for the Raspberry Pi's GPU can load their ETC1

@@ -126,6 +126,19 @@ re-exports. How to change it: `patches/sdl2/README.md`.
   operand is tiny or a result is a NaN the C code redoes the instruction:
   output stays bit-identical (`glsl-special` checks it with and without
   NEON under qemu-arm). 7% on glbench's GLSL scene on a Pi 4.
+- **A shader JIT, with "no visible difference" as its rule rather than
+  bit-identical output** (the owner's decision, 2026-10-06; in
+  development for 20.3.5-14). Straight-line runs of fragment-shader
+  arithmetic are compiled to NEON code, four fragments at a time
+  (`patches/mesa` riscos-glsl-jit, `program/ro_jit_arm.c`). Keeping every
+  bit the same would have meant libm's exact sinf/expf/logf/powf and
+  VFP's denormals, which leave little to gain, so the JIT uses its own
+  approximations (about 1e-7 relative) and NEON's flush-to-zero. Its
+  check (`glsl-jit`) allows 2 in 255 on typical shaders and counts
+  pixels on random ones. Our own JIT rather than llvmpipe: llvmpipe's
+  shader compiler is tied to Gallium and LLVM (20-40 MB more per program,
+  compile stalls), and its approximations would change pictures anyway.
+  Everything else stays bit-identical; MESA_NO_JIT turns the JIT off.
 - **SDL's ARM NEON and SIMD blitters are on** (from 20.3.5-10), with
   SDL's run-time CPU check, so a machine without NEON uses the ARMv6 SIMD
   ones or the C code. Their per-pixel alpha routines leave the

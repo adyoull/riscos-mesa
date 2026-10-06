@@ -1,0 +1,1793 @@
+diff --git a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
+index bfe5a1c..f9b1ffe 100644
+--- a/src/mesa/program/prog_execute.c
++++ b/src/mesa/program/prog_execute.c
+@@ -433,6 +433,14 @@ struct prog_decoded {
+    struct dec_inst *d;
+    GLboolean hasCall;                      /* CAL/BGNSUB: no batch mode */
+    GLfloat *btemps, *bouts;                /* batch registers, see below */
++   /* riscos-mesa JIT (ro_jit_arm.c) */
++   void *jit;                              /* its struct rj_prog, or NULL */
++   unsigned jitGen;                        /* rj_gen when jit was set */
++   GLboolean jitChecked;                   /* jit is for this program */
++   void *jhomeRaw;                         /* scratch for its blocks ... */
++   GLfloat *jhome;                         /* ... 16-byte aligned */
++   GLuint jhomeCap;
++   GLfloat *jin;                           /* inputs gathered for it */
+ };
+ 
+ /* For when there's no memory for the decoded copy: every operand slow. */
+@@ -675,6 +683,7 @@ decode_program(struct gl_program_machine *machine,
+    }
+    dec->prog = NULL;   /* invalid until complete */
+    dec->hasCall = GL_FALSE;
++   dec->jitChecked = GL_FALSE;
+ 
+    if (num > dec->capInst) {
+       free(dec->copy);
+@@ -754,6 +763,8 @@ _mesa_free_program_machine(struct gl_program_machine *machine)
+       free(dec->pvo);
+       free(dec->btemps);
+       free(dec->bouts);
++      free(dec->jhomeRaw);
++      free(dec->jin);
+       free(dec);
+       machine->Decoded = NULL;
+    }
+@@ -2266,6 +2277,92 @@ ro_neon_run(const struct gl_program *program, const struct prog_decoded *dec,
+ #pragma GCC pop_options
+ #endif /* RO_NEON_BATCH */
+ 
++#ifdef RO_NEON_BATCH
++#include "ro_jit_arm.c"
++
++/* Point dec->jit at the program's compiled code; GL_FALSE if none */
++static GLboolean
++rj_prepare(struct prog_decoded *dec, const struct gl_program *prog)
++{
++   struct rj_prog *p;
++   if (dec->jitChecked && dec->jitGen == rj_gen)
++      return dec->jit != NULL;
++   p = rj_get(prog);
++   dec->jitChecked = GL_TRUE;
++   dec->jitGen = rj_gen;
++   dec->jit = NULL;
++   if (!p || !p->any)
++      return GL_FALSE;
++   if (p->homeBytes > dec->jhomeCap) {
++      void *raw = malloc(p->homeBytes + 16);
++      if (!raw)
++         return GL_FALSE;
++      free(dec->jhomeRaw);
++      dec->jhomeRaw = raw;
++      dec->jhome = (GLfloat *) (((uintptr_t) raw + 15) & ~(uintptr_t) 15);
++      dec->jhomeCap = p->homeBytes;
++   }
++   if (p->inputs && !dec->jin) {
++      dec->jin = calloc(VARYING_SLOT_MAX * PB_LANES * 4, sizeof(GLfloat));
++      if (!dec->jin)
++         return GL_FALSE;
++   }
++   dec->jit = p;
++   return GL_TRUE;
++}
++
++/* The JIT's arguments for this batch */
++static void
++rj_setup(struct rj_args *ja, const struct prog_decoded *dec,
++         const struct gl_program *program,
++         const struct gl_program_machine *machine,
++         const GLuint *cols, GLuint n, struct rj_group *groups)
++{
++   const struct rj_prog *p = dec->jit;
++   const GLuint ng = (n + 3) / 4;
++   GLboolean cont = cols[0] + ng * 4 <= PROG_MAX_WIDTH;
++   GLuint k;
++   for (k = 1; k < n && cont; k++)
++      if (cols[k] != cols[0] + k)
++         cont = GL_FALSE;
++   ja->temps = dec->btemps;
++   ja->outs = dec->bouts;
++   if (cont || !p->inputs) {
++      ja->in = machine->Attribs[0][cols[0]];
++      ja->inStride = PROG_MAX_WIDTH * 4 * sizeof(GLfloat);
++   }
++   else {
++      GLbitfield64 m = p->inputs;
++      while (m) {
++         const int r = u_bit_scan64(&m);
++         GLfloat *d = dec->jin + (GLuint) r * PB_LANES * 4;
++         for (k = 0; k < n; k++)
++            COPY_4V(d + k * 4, machine->Attribs[r][cols[k]]);
++      }
++      ja->in = dec->jin;
++      ja->inStride = PB_LANES * 4 * sizeof(GLfloat);
++   }
++   ja->params = program->Parameters ?
++      (const GLfloat *) program->Parameters->ParameterValues : NULL;
++   ja->sysvals = machine->SystemValues[0];
++   ja->home = dec->jhome;
++   ja->groups = groups;
++   ja->ngroups = (GLint) ng;
++}
++
++static void
++rj_set_groups(struct rj_group *groups, GLuint exec, GLuint ng)
++{
++   GLuint g, i;
++   for (g = 0; g < ng; g++) {
++      const GLuint m = exec >> (g * 4) & 15;
++      for (i = 0; i < 4; i++)
++         groups[g].mask[i] = (m >> i & 1) ? ~0u : 0;
++      groups[g].state = m == 15 ? 2 : m ? 1 : 0;
++   }
++}
++#endif /* RO_NEON_BATCH */
++
+ 
+ /**
+  * Run a fragment program for n (<= PROG_BATCH_LANES) fragments, the
+@@ -2297,36 +2394,69 @@ _mesa_execute_program_batch(struct gl_context *ctx,
+    machine->CurProgram = program;
+    machine->EnvParams = ctx->FragmentProgram.Parameters;
+ 
+-   for (k0 = 0; k0 < n; k0++) {
+-      lb[PB_ZERO][k0] = (GLfloat *) ZeroVec;   /* only ever read */
+-      lb[PB_TEMP][k0] = dec->btemps + k0 * 4;
+-      lb[PB_INPUT][k0] = machine->Attribs[0][cols[k0]];
+-      lb[PB_OUTPUT][k0] = dec->bouts + k0 * 4;
+-      lb[PB_PARAM][k0] = program->Parameters ?
+-         (GLfloat *) program->Parameters->ParameterValues : NULL;
+-      lb[PB_SYSVAL][k0] = machine->SystemValues[0];
+-      lb[PB_DUMMY][k0] = dummyDst;
+-      laneAddr[k0] = 0;
++   /* The lanes' register pointers, set up when the interpreter first
++    * needs them (a program the JIT compiled whole never does). */
++#define LB_SETUP                                                      \
++   if (unlikely(!lbReady)) {                                          \
++      for (k0 = 0; k0 < n; k0++) {                                    \
++         lb[PB_ZERO][k0] = (GLfloat *) ZeroVec;   /* only ever read */ \
++         lb[PB_TEMP][k0] = dec->btemps + k0 * 4;                      \
++         lb[PB_INPUT][k0] = machine->Attribs[0][cols[k0]];            \
++         lb[PB_OUTPUT][k0] = dec->bouts + k0 * 4;                     \
++         lb[PB_PARAM][k0] = program->Parameters ?                     \
++            (GLfloat *) program->Parameters->ParameterValues : NULL;  \
++         lb[PB_SYSVAL][k0] = machine->SystemValues[0];                \
++         lb[PB_DUMMY][k0] = dummyDst;                                 \
++         laneAddr[k0] = 0;                                            \
++      }                                                               \
++      SET_EXEC(exec);   /* the lane list too */                       \
++      LB_SETUP_NEON                                                   \
++      lbReady = GL_TRUE;                                              \
+    }
++   GLboolean lbReady = GL_FALSE;
+ 
+-   SET_EXEC(n == PB_LANES ? ~0u : (1u << n) - 1);
++   exec = n == PB_LANES ? ~0u : (1u << n) - 1;
++   nact = 0;
+ #ifdef RO_NEON_BATCH
++   /* the JIT's code for the blocks it compiled */
++   const struct rj_prog *jp = NULL;
++   struct rj_args ja;
++   struct rj_group jg[PB_LANES / 4] __attribute__((aligned(16)));
++   GLboolean jready = GL_FALSE;
++   if (rj_enabled() && rj_prepare(machine->Decoded, program))
++      jp = dec->jit;
+    /* NEON for groups of four lanes, while every lane is active */
+    const GLuint fullmask = exec;
+-   GLuint ng = 0;
++   const GLuint ng = ((n & 3) == 0 && ro_have_neon()) ? n / 4 : 0;
+    GLboolean in_cont = GL_TRUE;
+-   if ((n & 3) == 0 && ro_have_neon()) {
+-      ng = n / 4;
+-      for (k0 = 1; k0 < n; k0++)
+-         if (cols[k0] != cols[0] + k0)
++#define LB_SETUP_NEON                                                 \
++      for (k0 = 1; k0 < n; k0++)                                      \
++         if (cols[k0] != cols[0] + k0)                                \
+             in_cont = GL_FALSE;
+-   }
++#else
++#define LB_SETUP_NEON
+ #endif
+ 
+    for (pc = 0; pc < numInst; pc++) {
+       const struct prog_instruction *inst;
+       const struct dec_inst *di;
+ #ifdef RO_NEON_BATCH
++      if (jp && jp->entry[pc] && exec) {
++         if (!jready) {
++            rj_setup(&ja, dec, program, machine, cols, n, jg);
++            jready = GL_TRUE;
++         }
++         rj_set_groups(jg, exec, (n + 3) / 4);
++         jp->entry[pc](&ja);
++         numExec += jp->end[pc] - pc;
++         if (numExec > maxExec)
++            return -1;
++         pc = jp->end[pc] - 1;
++         continue;
++      }
++      if (ng && dec->d[pc].neon && exec == fullmask) {
++         LB_SETUP
++      }
+       if (ng && dec->d[pc].neon && exec == fullmask &&
+           (in_cont || !dec->d[pc].neon_in)) {
+          const GLuint r = ro_neon_run(program, dec, pc, lb, ng, in_cont);
+@@ -2342,6 +2472,9 @@ _mesa_execute_program_batch(struct gl_context *ctx,
+       }
+ #endif
+       inst = program->arb.Instructions + pc;
++      if (inst->Opcode == OPCODE_END)
++         return dead;
++      LB_SETUP
+       di = dec->d + pc;
+       {
+       PREP_OPS
+diff --git a/src/mesa/program/ro_jit_arm.c b/src/mesa/program/ro_jit_arm.c
+new file mode 100644
+index 0000000..8a44218
+--- /dev/null
++++ b/src/mesa/program/ro_jit_arm.c
+@@ -0,0 +1,1492 @@
++/*
++ * riscos-mesa: a JIT compiler for fragment programs (patch riscos-glsl-jit).
++ *
++ * Included by prog_execute.c, inside its RO_NEON_BATCH section, so it can
++ * use the decoded program and the batch executor's register layout.
++ *
++ * _mesa_execute_program_batch runs a fragment program for up to
++ * PB_LANES fragments ("lanes") at a time. Here every run of two or more
++ * straight-line arithmetic instructions (a "block": no control flow,
++ * texturing, KIL or relative addressing) is translated into ARM code that
++ * runs the block for four lanes at a time with NEON, keeping the values
++ * in NEON registers between instructions. Control flow, texturing and
++ * the rest stay in the interpreter, which calls a block's code when it
++ * reaches the block's first instruction.
++ *
++ * Layout. NEON works on one component of a register for four lanes at
++ * once ("structure of arrays"). The interpreter keeps registers as
++ * [register][lane][xyzw] ("lane AoS"), so at the start of each group of
++ * four lanes the block's code loads the registers it needs with VLD4
++ * (which turns four lanes' xyzw into four vectors x, y, z, w) and keeps
++ * them in a per-block scratch area, one 16-byte slot per register
++ * component ("home"); values move between home and up to 16 NEON
++ * registers as an LRU cache. At the end of the group the registers the
++ * rest of the program can still read are written back with VST4, merged
++ * with VBIT where some of the four lanes are inactive (in an IF branch
++ * they don't take, killed, or past the end of the batch).
++ *
++ * Precision. This is not bit-exact with the interpreter (the owner's
++ * decision, 2026-10-06: no visible difference is the rule for the JIT):
++ * NEON flushes denormals to zero, gives the default NaN and differs in
++ * NaN ordering for MIN/MAX; RCP and RSQ use VRECPE/VRSQRTE with two
++ * Newton-Raphson steps (about 1 ulp); SIN, COS, EX2, LG2 and POW use
++ * polynomials accurate to about 1e-7 (relative; SIN/COS absolute, after
++ * reducing the argument in single precision, so very large arguments lose
++ * accuracy as they do on GPUs). The JIT check (glsl-jit) compares the two
++ * over thousands of generated shaders.
++ *
++ * Code memory: ro_jit_code_memory() (an array in the program's own
++ * memory on RISC OS; the ARM Linux test harness gives mmap'd executable
++ * memory), synchronised with OS_SynchroniseCodeAreas. When it is full,
++ * everything compiled is thrown away and compiled again as needed.
++ *
++ * MESA_NO_JIT (a system variable) turns it off; so does MESA_NO_NEON, and
++ * it is only used where the CPU has NEON.
++ */
++
++#ifndef OS_SynchroniseCodeAreas
++#define OS_SynchroniseCodeAreas 0x6E
++#endif
++
++/* --------------------------------------------------------------------
++ * Code memory
++ */
++
++#define RJ_ARENA_BYTES (512 * 1024)
++
++void *ro_jit_code_memory(size_t *bytes);
++void ro_jit_sync(void *start, void *end);
++extern int _mesa_ro_jit_state;
++
++__attribute__((weak)) void *
++ro_jit_code_memory(size_t *bytes)
++{
++   static GLuint arena[RJ_ARENA_BYTES / 4] __attribute__((aligned(64)));
++   *bytes = sizeof(arena);
++   return arena;
++}
++
++__attribute__((weak)) void
++ro_jit_sync(void *start, void *end)
++{
++   _kernel_swi_regs r;
++   r.r[0] = 1;
++   r.r[1] = (int) start;
++   r.r[2] = (int) end - 4;     /* inclusive: the last word */
++   _kernel_swi(OS_SynchroniseCodeAreas, &r, &r);
++}
++
++/* 1: on, 0: off, -1: not decided yet (tests can set it) */
++int _mesa_ro_jit_state = -1;
++
++static GLboolean
++rj_enabled(void)
++{
++   if (unlikely(_mesa_ro_jit_state < 0))
++      _mesa_ro_jit_state = ro_have_neon() && !getenv("MESA_NO_JIT");
++   return _mesa_ro_jit_state > 0;
++}
++
++static GLuint *rj_arena;
++static size_t rj_arena_words, rj_arena_used;
++static unsigned rj_gen = 1;     /* bumped when the arena is emptied */
++
++/* --------------------------------------------------------------------
++ * The compiled program, and a cache of them by program contents (a
++ * context's one decoded copy is redone whenever the program changes, and
++ * programs often alternate within a frame).
++ */
++
++struct rj_group {            /* one per four lanes, for the code */
++   GLuint mask[4];           /* ~0 for a lane that runs */
++   GLuint state;             /* 0 no lanes, 1 some, 2 all four */
++   GLuint pad[3];
++};
++
++struct rj_args {             /* what the code is passed, in r0 */
++   GLfloat *temps;           /*  0 dec->btemps */
++   GLfloat *outs;            /*  4 dec->bouts */
++   const GLfloat *in;        /*  8 input register 0, lane 0 */
++   GLint inStride;           /* 12 bytes from one input register to the next */
++   const GLfloat *params;    /* 16 ParameterValues */
++   const GLfloat *sysvals;   /* 20 machine->SystemValues */
++   GLfloat *home;            /* 24 the block's scratch */
++   const struct rj_group *groups;  /* 28 */
++   GLint ngroups;            /* 32 */
++};
++
++typedef void (*rj_fn)(struct rj_args *);
++
++struct rj_prog {
++   GLuint hash, num, numParams;
++   struct prog_instruction *insts;  /* the instructions compiled */
++   unsigned *pvo;                   /* and their parameter offsets */
++   unsigned gen;                    /* rj_gen when compiled */
++   rj_fn *entry;                    /* per pc: the block starting there */
++   GLushort *end;                   /* per pc: the pc after that block */
++   GLuint homeBytes;                /* the biggest block's scratch */
++   GLbitfield64 inputs;             /* input registers the blocks read */
++   GLboolean any;                   /* any block compiled */
++   GLboolean full;                  /* the arena filled up */
++};
++
++#define RJ_CACHE 32
++static struct rj_prog *rj_cache[RJ_CACHE];
++static unsigned rj_cache_next;
++
++static void
++rj_free(struct rj_prog *p)
++{
++   if (p) {
++      free(p->insts);
++      free(p->pvo);
++      free(p->entry);
++      free(p->end);
++      free(p);
++   }
++}
++
++/* --------------------------------------------------------------------
++ * ARM and NEON instruction encoding
++ */
++
++struct rj_cg;
++static void rj_emit(struct rj_cg *g, GLuint w);
++
++/* NEON three-register forms on Q registers: base | Q bit | registers */
++#define QD(q) ((((q) * 2) & 16) << 18 | (((q) * 2) & 15) << 12)
++#define QN(q) ((((q) * 2) & 16) << 3 | (((q) * 2) & 15) << 16)
++#define QM(q) ((((q) * 2) & 16) << 1 | (((q) * 2) & 15))
++
++#define N_VADD_F  0xF2000D40
++#define N_VSUB_F  0xF2200D40
++#define N_VMUL_F  0xF3000D50
++#define N_VMAX_F  0xF2000F40
++#define N_VMIN_F  0xF2200F40
++#define N_VCGE_F  0xF3000E40
++#define N_VCGT_F  0xF3200E40
++#define N_VCEQ_F  0xF2000E40
++#define N_VRECPS  0xF2000F50
++#define N_VRSQRTS 0xF2200F50
++#define N_VAND    0xF2000150
++#define N_VBIC    0xF2100150
++#define N_VORR    0xF2200150
++#define N_VEOR    0xF3000150
++#define N_VBSL    0xF3100150
++#define N_VBIT    0xF3200150
++#define N_VADD_I  0xF2200840
++#define N_VSUB_I  0xF3200840
++/* two-register forms (Qd, Qm) */
++#define N_VNEG_F  0xF3B907C0
++#define N_VABS_F  0xF3B90740
++#define N_VRECPE  0xF3BB0540
++#define N_VRSQRTE 0xF3BB05C0
++#define N_VCVT_SF 0xF3BB0740   /* vcvt.s32.f32 (toward zero) */
++#define N_VCVT_FS 0xF3BB0640   /* vcvt.f32.s32 */
++
++#define R_HOME 10
++#define R_TMP  12
++
++static void
++n3(struct rj_cg *g, GLuint op, int d, int n, int m)
++{
++   rj_emit(g, op | QD(d) | QN(n) | QM(m));
++}
++
++static void
++n2(struct rj_cg *g, GLuint op, int d, int m)
++{
++   rj_emit(g, op | QD(d) | QM(m));
++}
++
++/* vshl.i32 / vshr.s32 Qd, Qm, #s */
++static void
++n_shl(struct rj_cg *g, int d, int m, int s)
++{
++   rj_emit(g, 0xF2800550 | (GLuint) (32 + s) << 16 | QD(d) | QM(m));
++}
++
++static void
++n_shr_s(struct rj_cg *g, int d, int m, int s)
++{
++   rj_emit(g, 0xF2800050 | (GLuint) (64 - s) << 16 | QD(d) | QM(m));
++}
++
++/* vld1.32 {Qd}, [Rn] and vst1.32 {Qd}, [Rn] */
++static void
++n_ld1(struct rj_cg *g, int q, int rn)
++{
++   rj_emit(g, 0xF4200A8F | (GLuint) rn << 16 | QD(q));
++}
++
++static void
++n_st1(struct rj_cg *g, int q, int rn)
++{
++   rj_emit(g, 0xF4000A8F | (GLuint) rn << 16 | QD(q));
++}
++
++/* vld1.32 {Dd[], Dd+1[]}, [Rn]: one float to every lane of Qd */
++static void
++n_ld1_dup(struct rj_cg *g, int q, int rn)
++{
++   rj_emit(g, 0xF4A00CAF | (GLuint) rn << 16 | QD(q));
++}
++
++/* vdup.32 Qd, Rt */
++static void
++n_dup(struct rj_cg *g, int q, int rt)
++{
++   const int d = q * 2;
++   rj_emit(g, 0xEEA00B10 | (GLuint) (d & 15) << 16 | (GLuint) rt << 12 |
++              (GLuint) (d & 16) << 3);
++}
++
++/* vld4.32 / vst4.32 {Dd, Dd+2, Dd+4, Dd+6}, [Rn](!) */
++static void
++n_ld4(struct rj_cg *g, int d, int rn, int wb)
++{
++   rj_emit(g, (wb ? 0xF420018D : 0xF420018F) | (GLuint) rn << 16 |
++              (GLuint) (d & 16) << 18 | (GLuint) (d & 15) << 12);
++}
++
++static void
++n_st4(struct rj_cg *g, int d, int rn, int wb)
++{
++   rj_emit(g, (wb ? 0xF400018D : 0xF400018F) | (GLuint) rn << 16 |
++              (GLuint) (d & 16) << 18 | (GLuint) (d & 15) << 12);
++}
++
++/* vld1.32 / vst1.32 {Dd-Dd+3}, [Rn](!): two Q registers */
++static void
++n_ld1x4(struct rj_cg *g, int d, int rn, int wb)
++{
++   rj_emit(g, (wb ? 0xF420028D : 0xF420028F) | (GLuint) rn << 16 |
++              (GLuint) (d & 16) << 18 | (GLuint) (d & 15) << 12);
++}
++
++static void
++n_st1x4(struct rj_cg *g, int d, int rn, int wb)
++{
++   rj_emit(g, (wb ? 0xF400028D : 0xF400028F) | (GLuint) rn << 16 |
++              (GLuint) (d & 16) << 18 | (GLuint) (d & 15) << 12);
++}
++
++static void
++a_movw(struct rj_cg *g, int rd, GLuint v)
++{
++   rj_emit(g, 0xE3000000 | (v >> 12 & 15) << 16 | (GLuint) rd << 12 | (v & 0xFFF));
++}
++
++static void
++a_movt(struct rj_cg *g, int rd, GLuint v)
++{
++   rj_emit(g, 0xE3400000 | (v >> 12 & 15) << 16 | (GLuint) rd << 12 | (v & 0xFFF));
++}
++
++static void
++a_const(struct rj_cg *g, int rd, GLuint v)
++{
++   a_movw(g, rd, v & 0xFFFF);
++   if (v >> 16)
++      a_movt(g, rd, v >> 16);
++}
++
++/* An ARM data-processing immediate: the encoding, or -1 */
++static int
++a_imm(GLuint v)
++{
++   int r;
++   for (r = 0; r < 16; r++) {
++      const GLuint x = r ? (v << (2 * r)) | (v >> (32 - 2 * r)) : v;
++      if (x < 256)
++         return r << 8 | (int) x;
++   }
++   return -1;
++}
++
++static void
++a_ldr(struct rj_cg *g, int rt, int rn, int off)
++{
++   rj_emit(g, 0xE5900000 | (GLuint) rn << 16 | (GLuint) rt << 12 | (GLuint) off);
++}
++
++static void
++a_add_imm(struct rj_cg *g, int rd, int rn, int enc)
++{
++   rj_emit(g, 0xE2800000 | (GLuint) rn << 16 | (GLuint) rd << 12 | (GLuint) enc);
++}
++
++/* r12 = rn + off; returns the register holding the address */
++static int
++a_addr(struct rj_cg *g, int rn, GLuint off)
++{
++   int enc;
++   if (off == 0)
++      return rn;
++   enc = a_imm(off);
++   if (enc >= 0) {
++      a_add_imm(g, R_TMP, rn, enc);
++   }
++   else {
++      a_const(g, R_TMP, off);
++      rj_emit(g, 0xE0800000 | (GLuint) rn << 16 | R_TMP << 12 | R_TMP);  /* add r12, rn, r12 */
++   }
++   return R_TMP;
++}
++
++/* --------------------------------------------------------------------
++ * Code generation state
++ */
++
++enum { RC_FREE, RC_TMP, RC_T, RC_O, RC_I, RC_P, RC_S, RC_K };
++
++struct rj_entry {
++   int cls, idx, comp;      /* what the register holds */
++   int dirty;               /* newer than its home slot */
++   int pin;                 /* in use by the instruction being compiled */
++   unsigned lru;
++};
++
++#define RJ_MAX_REGS 512      /* T/O/I registers one block can touch */
++
++struct rj_cg {
++   GLuint *code;
++   size_t n, cap;
++   GLboolean overflow;
++   struct rj_entry q[16];
++   unsigned clock;
++   const struct gl_program *prog;
++   const unsigned *pvo;
++   /* the block's T/O/I registers: their home slots */
++   int nregs;
++   int rcls[RJ_MAX_REGS], ridx[RJ_MAX_REGS];
++   GLubyte rload[RJ_MAX_REGS];   /* loaded at the start of a group */
++   GLubyte rwb[RJ_MAX_REGS];     /* written back at the end */
++   GLubyte rwritten[RJ_MAX_REGS];/* components written in the block */
++   GLubyte rreadfirst[RJ_MAX_REGS]; /* components read before written */
++};
++
++static void
++rj_emit(struct rj_cg *g, GLuint w)
++{
++   if (g->n == g->cap) {
++      size_t c = g->cap ? g->cap * 2 : 4096;
++      GLuint *p = realloc(g->code, c * sizeof(GLuint));
++      if (!p) {
++         g->overflow = GL_TRUE;
++         g->n = 0;
++         return;
++      }
++      g->code = p;
++      g->cap = c;
++   }
++   g->code[g->n++] = w;
++}
++
++static int
++rj_reg_slot(struct rj_cg *g, int cls, int idx)
++{
++   int i;
++   for (i = 0; i < g->nregs; i++)
++      if (g->rcls[i] == cls && g->ridx[i] == idx)
++         return i;
++   return -1;
++}
++
++static int
++rj_reg_add(struct rj_cg *g, int cls, int idx)
++{
++   int i = rj_reg_slot(g, cls, idx);
++   if (i >= 0)
++      return i;
++   if (g->nregs == RJ_MAX_REGS)
++      return -1;
++   i = g->nregs++;
++   g->rcls[i] = cls;
++   g->ridx[i] = idx;
++   g->rload[i] = g->rwb[i] = g->rwritten[i] = g->rreadfirst[i] = 0;
++   return i;
++}
++
++/* the byte offset of a register component's home slot */
++static GLuint
++rj_home(struct rj_cg *g, int cls, int idx, int comp)
++{
++   const int s = rj_reg_slot(g, cls, idx);
++   assert(s >= 0);
++   return (GLuint) (s * 4 + comp) * 16;
++}
++
++static void
++rj_store_home(struct rj_cg *g, int q)
++{
++   struct rj_entry *e = &g->q[q];
++   n_st1(g, q, a_addr(g, R_HOME, rj_home(g, e->cls, e->idx, e->comp)));
++   e->dirty = 0;
++}
++
++/* a register for a new value: pinned, holding nothing yet */
++static int
++rj_alloc(struct rj_cg *g)
++{
++   int i, best = -1;
++   for (i = 0; i < 16; i++) {
++      if (g->q[i].pin)
++         continue;
++      if (g->q[i].cls == RC_FREE) {
++         best = i;
++         break;
++      }
++      if (best < 0 || g->q[i].lru < g->q[best].lru)
++         best = i;
++   }
++   assert(best >= 0);
++   if (best < 0)            /* can't happen: no instruction pins 16 */
++      best = 0;
++   if (g->q[best].dirty)
++      rj_store_home(g, best);
++   g->q[best].cls = RC_TMP;
++   g->q[best].dirty = 0;
++   g->q[best].pin = 1;
++   g->q[best].lru = ++g->clock;
++   return best;
++}
++
++static void
++rj_release(struct rj_cg *g, int q)
++{
++   if (g->q[q].pin)
++      g->q[q].pin--;
++   if (!g->q[q].pin && g->q[q].cls == RC_TMP)
++      g->q[q].cls = RC_FREE;
++}
++
++static int
++rj_find(struct rj_cg *g, int cls, int idx, int comp)
++{
++   int i;
++   for (i = 0; i < 16; i++)
++      if (g->q[i].cls == cls && g->q[i].idx == idx && g->q[i].comp == comp)
++         return i;
++   return -1;
++}
++
++/* a register holding a value (pinned until rj_release) */
++static int
++rj_load(struct rj_cg *g, int cls, int idx, int comp)
++{
++   int q = rj_find(g, cls, idx, comp);
++   if (q >= 0) {
++      g->q[q].pin++;
++      g->q[q].lru = ++g->clock;
++      return q;
++   }
++   q = rj_alloc(g);
++   switch (cls) {
++   case RC_T:
++   case RC_O:
++   case RC_I:
++      n_ld1(g, q, a_addr(g, R_HOME, rj_home(g, cls, idx, comp)));
++      break;
++   case RC_P:
++      n_ld1_dup(g, q, a_addr(g, 8, (g->pvo[idx] + comp) * 4));
++      break;
++   case RC_S:
++      n_ld1_dup(g, q, a_addr(g, 9, (GLuint) (idx * 4 + comp) * 4));
++      break;
++   case RC_K:
++      a_const(g, R_TMP, (GLuint) idx);
++      n_dup(g, q, R_TMP);
++      break;
++   }
++   g->q[q].cls = cls;
++   g->q[q].idx = idx;
++   g->q[q].comp = comp;
++   return q;
++}
++
++static int
++rj_k(struct rj_cg *g, float f)
++{
++   union { float f; GLint i; } u;
++   u.f = f;
++   return rj_load(g, RC_K, u.i, 0);
++}
++
++static int
++rj_ki(struct rj_cg *g, GLint i)
++{
++   return rj_load(g, RC_K, i, 0);
++}
++
++static int
++rj_file_class(GLuint file)
++{
++   switch (file) {
++   case PROGRAM_TEMPORARY:   return RC_T;
++   case PROGRAM_OUTPUT:      return RC_O;
++   case PROGRAM_INPUT:       return RC_I;
++   case PROGRAM_STATE_VAR:
++   case PROGRAM_CONSTANT:
++   case PROGRAM_UNIFORM:     return RC_P;
++   case PROGRAM_SYSTEM_VALUE:return RC_S;
++   default:                  return -1;
++   }
++}
++
++/* source operand n, component c of the instruction (swizzled, negated) */
++static int
++rj_src(struct rj_cg *g, const struct prog_instruction *inst, int n, int c)
++{
++   const struct prog_src_register *s = &inst->SrcReg[n];
++   const GLuint swz = GET_SWZ(s->Swizzle, c);
++   int q;
++   if (swz == SWIZZLE_ZERO)
++      q = rj_k(g, 0.0f);
++   else if (swz == SWIZZLE_ONE)
++      q = rj_k(g, 1.0f);
++   else
++      q = rj_load(g, rj_file_class(s->File), s->Index, (int) swz);
++   if (s->Negate & (1u << c)) {
++      const int t = rj_alloc(g);
++      n2(g, N_VNEG_F, t, q);
++      rj_release(g, q);
++      q = t;
++   }
++   return q;
++}
++
++/* binary op on two pinned registers, releasing them: a new pinned tmp */
++static int
++rj_op2(struct rj_cg *g, GLuint op, int a, int b)
++{
++   const int r = rj_alloc(g);
++   n3(g, op, r, a, b);
++   rj_release(g, a);
++   rj_release(g, b);
++   return r;
++}
++
++static int
++rj_op1(struct rj_cg *g, GLuint op, int a)
++{
++   const int r = rj_alloc(g);
++   n2(g, op, r, a);
++   rj_release(g, a);
++   return r;
++}
++
++/* r = m ? a : b, releasing all three */
++static int
++rj_select(struct rj_cg *g, int m, int a, int b)
++{
++   const int r = rj_alloc(g);
++   n3(g, N_VORR, r, m, m);
++   n3(g, N_VBSL, r, a, b);
++   rj_release(g, m);
++   rj_release(g, a);
++   rj_release(g, b);
++   return r;
++}
++
++static int
++rj_dup(struct rj_cg *g, int a)
++{
++   const int r = rj_alloc(g);
++   n3(g, N_VORR, r, a, a);
++   return r;
++}
++
++static int
++rj_fmul_k(struct rj_cg *g, int a, float k)
++{
++   return rj_op2(g, N_VMUL_F, a, rj_k(g, k));
++}
++
++static int
++rj_fadd_k(struct rj_cg *g, int a, float k)
++{
++   return rj_op2(g, N_VADD_F, a, rj_k(g, k));
++}
++
++/* truncation toward zero; values of 2^23 and more are already whole */
++static int
++rj_trunc(struct rj_cg *g, int x, GLboolean floor_it)
++{
++   int t = rj_alloc(g), a, big;
++   n2(g, N_VCVT_SF, t, x);
++   n2(g, N_VCVT_FS, t, t);
++   if (floor_it) {
++      /* t > x: subtract 1 */
++      int m = rj_alloc(g);
++      const int one = rj_k(g, 1.0f);
++      n3(g, N_VCGT_F, m, t, x);
++      n3(g, N_VAND, m, m, one);
++      rj_release(g, one);
++      n3(g, N_VSUB_F, t, t, m);
++      rj_release(g, m);
++   }
++   a = rj_alloc(g);
++   n2(g, N_VABS_F, a, x);
++   big = rj_k(g, 8388608.0f);
++   n3(g, N_VCGE_F, a, a, big);
++   rj_release(g, big);
++   /* a = big ? x : t */
++   n3(g, N_VBSL, a, x, t);
++   rj_release(g, t);
++   rj_release(g, x);
++   return a;
++}
++
++static int
++rj_floor(struct rj_cg *g, int x)
++{
++   return rj_trunc(g, x, GL_TRUE);
++}
++
++/* p = p * x + k */
++static int
++rj_horner(struct rj_cg *g, int p, int x, float k)
++{
++   int t = rj_alloc(g);
++   n3(g, N_VMUL_F, t, p, x);
++   rj_release(g, p);
++   return rj_fadd_k(g, t, k);
++}
++
++/* sin(x), or cos(x) (sin of x + pi/2), releasing x */
++static int
++rj_sin(struct rj_cg *g, int x, GLboolean cosine)
++{
++   int k, f, t, m, a, b, th, th2, p, i;
++   static const float c[] = {
++      -1.0f / 39916800.0f, 1.0f / 362880.0f, -1.0f / 5040.0f,
++      1.0f / 120.0f, -1.0f / 6.0f, 1.0f };
++   /* k = x / 2pi (+ 1/4): t = k - round(k) in [-0.5, 0.5) turns */
++   k = rj_fmul_k(g, x, 0.159154943f);
++   if (cosine)
++      k = rj_fadd_k(g, k, 0.25f);
++   f = rj_dup(g, k);
++   f = rj_fadd_k(g, f, 0.5f);
++   f = rj_floor(g, f);
++   t = rj_op2(g, N_VSUB_F, k, f);
++   /* fold into [-1/4, 1/4]: sin(pi - a) = sin(a) */
++   a = rj_k(g, 0.5f);
++   n3(g, N_VSUB_F, (b = rj_alloc(g)), a, t);       /* 0.5 - t */
++   rj_release(g, a);
++   m = rj_alloc(g);
++   a = rj_k(g, 0.25f);
++   n3(g, N_VCGT_F, m, t, a);
++   rj_release(g, a);
++   t = rj_select(g, m, b, t);
++   a = rj_k(g, -0.5f);
++   n3(g, N_VSUB_F, (b = rj_alloc(g)), a, t);       /* -0.5 - t */
++   rj_release(g, a);
++   m = rj_alloc(g);
++   a = rj_k(g, -0.25f);
++   n3(g, N_VCGT_F, m, a, t);
++   rj_release(g, a);
++   t = rj_select(g, m, b, t);
++   th = rj_fmul_k(g, t, 6.28318531f);
++   th2 = rj_alloc(g);
++   n3(g, N_VMUL_F, th2, th, th);
++   p = rj_k(g, c[0]);
++   for (i = 1; i < 6; i++)
++      p = rj_horner(g, p, th2, c[i]);
++   rj_release(g, th2);
++   return rj_op2(g, N_VMUL_F, p, th);
++}
++
++/* 2^x, releasing x */
++static int
++rj_exp2(struct rj_cg *g, int x)
++{
++   static const float c[] = {   /* sqrt2 * ln2^n / n!, n = 6 .. 0 */
++      1.5403530e-4f * 1.41421356f, 1.3333558e-3f * 1.41421356f,
++      9.6181291e-3f * 1.41421356f, 5.5504109e-2f * 1.41421356f,
++      0.24022651f * 1.41421356f, 0.69314718f * 1.41421356f, 1.41421356f };
++   int fl, f, u, p, i, e;
++   x = rj_op2(g, N_VMAX_F, x, rj_k(g, -126.0f));
++   x = rj_op2(g, N_VMIN_F, x, rj_k(g, 128.0f));
++   fl = rj_floor(g, rj_dup(g, x));
++   f = rj_alloc(g);
++   n3(g, N_VSUB_F, f, x, fl);                  /* [0, 1) */
++   rj_release(g, x);
++   u = rj_fadd_k(g, f, -0.5f);                 /* [-0.5, 0.5) */
++   p = rj_k(g, c[0]);
++   for (i = 1; i < 7; i++)
++      p = rj_horner(g, p, u, c[i]);
++   rj_release(g, u);
++   e = rj_op1(g, N_VCVT_SF, fl);
++   e = rj_op2(g, N_VADD_I, e, rj_ki(g, 127));
++   n_shl(g, e, e, 23);
++   return rj_op2(g, N_VMUL_F, p, e);
++}
++
++static int
++rj_recip(struct rj_cg *g, int a)   /* 1/a, not releasing a */
++{
++   int e = rj_alloc(g), s, k;
++   n2(g, N_VRECPE, e, a);
++   for (k = 0; k < 2; k++) {
++      s = rj_alloc(g);
++      n3(g, N_VRECPS, s, a, e);
++      e = rj_op2(g, N_VMUL_F, e, s);
++   }
++   return e;
++}
++
++/* log2(x) (x > 0), releasing x; zero_val for x == 0 */
++static int
++rj_log2(struct rj_cg *g, int x, float zero_val)
++{
++   int e, m, big, h, num, den, rd, z, z2, p, r, zm, kv;
++   e = rj_alloc(g);
++   n_shr_s(g, e, x, 23);
++   e = rj_op2(g, N_VSUB_I, e, rj_ki(g, 127));
++   m = rj_op2(g, N_VAND, rj_dup(g, x), rj_ki(g, 0x7FFFFF));
++   m = rj_op2(g, N_VORR, m, rj_ki(g, 0x3F800000));     /* [1, 2) */
++   big = rj_alloc(g);
++   kv = rj_k(g, 1.41421356f);
++   n3(g, N_VCGT_F, big, m, kv);
++   rj_release(g, kv);
++   h = rj_fmul_k(g, rj_dup(g, m), 0.5f);
++   n3(g, N_VSUB_I, e, e, big);                 /* e + 1 where halved */
++   m = rj_select(g, big, h, m);                /* [0.707, 1.414) */
++   num = rj_fadd_k(g, rj_dup(g, m), -1.0f);
++   den = rj_fadd_k(g, m, 1.0f);
++   rd = rj_recip(g, den);
++   rj_release(g, den);
++   z = rj_op2(g, N_VMUL_F, num, rd);
++   z2 = rj_alloc(g);
++   n3(g, N_VMUL_F, z2, z, z);
++   p = rj_k(g, 1.0f / 9.0f);
++   p = rj_horner(g, p, z2, 1.0f / 7.0f);
++   p = rj_horner(g, p, z2, 1.0f / 5.0f);
++   p = rj_horner(g, p, z2, 1.0f / 3.0f);
++   p = rj_horner(g, p, z2, 1.0f);
++   rj_release(g, z2);
++   p = rj_op2(g, N_VMUL_F, p, z);
++   p = rj_fmul_k(g, p, 2.88539008f);           /* 2 / ln 2 */
++   e = rj_op1(g, N_VCVT_FS, e);
++   r = rj_op2(g, N_VADD_F, e, p);
++   zm = rj_alloc(g);
++   kv = rj_k(g, 0.0f);
++   n3(g, N_VCEQ_F, zm, x, kv);
++   r = rj_select(g, zm, rj_k(g, zero_val), r);
++   /* x < 0: NaN, as logf gives */
++   zm = rj_alloc(g);
++   n3(g, N_VCGT_F, zm, kv, x);
++   rj_release(g, kv);
++   rj_release(g, x);
++   return rj_select(g, zm, rj_ki(g, 0x7FC00000), r);
++}
++
++/* --------------------------------------------------------------------
++ * Instructions
++ */
++
++static GLboolean
++rj_opcode_ok(GLuint op)
++{
++   switch (op) {
++   case OPCODE_MOV: case OPCODE_ABS: case OPCODE_ADD: case OPCODE_SUB:
++   case OPCODE_MUL: case OPCODE_MAD: case OPCODE_MIN: case OPCODE_MAX:
++   case OPCODE_DP2: case OPCODE_DP3: case OPCODE_DP4: case OPCODE_DPH:
++   case OPCODE_SLT: case OPCODE_SGE: case OPCODE_CMP: case OPCODE_LRP:
++   case OPCODE_FLR: case OPCODE_FRC: case OPCODE_TRUNC: case OPCODE_SSG:
++   case OPCODE_XPD: case OPCODE_RCP: case OPCODE_RSQ: case OPCODE_SIN:
++   case OPCODE_COS: case OPCODE_SCS: case OPCODE_EX2: case OPCODE_LG2:
++   case OPCODE_POW: case OPCODE_NOP:
++      return GL_TRUE;
++   default:
++      return GL_FALSE;
++   }
++}
++
++static GLboolean
++rj_inst_ok(const struct gl_program *prog, const struct prog_instruction *inst)
++{
++   const GLuint nsrc = _mesa_num_inst_src_regs(inst->Opcode);
++   GLuint k;
++   if (!rj_opcode_ok(inst->Opcode))
++      return GL_FALSE;
++   if (inst->Opcode == OPCODE_NOP)
++      return GL_TRUE;
++   for (k = 0; k < nsrc; k++) {
++      const struct prog_src_register *s = &inst->SrcReg[k];
++      const int cls = rj_file_class(s->File);
++      if (cls < 0 || s->RelAddr || s->Index < 0)
++         return GL_FALSE;
++      if ((cls == RC_T && s->Index >= MAX_PROGRAM_TEMPS) ||
++          (cls == RC_O && s->Index >= MAX_PROGRAM_OUTPUTS) ||
++          (cls == RC_I && s->Index >= VARYING_SLOT_MAX) ||
++          (cls == RC_S && s->Index >= SYSTEM_VALUE_MAX) ||
++          (cls == RC_P && (!prog->Parameters ||
++                           s->Index >= (GLint) prog->Parameters->NumParameters)))
++         return GL_FALSE;
++   }
++   if (inst->DstReg.RelAddr ||
++       !((inst->DstReg.File == PROGRAM_TEMPORARY &&
++          inst->DstReg.Index < MAX_PROGRAM_TEMPS) ||
++         (inst->DstReg.File == PROGRAM_OUTPUT &&
++          inst->DstReg.Index < MAX_PROGRAM_OUTPUTS)))
++      return GL_FALSE;
++   return GL_TRUE;
++}
++
++/* The instruction's results, one register (or -1) per component */
++static void
++rj_compute(struct rj_cg *g, const struct prog_instruction *inst, int res[4])
++{
++   const GLuint wm = inst->DstReg.WriteMask;
++   int c, a, b, cc, s, t;
++   res[0] = res[1] = res[2] = res[3] = -1;
++
++#define FOR_COMPS for (c = 0; c < 4; c++) if (wm & (1u << c))
++
++   switch (inst->Opcode) {
++   case OPCODE_MOV:
++      FOR_COMPS {
++         a = rj_src(g, inst, 0, c);
++         res[c] = rj_dup(g, a);
++         rj_release(g, a);
++      }
++      break;
++   case OPCODE_ABS:
++      FOR_COMPS res[c] = rj_op1(g, N_VABS_F, rj_src(g, inst, 0, c));
++      break;
++   case OPCODE_ADD:
++      FOR_COMPS res[c] = rj_op2(g, N_VADD_F, rj_src(g, inst, 0, c), rj_src(g, inst, 1, c));
++      break;
++   case OPCODE_SUB:
++      FOR_COMPS res[c] = rj_op2(g, N_VSUB_F, rj_src(g, inst, 0, c), rj_src(g, inst, 1, c));
++      break;
++   case OPCODE_MUL:
++      FOR_COMPS res[c] = rj_op2(g, N_VMUL_F, rj_src(g, inst, 0, c), rj_src(g, inst, 1, c));
++      break;
++   case OPCODE_MAD:
++      FOR_COMPS {
++         t = rj_op2(g, N_VMUL_F, rj_src(g, inst, 0, c), rj_src(g, inst, 1, c));
++         res[c] = rj_op2(g, N_VADD_F, t, rj_src(g, inst, 2, c));
++      }
++      break;
++   case OPCODE_MIN:
++      FOR_COMPS res[c] = rj_op2(g, N_VMIN_F, rj_src(g, inst, 0, c), rj_src(g, inst, 1, c));
++      break;
++   case OPCODE_MAX:
++      FOR_COMPS res[c] = rj_op2(g, N_VMAX_F, rj_src(g, inst, 0, c), rj_src(g, inst, 1, c));
++      break;
++   case OPCODE_SLT:   /* a < b: b > a */
++      FOR_COMPS {
++         a = rj_src(g, inst, 0, c);
++         b = rj_src(g, inst, 1, c);
++         t = rj_op2(g, N_VCGT_F, b, a);
++         res[c] = rj_op2(g, N_VAND, t, rj_k(g, 1.0f));
++      }
++      break;
++   case OPCODE_SGE:
++      FOR_COMPS {
++         t = rj_op2(g, N_VCGE_F, rj_src(g, inst, 0, c), rj_src(g, inst, 1, c));
++         res[c] = rj_op2(g, N_VAND, t, rj_k(g, 1.0f));
++      }
++      break;
++   case OPCODE_CMP:   /* a < 0 ? b : c */
++      FOR_COMPS {
++         a = rj_src(g, inst, 0, c);
++         t = rj_op2(g, N_VCGT_F, rj_k(g, 0.0f), a);
++         res[c] = rj_select(g, t, rj_src(g, inst, 1, c), rj_src(g, inst, 2, c));
++      }
++      break;
++   case OPCODE_LRP:   /* a * b + (1 - a) * c */
++      FOR_COMPS {
++         a = rj_src(g, inst, 0, c);
++         t = rj_alloc(g);
++         b = rj_src(g, inst, 1, c);
++         n3(g, N_VMUL_F, t, a, b);
++         rj_release(g, b);
++         s = rj_op2(g, N_VSUB_F, rj_k(g, 1.0f), a);
++         s = rj_op2(g, N_VMUL_F, s, rj_src(g, inst, 2, c));
++         res[c] = rj_op2(g, N_VADD_F, t, s);
++      }
++      break;
++   case OPCODE_FLR:
++      FOR_COMPS res[c] = rj_floor(g, rj_src(g, inst, 0, c));
++      break;
++   case OPCODE_TRUNC:
++      FOR_COMPS res[c] = rj_trunc(g, rj_src(g, inst, 0, c), GL_FALSE);
++      break;
++   case OPCODE_FRC:
++      FOR_COMPS {
++         a = rj_src(g, inst, 0, c);
++         t = rj_floor(g, rj_dup(g, a));
++         res[c] = rj_op2(g, N_VSUB_F, a, t);
++      }
++      break;
++   case OPCODE_SSG:   /* (a > 0) - (a < 0) */
++      FOR_COMPS {
++         int z, ng;
++         a = rj_src(g, inst, 0, c);
++         z = rj_k(g, 0.0f);
++         s = rj_alloc(g);
++         ng = rj_alloc(g);
++         n3(g, N_VCGT_F, s, a, z);           /* a > 0 */
++         n3(g, N_VCGT_F, ng, z, a);          /* a < 0 */
++         rj_release(g, a);
++         rj_release(g, z);
++         s = rj_op2(g, N_VAND, s, rj_k(g, 1.0f));
++         ng = rj_op2(g, N_VAND, ng, rj_k(g, 1.0f));
++         res[c] = rj_op2(g, N_VSUB_F, s, ng);
++      }
++      break;
++   case OPCODE_DP2:
++   case OPCODE_DP3:
++   case OPCODE_DP4:
++   case OPCODE_DPH:
++      {
++         const int nc = inst->Opcode == OPCODE_DP2 ? 2 :
++                        inst->Opcode == OPCODE_DP4 ? 4 : 3;
++         s = rj_op2(g, N_VMUL_F, rj_src(g, inst, 0, 0), rj_src(g, inst, 1, 0));
++         for (cc = 1; cc < nc; cc++) {
++            t = rj_op2(g, N_VMUL_F, rj_src(g, inst, 0, cc), rj_src(g, inst, 1, cc));
++            s = rj_op2(g, N_VADD_F, s, t);
++         }
++         if (inst->Opcode == OPCODE_DPH)
++            s = rj_op2(g, N_VADD_F, s, rj_src(g, inst, 1, 3));
++         goto scalar;
++      }
++   case OPCODE_XPD:
++      {
++         static const int i1[3] = { 1, 2, 0 }, i2[3] = { 2, 0, 1 };
++         FOR_COMPS {
++            if (c == 3) {
++               res[c] = rj_dup(g, (t = rj_k(g, 1.0f)));
++               rj_release(g, t);
++               continue;
++            }
++            t = rj_op2(g, N_VMUL_F, rj_src(g, inst, 0, i1[c]), rj_src(g, inst, 1, i2[c]));
++            s = rj_op2(g, N_VMUL_F, rj_src(g, inst, 0, i2[c]), rj_src(g, inst, 1, i1[c]));
++            res[c] = rj_op2(g, N_VSUB_F, t, s);
++         }
++      }
++      break;
++   case OPCODE_RCP:
++      a = rj_src(g, inst, 0, 0);
++      s = rj_recip(g, a);
++      rj_release(g, a);
++      goto scalar;
++   case OPCODE_RSQ:   /* 1 / sqrt(|a|) */
++      {
++         int e, k;
++         a = rj_op1(g, N_VABS_F, rj_src(g, inst, 0, 0));
++         e = rj_alloc(g);
++         n2(g, N_VRSQRTE, e, a);
++         for (k = 0; k < 2; k++) {
++            t = rj_alloc(g);
++            n3(g, N_VMUL_F, t, e, e);
++            n3(g, N_VRSQRTS, t, a, t);
++            e = rj_op2(g, N_VMUL_F, e, t);
++         }
++         rj_release(g, a);
++         s = e;
++      }
++      goto scalar;
++   case OPCODE_SIN:
++      s = rj_sin(g, rj_src(g, inst, 0, 0), GL_FALSE);
++      goto scalar;
++   case OPCODE_COS:
++      s = rj_sin(g, rj_src(g, inst, 0, 0), GL_TRUE);
++      goto scalar;
++   case OPCODE_EX2:
++      s = rj_exp2(g, rj_src(g, inst, 0, 0));
++      goto scalar;
++   case OPCODE_LG2:
++      s = rj_log2(g, rj_src(g, inst, 0, 0), -FLT_MAX);
++      goto scalar;
++   case OPCODE_POW:
++      /* 2^(b * log2 |a|); for a < 0, as powf: NaN unless b is a whole
++       * number, and negative for odd b */
++      {
++         int bi, isint, odd, neg, z, bad;
++         a = rj_src(g, inst, 0, 0);
++         b = rj_src(g, inst, 1, 0);
++         t = rj_log2(g, rj_op1(g, N_VABS_F, rj_dup(g, a)), -FLT_MAX);
++         t = rj_op2(g, N_VMUL_F, t, rj_dup(g, b));
++         s = rj_exp2(g, t);
++         bi = rj_trunc(g, rj_dup(g, b), GL_FALSE);
++         isint = rj_alloc(g);
++         n3(g, N_VCEQ_F, isint, bi, b);
++         rj_release(g, b);
++         odd = rj_op1(g, N_VCVT_SF, bi);
++         odd = rj_op2(g, N_VAND, odd, rj_ki(g, 1));
++         n_shl(g, odd, odd, 31);
++         z = rj_k(g, 0.0f);
++         neg = rj_alloc(g);
++         n3(g, N_VCGT_F, neg, z, a);           /* a < 0 */
++         rj_release(g, z);
++         rj_release(g, a);
++         bad = rj_alloc(g);
++         n3(g, N_VBIC, bad, neg, isint);       /* a < 0, b not whole */
++         n3(g, N_VAND, odd, odd, neg);
++         n3(g, N_VAND, odd, odd, isint);
++         rj_release(g, neg);
++         rj_release(g, isint);
++         s = rj_op2(g, N_VEOR, s, odd);        /* the sign for odd b */
++         s = rj_select(g, bad, rj_ki(g, 0x7FC00000), s);
++      }
++      goto scalar;
++   case OPCODE_SCS:
++      FOR_COMPS {
++         if (c >= 2) {
++            res[c] = rj_dup(g, (t = rj_k(g, 0.0f)));
++            rj_release(g, t);
++         }
++         else
++            res[c] = rj_sin(g, rj_src(g, inst, 0, 0), c == 0);
++      }
++      break;
++   case OPCODE_NOP:
++   default:
++      break;
++   }
++   return;
++
++scalar:
++   /* the scalar s to every written component */
++   {
++      int first = 1;
++      FOR_COMPS {
++         if (first) {
++            res[c] = s;
++            first = 0;
++         }
++         else
++            res[c] = rj_dup(g, s);
++      }
++      if (first)
++         rj_release(g, s);
++   }
++#undef FOR_COMPS
++}
++
++/* Saturate and store the results as the destination's new value */
++static void
++rj_commit(struct rj_cg *g, const struct prog_instruction *inst, int res[4])
++{
++   const int cls = inst->DstReg.File == PROGRAM_OUTPUT ? RC_O : RC_T;
++   const int idx = inst->DstReg.Index;
++   int c, i;
++   for (c = 0; c < 4; c++) {
++      int r = res[c];
++      if (r < 0)
++         continue;
++      if (inst->Saturate) {
++         r = rj_op2(g, N_VMAX_F, r, rj_k(g, 0.0f));
++         r = rj_op2(g, N_VMIN_F, r, rj_k(g, 1.0f));
++      }
++      /* forget the old value */
++      i = rj_find(g, cls, idx, c);
++      if (i >= 0 && i != r) {
++         g->q[i].cls = RC_FREE;
++         g->q[i].dirty = 0;
++      }
++      g->q[r].cls = cls;
++      g->q[r].idx = idx;
++      g->q[r].comp = c;
++      g->q[r].dirty = 1;
++      res[c] = r;
++   }
++   for (c = 0; c < 4; c++)
++      if (res[c] >= 0)
++         rj_release(g, res[c]);
++}
++
++/* --------------------------------------------------------------------
++ * Blocks
++ */
++
++/* the block's registers, which to load and which to write back */
++static GLboolean
++rj_scan_block(struct rj_cg *g, const struct gl_program *prog,
++              GLuint start, GLuint end, const GLubyte *liveOut)
++{
++   const struct prog_instruction *insts = prog->arb.Instructions;
++   GLuint pc, k;
++   int i;
++   g->nregs = 0;
++   for (pc = start; pc < end; pc++) {
++      const struct prog_instruction *inst = insts + pc;
++      const GLuint nsrc = _mesa_num_inst_src_regs(inst->Opcode);
++      if (inst->Opcode == OPCODE_NOP)
++         continue;
++      for (k = 0; k < nsrc; k++) {
++         const struct prog_src_register *s = &inst->SrcReg[k];
++         const int cls = rj_file_class(s->File);
++         GLuint c, used = 0;
++         if (cls != RC_T && cls != RC_O && cls != RC_I)
++            continue;
++         i = rj_reg_add(g, cls, s->Index);
++         if (i < 0)
++            return GL_FALSE;
++         for (c = 0; c < 4; c++) {
++            const GLuint sw = GET_SWZ(s->Swizzle, c);
++            if (sw < 4)
++               used |= 1u << sw;
++         }
++         g->rreadfirst[i] |= used & ~g->rwritten[i];
++      }
++      i = rj_reg_add(g, inst->DstReg.File == PROGRAM_OUTPUT ? RC_O : RC_T,
++                     inst->DstReg.Index);
++      if (i < 0)
++         return GL_FALSE;
++      g->rwritten[i] |= inst->DstReg.WriteMask;
++   }
++   for (i = 0; i < g->nregs; i++) {
++      if (g->rwritten[i])
++         g->rwb[i] = g->rcls[i] == RC_O || liveOut[g->ridx[i]];
++      g->rload[i] = g->rcls[i] == RC_I || g->rreadfirst[i] ||
++                    (g->rwb[i] && g->rwritten[i] != 0xF);
++   }
++   return GL_TRUE;
++}
++
++/* the address of register slot i for the current group, in r12 or a base */
++static int
++rj_reg_addr(struct rj_cg *g, int i)
++{
++   const int idx = g->ridx[i];
++   switch (g->rcls[i]) {
++   case RC_T:
++      return a_addr(g, 4, (GLuint) idx * PB_LANES * 16);
++   case RC_O:
++      return a_addr(g, 5, (GLuint) idx * PB_LANES * 16);
++   default:           /* RC_I: r6 + idx * r7 */
++      if (idx == 0)
++         return 6;
++      a_movw(g, R_TMP, (GLuint) idx);
++      rj_emit(g, 0xE02C679C);          /* mla r12, r12, r7, r6 */
++      return R_TMP;
++   }
++}
++
++/* Compile pc [start, end) into g->code; returns GL_FALSE if it can't */
++static GLboolean
++rj_compile_block(struct rj_cg *g, const struct gl_program *prog,
++                 GLuint start, GLuint end, const GLubyte *liveOut,
++                 GLuint *homeBytes)
++{
++   const struct prog_instruction *insts = prog->arb.Instructions;
++   size_t loop, b_none, b_masked, b_next1;
++   GLuint pc;
++   int i, res[4];
++
++   g->n = 0;
++   g->overflow = GL_FALSE;
++   memset(g->q, 0, sizeof(g->q));
++   if (!rj_scan_block(g, prog, start, end, liveOut))
++      return GL_FALSE;
++   *homeBytes = (GLuint) g->nregs * 64;
++
++   rj_emit(g, 0xE92D4FF0);            /* push {r4-r11, lr} */
++   rj_emit(g, 0xED2D8B10);            /* vpush {d8-d15} */
++   a_ldr(g, 4, 0, 0);
++   a_ldr(g, 5, 0, 4);
++   a_ldr(g, 6, 0, 8);
++   a_ldr(g, 7, 0, 12);
++   a_ldr(g, 8, 0, 16);
++   a_ldr(g, 9, 0, 20);
++   a_ldr(g, 10, 0, 24);
++   a_ldr(g, 11, 0, 28);
++   a_ldr(g, 14, 0, 32);               /* lr: groups left */
++
++   loop = g->n;
++   a_ldr(g, 1, 11, 16);               /* the group's state */
++   rj_emit(g, 0xE3510000);            /* cmp r1, #0 */
++   b_none = g->n;
++   rj_emit(g, 0x0A000000);            /* beq next (patched) */
++
++   /* load the group's registers into their home slots */
++   for (i = 0; i < g->nregs; i++) {
++      int ra;
++      if (!g->rload[i])
++         continue;
++      ra = rj_reg_addr(g, i);
++      if (ra != R_TMP) {
++         rj_emit(g, 0xE1A0C000 | (GLuint) ra);  /* mov r12, ra */
++         ra = R_TMP;
++      }
++      n_ld4(g, 0, R_TMP, 1);           /* lanes 0, 1: d0 d2 d4 d6 */
++      n_ld4(g, 1, R_TMP, 0);           /* lanes 2, 3: d1 d3 d5 d7 */
++      ra = a_addr(g, R_HOME, (GLuint) i * 64);
++      if (ra != R_TMP) {
++         rj_emit(g, 0xE1A0C000 | (GLuint) ra);
++      }
++      n_st1x4(g, 0, R_TMP, 1);         /* q0, q1 */
++      n_st1x4(g, 4, R_TMP, 0);         /* q2, q3 */
++   }
++
++   for (pc = start; pc < end; pc++) {
++      const struct prog_instruction *inst = insts + pc;
++      if (inst->Opcode == OPCODE_NOP)
++         continue;
++      rj_compute(g, inst, res);
++      rj_commit(g, inst, res);
++   }
++
++   /* everything newer than its home slot back there */
++   for (i = 0; i < 16; i++)
++      if (g->q[i].dirty)
++         rj_store_home(g, i);
++
++   rj_emit(g, 0xE3510002);            /* cmp r1, #2 */
++   b_masked = g->n;
++   rj_emit(g, 0x1A000000);            /* bne masked (patched) */
++   for (i = 0; i < g->nregs; i++) {
++      int ra;
++      if (!g->rwb[i])
++         continue;
++      ra = a_addr(g, R_HOME, (GLuint) i * 64);
++      if (ra != R_TMP)
++         rj_emit(g, 0xE1A0C000 | (GLuint) ra);
++      n_ld1x4(g, 0, R_TMP, 1);
++      n_ld1x4(g, 4, R_TMP, 0);
++      ra = rj_reg_addr(g, i);
++      if (ra != R_TMP)
++         rj_emit(g, 0xE1A0C000 | (GLuint) ra);
++      n_st4(g, 0, R_TMP, 1);
++      n_st4(g, 1, R_TMP, 0);
++   }
++   b_next1 = g->n;
++   rj_emit(g, 0xEA000000);            /* b next (patched) */
++
++   /* some lanes inactive: merge with the old values */
++   g->code[b_masked] |= ((GLuint) (g->n - b_masked - 2)) & 0xFFFFFF;
++   n_ld1(g, 8, 11);                   /* q8 = the lane mask */
++   for (i = 0; i < g->nregs; i++) {
++      int ra, c;
++      if (!g->rwb[i])
++         continue;
++      ra = a_addr(g, R_HOME, (GLuint) i * 64);
++      if (ra != R_TMP)
++         rj_emit(g, 0xE1A0C000 | (GLuint) ra);
++      n_ld1x4(g, 0, R_TMP, 1);
++      n_ld1x4(g, 4, R_TMP, 0);
++      ra = rj_reg_addr(g, i);
++      if (ra != R_TMP)
++         rj_emit(g, 0xE1A0C000 | (GLuint) ra);
++      rj_emit(g, 0xE1A0300C);          /* mov r3, r12 */
++      n_ld4(g, 8, R_TMP, 1);           /* old: q4..q7 (d8 d10 d12 d14) */
++      n_ld4(g, 9, R_TMP, 0);
++      for (c = 0; c < 4; c++)
++         n3(g, N_VBIT, 4 + c, c, 8);   /* old = mask ? new : old */
++      n_st4(g, 8, 3, 1);
++      n_st4(g, 9, 3, 0);
++   }
++
++   /* next group */
++   g->code[b_none] |= ((GLuint) (g->n - b_none - 2)) & 0xFFFFFF;
++   g->code[b_next1] |= ((GLuint) (g->n - b_next1 - 2)) & 0xFFFFFF;
++   a_add_imm(g, 4, 4, 64);
++   a_add_imm(g, 5, 5, 64);
++   a_add_imm(g, 6, 6, 64);
++   a_add_imm(g, 11, 11, 32);
++   rj_emit(g, 0xE25EE001);            /* subs lr, lr, #1 */
++   rj_emit(g, 0x1A000000 | (((GLuint) (loop - g->n - 2)) & 0xFFFFFF)); /* bne loop */
++   rj_emit(g, 0xECBD8B10);            /* vpop {d8-d15} */
++   rj_emit(g, 0xE8BD8FF0);            /* pop {r4-r11, pc} */
++   return !g->overflow;
++}
++
++/* Copy compiled code into the arena: its address, or NULL if full */
++static rj_fn
++rj_install(const struct rj_cg *g)
++{
++   GLuint *p;
++   if (!rj_arena) {
++      size_t bytes;
++      rj_arena = ro_jit_code_memory(&bytes);
++      rj_arena_words = rj_arena ? bytes / 4 : 0;
++   }
++   if (rj_arena_used + g->n > rj_arena_words)
++      return NULL;
++   p = rj_arena + rj_arena_used;
++   memcpy(p, g->code, g->n * 4);
++   rj_arena_used += (g->n + 15) & ~(size_t) 15;   /* 64-byte aligned */
++   ro_jit_sync(p, p + g->n);
++   return (rj_fn) (void *) p;
++}
++
++static GLuint
++rj_hash(const void *data, size_t bytes, GLuint h)
++{
++   const GLubyte *b = data;
++   while (bytes--) {
++      h ^= *b++;
++      h *= 16777619u;
++   }
++   return h;
++}
++
++/* Compile a program; NULL if no memory (then it's interpreted) */
++static struct rj_prog *
++rj_compile(const struct gl_program *prog, GLuint hash)
++{
++   const GLuint num = prog->arb.NumInstructions;
++   const struct prog_instruction *insts = prog->arb.Instructions;
++   const GLuint numParams = prog->Parameters ? prog->Parameters->NumParameters : 0;
++   struct rj_prog *p = calloc(1, sizeof(*p));
++   struct rj_cg *g = calloc(1, sizeof(*g));
++   GLubyte *ok = calloc(num + 1, 1);
++   GLubyte *inLoop = calloc(num + 1, 1);
++   GLuint *reads = calloc(MAX_PROGRAM_TEMPS, sizeof(GLuint));
++   GLuint *blockReads = calloc(MAX_PROGRAM_TEMPS, sizeof(GLuint));
++   GLubyte liveOut[MAX_PROGRAM_TEMPS];
++   GLboolean relTemps = GL_FALSE;
++   GLuint pc, depth = 0;
++
++   if (!p || !g || !ok || !inLoop || !reads || !blockReads)
++      goto fail;
++   p->hash = hash;
++   p->num = num;
++   p->numParams = numParams;
++   p->gen = rj_gen;
++   p->insts = malloc(num * sizeof(*insts) + 1);
++   p->pvo = malloc(numParams * sizeof(unsigned) + 1);
++   p->entry = calloc(num + 1, sizeof(rj_fn));
++   p->end = calloc(num + 1, sizeof(GLushort));
++   if (!p->insts || !p->pvo || !p->entry || !p->end)
++      goto fail;
++   memcpy(p->insts, insts, num * sizeof(*insts));
++   if (numParams)
++      memcpy(p->pvo, prog->Parameters->ParameterValueOffset,
++             numParams * sizeof(unsigned));
++   g->prog = prog;
++   g->pvo = p->pvo;
++
++   for (pc = 0; pc < num; pc++) {
++      const struct prog_instruction *inst = insts + pc;
++      const GLuint nsrc = _mesa_num_inst_src_regs(inst->Opcode);
++      GLuint k;
++      if (inst->Opcode == OPCODE_BGNLOOP)
++         depth++;
++      else if (inst->Opcode == OPCODE_ENDLOOP && depth)
++         depth--;
++      inLoop[pc] = depth > 0;
++      ok[pc] = num < 65535 && rj_inst_ok(prog, inst);
++      for (k = 0; k < nsrc && k < 3; k++) {
++         if (inst->SrcReg[k].File == PROGRAM_TEMPORARY) {
++            if (inst->SrcReg[k].RelAddr)
++               relTemps = GL_TRUE;
++            else if (inst->SrcReg[k].Index >= 0 &&
++                     inst->SrcReg[k].Index < MAX_PROGRAM_TEMPS)
++               reads[inst->SrcReg[k].Index]++;
++         }
++      }
++   }
++
++   for (pc = 0; pc < num; ) {
++      GLuint end = pc, hb, t;
++      while (end < num && ok[end])
++         end++;
++      if (end - pc < 2) {
++         pc = end + (end == pc);
++         continue;
++      }
++      /* temporaries the rest of the program may read */
++      memset(blockReads, 0, MAX_PROGRAM_TEMPS * sizeof(GLuint));
++      for (t = pc; t < end; t++) {
++         GLuint k;
++         const GLuint nsrc = _mesa_num_inst_src_regs(insts[t].Opcode);
++         for (k = 0; k < nsrc && k < 3; k++)
++            if (insts[t].SrcReg[k].File == PROGRAM_TEMPORARY)
++               blockReads[insts[t].SrcReg[k].Index]++;
++      }
++      for (t = 0; t < MAX_PROGRAM_TEMPS; t++)
++         liveOut[t] = relTemps || reads[t] > blockReads[t] ||
++                      (inLoop[pc] && reads[t]);
++      if (!p->full && rj_compile_block(g, prog, pc, end, liveOut, &hb)) {
++         rj_fn fn = rj_install(g);
++         if (!fn)
++            p->full = GL_TRUE;
++         else {
++            p->entry[pc] = fn;
++            p->end[pc] = (GLushort) end;
++            if (hb > p->homeBytes)
++               p->homeBytes = hb;
++            p->any = GL_TRUE;
++            for (t = pc; t < end; t++) {
++               GLuint k;
++               const GLuint nsrc = _mesa_num_inst_src_regs(insts[t].Opcode);
++               for (k = 0; k < nsrc && k < 3; k++)
++                  if (insts[t].SrcReg[k].File == PROGRAM_INPUT)
++                     p->inputs |= BITFIELD64_BIT(insts[t].SrcReg[k].Index);
++            }
++         }
++      }
++      pc = end;
++   }
++   free(ok); free(inLoop); free(reads); free(blockReads);
++   free(g->code); free(g);
++   return p;
++
++fail:
++   free(ok); free(inLoop); free(reads); free(blockReads);
++   if (g)
++      free(g->code);
++   free(g);
++   rj_free(p);
++   return NULL;
++}
++
++/* Throw away everything compiled (decoded copies notice: rj_gen) */
++static void
++rj_reset(void)
++{
++   int i;
++   for (i = 0; i < RJ_CACHE; i++) {
++      rj_free(rj_cache[i]);
++      rj_cache[i] = NULL;
++   }
++   rj_cache_next = 0;
++   rj_arena_used = 0;
++   rj_gen++;
++}
++
++/* The compiled form of a program, or NULL. A pointer returned stays
++ * valid while rj_gen is unchanged. */
++static struct rj_prog *
++rj_get(const struct gl_program *prog)
++{
++   const GLuint num = prog->arb.NumInstructions;
++   const GLuint numParams = prog->Parameters ? prog->Parameters->NumParameters : 0;
++   GLuint h = rj_hash(prog->arb.Instructions, num * sizeof(struct prog_instruction),
++                      2166136261u);
++   struct rj_prog *p;
++   int i;
++   if (numParams)
++      h = rj_hash(prog->Parameters->ParameterValueOffset,
++                  numParams * sizeof(unsigned), h);
++   for (i = 0; i < RJ_CACHE; i++) {
++      p = rj_cache[i];
++      if (p && p->hash == h && p->num == num && p->numParams == numParams &&
++          words_equal(p->insts, prog->arb.Instructions,
++                      num * sizeof(struct prog_instruction)) &&
++          (!numParams || words_equal(p->pvo, prog->Parameters->ParameterValueOffset,
++                                     numParams * sizeof(unsigned))))
++         return p;
++   }
++   /* a full cache is emptied rather than one entry freed, as decoded
++    * copies may still point at any of them */
++   if (rj_cache_next == RJ_CACHE)
++      rj_reset();
++   p = rj_compile(prog, h);
++   if (p && p->full) {
++      rj_free(p);
++      rj_reset();
++      p = rj_compile(prog, h);
++   }
++   if (!p)
++      return NULL;
++   rj_cache[rj_cache_next++] = p;
++   return p;
++}
+diff --git a/src/mesa/swrast/s_fragprog.c b/src/mesa/swrast/s_fragprog.c
+index 2e7eed2..7e4706c 100644
+--- a/src/mesa/swrast/s_fragprog.c
++++ b/src/mesa/swrast/s_fragprog.c
+@@ -251,8 +251,26 @@ run_batch(struct gl_context *ctx, SWspan *span,
+ {
+    const GLint64 killed =
+       _mesa_execute_program_batch(ctx, program, machine, cols, n);
++   const GLbitfield64 written = program->info.outputs_written;
+    GLuint j;
+ 
++   /* the usual case, a colour and no depth: store_outputs' work here */
++   if (killed >= 0 && (written & BITFIELD64_BIT(FRAG_RESULT_COLOR)) &&
++       !(written & BITFIELD64_BIT(FRAG_RESULT_DEPTH))) {
++      const GLfloat *o = _mesa_program_batch_output(machine, FRAG_RESULT_COLOR, 0);
++      GLfloat (*col)[4] = span->array->attribs[VARYING_SLOT_COL0];
++      for (j = 0; j < n; j++) {
++         if (!(killed & (1u << j))) {
++            COPY_4V(col[cols[j]], o + j * 4);
++         }
++         else {
++            span->array->mask[cols[j]] = GL_FALSE;
++            span->writeAll = GL_FALSE;
++         }
++      }
++      return;
++   }
++
+    for (j = 0; j < n; j++) {
+       const GLuint i = cols[j];
+       if (killed < 0) {
+@@ -296,9 +314,35 @@ run_program(struct gl_context *ctx, SWspan *span, GLuint start, GLuint end)
+     * at a time where it can be */
+    if (_mesa_program_batch_ok(machine, program)) {
+       GLuint cols[PROG_BATCH_LANES], n = 0;
++      /* riscos-mesa: init_machine's per-fragment part only (its other
++       * settings are the same for every fragment) */
++      const GLboolean upperLeft = program->info.fs.origin_upper_left;
++      const GLboolean halfPixel = !program->info.fs.pixel_center_integer;
++      const GLboolean glsl =
++         ctx->_Shader->CurrentProgram[MESA_SHADER_FRAGMENT] != NULL;
++      const GLint height1 = ctx->DrawBuffer->Height - 1;
++      const GLfloat face = 1.0F - span->facing;
++      const GLubyte *mask = span->array->mask;
++      GLfloat (*attribs)[SWRAST_MAX_WIDTH][4] = span->array->attribs;
++      GLboolean first = GL_TRUE;
+       for (i = start; i < end; i++) {
+-         if (span->array->mask[i]) {
+-            init_machine(ctx, machine, program, span, i);
++         if (mask[i]) {
++            if (first) {
++               init_machine(ctx, machine, program, span, i);
++               first = GL_FALSE;
++            }
++            else {
++               GLfloat *wpos = attribs[VARYING_SLOT_POS][i];
++               if (upperLeft)
++                  wpos[1] = height1 - wpos[1];
++               if (halfPixel) {
++                  wpos[0] += 0.5F;
++                  wpos[1] += 0.5F;
++               }
++               if (glsl)
++                  attribs[VARYING_SLOT_FACE][i][0] = face;
++               machine->CurElement = i;
++            }
+             cols[n++] = i;
+             if (n == PROG_BATCH_LANES) {
+                run_batch(ctx, span, program, machine, cols, n);

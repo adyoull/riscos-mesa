@@ -318,6 +318,27 @@ mesa-20.3.5-riscos-es-extras.patch
     tests/host-harness/mesa/render-etc1.c and glsl-es2compat.c (both fail
     without this patch).
 
+mesa-20.3.5-riscos-glsl-jit.patch
+    A JIT compiler for fragment shaders (program/ro_jit_arm.c), used by
+    the batch interpreter: each run of two or more straight-line
+    arithmetic instructions (no control flow, texturing, KIL or relative
+    addressing) becomes ARM code that runs it for four fragments at a time
+    with NEON, values kept in NEON registers between instructions; the
+    interpreter calls it at the run's first instruction. Compiled code is
+    cached by program contents in a 512 KB arena (emptied and refilled
+    when full). Not bit-identical, by the owner's decision (2026-10-06):
+    the rule for the JIT is no visible difference. SIN/COS, EX2/LG2/POW,
+    RCP and RSQ use their own approximations (about 1e-7 relative); NEON
+    flushes denormals. Checked by tests/host-harness/mesa/glsl-jit.c
+    (typical shaders within 2 of 255, random shaders from
+    tools/gen-jit-shaders.py), under qemu-arm (arm/run-arm.sh; the exact
+    checks run with MESA_NO_JIT). Only on CPUs with NEON; MESA_NO_JIT or
+    MESA_NO_NEON turns it off. Also less work around every batch (exact):
+    the lanes' pointers and lists are set up only when the interpreter
+    needs them, init_machine's per-span part is done once per span, and
+    colour outputs are stored without store_outputs' tests. glbench's
+    glsl scene: 55% fewer ARM instructions under qemu.
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean

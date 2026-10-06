@@ -15,10 +15,16 @@
  *     asks whether the CPU has NEON. It answers as a Cortex-A8 with NEON
  *     (qemu-arm -cpu cortex-a8 has it); MESA_NO_NEON=1 makes Mesa use the
  *     C code, as on a machine without NEON.
+ *   - ro_jit_code_memory / ro_jit_sync: the shader JIT's code memory. On
+ *     RISC OS it is an array in the program (executable there); Linux
+ *     needs mmap'd executable memory and __builtin___clear_cache.
+ *     RO_JIT_DUMP=file writes the code to a file at exit (for objdump).
  * Part of riscos-mesa, MIT licence.
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include <ctype.h>
+#include <sys/mman.h>
 int ro_errno_shim;
 int ro_pthread_mutex_init_shim(void *m, const void *a) { (void) m; (void) a; return 0; }
 int ro_pthread_mutex_lock_shim(void *m) { (void) m; return 0; }
@@ -67,4 +73,30 @@ __attribute__((constructor)) static void init(void) {
             f |= 128;
         tbl[128 + c] = f;
     }
+}
+
+static void *jit_mem;
+static size_t jit_bytes = 512 * 1024;
+static void jit_dump(void)
+{
+    FILE *f = fopen(getenv("RO_JIT_DUMP"), "wb");
+    if (f) {
+        fwrite(jit_mem, 1, jit_bytes, f);
+        fclose(f);
+    }
+}
+void *ro_jit_code_memory(size_t *bytes)
+{
+    jit_mem = mmap(NULL, jit_bytes, PROT_READ | PROT_WRITE | PROT_EXEC,
+                   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (jit_mem == MAP_FAILED)
+        return NULL;
+    if (getenv("RO_JIT_DUMP"))
+        atexit(jit_dump);
+    *bytes = jit_bytes;
+    return jit_mem;
+}
+void ro_jit_sync(void *start, void *end)
+{
+    __builtin___clear_cache(start, end);
 }
