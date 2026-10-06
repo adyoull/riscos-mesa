@@ -750,7 +750,7 @@ A JIT ("just in time" compiler) turns code into machine code while the program r
 - **Speed:** glbench's shaded cube went from 27.1 ms to 13.3 ms a frame on a Pi 4. Texture reads and the per-pixel work around the shader (interpolating inputs, depth, writing the colour) aren't compiled, so shaders are still slower than fixed-function GL for the same picture.
 - **When it's used:** only on processors with NEON (every Pi 2 and later); others run the interpreter as before. `*Set MESA_NO_JIT 1` before a program starts turns it off, for comparison or if you suspect it.
 
-The fixed-function speed-ups (textures, blending, colour fills) aren't a JIT: they're NEON code written by hand for the commonest cases, and give exactly the same pixels as the C code.
+The fixed-function speed-ups (textures, blending, colour fills) aren't a JIT: for the commonest cases, Mesa's C code has been converted to NEON code and optimised, ahead of time, and it gives exactly the same pixels as the C code.
 
 **Getting speed out of the renderer**
 

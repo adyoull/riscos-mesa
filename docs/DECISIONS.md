@@ -10,7 +10,8 @@ be worked out again. Each says what would have to change to revisit it.
   itself went in 25.2 (25.1.x is the last release with it).
 - **Classic swrast suits a single slow core.** It's plain C (Mesa itself
   has no JIT there; from 20.3.5-14 riscos-mesa adds a small shader JIT and
-  hand-written NEON spans of its own, see below), and it has fast paths for the fixed-function GL most RISC OS programs
+  NEON versions of the commonest spans, converted from Mesa's C code and
+  optimised, see below), and it has fast paths for the fixed-function GL most RISC OS programs
   and older games use. Most of the project's speed work is in those paths
   (`patches/mesa`).
 - **What it gives: OpenGL 2.1 (compatibility), OpenGL ES 1.1 and 2.0.**
