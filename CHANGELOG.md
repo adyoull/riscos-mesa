@@ -21,7 +21,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   in an OpenGL 2.1 context, so a renderer written for GLES2 builds for
   desktop GL as well. New check `glsl-es2compat`.
 - **Pi tests for these:** `gl-etc1` and `gl-es2compat` in the tests zip
-  run the two rendering checks on RISC OS itself.
+  run the two rendering checks on RISC OS itself. Both passed on a
+  Raspberry Pi 4 (2026-10-06), line for line the same as on the host and
+  under emulation.
 - **Full screen: `eglSwapWouldWaitRISCOS` now works for the sprite plot**
   (the default full screen method), as riscos-ffmpeg's Reel asked. The
   plot has to start just after a vsync, so a swap always waited for one,
