@@ -356,6 +356,22 @@ mesa-20.3.5-riscos-temps.patch
     program that worked before. Checked by
     tests/host-harness/mesa/glsl-temps.c (Mesa 20.3.5 fails it).
 
+mesa-20.3.5-riscos-tex-neon.patch
+    Faster bilinear texturing, bit for bit the same. On ARM, FloatToFixed
+    (lroundf(x * 2048), per pixel in the textured spans) is worked out
+    inline: lroundf is a C function in UnixLib and was half the
+    instructions of a textured span. With NEON (VFPSupport; MESA_NO_NEON
+    turns it off), the commonest perspective/orthographic textured span,
+    GL_LINEAR on an RGBA8 texture (GL_RGBA + GL_UNSIGNED_BYTE) with
+    GL_MODULATE or GL_REPLACE, either wrap mode, does four pixels at a
+    time: texture coordinates still stepped one pixel at a time in
+    single precision as before, lroundf done exactly for four lanes, the
+    same integer filtering and modulation sums. Coordinates beyond
+    2^31 / 2048 (or NaN) go to the C code. glbench's tex scene: 52% fewer
+    ARM instructions under qemu. Checked by
+    tests/host-harness/mesa/render-texspan.c (240 cases; arm/run-arm.sh
+    requires NEON = C, and a broken NEON span fails it).
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean

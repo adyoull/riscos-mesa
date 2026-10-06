@@ -33,6 +33,14 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   pixel). A Mesa 20.3.5 limit, not something the JIT introduced; found
   through the JIT's random-shader check. New check `glsl-temps`.
 
+- **Faster bilinear texturing, with exactly the same picture** (new patch
+  `riscos-tex-neon`). The commonest textured drawing (a smooth-filtered
+  RGBA texture, modulated by the colour or replacing it) works on four
+  pixels at a time with NEON, and the rounding it does for every pixel no
+  longer calls the C library. glbench's tex scene takes 52% fewer
+  instructions under emulation. New check `render-texspan`. Not yet
+  tried on a Pi.
+
 ## 20.3.5-13: ETC1 textures, OpenGL ES 2.0 code in desktop GL, full screen swaps that don't block
 
 OpenGL ES programs written for the Raspberry Pi's GPU can load their ETC1

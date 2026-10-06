@@ -1,0 +1,240 @@
+  0 4x4 ortho nicest replace repeat range 2.5: 2dac8925
+  1 16x8 ortho nicest replace repeat range 2.5: beecc38b
+  2 64x64 ortho nicest replace repeat range 40: c26578de
+  3 256x32 ortho nicest replace repeat range 2.5: 3d8a0c71
+  4 8x128 ortho nicest replace repeat range 2.5: a084c69d
+  5 4x4 persp nicest replace repeat range 40: aa05b8d6
+undefined   6 16x8 persp nicest replace repeat range 2e+06: 10647eb6
+  7 64x64 persp nicest replace repeat range 2.5: dbe697ed
+  8 256x32 persp nicest replace repeat range 40: a2584587
+  9 8x128 persp nicest replace repeat range 2.5: c01a835c
+ 10 4x4 ortho fastest replace repeat range 2.5: 4ee6758d
+ 11 16x8 ortho fastest replace repeat range 40: c1d54c61
+ 12 64x64 ortho fastest replace repeat range 2.5: 921ffd90
+undefined  13 256x32 ortho fastest replace repeat range 2e+06: bb68da72
+ 14 8x128 ortho fastest replace repeat range 40: 99765d58
+ 15 4x4 persp fastest replace repeat range 2.5: 078283ab
+ 16 16x8 persp fastest replace repeat range 2.5: 3e89ae46
+ 17 64x64 persp fastest replace repeat range 40: df03470b
+ 18 256x32 persp fastest replace repeat range 2.5: 17734f61
+ 19 8x128 persp fastest replace repeat range 2.5: ad19565e
+undefined  20 4x4 ortho nicest modulate repeat range 2e+06: 18247645
+ 21 16x8 ortho nicest modulate repeat range 2.5: d5b78854
+ 22 64x64 ortho nicest modulate repeat range 2.5: fb772569
+ 23 256x32 ortho nicest modulate repeat range 40: da2618fc
+ 24 8x128 ortho nicest modulate repeat range 2.5: 4db78c84
+ 25 4x4 persp nicest modulate repeat range 2.5: be76a64e
+ 26 16x8 persp nicest modulate repeat range 40: cbd50b3f
+undefined  27 64x64 persp nicest modulate repeat range 2e+06: 9c1477d4
+ 28 256x32 persp nicest modulate repeat range 2.5: d5c2213b
+ 29 8x128 persp nicest modulate repeat range 40: 967826d5
+ 30 4x4 ortho fastest modulate repeat range 2.5: 6e493db7
+ 31 16x8 ortho fastest modulate repeat range 2.5: f658bcbe
+ 32 64x64 ortho fastest modulate repeat range 40: 8084df32
+ 33 256x32 ortho fastest modulate repeat range 2.5: d5a7efdb
+undefined  34 8x128 ortho fastest modulate repeat range 2e+06: 6f7310f2
+ 35 4x4 persp fastest modulate repeat range 40: b12f39a9
+ 36 16x8 persp fastest modulate repeat range 2.5: cc23f22f
+ 37 64x64 persp fastest modulate repeat range 2.5: c3f12a91
+ 38 256x32 persp fastest modulate repeat range 40: 166ac1c8
+ 39 8x128 persp fastest modulate repeat range 2.5: 11ae6ec3
+ 40 4x4 ortho nicest replace clamp range 2.5: 2dceaa27
+undefined  41 16x8 ortho nicest replace clamp range 2e+06: d8932ded
+ 42 64x64 ortho nicest replace clamp range 2.5: e037f1de
+ 43 256x32 ortho nicest replace clamp range 2.5: b8bb5e79
+ 44 8x128 ortho nicest replace clamp range 40: c31cbe65
+ 45 4x4 persp nicest replace clamp range 2.5: dd852cd0
+ 46 16x8 persp nicest replace clamp range 2.5: 43fdc90f
+ 47 64x64 persp nicest replace clamp range 40: 853dcc13
+undefined  48 256x32 persp nicest replace clamp range 2e+06: 87c7ec8a
+ 49 8x128 persp nicest replace clamp range 2.5: b618d323
+ 50 4x4 ortho fastest replace clamp range 40: 2bedc153
+ 51 16x8 ortho fastest replace clamp range 2.5: 75b9dbf6
+ 52 64x64 ortho fastest replace clamp range 2.5: 93202526
+ 53 256x32 ortho fastest replace clamp range 40: c43cb09f
+ 54 8x128 ortho fastest replace clamp range 2.5: 11b8347c
+undefined  55 4x4 persp fastest replace clamp range 2e+06: eda1a852
+ 56 16x8 persp fastest replace clamp range 40: 4ab7c65a
+ 57 64x64 persp fastest replace clamp range 2.5: f0f317a2
+ 58 256x32 persp fastest replace clamp range 2.5: e3150ba0
+ 59 8x128 persp fastest replace clamp range 40: 9843e008
+ 60 4x4 ortho nicest modulate clamp range 2.5: 05ceb204
+ 61 16x8 ortho nicest modulate clamp range 2.5: 79c8fc64
+undefined  62 64x64 ortho nicest modulate clamp range 2e+06: 5e59f645
+ 63 256x32 ortho nicest modulate clamp range 2.5: 3aac1e05
+ 64 8x128 ortho nicest modulate clamp range 2.5: f4116bb8
+ 65 4x4 persp nicest modulate clamp range 40: 362d1a3d
+ 66 16x8 persp nicest modulate clamp range 2.5: 712e6503
+ 67 64x64 persp nicest modulate clamp range 2.5: 7f598039
+ 68 256x32 persp nicest modulate clamp range 40: 59e5b139
+undefined  69 8x128 persp nicest modulate clamp range 2e+06: 2b0013a7
+ 70 4x4 ortho fastest modulate clamp range 2.5: 13ae62d1
+ 71 16x8 ortho fastest modulate clamp range 40: fb61d4f5
+ 72 64x64 ortho fastest modulate clamp range 2.5: b24d0431
+ 73 256x32 ortho fastest modulate clamp range 2.5: 88929f4c
+ 74 8x128 ortho fastest modulate clamp range 40: 46d1d144
+ 75 4x4 persp fastest modulate clamp range 2.5: 95d26beb
+undefined  76 16x8 persp fastest modulate clamp range 2e+06: 6c7a9565
+ 77 64x64 persp fastest modulate clamp range 40: 9535f622
+ 78 256x32 persp fastest modulate clamp range 2.5: 29d048b1
+ 79 8x128 persp fastest modulate clamp range 2.5: 530c2420
+ 80 4x4 ortho nicest replace clamp-s range 40: f90ce3aa
+ 81 16x8 ortho nicest replace clamp-s range 2.5: c206d99c
+ 82 64x64 ortho nicest replace clamp-s range 2.5: 8250de18
+undefined  83 256x32 ortho nicest replace clamp-s range 2e+06: 24ab1d04
+ 84 8x128 ortho nicest replace clamp-s range 2.5: 546591a4
+ 85 4x4 persp nicest replace clamp-s range 2.5: b6692ee1
+ 86 16x8 persp nicest replace clamp-s range 40: 9c6be4f1
+ 87 64x64 persp nicest replace clamp-s range 2.5: dbbed1af
+ 88 256x32 persp nicest replace clamp-s range 2.5: 6d0d2b8f
+ 89 8x128 persp nicest replace clamp-s range 40: ffc67064
+undefined  90 4x4 ortho fastest replace clamp-s range 2e+06: 48a92384
+ 91 16x8 ortho fastest replace clamp-s range 2.5: 7987e8d7
+ 92 64x64 ortho fastest replace clamp-s range 40: ab2ffc15
+ 93 256x32 ortho fastest replace clamp-s range 2.5: 9348c9f7
+ 94 8x128 ortho fastest replace clamp-s range 2.5: 4abd63ef
+ 95 4x4 persp fastest replace clamp-s range 40: 6a822aad
+ 96 16x8 persp fastest replace clamp-s range 2.5: 2042b32e
+undefined  97 64x64 persp fastest replace clamp-s range 2e+06: 5bfe6d61
+ 98 256x32 persp fastest replace clamp-s range 40: cb2cc953
+ 99 8x128 persp fastest replace clamp-s range 2.5: 9fb209af
+100 4x4 ortho nicest modulate clamp-s range 2.5: 26b781f9
+101 16x8 ortho nicest modulate clamp-s range 40: f6153aad
+102 64x64 ortho nicest modulate clamp-s range 2.5: 4e2ff52b
+103 256x32 ortho nicest modulate clamp-s range 2.5: 8381a2c4
+undefined 104 8x128 ortho nicest modulate clamp-s range 2e+06: ae255fbc
+105 4x4 persp nicest modulate clamp-s range 2.5: 52d71ff1
+106 16x8 persp nicest modulate clamp-s range 2.5: 9ee8dcd6
+107 64x64 persp nicest modulate clamp-s range 40: 42f2da2c
+108 256x32 persp nicest modulate clamp-s range 2.5: 349d9f7f
+109 8x128 persp nicest modulate clamp-s range 2.5: cc5eb83e
+110 4x4 ortho fastest modulate clamp-s range 40: 95d0589d
+undefined 111 16x8 ortho fastest modulate clamp-s range 2e+06: 19341afd
+112 64x64 ortho fastest modulate clamp-s range 2.5: 49be01d2
+113 256x32 ortho fastest modulate clamp-s range 40: 5e91b84b
+114 8x128 ortho fastest modulate clamp-s range 2.5: 919e85af
+115 4x4 persp fastest modulate clamp-s range 2.5: 35586b3e
+116 16x8 persp fastest modulate clamp-s range 40: 0570170c
+117 64x64 persp fastest modulate clamp-s range 2.5: 7f6baada
+undefined 118 256x32 persp fastest modulate clamp-s range 2e+06: ba64a37c
+119 8x128 persp fastest modulate clamp-s range 40: ad9a9567
+120 4x4 ortho nicest replace repeat range 2.5: 968fa563
+121 16x8 ortho nicest replace repeat range 2.5: 47ad760b
+122 64x64 ortho nicest replace repeat range 40: d485a906
+123 256x32 ortho nicest replace repeat range 2.5: 08024440
+124 8x128 ortho nicest replace repeat range 2.5: ca72c415
+undefined 125 4x4 persp nicest replace repeat range 2e+06: 71bc0860
+126 16x8 persp nicest replace repeat range 2.5: 422d1bcb
+127 64x64 persp nicest replace repeat range 2.5: 91ba5877
+128 256x32 persp nicest replace repeat range 40: f40e60eb
+129 8x128 persp nicest replace repeat range 2.5: 53cbbe41
+130 4x4 ortho fastest replace repeat range 2.5: e58ca8cd
+131 16x8 ortho fastest replace repeat range 40: c140a28e
+undefined 132 64x64 ortho fastest replace repeat range 2e+06: f502238c
+133 256x32 ortho fastest replace repeat range 2.5: e85f6efa
+134 8x128 ortho fastest replace repeat range 40: d5a2a107
+135 4x4 persp fastest replace repeat range 2.5: b6974407
+136 16x8 persp fastest replace repeat range 2.5: 0cfa6b16
+137 64x64 persp fastest replace repeat range 40: 5ff99a57
+138 256x32 persp fastest replace repeat range 2.5: d2c7d51d
+undefined 139 8x128 persp fastest replace repeat range 2e+06: d0a9649b
+140 4x4 ortho nicest modulate repeat range 40: 7dffc170
+141 16x8 ortho nicest modulate repeat range 2.5: de62bf5a
+142 64x64 ortho nicest modulate repeat range 2.5: ba271ed6
+143 256x32 ortho nicest modulate repeat range 40: 1cb91860
+144 8x128 ortho nicest modulate repeat range 2.5: 3dab0e11
+145 4x4 persp nicest modulate repeat range 2.5: e8011b29
+undefined 146 16x8 persp nicest modulate repeat range 2e+06: 081773f0
+147 64x64 persp nicest modulate repeat range 2.5: 298fd078
+148 256x32 persp nicest modulate repeat range 2.5: 4710b473
+149 8x128 persp nicest modulate repeat range 40: 6648e746
+150 4x4 ortho fastest modulate repeat range 2.5: 56a62f13
+151 16x8 ortho fastest modulate repeat range 2.5: e84573f4
+152 64x64 ortho fastest modulate repeat range 40: e25bf303
+undefined 153 256x32 ortho fastest modulate repeat range 2e+06: 8908e293
+154 8x128 ortho fastest modulate repeat range 2.5: 1a0487ef
+155 4x4 persp fastest modulate repeat range 40: d94972a7
+156 16x8 persp fastest modulate repeat range 2.5: 55008ec2
+157 64x64 persp fastest modulate repeat range 2.5: e75d18c8
+158 256x32 persp fastest modulate repeat range 40: 3c646229
+159 8x128 persp fastest modulate repeat range 2.5: 3ebfbae0
+undefined 160 4x4 ortho nicest replace clamp range 2e+06: 726d7c62
+161 16x8 ortho nicest replace clamp range 40: b9df4880
+162 64x64 ortho nicest replace clamp range 2.5: d04f1258
+163 256x32 ortho nicest replace clamp range 2.5: dd3dab79
+164 8x128 ortho nicest replace clamp range 40: 99900a46
+165 4x4 persp nicest replace clamp range 2.5: a2cec5f4
+166 16x8 persp nicest replace clamp range 2.5: e8a510de
+undefined 167 64x64 persp nicest replace clamp range 2e+06: 7575c09d
+168 256x32 persp nicest replace clamp range 2.5: a7ba86a9
+169 8x128 persp nicest replace clamp range 2.5: 365c367c
+170 4x4 ortho fastest replace clamp range 40: 07a36d1d
+171 16x8 ortho fastest replace clamp range 2.5: 6bdce342
+172 64x64 ortho fastest replace clamp range 2.5: 286051fc
+173 256x32 ortho fastest replace clamp range 40: ba2a57bb
+undefined 174 8x128 ortho fastest replace clamp range 2e+06: 772dd4ea
+175 4x4 persp fastest replace clamp range 2.5: 35bd2b6e
+176 16x8 persp fastest replace clamp range 40: a62fe16d
+177 64x64 persp fastest replace clamp range 2.5: aa16c8c6
+178 256x32 persp fastest replace clamp range 2.5: 1d46b819
+179 8x128 persp fastest replace clamp range 40: c1ee6c01
+180 4x4 ortho nicest modulate clamp range 2.5: 4db4a9bb
+undefined 181 16x8 ortho nicest modulate clamp range 2e+06: 306334d5
+182 64x64 ortho nicest modulate clamp range 40: 5cf6c1d2
+183 256x32 ortho nicest modulate clamp range 2.5: a6395581
+184 8x128 ortho nicest modulate clamp range 2.5: 7e8d0f05
+185 4x4 persp nicest modulate clamp range 40: d3766dc3
+186 16x8 persp nicest modulate clamp range 2.5: 0a8132ce
+187 64x64 persp nicest modulate clamp range 2.5: f88f6303
+undefined 188 256x32 persp nicest modulate clamp range 2e+06: 46993931
+189 8x128 persp nicest modulate clamp range 2.5: 8dd059e8
+190 4x4 ortho fastest modulate clamp range 2.5: a97bfc5a
+191 16x8 ortho fastest modulate clamp range 40: 81b4268b
+192 64x64 ortho fastest modulate clamp range 2.5: 5bbb481a
+193 256x32 ortho fastest modulate clamp range 2.5: de8532bc
+194 8x128 ortho fastest modulate clamp range 40: 3c96dd8b
+undefined 195 4x4 persp fastest modulate clamp range 2e+06: c73c46e6
+196 16x8 persp fastest modulate clamp range 2.5: d56da57b
+197 64x64 persp fastest modulate clamp range 40: 695a37f7
+198 256x32 persp fastest modulate clamp range 2.5: 85a04ce5
+199 8x128 persp fastest modulate clamp range 2.5: 088b31d2
+200 4x4 ortho nicest replace clamp-s range 40: 3e4d1293
+201 16x8 ortho nicest replace clamp-s range 2.5: feb3700c
+undefined 202 64x64 ortho nicest replace clamp-s range 2e+06: c0ef8deb
+203 256x32 ortho nicest replace clamp-s range 40: e1cbd4ec
+204 8x128 ortho nicest replace clamp-s range 2.5: 0f9c5c7f
+205 4x4 persp nicest replace clamp-s range 2.5: d175e654
+206 16x8 persp nicest replace clamp-s range 40: 5b9f6847
+207 64x64 persp nicest replace clamp-s range 2.5: 83e597ee
+208 256x32 persp nicest replace clamp-s range 2.5: eca91127
+undefined 209 8x128 persp nicest replace clamp-s range 2e+06: d2ad3932
+210 4x4 ortho fastest replace clamp-s range 2.5: 8bce9ad1
+211 16x8 ortho fastest replace clamp-s range 2.5: fb69fcd6
+212 64x64 ortho fastest replace clamp-s range 40: 068e73a2
+213 256x32 ortho fastest replace clamp-s range 2.5: ba3ac6df
+214 8x128 ortho fastest replace clamp-s range 2.5: 00b2c7b8
+215 4x4 persp fastest replace clamp-s range 40: d81601c6
+undefined 216 16x8 persp fastest replace clamp-s range 2e+06: 3967aac2
+217 64x64 persp fastest replace clamp-s range 2.5: fe1b50b3
+218 256x32 persp fastest replace clamp-s range 40: 81f45f0c
+219 8x128 persp fastest replace clamp-s range 2.5: 1a008cbc
+220 4x4 ortho nicest modulate clamp-s range 2.5: b5198a08
+221 16x8 ortho nicest modulate clamp-s range 40: 89ec8876
+222 64x64 ortho nicest modulate clamp-s range 2.5: bb88b51e
+undefined 223 256x32 ortho nicest modulate clamp-s range 2e+06: f0f545cb
+224 8x128 ortho nicest modulate clamp-s range 40: ee290912
+225 4x4 persp nicest modulate clamp-s range 2.5: 99a8b850
+226 16x8 persp nicest modulate clamp-s range 2.5: 4db1dc02
+227 64x64 persp nicest modulate clamp-s range 40: 21382a08
+228 256x32 persp nicest modulate clamp-s range 2.5: d40192bf
+229 8x128 persp nicest modulate clamp-s range 2.5: 9cafc7d2
+undefined 230 4x4 ortho fastest modulate clamp-s range 2e+06: cb92db6e
+231 16x8 ortho fastest modulate clamp-s range 2.5: d4c4551f
+232 64x64 ortho fastest modulate clamp-s range 2.5: f026d7ab
+233 256x32 ortho fastest modulate clamp-s range 40: c5c43d38
+234 8x128 ortho fastest modulate clamp-s range 2.5: a4f35ae9
+235 4x4 persp fastest modulate clamp-s range 2.5: db400ad0
+236 16x8 persp fastest modulate clamp-s range 40: b52fa16d
+undefined 237 64x64 persp fastest modulate clamp-s range 2e+06: 489e7270
+238 256x32 persp fastest modulate clamp-s range 2.5: 17d1ebd6
+239 8x128 persp fastest modulate clamp-s range 40: 7730e0c3
