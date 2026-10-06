@@ -37,9 +37,11 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   `riscos-tex-neon`). The commonest textured drawing (a smooth-filtered
   RGBA texture, modulated by the colour or replacing it) works on four
   pixels at a time with NEON, and the rounding it does for every pixel no
-  longer calls the C library. glbench's tex scene takes 52% fewer
-  instructions under emulation. New check `render-texspan`. Not yet
-  tried on a Pi.
+  longer calls the C library. On a Raspberry Pi 4 glbench's tex scene
+  went from 19.95 ms to 11.16 ms a frame (1.8 times as fast; 17.46 ms
+  with NEON turned off, from the rounding change alone), and the new
+  check `render-texspan` gives the same result with and without NEON
+  there, as under emulation.
 
 ## 20.3.5-13: ETC1 textures, OpenGL ES 2.0 code in desktop GL, full screen swaps that don't block
 

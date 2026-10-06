@@ -357,10 +357,11 @@ mesa-20.3.5-riscos-temps.patch
     tests/host-harness/mesa/glsl-temps.c (Mesa 20.3.5 fails it).
 
 mesa-20.3.5-riscos-tex-neon.patch
-    Faster bilinear texturing, bit for bit the same. On ARM, FloatToFixed
-    (lroundf(x * 2048), per pixel in the textured spans) is worked out
-    inline: lroundf is a C function in UnixLib and was half the
-    instructions of a textured span. With NEON (VFPSupport; MESA_NO_NEON
+    Faster bilinear texturing, bit for bit the same. On ARM, the textured
+    spans' per-pixel FloatToFixed (lroundf(x * 2048)) is worked out inline
+    (SpanFloatToFixed): lroundf is a C function in UnixLib and was half
+    the instructions of a textured span. (Only there: used in triangle
+    set-up too it made glbench's tris scene 3% slower on a Pi 4.) With NEON (VFPSupport; MESA_NO_NEON
     turns it off), the commonest perspective/orthographic textured span,
     GL_LINEAR on an RGBA8 texture (GL_RGBA + GL_UNSIGNED_BYTE) with
     GL_MODULATE or GL_REPLACE, either wrap mode, does four pixels at a

@@ -33,26 +33,30 @@ index 0f7b6d0..2c3775b 100644
  
  #endif /* PROG_EXECUTE_H */
 diff --git a/src/mesa/swrast/s_context.h b/src/mesa/swrast/s_context.h
-index b60748b..aac8bad 100644
+index b60748b..44943bc 100644
 --- a/src/mesa/swrast/s_context.h
 +++ b/src/mesa/swrast/s_context.h
-@@ -441,7 +441,36 @@ _swrast_unmap_renderbuffers(struct gl_context *ctx);
- #define FIXED_EPSILON   1
+@@ -442,6 +442,40 @@ _swrast_unmap_renderbuffers(struct gl_context *ctx);
  #define FIXED_SCALE     ((float) FIXED_ONE)
  #define FIXED_DBL_SCALE ((double) FIXED_ONE)
-+#if defined(__arm__)
-+#define FloatToFixed(X) ro_float_to_fixed(X)
-+#else
  #define FloatToFixed(X) (lroundf((X) * FIXED_SCALE))
++/* riscos-mesa: FloatToFixed for per-pixel use in the textured spans, see
++ * ro_float_to_fixed */
++#if defined(__arm__)
++#define SpanFloatToFixed(X) ro_float_to_fixed(X)
++#else
++#define SpanFloatToFixed(X) FloatToFixed(X)
 +#endif
 +
 +/* riscos-mesa: lroundf(x * FIXED_SCALE), the same value, without the
-+ * library call. FloatToFixed is per pixel in the textured spans, where
++ * library call, for the textured spans' per-pixel FloatToFixed, where
 + * lroundf was half the instructions (it's a C function in UnixLib and
 + * glibc). For |y| < 2^31, t = (int) y truncates exactly, y - t is the
 + * exact fraction, and a fraction of at least one half rounds away from
 + * zero as lroundf does; anything else (huge, infinite, NaN) still goes to
-+ * lroundf. Only on ARM: x86's lroundf is quicker than this. */
++ * lroundf. Only on ARM (x86's lroundf is quicker than this), and only in
++ * the spans: used everywhere (triangle setup too) it made glbench's tris
++ * scene 3% slower on a Pi 4, with fewer instructions. */
 +#if defined(__arm__)
 +static inline long
 +ro_float_to_fixed(float x)
@@ -74,7 +78,7 @@ index b60748b..aac8bad 100644
  #define IntToFixed(I)   ((I) << FIXED_SHIFT)
  #define FixedToInt(X)   ((X) >> FIXED_SHIFT)
 diff --git a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
-index fb885be..f71870e 100644
+index fb885be..578f4a9 100644
 --- a/src/mesa/swrast/s_triangle.c
 +++ b/src/mesa/swrast/s_triangle.c
 @@ -864,6 +864,220 @@ struct persp_info
@@ -87,7 +91,7 @@ index fb885be..f71870e 100644
 + * GL_UNSIGNED_BYTE gives) with GL_MODULATE or GL_REPLACE, four pixels at a
 + * time. The output is the same bit for bit as SPAN_LINEAR's: the texture
 + * coordinates are stepped one pixel at a time in single precision as
-+ * there (PERSP_ST included), FloatToFixed's rounding is done exactly
++ * there (PERSP_ST included), SpanFloatToFixed's rounding is done exactly
 + * (ro_lround4), and the filtering and modulation are the same integer
 + * sums (ilerp: a + ((w * (b - a)) >> 11); MODULATE: c * (s + 1) >> 19).
 + * Coordinates too big for that (2^31 / FIXED_SCALE texels) or NaN send
@@ -130,8 +134,8 @@ index fb885be..f71870e 100644
 +                      GLfloat s_tmp, GLfloat t_tmp, GLboolean modulate,
 +                      GLchan *dest)
 +{
-+   const GLfixed s_fix = FloatToFixed(s_tmp) - FIXED_HALF;
-+   const GLfixed t_fix = FloatToFixed(t_tmp) - FIXED_HALF;
++   const GLfixed s_fix = SpanFloatToFixed(s_tmp) - FIXED_HALF;
++   const GLfixed t_fix = SpanFloatToFixed(t_tmp) - FIXED_HALF;
 +   const GLint s = FixedToInt(FixedFloor(s_fix));
 +   const GLint t = FixedToInt(FixedFloor(t_fix));
 +   const GLfixed sf = s_fix & FIXED_FRAC_MASK;
@@ -298,6 +302,28 @@ index fb885be..f71870e 100644
  static inline void
  fast_persp_span(struct gl_context *ctx, SWspan *span,
  		struct persp_info *info)
+@@ -937,8 +1151,8 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+ 	for (i = 0; i < count; i++) {				\
+            GLfloat s_tmp, t_tmp;					\
+            PERSP_ST(s_tmp, t_tmp);					\
+-           const GLfixed s_fix = FloatToFixed(s_tmp) - FIXED_HALF;	\
+-           const GLfixed t_fix = FloatToFixed(t_tmp) - FIXED_HALF;      \
++           const GLfixed s_fix = SpanFloatToFixed(s_tmp) - FIXED_HALF;	\
++           const GLfixed t_fix = SpanFloatToFixed(t_tmp) - FIXED_HALF;  \
+            const GLint s = FixedToInt(FixedFloor(s_fix));		\
+            const GLint t = FixedToInt(FixedFloor(t_fix));		\
+            const GLfixed sf = s_fix & FIXED_FRAC_MASK;			\
+@@ -959,8 +1173,8 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+ 	for (i = 0; i < count; i++) {				\
+            GLfloat s_tmp, t_tmp;					\
+            PERSP_ST(s_tmp, t_tmp);					\
+-           const GLfixed s_fix = FloatToFixed(s_tmp) - FIXED_HALF;	\
+-           const GLfixed t_fix = FloatToFixed(t_tmp) - FIXED_HALF;      \
++           const GLfixed s_fix = SpanFloatToFixed(s_tmp) - FIXED_HALF;	\
++           const GLfixed t_fix = SpanFloatToFixed(t_tmp) - FIXED_HALF;  \
+            const GLint s = FixedToInt(FixedFloor(s_fix)) & info->smask;	\
+            const GLint t = FixedToInt(FixedFloor(t_fix)) & info->tmask;	\
+            const GLfixed sf = s_fix & FIXED_FRAC_MASK;			\
 @@ -1158,6 +1372,15 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
           }
           break;
