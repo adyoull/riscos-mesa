@@ -39,8 +39,8 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   from 13.3 ms to 7.7 ms a frame, 5.6 ms a frame handed back to the
   program, still 59.9 fps. With a 9.6 ms scene there is little to hand
   back (0.4 ms: drawing and the 6 ms plot fill the frame), but it ran at
-  59.9 fps against 58.0. `egltest -k` no longer counts the freed time as
-  drawing time.
+  59.9 fps against 58.0. A sweeping bar tore no more than without it.
+  `egltest -k` no longer counts the freed time as drawing time.
 - **Docs brought up to 20.3.5-12:** the EGL guide's glbench table (Pi 4,
   now with the fog scene) and speed advice (24-bit depth buffers clear
   fastest, colour material, fog, GL_BLEND off for opaque drawing, NEON
