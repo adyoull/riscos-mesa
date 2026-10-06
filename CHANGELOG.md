@@ -4,7 +4,16 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## 20.3.5-13 (in development)
+## 20.3.5-13: ETC1 textures, OpenGL ES 2.0 code in desktop GL, full screen swaps that don't block
+
+OpenGL ES programs written for the Raspberry Pi's GPU can load their ETC1
+textures, OpenGL ES 2.0 shaders and calls work in a desktop OpenGL 2.1
+context, and a full screen program can ask whether its next swap would
+wait for the vsync and do other work instead. Existing programs draw
+exactly as before; the one change they may see is that a full screen
+swap interval of 2 or more counts from the last frame shown. Tested on a Pi 4: all three (the ETC1
+and ES 2.0 checks give the same results as on the host; a light full
+screen scene got 5.6 ms a frame back, with no more tearing).
 
 - **ETC1 textures in OpenGL ES** (`GL_OES_compressed_ETC1_RGB8_texture`,
   new patch `riscos-es-extras`). ETC1 is the texture format the Raspberry

@@ -16,7 +16,10 @@ rendering at 640x480 goes from 78 fps to 214 fps through the hardware
 overlay, and SDL draws sprites with soft edges about 1.6 times as fast.
 20.3.5-12 draws faster with the same picture: on a Pi 4, GLSL shaders
 take 29% less time, fog half, depth clears 62% less and lit drawing
-12-43% less. Not tried on a Pi yet: menus over the overlay, the overlay
+12-43% less. 20.3.5-13 loads the ETC1 textures that Pi ES programs
+ship, runs ES 2.0 shaders in a desktop GL context, and lets a full
+screen program work instead of waiting for the vsync in its swap (5.6 ms
+a frame back with a light scene on a Pi 4). Not tried on a Pi yet: menus over the overlay, the overlay
 in full screen or across mode changes, SDL's multitasking full screen,
 and GLUT's game mode at the requested size.
 
