@@ -427,6 +427,41 @@ mesa-20.3.5-riscos-depth-neon.patch
     breaking the lane mask, the Z16 write, a compare, the swap or the Z
     step fails it).
 
+mesa-20.3.5-riscos-span-fast.patch
+    Less work around each span of a 3D game's triangles, bit for bit the
+    same. (1) The NEON perspective textured span (s_triangle.c) now does
+    the whole span in one call, ro_neon_persp_span, instead of one call
+    per GL_FASTEST segment: the texture and colour set-up is done once,
+    and a segment's end coordinates (the same double sums and divide as
+    before) are kept as the next segment's start, so a segment takes one
+    divide instead of two. (2) A part group of two or three pixels at the
+    end of a span (RO_PAD_MIN) is done as a whole NEON group, the extra
+    pixels being worked out past the span in the colour array (which has
+    room for them: nothing reads past span->end), and the colours stepped
+    back; a single pixel still goes to the C code, which is quicker for
+    one. The same in affine_span's RGB span. (3) fast_persp_span and
+    affine_span are no longer inlined into their triangle functions,
+    whose span loops, with a stack frame of nearly 7 KB, then keep their
+    own variables in registers. (4) _swrast_write_rgba_span first tries
+    ro_write_rgba_span_fast, for a horizontal span inside the window and
+    scissor box, depth-tested (no stencil, depth bounds or clamp), with no
+    shader, texturing left to do, alpha test, stipple, occlusion query,
+    colour sum, logic op or colour mask, into one 8-bit colour buffer:
+    it does the same steps in the same order (mask, Z, depth test,
+    colours, fog, blend, write) without the general function's other
+    checks and calls; anything else takes the general function as before.
+    ARM instructions per frame under qemu: glbench "game" 12.94M ->
+    11.54M, fog 10.07M -> 9.55M, the other scenes within 0.3%; a
+    TORCS-like scene 19.82M -> 17.64M. Checked by
+    tests/host-harness/mesa/render-spanfast.c (192 cases: 16, 24 and
+    24 + 8-bit depth, RGBA and BGRA, perspective triangles untextured and
+    with RGBA8 and RGB textures, GL_FASTEST and GL_NICEST, no fog, vertex
+    and pixel fog, blending, random depth functions and writes, some cut
+    by a scissor box) against hashes made with the code before this
+    patch; arm/run-arm.sh requires NEON = C, and leaving out the fog,
+    blend, mask or colour step of the fast write, or breaking the segment
+    end, the padded pixels or the segment step, fails it.
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean

@@ -16,6 +16,16 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   or 13.03 -> 12.46 ms with a BGRA buffer (`glbench -bgra`); the other
   scenes within 1%. New check `render-depth`.
 
+- **Less work around every span of a 3D game's triangles, with exactly
+  the same picture** (new patch `riscos-span-fast`). Textured spans are
+  done a whole span at a time with NEON (one divide per GL_FASTEST
+  segment instead of two, and the short ends of spans as NEON groups),
+  and depth-tested spans take a direct route past Mesa's general per-span
+  checks. Under emulation: glbench's racing-game-like scene takes 11%
+  fewer ARM instructions a frame, its fog scene 5% fewer, and a
+  TORCS-like scene 11% fewer; the other scenes are within 0.3%. Not yet
+  timed on a Pi. New check `render-spanfast`.
+
 ## 20.3.5-14: NEON texturing and blending, GLSL shaders compiled to ARM code
 
 Drawing is much faster on CPUs with NEON (every Raspberry Pi 2 and later),

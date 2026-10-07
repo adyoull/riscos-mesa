@@ -1,0 +1,429 @@
+diff --git a/src/mesa/swrast/s_span.c b/src/mesa/swrast/s_span.c
+index ec5e663..410b5f0 100644
+--- a/src/mesa/swrast/s_span.c
++++ b/src/mesa/swrast/s_span.c
+@@ -1322,9 +1322,104 @@ _swrast_put_row(struct gl_context *ctx, struct gl_renderbuffer *rb,
+  * span->interpMask and span->arrayMask may be changed but will be restored
+  * to their original values before returning.
+  */
++/**
++ * riscos-mesa: _swrast_write_rgba_span for the commonest span of 3D
++ * games, a horizontal run of shaded (or textured, by the fast textured
++ * triangles) pixels, depth-tested, inside the window and scissor box, and
++ * written to one 8-bit colour buffer, perhaps fogged and blended. It does
++ * what _swrast_write_rgba_span does for such a span, in the same order,
++ * skipping the general function's checks and steps that don't apply (each
++ * of which would leave the span as it is). Returns GL_FALSE, having done
++ * nothing, for any other span.
++ */
++static GLboolean
++ro_write_rgba_span_fast(struct gl_context *ctx, SWspan *span)
++{
++   const SWcontext *swrast = SWRAST_CONTEXT(ctx);
++   struct gl_framebuffer *fb = ctx->DrawBuffer;
++   const struct gl_program *fp = ctx->FragmentProgram._Current;
++   struct gl_renderbuffer *rb;
++   GLbitfield origInterpMask, origArrayMask;
++   GLbitfield64 origArrayAttribs;
++   GLenum origChanType;
++   void *origRgba;
++
++   /* (the commonest reasons not to first) */
++   if (!ctx->Depth.Test || ctx->Texture._EnabledCoordUnits ||
++       (fp && !(fp == ctx->FragmentProgram._TexEnvProgram &&
++                fp->arb.NumInstructions == 0)))
++      return GL_FALSE;
++   /* the span */
++   if (span->primitive != GL_POLYGON ||
++       (span->arrayMask & (SPAN_MASK | SPAN_XY | SPAN_COVERAGE)) ||
++       span->array->ChanType != GL_UNSIGNED_BYTE ||
++       span->y < fb->_Ymin || span->y >= fb->_Ymax ||
++       span->x < fb->_Xmin || span->x + (GLint) span->end > fb->_Xmax)
++      return GL_FALSE;
++   /* fragment processing: no shading or texturing here (the fast textured
++    * triangles have done the texturing), a depth test and nothing else
++    * before the colour is written but fog and blending */
++   if (_mesa_ati_fragment_shader_enabled(ctx) ||
++       fb->Visual.depthBits == 0 ||
++       ctx->Depth.BoundsTest ||
++       (ctx->Transform.DepthClampNear && ctx->Transform.DepthClampFar) ||
++       _mesa_stencil_is_enabled(ctx) ||
++       ctx->Polygon.StippleFlag ||
++       ctx->Color.AlphaEnabled ||
++       ctx->Query.CurrentOcclusionObject ||
++       ctx->Fog.ColorSumEnabled ||
++       (ctx->Light.Enabled &&
++        ctx->Light.Model.ColorControl == GL_SEPARATE_SPECULAR_COLOR) ||
++       ctx->Color.ColorLogicOpEnabled)
++      return GL_FALSE;
++   /* one 8-bit colour buffer, all channels written */
++   if (fb->_NumColorDrawBuffers != 1 ||
++       !(rb = fb->_ColorDrawBuffers[0]) ||
++       swrast_renderbuffer(rb)->ColorType != GL_UNSIGNED_BYTE ||
++       GET_COLORMASK(ctx->Color.ColorMask, 0) != 0xf)
++      return GL_FALSE;
++
++   origInterpMask = span->interpMask;
++   origArrayMask = span->arrayMask;
++   origArrayAttribs = span->arrayAttribs;
++   origChanType = span->array->ChanType;
++   origRgba = span->array->rgba;
++
++   memset(span->array->mask, 1, span->end);
++   span->writeAll = GL_TRUE;
++   span->leftClip = 0;        /* as clip_span, for a span inside */
++
++   if (!(span->arrayMask & SPAN_Z))
++      _swrast_span_interpolate_z(ctx, span);
++   if (_swrast_depth_test_span(ctx, span)) {
++      if (!(span->arrayMask & SPAN_RGBA))
++         interpolate_int_colors(ctx, span);
++      if (swrast->_FogEnabled)
++         _swrast_fog_rgba_span(ctx, span);
++      span->array->rgba = span->array->rgba8;
++      if (ctx->Color.BlendEnabled & 1)
++         _swrast_blend_span(ctx, rb, span);
++      _swrast_put_row(ctx, rb, span->array->ChanType, span->end,
++                      span->x, span->y, span->array->rgba,
++                      span->writeAll ? NULL : span->array->mask);
++   }
++
++   span->interpMask = origInterpMask;
++   span->arrayMask = origArrayMask;
++   span->arrayAttribs = origArrayAttribs;
++   span->array->ChanType = origChanType;
++   span->array->rgba = origRgba;
++   return GL_TRUE;
++}
++
++
+ void
+ _swrast_write_rgba_span( struct gl_context *ctx, SWspan *span)
+ {
++   /* riscos-mesa */
++   if (ro_write_rgba_span_fast(ctx, span))
++      return;
++
+    const SWcontext *swrast = SWRAST_CONTEXT(ctx);
+    const GLbitfield origInterpMask = span->interpMask;
+    const GLbitfield origArrayMask = span->arrayMask;
+diff --git a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
+index cb81c20..f9ad427 100644
+--- a/src/mesa/swrast/s_triangle.c
++++ b/src/mesa/swrast/s_triangle.c
+@@ -401,12 +401,16 @@ ilerp_2d(GLint ia, GLint ib, GLint v00, GLint v10, GLint v01, GLint v11)
+    const GLchan *tex11 = info->texture + COMPS * ((t1 << info->twidth_log2) + s1)
+ 
+ 
++/* riscos-mesa: pixels per segment of a GL_FASTEST perspective span (see
++ * fast_persp_span) */
++#define PERSP_SEGMENT 16
++
+ /*
+  * riscos-mesa: NEON for the commonest textured spans, bilinear filtering
+  * of an RGBA8 texture (MESA_FORMAT_R8G8B8A8_UNORM, what GL_RGBA +
+  * GL_UNSIGNED_BYTE gives) or a BGR one (what GL_RGB gives) with
+  * GL_MODULATE or GL_REPLACE (or GL_DECAL for RGB), four pixels at a time,
+- * in both fast textured triangles: fast_persp_span (ro_neon_persp_linear)
++ * in both fast textured triangles: fast_persp_span (ro_neon_persp_span)
+  * and affine_span (ro_neon_affine_linear; RGB only, as RGBA8 textures
+  * never take the affine triangles). The output is the same bit for
+  * bit as SPAN_LINEAR's:
+@@ -420,8 +424,11 @@ ilerp_2d(GLint ia, GLint ib, GLint v00, GLint v10, GLint v01, GLint v11)
+  *    (ilerp: a + ((w * (b - a)) >> 11); MODULATE: c * (s + 1) >> 19).
+  * In persp, coordinates too big for that (2^31 / FIXED_SCALE texels) or
+  * NaN send their group of four to the C code (ro_tex_pixel, SPAN_LINEAR's
+- * per pixel), as does a part group at the end of a span. Used when the
+- * CPU has NEON (VFPSupport); MESA_NO_NEON turns it off.
++ * per pixel), as does a single pixel at the end of a span; a part group
++ * of two or three at the end is done as a whole group, the pixels after
++ * the span being worked out and stored past it in the colour array, which
++ * nothing reads (RO_PAD_MIN). Used when the CPU has NEON (VFPSupport);
++ * MESA_NO_NEON turns it off.
+  */
+ #if defined(__riscos__) && defined(__arm__) && defined(__ARM_EABI__)
+ #define RO_NEON_TEX 1
+@@ -429,6 +436,10 @@ ilerp_2d(GLint ia, GLint ib, GLint v00, GLint v10, GLint v01, GLint v11)
+ #pragma GCC target("fpu=neon")
+ #include <arm_neon.h>
+ 
++/* the fewest pixels at the end of a span done as a whole group of four
++ * (fewer go to the C code: for one pixel that's quicker) */
++#define RO_PAD_MIN 2
++
+ /* what the span's colour does with the texture sample */
+ #define RO_TEX_REPLACE      0   /* REPLACE (DECAL for RGB) */
+ #define RO_TEX_MODULATE     1
+@@ -720,7 +731,7 @@ ro_persp_st(GLfloat *sv, GLfloat *tv, GLuint n, GLfloat tc[3],
+ 
+ static inline __attribute__((always_inline)) GLchan *
+ ro_neon_persp_loop(const struct ro_tex *tx, ro_group_fn *group, struct ro_cols *cols,
+-                   GLchan *dest, GLuint count,
++                   GLchan *dest, GLuint count, GLuint room,
+                    GLfloat tex_coord[3], const GLfloat tex_step[3],
+                    GLboolean q_one, GLboolean q_constant,
+                    GLdouble inv_q_constant, int mode)
+@@ -733,11 +744,25 @@ ro_neon_persp_loop(const struct ro_tex *tx, ro_group_fn *group, struct ro_cols *
+       GLfloat sv[4], tv[4];
+       GLfixed sfix[4], tfix[4];
+       const GLuint n = MIN2(4, count - i);
+-      if (n == 4) {
++      /* a part group at the end is done as a whole one when there's room
++       * after it (room: pixels from dest to the end of the colour array):
++       * the extra pixels' texture coordinates carry on the span's steps
++       * (from a copy, so tc is stepped n times only), their colours are
++       * stored past the span and the colours are stepped back after */
++      const GLboolean whole = n == 4;
++      if (whole || (n >= RO_PAD_MIN && i + 4 <= room)) {
+          uint32x4_t bad = vdupq_n_u32(0);
+          int32x4_t sx, tx4;
+          uint32x2_t b2;
+-         ro_persp_st(sv, tv, 4, tc, ts, q_one, q_constant, inv_q_constant);
++         if (whole)
++            ro_persp_st(sv, tv, 4, tc, ts, q_one, q_constant, inv_q_constant);
++         else {
++            GLfloat pad[3];
++            ro_persp_st(sv, tv, n, tc, ts, q_one, q_constant, inv_q_constant);
++            COPY_3V(pad, tc);
++            ro_persp_st(sv + n, tv + n, 4 - n, pad, ts, q_one, q_constant,
++                        inv_q_constant);
++         }
+          sx = vsubq_s32(ro_lround4(vmulq_n_f32(vld1q_f32(sv), FIXED_SCALE), &bad),
+                         vdupq_n_s32(FIXED_HALF));
+          tx4 = vsubq_s32(ro_lround4(vmulq_n_f32(vld1q_f32(tv), FIXED_SCALE), &bad),
+@@ -745,8 +770,13 @@ ro_neon_persp_loop(const struct ro_tex *tx, ro_group_fn *group, struct ro_cols *
+          b2 = vorr_u32(vget_low_u32(bad), vget_high_u32(bad));
+          if (!(vget_lane_u32(b2, 0) | vget_lane_u32(b2, 1))) {
+             group(tx, sx, tx4, cols, dest);
+-            dest += 16;
+-            i += 4;
++            if (!whole) {
++               for (k = 0; k < 4; k++)
++                  cols->col[k] = (GLfixed) ((GLuint) cols->col[k] -
++                                            (4 - n) * (GLuint) cols->step[k]);
++            }
++            dest += 4 * n;
++            i += n;
+             continue;
+          }
+       }
+@@ -767,27 +797,76 @@ ro_neon_persp_loop(const struct ro_tex *tx, ro_group_fn *group, struct ro_cols *
+    return dest;
+ }
+ 
+-/* fast_persp_span's SPAN_LINEAR; returns dest after the span */
+-static GLchan *
+-ro_neon_persp_linear(const struct ro_tex *tx, SWspan *span,
+-                     GLchan *dest, GLuint count,
+-                     GLfloat tex_coord[3], const GLfloat tex_step[3],
+-                     GLboolean q_one, GLboolean q_constant,
+-                     GLdouble inv_q_constant, int mode)
++/* one segment of fast_persp_span's SPAN_LINEAR */
++static inline __attribute__((always_inline)) GLchan *
++ro_neon_persp_seg(const struct ro_tex *tx, ro_group_fn *group, struct ro_cols *cols,
++                  GLchan *dest, GLuint count, GLuint room,
++                  GLfloat tex_coord[3], const GLfloat tex_step[3],
++                  GLboolean q_one, GLboolean q_constant,
++                  GLdouble inv_q_constant, int mode)
+ {
+-   struct ro_cols cols;
+-   ro_group_fn *group = ro_group_for(tx->format, mode);
+-   ro_cols_init(&cols, span);
+-   /* q_one (2D and orthographic drawing) gets a loop of its own */
++   /* q_one (2D and orthographic drawing, GL_FASTEST segments) gets a loop
++    * of its own */
+    if (q_one)
+-      dest = ro_neon_persp_loop(tx, group, &cols, dest, count, tex_coord,
++      return ro_neon_persp_loop(tx, group, cols, dest, count, room, tex_coord,
+                                 tex_step, GL_TRUE, GL_FALSE, 0.0, mode);
+-   else
+-      dest = ro_neon_persp_loop(tx, group, &cols, dest, count, tex_coord,
+-                                tex_step, GL_FALSE, q_constant,
+-                                inv_q_constant, mode);
++   return ro_neon_persp_loop(tx, group, cols, dest, count, room, tex_coord,
++                             tex_step, GL_FALSE, q_constant, inv_q_constant,
++                             mode);
++}
++
++/* fast_persp_span's SPAN_LINEAR for the whole span, segments and all
++ * (as fast_persp_span's loop; the texture coordinates start as there,
++ * coord0 and step0). A segment's end values are the next one's start
++ * values (the same sums, so worked out once). */
++static void __attribute__((noinline))
++ro_neon_persp_span(const struct ro_tex *tx, GLboolean subdivide, SWspan *span,
++                   const GLfloat coord0[3], const GLfloat step0[3], int mode)
++{
++   ro_group_fn *group = ro_group_for(tx->format, mode);
++   GLchan *dest = span->array->rgba[0];
++   const GLuint end = span->end;
++   struct ro_cols cols;
++   GLfloat tex_coord[3], tex_step[3];
++   ro_cols_init(&cols, span);
++   if (!subdivide || step0[2] == 0.0F) {
++      const GLboolean q_constant = (step0[2] == 0.0F);
++      const GLdouble inv_q_constant = coord0[2] ? (1.0 / coord0[2]) : 1.0;
++      COPY_3V(tex_coord, coord0);
++      COPY_3V(tex_step, step0);
++      ro_neon_persp_seg(tx, group, &cols, dest, end, SWRAST_MAX_WIDTH,
++                        tex_coord, tex_step,
++                        q_constant && inv_q_constant == 1.0, q_constant,
++                        inv_q_constant, mode);
++   }
++   else {
++      GLuint done, count;
++      GLdouble q, inv1;
++      GLfloat s1, t1;
++      const GLuint k0 = 0;   /* the first segment's start, as there */
++      q = coord0[2] + k0 * step0[2];
++      inv1 = q ? 1.0 / q : 1.0;
++      s1 = (GLfloat) ((coord0[0] + k0 * step0[0]) * inv1);
++      t1 = (GLfloat) ((coord0[1] + k0 * step0[1]) * inv1);
++      for (done = 0; done < end; done += count) {
++         const GLuint k1 = done + MIN2(PERSP_SEGMENT, end - done);
++         count = k1 - done;
++         tex_coord[0] = s1;
++         tex_coord[1] = t1;
++         q = coord0[2] + k1 * step0[2];
++         inv1 = q ? 1.0 / q : 1.0;
++         s1 = (GLfloat) ((coord0[0] + k1 * step0[0]) * inv1);
++         t1 = (GLfloat) ((coord0[1] + k1 * step0[1]) * inv1);
++         tex_step[0] = (s1 - tex_coord[0]) / count;
++         tex_step[1] = (t1 - tex_coord[1]) / count;
++         tex_coord[2] = 1.0F;
++         tex_step[2] = 0.0F;
++         dest = ro_neon_persp_seg(tx, group, &cols, dest, count,
++                                  SWRAST_MAX_WIDTH - done, tex_coord, tex_step,
++                                  GL_TRUE, GL_TRUE, 1.0, mode);
++      }
++   }
+    ro_cols_done(&cols, span);
+-   return dest;
+ }
+ 
+ /* affine_span's SPAN_LINEAR: the whole span, from span->intTex (BGR
+@@ -814,6 +893,20 @@ ro_neon_affine_linear(const struct ro_tex *tx, SWspan *span, int mode)
+       t += 4 * ts;
+       dest += 16;
+    }
++   if (count - i >= RO_PAD_MIN && i < count && i + 4 <= SWRAST_MAX_WIDTH) {
++      /* a part group at the end as a whole one, the extra pixels stored
++       * past the span (as ro_neon_persp_loop) */
++      const GLuint n = count - i;
++      GLuint c;
++      group(tx, vaddq_s32(vdupq_n_s32(s), sk), vaddq_s32(vdupq_n_s32(t), tk),
++            &cols, dest);
++      for (c = 0; c < 4; c++)
++         cols.col[c] = (GLfixed) ((GLuint) cols.col[c] -
++                                  (4 - n) * (GLuint) cols.step[c]);
++      s += n * ss;
++      t += n * ts;
++      i = count;
++   }
+    for (; i < count; i++) {
+       ro_tex_pixels(tx, &cols, &s, &t, 1, mode, dest);
+       s += ss;
+@@ -832,7 +925,9 @@ ro_neon_affine_linear(const struct ro_tex *tx, SWspan *span, int mode)
+  * textures with GL_REPLACE, GL_MODULATE, GL_BLEND, GL_DECAL or GL_ADD
+  * texture env modes.
+  */
+-static inline void
++/* riscos-mesa: not inlined, so the triangle's span loop (with its large
++ * stack frame) keeps its own variables in registers */
++static void __attribute__((noinline))
+ affine_span(struct gl_context *ctx, SWspan *span,
+             struct affine_info *info)
+ {
+@@ -1297,13 +1392,13 @@ struct persp_info
+    GLboolean subdivide;         /* riscos-mesa: GL_FASTEST, see fast_persp_span */
+ };
+ 
+-/* riscos-mesa: pixels per segment of a GL_FASTEST perspective span */
+-#define PERSP_SEGMENT 16
+ 
+ 
+ 
+ 
+-static inline void
++/* riscos-mesa: not inlined, so the triangle's span loop (with its large
++ * stack frame) keeps its own variables in registers */
++static void __attribute__((noinline))
+ fast_persp_span(struct gl_context *ctx, SWspan *span,
+ 		struct persp_info *info)
+ {
+@@ -1458,6 +1553,30 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+     */
+    COPY_3V(coord0, tex_coord);
+    COPY_3V(step0, tex_step);
++#ifdef RO_NEON_TEX
++   /* riscos-mesa: NEON for SPAN_LINEAR with the commonest textures and
++    * modes, the whole span at once (ro_neon_persp_span) */
++   if (info->filter == GL_LINEAR && _mesa_ro_have_neon()) {
++      int mode = -1;
++      if (info->format == MESA_FORMAT_BGR_UNORM8) {
++         if (info->envmode == GL_MODULATE)
++            mode = RO_TEX_MODULATE;
++         else if (info->envmode == GL_REPLACE || info->envmode == GL_DECAL)
++            mode = RO_TEX_RGB_REPLACE;
++      }
++      else if (info->format == MESA_FORMAT_R8G8B8A8_UNORM) {
++         if (info->envmode == GL_MODULATE)
++            mode = RO_TEX_MODULATE;
++         else if (info->envmode == GL_REPLACE)
++            mode = RO_TEX_REPLACE;
++      }
++      if (mode >= 0) {
++         const struct ro_tex tx = RO_TEX_FROM(info);
++         ro_neon_persp_span(&tx, info->subdivide, span, coord0, step0, mode);
++         goto write;
++      }
++   }
++#endif
+    for (done = 0; done < span->end; done += count) {
+       if (!info->subdivide || step0[2] == 0.0F) {
+          count = span->end;
+@@ -1555,17 +1674,6 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+    case GL_LINEAR:
+       switch (info->format) {
+       case MESA_FORMAT_BGR_UNORM8:
+-#ifdef RO_NEON_TEX
+-         if ((info->envmode == GL_MODULATE || info->envmode == GL_REPLACE ||
+-              info->envmode == GL_DECAL) && _mesa_ro_have_neon()) {
+-            const struct ro_tex tx = RO_TEX_FROM(info);
+-            dest = ro_neon_persp_linear(&tx, span, dest, count, tex_coord, tex_step,
+-                                 q_one, q_constant, inv_q_constant,
+-                                 info->envmode == GL_MODULATE ? RO_TEX_MODULATE :
+-                                 RO_TEX_RGB_REPLACE);
+-            break;
+-         }
+-#endif
+          switch (info->envmode) {
+          case GL_MODULATE:
+             SPAN_LINEAR(LINEAR_RGB;MODULATE,3);
+@@ -1608,17 +1716,6 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+          }
+          break;
+       case MESA_FORMAT_R8G8B8A8_UNORM:
+-#ifdef RO_NEON_TEX
+-         if ((info->envmode == GL_MODULATE || info->envmode == GL_REPLACE) &&
+-             _mesa_ro_have_neon()) {
+-            const struct ro_tex tx = RO_TEX_FROM(info);
+-            dest = ro_neon_persp_linear(&tx, span, dest, count, tex_coord, tex_step,
+-                                 q_one, q_constant, inv_q_constant,
+-                                 info->envmode == GL_MODULATE ? RO_TEX_MODULATE :
+-                                 RO_TEX_REPLACE);
+-            break;
+-         }
+-#endif
+          switch (info->envmode) {
+          case GL_MODULATE:
+             SPAN_LINEAR(LINEAR_RGBA8;MODULATE,4);
+@@ -1646,6 +1743,9 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+ 
+    }  /* segments */
+ 
++#ifdef RO_NEON_TEX
++write:
++#endif
+    assert(span->arrayMask & SPAN_RGBA);
+    _swrast_write_rgba_span(ctx, span);
+ 
