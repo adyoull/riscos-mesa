@@ -1,0 +1,475 @@
+diff --git a/src/mesa/program/prog_execute.c b/src/mesa/program/prog_execute.c
+index 4a447d6..51e4201 100644
+--- a/src/mesa/program/prog_execute.c
++++ b/src/mesa/program/prog_execute.c
+@@ -2061,7 +2061,9 @@ _mesa_program_batch_output(const struct gl_program_machine *machine,
+ #include <kernel.h>
+ #include <swis.h>
+ 
+-static int ro_neon_state = -1;
++/* -1 until first asked, then 0 or 1 (read inline by _mesa_ro_have_neon) */
++int _mesa_ro_neon_state = -1;
++#define ro_neon_state _mesa_ro_neon_state
+ 
+ static GLboolean
+ ro_have_neon(void)
+@@ -2080,9 +2082,10 @@ ro_have_neon(void)
+    return ro_neon_state;
+ }
+ 
+-/* riscos-mesa: the same answer for swrast's NEON span code */
++/* riscos-mesa: the same answer for swrast's NEON span code (the first
++ * time; after that _mesa_ro_have_neon reads _mesa_ro_neon_state inline) */
+ GLboolean
+-_mesa_ro_have_neon(void)
++_mesa_ro_neon_init(void)
+ {
+    return ro_have_neon();
+ }
+diff --git a/src/mesa/program/prog_execute.h b/src/mesa/program/prog_execute.h
+index 2c3775b..4cb5114 100644
+--- a/src/mesa/program/prog_execute.h
++++ b/src/mesa/program/prog_execute.h
+@@ -116,9 +116,18 @@ _mesa_program_batch_output(const struct gl_program_machine *machine,
+                            GLuint reg, GLuint lane);
+ 
+ #if defined(__riscos__) && defined(__arm__) && defined(__ARM_EABI__)
+-/* riscos-mesa: whether the CPU has NEON (and MESA_NO_NEON isn't set) */
++/* riscos-mesa: whether the CPU has NEON (and MESA_NO_NEON isn't set);
++ * inline, as the span code asks for every span */
++extern int _mesa_ro_neon_state;
+ extern GLboolean
+-_mesa_ro_have_neon(void);
++_mesa_ro_neon_init(void);
++
++static inline GLboolean
++_mesa_ro_have_neon(void)
++{
++   return _mesa_ro_neon_state >= 0 ? (GLboolean) _mesa_ro_neon_state
++                                   : _mesa_ro_neon_init();
++}
+ #endif
+ 
+ 
+diff --git a/src/mesa/swrast/s_depth.c b/src/mesa/swrast/s_depth.c
+index d3fd87d..c4b837e 100644
+--- a/src/mesa/swrast/s_depth.c
++++ b/src/mesa/swrast/s_depth.c
+@@ -40,7 +40,7 @@
+ #define Z_TEST(COMPARE)                      \
+    do {                                      \
+       GLuint i;                              \
+-      for (i = 0; i < n; i++) {              \
++      for (i = i0; i < n; i++) {             \
+          if (mask[i]) {                      \
+             if (COMPARE) {                   \
+                /* pass */                    \
+@@ -58,6 +58,158 @@
+    } while (0)
+ 
+ 
++
++/*
++ * riscos-mesa: the depth tests below with NEON, eight fragments at a time,
++ * the same bit for bit: a fragment passes when its mask byte is set and
++ * the comparison holds; a failing one gets mask byte 0, a passing one
++ * keeps its mask byte, and (with depth writes on) only passing fragments
++ * write their Z: zfrag cut to 16 bits for a 16-bit buffer, or ORed with
++ * the buffer's top 8 bits for Z24_X8. The comparisons are unsigned 32-bit
++ * ones on the same values the C code compares. Returns how many
++ * fragments it did (a multiple of eight; the C loop does the rest) and
++ * adds the passes to *passed.
++ */
++#if defined(__riscos__) && defined(__arm__) && defined(__ARM_EABI__)
++#define RO_NEON_DEPTH 1
++#ifndef RO_NEON_DEPTH_MIN
++#define RO_NEON_DEPTH_MIN 8
++#endif
++#pragma GCC push_options
++#pragma GCC target("fpu=neon")
++#include <arm_neon.h>
++
++#define RO_Z16    0
++#define RO_Z32    1
++#define RO_Z24X8  2
++
++static inline uint32x4_t
++ro_zcmp(GLenum func, uint32x4_t f, uint32x4_t b)
++{
++   switch (func) {
++   case GL_LESS:     return vcltq_u32(f, b);
++   case GL_LEQUAL:   return vcleq_u32(f, b);
++   case GL_GEQUAL:   return vcgeq_u32(f, b);
++   case GL_GREATER:  return vcgtq_u32(f, b);
++   case GL_NOTEQUAL: return vmvnq_u32(vceqq_u32(f, b));
++   case GL_EQUAL:    return vceqq_u32(f, b);
++   default:          return vdupq_n_u32(~0u);   /* GL_ALWAYS */
++   }
++}
++
++static inline __attribute__((always_inline)) GLuint
++ro_neon_ztest(int kind, GLenum func, GLboolean write, GLuint n, GLuint room,
++              void *zbuf, const GLuint zfrag[], GLubyte mask[],
++              GLuint *passed)
++{
++   static const uint32_t idx[8] = { 0, 1, 2, 3, 4, 5, 6, 7 };
++   const uint32x4_t idxlo = vld1q_u32(idx), idxhi = vld1q_u32(idx + 4);
++   uint32x4_t count = vdupq_n_u32(0);
++   /* whole groups of eight while they fit in the span, or (room) in the
++    * row: a last part group then has its extra lanes treated as masked
++    * out, so they neither pass nor change (the Z written back to them is
++    * the Z read) */
++   const GLuint end = (room >= ((n + 7) & ~7u)) ? n : (n & ~7u);
++   GLuint i;
++   for (i = 0; i < end; i += 8) {
++      const uint32x4_t left = vdupq_n_u32(n - i);
++      const uint8x8_t m8 = vld1_u8(mask + i);
++      const uint16x8_t m16 = vmovl_u8(vtst_u8(m8, m8));   /* 0 or 0x00FF */
++      const uint32x4_t mlo = vandq_u32(vtstq_u32(vmovl_u16(vget_low_u16(m16)), vdupq_n_u32(1)),
++                                       vcltq_u32(idxlo, left));
++      const uint32x4_t mhi = vandq_u32(vtstq_u32(vmovl_u16(vget_high_u16(m16)), vdupq_n_u32(1)),
++                                       vcltq_u32(idxhi, left));
++      const uint32x4_t flo = vld1q_u32(zfrag + i), fhi = vld1q_u32(zfrag + i + 4);
++      uint32x4_t blo, bhi, plo, phi;
++      uint16x8_t b16 = vdupq_n_u16(0);
++      if (kind == RO_Z16) {
++         b16 = vld1q_u16((const uint16_t *) zbuf + i);
++         blo = vmovl_u16(vget_low_u16(b16));
++         bhi = vmovl_u16(vget_high_u16(b16));
++      }
++      else {
++         blo = vld1q_u32((const uint32_t *) zbuf + i);
++         bhi = vld1q_u32((const uint32_t *) zbuf + i + 4);
++      }
++      if (kind == RO_Z24X8) {
++         const uint32x4_t lo24 = vdupq_n_u32(0xffffff);
++         plo = vandq_u32(mlo, ro_zcmp(func, flo, vandq_u32(blo, lo24)));
++         phi = vandq_u32(mhi, ro_zcmp(func, fhi, vandq_u32(bhi, lo24)));
++      }
++      else {
++         plo = vandq_u32(mlo, ro_zcmp(func, flo, blo));
++         phi = vandq_u32(mhi, ro_zcmp(func, fhi, bhi));
++      }
++      count = vsubq_u32(vsubq_u32(count, plo), phi);   /* lanes are 0 or -1 */
++      /* mask byte kept where the fragment passed, else 0 (the lanes past
++       * the span are in swrast's mask array, which nothing reads) */
++      vst1_u8(mask + i, vand_u8(m8, vmovn_u16(vcombine_u16(vmovn_u32(plo),
++                                                          vmovn_u32(phi)))));
++      if (write) {
++         if (kind == RO_Z16) {
++            const uint16x8_t f16 = vcombine_u16(vmovn_u32(flo), vmovn_u32(fhi));
++            const uint16x8_t p16 = vcombine_u16(vmovn_u32(plo), vmovn_u32(phi));
++            vst1q_u16((uint16_t *) zbuf + i, vbslq_u16(p16, f16, b16));
++         }
++         else if (kind == RO_Z24X8) {
++            const uint32x4_t hi8 = vdupq_n_u32(0xff000000);
++            vst1q_u32((uint32_t *) zbuf + i,
++                      vbslq_u32(plo, vorrq_u32(vandq_u32(blo, hi8), flo), blo));
++            vst1q_u32((uint32_t *) zbuf + i + 4,
++                      vbslq_u32(phi, vorrq_u32(vandq_u32(bhi, hi8), fhi), bhi));
++         }
++         else {
++            vst1q_u32((uint32_t *) zbuf + i, vbslq_u32(plo, flo, blo));
++            vst1q_u32((uint32_t *) zbuf + i + 4, vbslq_u32(phi, fhi, bhi));
++         }
++      }
++   }
++   {
++      const uint32x2_t c2 = vadd_u32(vget_low_u32(count), vget_high_u32(count));
++      *passed += vget_lane_u32(c2, 0) + vget_lane_u32(c2, 1);
++   }
++   return i < n ? i : n;
++}
++
++/* the NEON test for one kind of buffer; returns how many fragments it did
++ * (the C loop does the rest). room: pixels from zbuf to the end of its
++ * row (lanes past the span may read and rewrite those) */
++static GLuint
++ro_neon_depth(int kind, struct gl_context *ctx, GLuint n, GLuint room,
++              void *zbuf, const GLuint zfrag[], GLubyte mask[], GLuint *passed)
++{
++   const GLenum func = ctx->Depth.Func;
++   const GLboolean write = ctx->Depth.Mask;
++   if (n < RO_NEON_DEPTH_MIN || func == GL_NEVER || !_mesa_ro_have_neon())
++      return 0;
++   /* the fragment arrays hold SWRAST_MAX_WIDTH entries */
++   if (n + 7 > SWRAST_MAX_WIDTH)
++      room = 0;
++#define RO_ZF(K, F)                                                          \
++   case F:                                                                   \
++      return write ? ro_neon_ztest(K, F, GL_TRUE, n, room, zbuf, zfrag, mask, passed) \
++                   : ro_neon_ztest(K, F, GL_FALSE, n, room, zbuf, zfrag, mask, passed);
++#define RO_ZK(K)                                                             \
++   case K:                                                                   \
++      switch (func) {                                                        \
++      RO_ZF(K, GL_LESS) RO_ZF(K, GL_LEQUAL) RO_ZF(K, GL_GREATER)             \
++      RO_ZF(K, GL_GEQUAL) RO_ZF(K, GL_EQUAL) RO_ZF(K, GL_NOTEQUAL)           \
++      default:                                                               \
++         return write ? ro_neon_ztest(K, GL_ALWAYS, GL_TRUE, n, room, zbuf, zfrag, mask, passed) \
++                      : ro_neon_ztest(K, GL_ALWAYS, GL_FALSE, n, room, zbuf, zfrag, mask, passed); \
++      }
++   switch (kind) {
++   RO_ZK(RO_Z16)
++   RO_ZK(RO_Z32)
++   RO_ZK(RO_Z24X8)
++   }
++#undef RO_ZK
++#undef RO_ZF
++   return 0;
++}
++#pragma GCC pop_options
++#endif
++
+ /**
+  * Do depth test for an array of 16-bit Z values.
+  * @param zbuffer  array of Z buffer values (16-bit)
+@@ -66,11 +218,16 @@
+  * @return  number of fragments which pass the test.
+  */
+ static GLuint
+-depth_test_span16( struct gl_context *ctx, GLuint n,
++depth_test_span16( struct gl_context *ctx, GLuint n, GLuint room,
+                    GLushort zbuffer[], const GLuint zfrag[], GLubyte mask[] )
+ {
+    const GLboolean write = ctx->Depth.Mask;
+    GLuint passed = 0;
++   GLuint i0 = 0;
++   (void) room;
++#ifdef RO_NEON_DEPTH
++   i0 = ro_neon_depth(RO_Z16, ctx, n, room, zbuffer, zfrag, mask, &passed);
++#endif
+ 
+    /* switch cases ordered from most frequent to less frequent */
+    switch (ctx->Depth.Func) {
+@@ -114,11 +271,16 @@ depth_test_span16( struct gl_context *ctx, GLuint n,
+  * @return  number of fragments which pass the test.
+  */
+ static GLuint
+-depth_test_span32( struct gl_context *ctx, GLuint n,
++depth_test_span32( struct gl_context *ctx, GLuint n, GLuint room,
+                    GLuint zbuffer[], const GLuint zfrag[], GLubyte mask[])
+ {
+    const GLboolean write = ctx->Depth.Mask;
+    GLuint passed = 0;
++   GLuint i0 = 0;
++   (void) room;
++#ifdef RO_NEON_DEPTH
++   i0 = ro_neon_depth(RO_Z32, ctx, n, room, zbuffer, zfrag, mask, &passed);
++#endif
+ 
+    /* switch cases ordered from most frequent to less frequent */
+    switch (ctx->Depth.Func) {
+@@ -163,7 +325,7 @@ depth_test_span32( struct gl_context *ctx, GLuint n,
+ #define Z24_TEST(COMPARE)                                     \
+    do {                                                       \
+       GLuint i;                                               \
+-      for (i = 0; i < n; i++) {                               \
++      for (i = i0; i < n; i++) {                              \
+          if (mask[i]) {                                       \
+             const GLuint zb = zbuffer[i] & 0xffffff;          \
+             if (COMPARE) {                                    \
+@@ -179,11 +341,16 @@ depth_test_span32( struct gl_context *ctx, GLuint n,
+    } while (0)
+ 
+ static GLuint
+-depth_test_span24x8(struct gl_context *ctx, GLuint n,
++depth_test_span24x8(struct gl_context *ctx, GLuint n, GLuint room,
+                     GLuint zbuffer[], const GLuint zfrag[], GLubyte mask[])
+ {
+    const GLboolean write = ctx->Depth.Mask;
+    GLuint passed = 0;
++   GLuint i0 = 0;
++   (void) room;
++#ifdef RO_NEON_DEPTH
++   i0 = ro_neon_depth(RO_Z24X8, ctx, n, room, zbuffer, zfrag, mask, &passed);
++#endif
+ 
+    switch (ctx->Depth.Func) {
+    case GL_LESS:     Z24_TEST(zfrag[i] <  zb); break;
+@@ -333,7 +500,7 @@ _swrast_depth_test_span(struct gl_context *ctx, SWspan *span)
+ {
+    struct gl_framebuffer *fb = ctx->DrawBuffer;
+    struct gl_renderbuffer *rb = fb->Attachment[BUFFER_DEPTH].Renderbuffer;
+-   const GLint bpp = _mesa_get_format_bytes(rb->Format);
++   GLint bpp;
+    void *zStart;
+    const GLuint count = span->end;
+    const GLuint *fragZ = span->array->z;
+@@ -341,7 +508,8 @@ _swrast_depth_test_span(struct gl_context *ctx, SWspan *span)
+    void *zBufferVals;
+    GLuint *zBufferTemp = NULL;
+    GLuint passed;
+-   GLuint zBits = _mesa_get_format_bits(rb->Format, GL_DEPTH_BITS);
++   GLuint zBits;
++   GLuint room;   /* Z values from zBufferVals to the end of its row */
+    GLboolean ztest16 = GL_FALSE;
+ 
+    if (span->arrayMask & SPAN_XY)
+@@ -349,23 +517,32 @@ _swrast_depth_test_span(struct gl_context *ctx, SWspan *span)
+    else
+       zStart = _swrast_pixel_address(rb, span->x, span->y);
+ 
+-   if (rb->Format == MESA_FORMAT_Z24_UNORM_X8_UINT && zBits == 24 &&
++   /* (Z24_X8 always has 24 depth bits: the format sizes are looked up
++    * only when needed, as this is asked for every span) */
++   if (rb->Format == MESA_FORMAT_Z24_UNORM_X8_UINT &&
+        !(span->arrayMask & SPAN_XY)) {
+       /* RISC OS speed-up: test the 24-bit Z row in place */
+-      passed = depth_test_span24x8(ctx, count, (GLuint *) zStart, fragZ, mask);
++      passed = depth_test_span24x8(ctx, count, rb->Width - span->x,
++                                   (GLuint *) zStart, fragZ, mask);
+       if (passed < count)
+          span->writeAll = GL_FALSE;
+       return passed;
+    }
+ 
++   bpp = _mesa_get_format_bytes(rb->Format);
++   zBits = _mesa_get_format_bits(rb->Format, GL_DEPTH_BITS);
++
++   room = count;   /* a temporary array: no more than the span */
+    if (rb->Format == MESA_FORMAT_Z_UNORM16 && !(span->arrayMask & SPAN_XY)) {
+       /* directly read/write row of 16-bit Z values */
+       zBufferVals = zStart;
++      room = rb->Width - span->x;
+       ztest16 = GL_TRUE;
+    }
+    else if (rb->Format == MESA_FORMAT_Z_UNORM32 && !(span->arrayMask & SPAN_XY)) {
+       /* directly read/write row of 32-bit Z values */
+       zBufferVals = zStart;
++      room = rb->Width - span->x;
+    }
+    else {
+       /* copy Z buffer values into temp buffer (32-bit Z values) */
+@@ -406,9 +583,9 @@ _swrast_depth_test_span(struct gl_context *ctx, SWspan *span)
+ 
+    /* do the depth test either with 16 or 32-bit values */
+    if (ztest16)
+-      passed = depth_test_span16(ctx, count, zBufferVals, fragZ, mask);
++      passed = depth_test_span16(ctx, count, room, zBufferVals, fragZ, mask);
+    else
+-      passed = depth_test_span32(ctx, count, zBufferVals, fragZ, mask);
++      passed = depth_test_span32(ctx, count, room, zBufferVals, fragZ, mask);
+ 
+    if (zBufferTemp) {
+       /* need to write temp Z values back into the buffer */
+diff --git a/src/mesa/swrast/s_span.c b/src/mesa/swrast/s_span.c
+index 9674998..ec5e663 100644
+--- a/src/mesa/swrast/s_span.c
++++ b/src/mesa/swrast/s_span.c
+@@ -225,6 +225,9 @@ interpolate_active_attribs(struct gl_context *ctx, SWspan *span,
+  * the colours advanced past them; the C loop does the rest.
+  */
+ #define RO_NEON_SPAN 1
++#ifndef RO_NEON_INTERPZ_MIN
++#define RO_NEON_INTERPZ_MIN 8
++#endif
+ #pragma GCC push_options
+ #pragma GCC target("fpu=neon")
+ #include <arm_neon.h>
+@@ -277,6 +280,41 @@ ro_neon_fill_color(GLubyte *dst, GLuint n, const GLubyte color[4])
+       vst1q_u8(dst + 4 * i, v);
+    return i;
+ }
++
++/* z[k] = (start + k * step) for a span, as _swrast_span_interpolate_z's
++ * running sums (wrapping alike), >> FIXED_SHIFT (signed) for shallow Z;
++ * returns how many it did (a multiple of four) and the next value */
++static GLuint
++ro_neon_interp_z(GLuint *z, GLuint n, GLint start, GLint step,
++                 GLboolean shallow, GLint *next)
++{
++   static const int32_t k4[4] = { 0, 1, 2, 3 };
++   int32x4_t v = vaddq_s32(vdupq_n_s32(start), vmulq_n_s32(vld1q_s32(k4), step));
++   const int32x4_t step4 = vdupq_n_s32((GLint) ((GLuint) step * 4u));
++   GLuint i;
++   for (i = 0; i + 4 <= n; i += 4) {
++      vst1q_u32(z + i, vreinterpretq_u32_s32(shallow ? vshrq_n_s32(v, FIXED_SHIFT) : v));
++      v = vaddq_s32(v, step4);
++   }
++   *next = vgetq_lane_s32(v, 0);
++   return i;
++}
++
++/* RGBA bytes to BGRA bytes or back (the same swap), eight pixels at a
++ * time; returns how many it did (a multiple of eight) */
++static GLuint
++ro_neon_swap_rb(GLubyte *dst, const GLubyte *src, GLuint n)
++{
++   GLuint i;
++   for (i = 0; i + 8 <= n; i += 8) {
++      uint8x8x4_t p = vld4_u8(src + 4 * i);
++      const uint8x8_t t = p.val[0];
++      p.val[0] = p.val[2];
++      p.val[2] = t;
++      vst4_u8(dst + 4 * i, p);
++   }
++   return i;
++}
+ #pragma GCC pop_options
+ #endif
+ 
+@@ -498,7 +536,12 @@ _swrast_span_interpolate_z( const struct gl_context *ctx, SWspan *span )
+    if (ctx->DrawBuffer->Visual.depthBits <= 16) {
+       GLfixed zval = span->z;
+       GLuint *z = span->array->z;
+-      for (i = 0; i < n; i++) {
++      i = 0;
++#ifdef RO_NEON_SPAN
++      if (n >= RO_NEON_INTERPZ_MIN && _mesa_ro_have_neon())
++         i = ro_neon_interp_z(z, n, zval, span->zStep, GL_TRUE, &zval);
++#endif
++      for (; i < n; i++) {
+          z[i] = FixedToInt(zval);
+          zval += span->zStep;
+       }
+@@ -507,7 +550,15 @@ _swrast_span_interpolate_z( const struct gl_context *ctx, SWspan *span )
+       /* Deep Z buffer, no fixed->int shift */
+       GLuint zval = span->z;
+       GLuint *z = span->array->z;
+-      for (i = 0; i < n; i++) {
++      i = 0;
++#ifdef RO_NEON_SPAN
++      if (n >= RO_NEON_INTERPZ_MIN && _mesa_ro_have_neon()) {
++         GLint next;
++         i = ro_neon_interp_z(z, n, (GLint) zval, span->zStep, GL_FALSE, &next);
++         zval = (GLuint) next;
++      }
++#endif
++      for (; i < n; i++) {
+          z[i] = zval;
+          zval += span->zStep;
+       }
+@@ -1162,6 +1213,15 @@ put_ubyte_run(const struct gl_renderbuffer *rb, GLuint n,
+ {
+    if (rgba8_layout(rb))
+       memcpy(dst, src, n * 4);
++#ifdef RO_NEON_SPAN
++   else if (rb->Format == MESA_FORMAT_B8G8R8A8_UNORM && n >= 8 &&
++            _mesa_ro_have_neon()) {
++      const GLuint i = ro_neon_swap_rb(dst, src[0], n);
++      if (i < n)
++         _mesa_pack_ubyte_rgba_row(rb->Format, n - i, src + i,
++                                   (GLubyte *) dst + 4 * i);
++   }
++#endif
+    else
+       _mesa_pack_ubyte_rgba_row(rb->Format, n, src, dst);
+ }
+@@ -1689,8 +1749,15 @@ get_row(struct gl_context *ctx, struct gl_renderbuffer *rb,
+    src = _swrast_pixel_address(rb, x, y);
+ 
+    if (type == GL_UNSIGNED_BYTE) {
+-      _mesa_unpack_ubyte_rgba_row(rb->Format, count, src,
+-                                  (GLubyte (*)[4]) values + skip);
++      GLuint i = 0;
++#ifdef RO_NEON_SPAN
++      if (rb->Format == MESA_FORMAT_B8G8R8A8_UNORM && count >= 8 &&
++          _mesa_ro_have_neon())
++         i = ro_neon_swap_rb((GLubyte *) values + 4 * skip, src, count);
++#endif
++      if (i < count)
++         _mesa_unpack_ubyte_rgba_row(rb->Format, count - i, src + 4 * i,
++                                     (GLubyte (*)[4]) values + skip + i);
+    }
+    else if (type == GL_FLOAT) {
+       _mesa_unpack_rgba_row(rb->Format, count, src,

@@ -401,6 +401,32 @@ mesa-20.3.5-riscos-blend-neon.patch
     unblended smooth spans; arm/run-arm.sh requires NEON = C, and breaking
     the blend sum, a lane or the colour fill fails it).
 
+mesa-20.3.5-riscos-depth-neon.patch
+    The per-pixel work after texturing, bit for bit the same, with NEON
+    (VFPSupport; MESA_NO_NEON turns it off), for spans of 8 pixels or
+    more: the depth test on Z24_X8 (in place), 16-bit and 32-bit depth
+    buffers, eight fragments at a time (unsigned compares on the same
+    values; a failing fragment's mask byte goes to 0, a passing one's is
+    kept; only passing fragments write Z, cut to 16 bits or ORed with the
+    X8 byte as the C code does); a last part group runs as a group of
+    eight with its extra lanes treated as masked out, when the row has
+    room for them, else the C loop does the rest. Z interpolation four
+    pixels a store (start + k steps, wrapping as the running sums do,
+    >> FIXED_SHIFT for shallow Z). BGRA colour buffers (OSMESA_BGRA,
+    riscos-mesa's EGL configs for TRGB screens) are written and read back
+    (for blending) eight pixels at a time with a byte swap instead of the
+    per-pixel pack/unpack functions. The depth test no longer looks up the
+    depth format's size for every span on the Z24_X8 path, and
+    _mesa_ro_have_neon() is now an inline read of a flag. ARM instructions
+    per frame under qemu: fog 11.04M -> 10.07M; glbench's new opt-in
+    racing-game-like scene "game" 13.30M -> 12.94M (RGBA), 13.90M ->
+    13.19M (BGRA, glbench -bgra). Checked by
+    tests/host-harness/mesa/render-depth.c (448 cases: depth 16, 24,
+    24 + 8 and 32, RGBA and BGRA, every depth function, depth writes on
+    and off, blended and textured; arm/run-arm.sh requires NEON = C, and
+    breaking the lane mask, the Z16 write, a compare, the swap or the Z
+    step fails it).
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean

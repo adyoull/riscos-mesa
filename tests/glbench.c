@@ -299,6 +299,75 @@ static void s_fog(int i)
     }
 }
 
+/* game: a 3D scene like a racing game's, run only when named: textured
+ * ground and boxes in perspective, depth-tested (many short spans), with
+ * the GL_FASTEST hint, and blended "smoke" quads; RGB and RGBA textures */
+static GLuint game_tex[3];
+static void game_setup(void)
+{
+    static unsigned char img[128 * 128 * 4];
+    int i, x, y;
+    for (y = 0; y < 128; y++) for (x = 0; x < 128; x++) {
+        unsigned char *p = img + (y * 128 + x) * 4;
+        p[0] = (unsigned char)(x ^ y); p[1] = (unsigned char)(x * 3); p[2] = (unsigned char)(y * 5);
+        p[3] = (unsigned char)(160 + (x & 63));
+    }
+    glGenTextures(3, game_tex);
+    for (i = 0; i < 3; i++) {
+        glBindTexture(GL_TEXTURE_2D, game_tex[i]);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexImage2D(GL_TEXTURE_2D, 0, i == 0 ? GL_RGB : GL_RGBA, 128, 128, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, img);
+    }
+    glMatrixMode(GL_PROJECTION); glLoadIdentity();
+    glFrustum(-0.6 * W / H * 0.75, 0.6 * W / H * 0.75, -0.45, 0.45, 0.5, 60);
+    glMatrixMode(GL_MODELVIEW); glLoadIdentity();
+    glEnable(GL_DEPTH_TEST); glEnable(GL_TEXTURE_2D);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
+}
+
+static void s_game(int f)
+{
+    int i, j;
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glLoadIdentity(); glRotatef((f % 720) * 0.5f, 0, 1, 0); glTranslatef(0, -1.5f, -3);
+    glBindTexture(GL_TEXTURE_2D, game_tex[0]); glColor3f(1, 1, 1);
+    glBegin(GL_QUADS);
+    for (i = -8; i < 8; i++) for (j = -20; j < 2; j++) {
+        glTexCoord2f(0, 0); glVertex3f(i * 2, 0, j * 2);     glTexCoord2f(1, 0); glVertex3f(i * 2 + 2, 0, j * 2);
+        glTexCoord2f(1, 1); glVertex3f(i * 2 + 2, 0, j * 2 + 2); glTexCoord2f(0, 1); glVertex3f(i * 2, 0, j * 2 + 2);
+    }
+    glEnd();
+    glBindTexture(GL_TEXTURE_2D, game_tex[1]);
+    for (i = 0; i < 40; i++) {
+        float x = (float)((i * 37) % 17) - 8, z = -(float)((i * 53) % 38) - 2, h = 0.5f + (i % 5) * 0.6f;
+        glColor3f(0.6f + 0.01f * i, 0.8f, 0.7f);
+        glBegin(GL_QUADS);
+        glTexCoord2f(0, 0); glVertex3f(x, 0, z);         glTexCoord2f(2, 0); glVertex3f(x + 1, 0, z);
+        glTexCoord2f(2, 2); glVertex3f(x + 1, h, z);     glTexCoord2f(0, 2); glVertex3f(x, h, z);
+        glTexCoord2f(0, 0); glVertex3f(x + 1, 0, z);     glTexCoord2f(2, 0); glVertex3f(x + 1, 0, z - 1);
+        glTexCoord2f(2, 2); glVertex3f(x + 1, h, z - 1); glTexCoord2f(0, 2); glVertex3f(x + 1, h, z);
+        glTexCoord2f(0, 0); glVertex3f(x, 0, z - 1);     glTexCoord2f(2, 0); glVertex3f(x, 0, z);
+        glTexCoord2f(2, 2); glVertex3f(x, h, z);         glTexCoord2f(0, 2); glVertex3f(x, h, z - 1);
+        glTexCoord2f(0, 0); glVertex3f(x, h, z);         glTexCoord2f(1, 0); glVertex3f(x + 1, h, z);
+        glTexCoord2f(1, 1); glVertex3f(x + 1, h, z - 1); glTexCoord2f(0, 1); glVertex3f(x, h, z - 1);
+        glEnd();
+    }
+    glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); glDepthMask(GL_FALSE);
+    glBindTexture(GL_TEXTURE_2D, game_tex[2]);
+    for (i = 0; i < 12; i++) {
+        float x = -1 + i * 0.2f, z = -3 - i * 0.3f;
+        glColor4f(0.8f, 0.8f, 0.8f, 0.5f);
+        glBegin(GL_QUADS);
+        glTexCoord2f(0, 0); glVertex3f(x, 0.2f, z);    glTexCoord2f(1, 0); glVertex3f(x + 0.8f, 0.2f, z);
+        glTexCoord2f(1, 1); glVertex3f(x + 0.8f, 1, z); glTexCoord2f(0, 1); glVertex3f(x, 1, z);
+        glEnd();
+    }
+    glDisable(GL_BLEND); glDepthMask(GL_TRUE);
+}
+
 /* ---------------- harness ---------------- */
 static void reset_state(void)
 {
@@ -307,6 +376,8 @@ static void reset_state(void)
     glDisable(GL_FOG);
     glDisableClientState(GL_VERTEX_ARRAY); glDisableClientState(GL_NORMAL_ARRAY);
     glColor4f(1, 1, 1, 1);
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_DONT_CARE);
+    glDepthMask(GL_TRUE);
 }
 
 static const char *only = NULL;
@@ -337,10 +408,13 @@ int main(int argc, char **argv)
     OSMesaContext ctx;
     unsigned char *buf;
     double start;
+    GLenum order = OSMESA_RGBA;
     {
         int i, pos = 0;
         for (i = 1; i < argc; i++) {
-            if (!strcmp(argv[i], "-o") && i + 1 < argc) {
+            if (!strcmp(argv[i], "-bgra"))     /* a BGRA colour buffer */
+                order = OSMESA_BGRA;
+            else if (!strcmp(argv[i], "-o") && i + 1 < argc) {
                 outf = fopen(argv[++i], "w");
                 if (!outf) printf("can't write %s\n", argv[i]);
             } else if (pos == 0) { W = atoi(argv[i]); pos++; }
@@ -351,15 +425,16 @@ int main(int argc, char **argv)
     }
     install_fault_reporter();
 
-    ctx = OSMesaCreateContextExt(OSMESA_RGBA, 24, 8, 0, NULL);
+    ctx = OSMesaCreateContextExt(order, 24, 8, 0, NULL);
     buf = malloc((size_t)W * H * 4);
     if (!ctx || !buf || !OSMesaMakeCurrent(ctx, buf, GL_UNSIGNED_BYTE, W, H)) {
         printf("OSMesa setup failed\n"); return 1;
     }
     OSMesaPixelStore(OSMESA_Y_UP, 0);
 
-    out("glbench: %s\n%s / %s\n%dx%d, %.1f s per scene, timer: %s\n\n",
-           VARIANT, glGetString(GL_RENDERER), glGetString(GL_VERSION), W, H, secs, hr_source());
+    out("glbench: %s\n%s / %s\n%dx%d%s, %.1f s per scene, timer: %s\n\n",
+           VARIANT, glGetString(GL_RENDERER), glGetString(GL_VERSION), W, H,
+           order == OSMESA_BGRA ? " BGRA" : "", secs, hr_source());
     start = hr_seconds();
 #define WANT(n) (!only || !strcmp(only, n))
     if (WANT("clear")) { reset_state();                run("clear", "clear colour + depth", s_clear); }
@@ -377,6 +452,8 @@ int main(int argc, char **argv)
                                             run("texrgb", "tex with a GL_RGB texture", s_tex); }
     if (only && !strcmp(only, "texfast")) { reset_state(); tex_rgb = tex_fastest = 1; tex_setup();
                                             run("texfast", "texrgb with the GL_FASTEST hint (affine)", s_tex); }
+    if (only && !strcmp(only, "game"))    { reset_state(); game_setup();
+                                            run("game", "racing-game-like textured 3D scene, depth-tested", s_game); }
     out("\ntotal %.1f s\n", hr_seconds() - start);
     OSMesaDestroyContext(ctx);
     return 0;

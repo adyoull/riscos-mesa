@@ -36,7 +36,7 @@ LIB=$M/build/src/mesa/drivers/osmesa
 [ -e "$LIB/libOSMesa.so.8" ] || { echo "no $LIB/libOSMesa.so.8: build Mesa first" >&2; exit 1; }
 mkdir -p "$OUT"
 
-CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog render-paths glsl-basic glsl-control glsl-edge glsl-special glsl-es2compat render-etc1 glsl-temps render-texspan render-blend"
+CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog render-paths glsl-basic glsl-control glsl-edge glsl-special glsl-es2compat render-etc1 glsl-temps render-texspan render-blend render-depth"
 for c in $CHECKS; do
     gcc -O2 -w -I"$M/include" "$HERE/$c.c" -o "$OUT/$c" \
         -L"$LIB" -lOSMesa -lm -Wl,-rpath,"$LIB"
@@ -69,7 +69,8 @@ run_all() {
       # "Infinite loop detected" on stderr)
       "$OUT/glsl-temps" > "$res/glsl-temps.txt" 2>/dev/null || true
       "$OUT/render-texspan" > "$res/render-texspan.txt" 2>/dev/null || true
-      "$OUT/render-blend" > "$res/render-blend.txt" 2>/dev/null || true )
+      "$OUT/render-blend" > "$res/render-blend.txt" 2>/dev/null || true
+      "$OUT/render-depth" > "$res/render-depth.txt" 2>/dev/null || true )
 }
 
 run_all "$LIB" "$OUT/this"

@@ -32,7 +32,7 @@ int main(int argc, char **argv)
     W = 320;
     H = 240;
 
-    ctx = OSMesaCreateContextExt(OSMESA_RGBA, 24, 8, 0, NULL);
+    ctx = OSMesaCreateContextExt(getenv("PERF_BGRA") ? OSMESA_BGRA : OSMESA_RGBA, 24, 8, 0, NULL);
     buffer = malloc((size_t)W * H * 4);
     if (!ctx || !buffer || !OSMesaMakeCurrent(ctx, buffer, GL_UNSIGNED_BYTE, W, H)) {
         fprintf(stderr, "OSMesa setup failed\n");
@@ -49,6 +49,7 @@ int main(int argc, char **argv)
     else if (!strcmp(scene, "tex"))   { tex_setup();   frame = s_tex; }
     else if (!strcmp(scene, "texrgb"))  { tex_rgb = 1; tex_setup(); frame = s_tex; }
     else if (!strcmp(scene, "texfast")) { tex_rgb = tex_fastest = 1; tex_setup(); frame = s_tex; }
+    else if (!strcmp(scene, "game"))    { game_setup(); frame = s_game; }
     else if (!strcmp(scene, "blend")) { blend_setup(); frame = s_blend; }
     else if (!strcmp(scene, "tris"))  { tris_setup();  frame = s_tris; }
     else if (!strcmp(scene, "fog"))   { fog_setup();   frame = s_fog; }

@@ -4,6 +4,17 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## 20.3.5-15 (in development)
+
+- **Faster depth testing and BGRA screens, with exactly the same picture**
+  (new patch `riscos-depth-neon`). With NEON, the depth test works on
+  eight pixels at a time, depth values are filled in four at a time, and
+  programs drawing into a BGRA buffer (EGL on a TRGB screen) no longer
+  convert every pixel one at a time. Under emulation glbench's fog scene
+  runs 9% fewer instructions, and a new racing-game-like scene (`game`,
+  run only when named) 3% fewer, or 5% with a BGRA buffer (`glbench
+  -bgra`). Not yet timed on a Pi. New check `render-depth`.
+
 ## 20.3.5-14: NEON texturing and blending, GLSL shaders compiled to ARM code
 
 Drawing is much faster on CPUs with NEON (every Raspberry Pi 2 and later),
