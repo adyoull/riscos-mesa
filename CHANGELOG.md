@@ -10,10 +10,11 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   (new patch `riscos-depth-neon`). With NEON, the depth test works on
   eight pixels at a time, depth values are filled in four at a time, and
   programs drawing into a BGRA buffer (EGL on a TRGB screen) no longer
-  convert every pixel one at a time. Under emulation glbench's fog scene
-  runs 9% fewer instructions, and a new racing-game-like scene (`game`,
-  run only when named) 3% fewer, or 5% with a BGRA buffer (`glbench
-  -bgra`). Not yet timed on a Pi. New check `render-depth`.
+  convert every pixel one at a time. On a Raspberry Pi 4 (640x480):
+  glbench's fog scene 12.2 -> 11.7 ms, GLSL 14.2 -> 13.6 ms, a new
+  racing-game-like scene (`game`, run only when named) 12.45 -> 12.22 ms,
+  or 13.03 -> 12.46 ms with a BGRA buffer (`glbench -bgra`); the other
+  scenes within 1%. New check `render-depth`.
 
 ## 20.3.5-14: NEON texturing and blending, GLSL shaders compiled to ARM code
 
