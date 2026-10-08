@@ -477,6 +477,36 @@ mesa-20.3.5-riscos-span-stats.patch
     Draws nothing differently; when the variable isn't set the cost is a
     test of a flag per span.
 
+mesa-20.3.5-riscos-alpha-fast.patch
+    The fast route for depth-tested spans (ro_write_rgba_span_fast) for
+    what plib-based games (TORCS) draw: TORCS's MESA_STATS showed none of
+    its spans reaching it, because plib leaves GL_ALPHA_TEST on
+    (GL_GREATER, 0) for everything. Bit for bit the same: (1) the alpha
+    test is allowed, done before Z as in _swrast_write_rgba_span; for 8-bit
+    colours in the span's array ro_alpha_test_fast does ALPHA_TEST's
+    comparisons (with NEON 16 and 8 at a time) and keeps writeAll when
+    every fragment passes (the same pixels are written), and a span with
+    no fragment left skips Z and the depth test (which would write
+    nothing); anything else goes to _swrast_alpha_test. (2) With
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA) and GL_FUNC_ADD, a
+    span whose fragments to be written all have alpha 255 isn't blended
+    (blend_transparency_ubyte and its NEON version leave such a fragment
+    as it is), so the colour buffer isn't read back: TORCS blends all its
+    track and car textures, most of them opaque. (3) NEON for the vertex
+    fog span (ro_fog_span_ubyte, segments of 8 pixels): each channel
+    (c * f + fog * (256 - f)) >> 8 in 16-bit lanes, what ro_fog_pixel's
+    packed sums come to. MESA_STATS also reports the alpha-tested,
+    fogged, blended and opaque spans of the fast route. ARM instructions
+    per frame under qemu, a TORCS-like scene with TORCS's alpha test,
+    blending and fog: 28.21M -> 24.15M (-14%). Checked by
+    tests/host-harness/mesa/render-alphafast.c (432 cases: depth 16/24,
+    RGBA and BGRA, every alpha function and several references, opaque,
+    random-alpha, cut-out, nearly opaque and RGB textures, three blend
+    functions, no fog, vertex and pixel fog) against hashes made before
+    this patch; arm/run-arm.sh requires NEON = C, and a wrong comparison
+    (NEON or C), treating alpha 254 as opaque (NEON or C) or a wrong fog
+    lane fails it or render-spanfast.
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean

@@ -45,7 +45,7 @@ arm-linux-gnueabihf-objcopy --redefine-sym errno=ro_errno_shim \
     "$OUT/libOSMesa.a"
 $CC -c -O2 -mfloat-abi=hard "$HERE/shim.c" -o "$OUT/shim.o"
 
-CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog render-paths glsl-basic glsl-control glsl-edge glsl-special glsl-es2compat render-etc1 glsl-temps render-texspan render-blend render-depth render-spanfast"
+CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog render-paths glsl-basic glsl-control glsl-edge glsl-special glsl-es2compat render-etc1 glsl-temps render-texspan render-blend render-depth render-spanfast render-alphafast"
 for c in $CHECKS glsl-jit; do
     $CC -c -O2 -w -mfpu=${RO_FPU:-vfpv3} -mfloat-abi=hard -I"$STAGE/include" "$HERE/../$c.c" -o "$OUT/$c.o"
     $CXX -static -o "$OUT/$c" "$OUT/$c.o" "$OUT/shim.o" "$OUT/libOSMesa.a" \
@@ -110,6 +110,9 @@ MESA_NO_NEON=1 run "$OUT/render-depth" > "$OUT/this/render-depth.c.txt"
 # and the whole-span NEON textured spans with the fused depth-tested write
 run "$OUT/render-spanfast" > "$OUT/this/render-spanfast.txt"
 MESA_NO_NEON=1 run "$OUT/render-spanfast" > "$OUT/this/render-spanfast.c.txt"
+# and the alpha test, opaque blending and NEON fog on that route
+run "$OUT/render-alphafast" > "$OUT/this/render-alphafast.txt"
+MESA_NO_NEON=1 run "$OUT/render-alphafast" > "$OUT/this/render-alphafast.c.txt"
 # The GLSL interpreter's NEON code (the shim reports a CPU with NEON) must
 # give exactly what the C code gives, NaN cases included
 MESA_NO_NEON=1 run "$OUT/glsl-special" > "$OUT/this/glsl-special.c.txt"
@@ -135,7 +138,7 @@ else
     printf "FAIL  %-13s NEON and C differ (ARM)\n" glsl-special
     fail=1
 fi
-for c in render-texspan render-blend render-depth render-spanfast; do
+for c in render-texspan render-blend render-depth render-spanfast render-alphafast; do
     if cmp -s "$OUT/this/$c.txt" "$OUT/this/$c.c.txt"; then
         printf "ok    %-13s %5d cases NEON = C (ARM)\n" $c "$(wc -l < "$OUT/this/$c.txt")"
     else

@@ -1,0 +1,387 @@
+diff --git a/src/mesa/swrast/s_fog.c b/src/mesa/swrast/s_fog.c
+index c57f2d3..104c639 100644
+--- a/src/mesa/swrast/s_fog.c
++++ b/src/mesa/swrast/s_fog.c
+@@ -32,6 +32,7 @@
+ 
+ #include "s_context.h"
+ #include "s_fog.h"
++#include "program/prog_execute.h"
+ 
+ 
+ /**
+@@ -175,6 +176,41 @@ ro_fog_pixel(GLubyte *px, GLuint f, GLuint fogRB, GLuint fogG)
+    *(ro_pixel_word *) px = p;
+ }
+ 
++#if defined(__riscos__) && defined(__arm__) && defined(__ARM_EABI__)
++/* riscos-mesa: ro_fog_pixel for eight pixels with NEON, the factors
++ * f0 + k * df (k = 0..7, as the C loop's running sum gives them) >> 8,
++ * the same bit for bit: each of red, green and blue is
++ * (c * f + fog * (256 - f)) >> 8, which ro_fog_pixel's packed sums come
++ * to (no sum reaches 65536, so there are no carries between channels and
++ * the masks change nothing), worked out in 16-bit lanes; alpha is kept */
++#define RO_NEON_FOG 1
++#pragma GCC push_options
++#pragma GCC target("fpu=neon")
++#include <arm_neon.h>
++static void
++ro_neon_fog8(GLubyte *px, GLint f0, GLint df, GLuint fogR, GLuint fogG,
++             GLuint fogB)
++{
++   static const int32_t k4[4] = { 0, 1, 2, 3 };
++   const int32x4_t k = vld1q_s32(k4);
++   const int32x4_t flo = vaddq_s32(vdupq_n_s32(f0), vmulq_n_s32(k, df));
++   const int32x4_t fhi = vaddq_s32(flo, vdupq_n_s32(4 * df));
++   const uint16x8_t f = vcombine_u16(
++      vmovn_u32(vshrq_n_u32(vreinterpretq_u32_s32(flo), 8)),
++      vmovn_u32(vshrq_n_u32(vreinterpretq_u32_s32(fhi), 8)));
++   const uint16x8_t nf = vsubq_u16(vdupq_n_u16(256), f);
++   uint8x8x4_t p = vld4_u8(px);
++   p.val[0] = vshrn_n_u16(vmlaq_u16(vmulq_u16(vmovl_u8(p.val[0]), f),
++                                    vdupq_n_u16((uint16_t) fogR), nf), 8);
++   p.val[1] = vshrn_n_u16(vmlaq_u16(vmulq_u16(vmovl_u8(p.val[1]), f),
++                                    vdupq_n_u16((uint16_t) fogG), nf), 8);
++   p.val[2] = vshrn_n_u16(vmlaq_u16(vmulq_u16(vmovl_u8(p.val[2]), f),
++                                    vdupq_n_u16((uint16_t) fogB), nf), 8);
++   vst4_u8(px, p);
++}
++#pragma GCC pop_options
++#endif
++
+ static void
+ ro_fog_span_ubyte(const struct gl_context *ctx, const SWcontext *swrast,
+                   SWspan *span)
+@@ -206,6 +242,12 @@ ro_fog_span_ubyte(const struct gl_context *ctx, const SWcontext *swrast,
+          const GLint df = (f1 - f0) / (GLint) m;
+          GLint f = f0;
+          const GLuint end = i + m;
++#ifdef RO_NEON_FOG
++         if (m == 8 && _mesa_ro_have_neon()) {
++            ro_neon_fog8(rgba[i], f0, df, fogR, fogG >> 8, fogB);
++            i = end;
++         }
++#endif
+          for (; i < end; i++) {
+             ro_fog_pixel(rgba[i], (GLuint) f >> 8, fogRB, fogG);
+             f += df;
+diff --git a/src/mesa/swrast/s_span.c b/src/mesa/swrast/s_span.c
+index 2c2d313..9580210 100644
+--- a/src/mesa/swrast/s_span.c
++++ b/src/mesa/swrast/s_span.c
+@@ -318,6 +318,98 @@ ro_neon_swap_rb(GLubyte *dst, const GLubyte *src, GLuint n)
+    }
+    return i;
+ }
++
++/* the alpha test (ALPHA_TEST's comparisons, on the 8-bit alphas of rgba)
++ * sixteen fragments at a time, then eight: mask[i] &= (alpha FUNC ref), the mask
++ * being 0 or 1. *all is cleared if a fragment's mask ends up 0, *any set
++ * if one's ends up 1. Returns how many it did (a multiple of 8). */
++static GLuint
++ro_neon_alpha_test(const GLubyte *rgba, GLubyte *mask, GLuint n,
++                   GLenum func, GLubyte ref, GLboolean *all, GLboolean *any)
++{
++   const uint8x16_t r = vdupq_n_u8(ref), one = vdupq_n_u8(1);
++   uint8x16_t acc_and = one, acc_or = vdupq_n_u8(0);
++   uint8x8_t lo, hi;
++   GLuint i;
++   for (i = 0; i + 16 <= n; i += 16) {
++      const uint8x16_t a = vld4q_u8(rgba + 4 * i).val[ACOMP];
++      uint8x16_t c, m;
++      switch (func) {
++      case GL_LESS:     c = vcltq_u8(a, r); break;
++      case GL_LEQUAL:   c = vcleq_u8(a, r); break;
++      case GL_GEQUAL:   c = vcgeq_u8(a, r); break;
++      case GL_GREATER:  c = vcgtq_u8(a, r); break;
++      case GL_NOTEQUAL: c = vmvnq_u8(vceqq_u8(a, r)); break;
++      default:          c = vceqq_u8(a, r); break;   /* GL_EQUAL */
++      }
++      m = vandq_u8(vld1q_u8(mask + i), vandq_u8(c, one));
++      vst1q_u8(mask + i, m);
++      acc_and = vandq_u8(acc_and, m);
++      acc_or = vorrq_u8(acc_or, m);
++   }
++   lo = vand_u8(vget_low_u8(acc_and), vget_high_u8(acc_and));
++   hi = vorr_u8(vget_low_u8(acc_or), vget_high_u8(acc_or));
++   if (i + 8 <= n) {                    /* then eight */
++      const uint8x8_t a = vld4_u8(rgba + 4 * i).val[ACOMP];
++      const uint8x8_t r8 = vget_low_u8(r);
++      uint8x8_t c, m;
++      switch (func) {
++      case GL_LESS:     c = vclt_u8(a, r8); break;
++      case GL_LEQUAL:   c = vcle_u8(a, r8); break;
++      case GL_GEQUAL:   c = vcge_u8(a, r8); break;
++      case GL_GREATER:  c = vcgt_u8(a, r8); break;
++      case GL_NOTEQUAL: c = vmvn_u8(vceq_u8(a, r8)); break;
++      default:          c = vceq_u8(a, r8); break;
++      }
++      m = vand_u8(vld1_u8(mask + i), vand_u8(c, vget_low_u8(one)));
++      vst1_u8(mask + i, m);
++      lo = vand_u8(lo, m);
++      hi = vorr_u8(hi, m);
++      i += 8;
++   }
++   /* AND / OR of 0s and 1s: the smallest / largest lane */
++   lo = vpmin_u8(lo, lo); lo = vpmin_u8(lo, lo); lo = vpmin_u8(lo, lo);
++   hi = vpmax_u8(hi, hi); hi = vpmax_u8(hi, hi); hi = vpmax_u8(hi, hi);
++   if (i) {
++      if (!vget_lane_u8(lo, 0))
++         *all = GL_FALSE;
++      if (vget_lane_u8(hi, 0))
++         *any = GL_TRUE;
++   }
++   return i;
++}
++
++/* whether every fragment of the first n with its mask set has alpha 255,
++ * sixteen at a time, then eight; *done: how many it looked at (a
++ * multiple of 8) */
++static GLboolean
++ro_neon_opaque(const GLubyte *rgba, const GLubyte *mask, GLuint n, GLuint *done)
++{
++   GLuint i;
++   for (i = 0; i + 16 <= n; i += 16) {
++      const uint8x16_t a = vld4q_u8(rgba + 4 * i).val[ACOMP];
++      /* 255 where the alpha is 255 or the fragment is masked out */
++      const uint8x16_t ok = vorrq_u8(vceqq_u8(a, vdupq_n_u8(255)),
++                                     vceqq_u8(vld1q_u8(mask + i), vdupq_n_u8(0)));
++      uint8x8_t v = vand_u8(vget_low_u8(ok), vget_high_u8(ok));
++      if (vget_lane_u64(vreinterpret_u64_u8(v), 0) != ~(uint64_t) 0) {
++         *done = i;
++         return GL_FALSE;
++      }
++   }
++   if (i + 8 <= n) {                    /* then eight */
++      const uint8x8_t a = vld4_u8(rgba + 4 * i).val[ACOMP];
++      const uint8x8_t ok = vorr_u8(vceq_u8(a, vdup_n_u8(255)),
++                                   vceq_u8(vld1_u8(mask + i), vdup_n_u8(0)));
++      if (vget_lane_u64(vreinterpret_u64_u8(ok), 0) != ~(uint64_t) 0) {
++         *done = i;
++         return GL_FALSE;
++      }
++      i += 8;
++   }
++   *done = i;
++   return GL_TRUE;
++}
+ #pragma GCC pop_options
+ #endif
+ 
+@@ -1330,12 +1422,12 @@ _swrast_put_row(struct gl_context *ctx, struct gl_renderbuffer *rb,
+  * spans written are counted, and the counts are written to that file
+  * when the program ends: depth-tested spans that took the fast route
+  * (ro_write_rgba_span_fast), textured by the fast textured triangles or
+- * not, with how many of their fragments passed the depth test (the share
+- * of texturing work that was kept); and spans that took the general
+- * route, with the commonest reasons (also written every 500 depth buffer
+- * clears). For finding out what a program draws; it changes nothing
+- * drawn. Off (one test of a flag per span)
+- * when the variable isn't set.
++ * not, with how many of their fragments passed the alpha and depth tests
++ * (the share of texturing work that was kept), and how many were alpha
++ * tested, fogged and blended; and spans that took the general route, with
++ * the commonest reasons (also written every 500 depth buffer clears). For
++ * finding out what a program draws; it changes nothing drawn. Off (one
++ * test of a flag per span) when the variable isn't set.
+  */
+ int _mesa_ro_stats_state = -1;
+ int _mesa_ro_stats_tex;
+@@ -1346,6 +1438,7 @@ static struct {
+    unsigned long long gen_spans[2][2], gen_frags[2][2];  /* [textured][depth test] */
+    unsigned long long gen_stencil, gen_alpha, gen_blend, gen_fog, gen_clipped;
+    unsigned long long depth_clears;
++   unsigned long long fast_alpha, fast_alpha_killed, fast_fog, fast_blend, fast_opaque;
+ } ro_stats;
+ 
+ static double
+@@ -1366,10 +1459,15 @@ ro_stats_write(void)
+            "Depth-tested spans written by the fast route:\n",
+            ro_stats.depth_clears);
+    for (t = 1; t >= 0; t--)
+-      fprintf(f, "  %-10s %12llu spans %14llu fragments, %14llu passed the depth test (%.1f%%)\n",
++      fprintf(f, "  %-10s %12llu spans %14llu fragments, %14llu passed the alpha and depth tests (%.1f%%)\n",
+               t ? "textured" : "untextured", ro_stats.fast_spans[t],
+               ro_stats.fast_frags[t], ro_stats.fast_passed[t],
+               ro_pc(ro_stats.fast_passed[t], ro_stats.fast_frags[t]));
++   fprintf(f, "  of those spans: %llu with an alpha test (%llu with no fragment "
++           "left by it), %llu fogged, %llu blended (%llu of them all opaque, "
++           "so not blended)\n",
++           ro_stats.fast_alpha, ro_stats.fast_alpha_killed, ro_stats.fast_fog,
++           ro_stats.fast_blend, ro_stats.fast_opaque);
+    fprintf(f, "\nSpans written by the general route:\n");
+    for (t = 1; t >= 0; t--)
+       for (d = 1; d >= 0; d--)
+@@ -1441,6 +1539,87 @@ ro_stats_general(struct gl_context *ctx, const SWspan *span)
+  * of which would leave the span as it is). Returns GL_FALSE, having done
+  * nothing, for any other span.
+  */
++/* riscos-mesa: whether blending is glBlendFunc(GL_SRC_ALPHA,
++ * GL_ONE_MINUS_SRC_ALPHA) with GL_FUNC_ADD (what _swrast_choose_blend_func
++ * gives blend_transparency_ubyte for) and every fragment of the span still
++ * to be written has alpha 255, so blending would change nothing */
++static GLboolean
++ro_span_opaque_transparency(const struct gl_context *ctx, const SWspan *span)
++{
++   const GLubyte (*rgba)[4] = (const GLubyte (*)[4]) span->array->rgba8;
++   const GLubyte *mask = span->array->mask;
++   const GLuint n = span->end;
++   GLuint i;
++   if (ctx->Color.Blend[0].EquationRGB != GL_FUNC_ADD ||
++       ctx->Color.Blend[0].EquationA != GL_FUNC_ADD ||
++       ctx->Color.Blend[0].SrcRGB != GL_SRC_ALPHA ||
++       ctx->Color.Blend[0].SrcA != GL_SRC_ALPHA ||
++       ctx->Color.Blend[0].DstRGB != GL_ONE_MINUS_SRC_ALPHA ||
++       ctx->Color.Blend[0].DstA != GL_ONE_MINUS_SRC_ALPHA ||
++       ctx->Color._AdvancedBlendMode != BLEND_NONE)
++      return GL_FALSE;
++   i = 0;
++#ifdef RO_NEON_SPAN
++   if (_mesa_ro_have_neon() && !ro_neon_opaque(&rgba[0][0], mask, n, &i))
++      return GL_FALSE;
++#endif
++   for (; i < n; i++)
++      if (mask[i] && rgba[i][ACOMP] != 255)
++         return GL_FALSE;
++   return GL_TRUE;
++}
++
++/* riscos-mesa: _swrast_alpha_test for the fast route. For 8-bit colours
++ * in the span's array (textured spans) it does the same comparisons
++ * (with NEON when there is NEON) and returns 0 when no fragment passes,
++ * 2 when all do (leaving span->writeAll as it is: the same pixels are
++ * written either way) and 1 otherwise, clearing writeAll; anything else
++ * goes to _swrast_alpha_test (1, or 0 for GL_NEVER). */
++static int
++ro_alpha_test_fast(const struct gl_context *ctx, SWspan *span)
++{
++   GLubyte (*rgba)[4] = span->array->rgba8;
++   GLubyte *mask = span->array->mask;
++   const GLuint n = span->end;
++   const GLenum func = ctx->Color.AlphaFunc;
++   GLboolean all = GL_TRUE, any = GL_FALSE;
++   GLubyte ref;
++   GLuint i = 0;
++
++   if (!(span->arrayMask & SPAN_RGBA) ||
++       span->array->ChanType != GL_UNSIGNED_BYTE ||
++       func == GL_ALWAYS || func == GL_NEVER ||
++       (func != GL_LESS && func != GL_LEQUAL && func != GL_GEQUAL &&
++        func != GL_GREATER && func != GL_NOTEQUAL && func != GL_EQUAL))
++      return _swrast_alpha_test(ctx, span);
++   CLAMPED_FLOAT_TO_UBYTE(ref, ctx->Color.AlphaRef);
++#ifdef RO_NEON_SPAN
++   if (_mesa_ro_have_neon())
++      i = ro_neon_alpha_test(&rgba[0][0], mask, n, func, ref, &all, &any);
++#endif
++   for (; i < n; i++) {
++      const GLubyte a = rgba[i][ACOMP];
++      GLubyte pass;
++      switch (func) {
++      case GL_LESS:     pass = a < ref; break;
++      case GL_LEQUAL:   pass = a <= ref; break;
++      case GL_GEQUAL:   pass = a >= ref; break;
++      case GL_GREATER:  pass = a > ref; break;
++      case GL_NOTEQUAL: pass = a != ref; break;
++      default:          pass = a == ref; break;
++      }
++      mask[i] &= pass;
++      if (mask[i])
++         any = GL_TRUE;
++      else
++         all = GL_FALSE;
++   }
++   if (all)
++      return 2;
++   span->writeAll = GL_FALSE;
++   return any;
++}
++
+ static GLboolean
+ ro_write_rgba_span_fast(struct gl_context *ctx, SWspan *span)
+ {
+@@ -1453,6 +1632,8 @@ ro_write_rgba_span_fast(struct gl_context *ctx, SWspan *span)
+    GLenum origChanType;
+    void *origRgba;
+    GLuint passed;
++   GLint alpha_ok;
++   int blended = 0;   /* 1 blended, 2 blending skipped (all opaque) */
+ 
+    /* (the commonest reasons not to first) */
+    if (!ctx->Depth.Test || ctx->Texture._EnabledCoordUnits ||
+@@ -1468,14 +1649,13 @@ ro_write_rgba_span_fast(struct gl_context *ctx, SWspan *span)
+       return GL_FALSE;
+    /* fragment processing: no shading or texturing here (the fast textured
+     * triangles have done the texturing), a depth test and nothing else
+-    * before the colour is written but fog and blending */
++    * before the colour is written but the alpha test, fog and blending */
+    if (_mesa_ati_fragment_shader_enabled(ctx) ||
+        fb->Visual.depthBits == 0 ||
+        ctx->Depth.BoundsTest ||
+        (ctx->Transform.DepthClampNear && ctx->Transform.DepthClampFar) ||
+        _mesa_stencil_is_enabled(ctx) ||
+        ctx->Polygon.StippleFlag ||
+-       ctx->Color.AlphaEnabled ||
+        ctx->Query.CurrentOcclusionObject ||
+        ctx->Fog.ColorSumEnabled ||
+        (ctx->Light.Enabled &&
+@@ -1499,28 +1679,49 @@ ro_write_rgba_span_fast(struct gl_context *ctx, SWspan *span)
+    span->writeAll = GL_TRUE;
+    span->leftClip = 0;        /* as clip_span, for a span inside */
+ 
+-   if (!(span->arrayMask & SPAN_Z))
+-      _swrast_span_interpolate_z(ctx, span);
+-   passed = _swrast_depth_test_span(ctx, span);
+-   if (_mesa_ro_stats_state && (_mesa_ro_stats_state > 0 || ro_stats_init())) {
+-      const int t = _mesa_ro_stats_tex;
+-      ro_stats.fast_spans[t]++;
+-      ro_stats.fast_frags[t] += span->end;
+-      ro_stats.fast_passed[t] += passed;
++   /* the alpha test (before Z, as the general function does it) */
++   alpha_ok = !ctx->Color.AlphaEnabled || ro_alpha_test_fast(ctx, span);
++   if (alpha_ok) {
++      if (!(span->arrayMask & SPAN_Z))
++         _swrast_span_interpolate_z(ctx, span);
++      passed = _swrast_depth_test_span(ctx, span);
+    }
++   else
++      passed = 0;
+    if (passed) {
+       if (!(span->arrayMask & SPAN_RGBA))
+          interpolate_int_colors(ctx, span);
+       if (swrast->_FogEnabled)
+          _swrast_fog_rgba_span(ctx, span);
+       span->array->rgba = span->array->rgba8;
+-      if (ctx->Color.BlendEnabled & 1)
+-         _swrast_blend_span(ctx, rb, span);
++      if (ctx->Color.BlendEnabled & 1) {
++         blended = 1;
++         /* glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA) leaves a
++          * fragment with alpha 255 as it is (blend_transparency_ubyte and
++          * its NEON version), so a span whose written fragments are all
++          * opaque needn't read the buffer or blend */
++         if (!ro_span_opaque_transparency(ctx, span))
++            _swrast_blend_span(ctx, rb, span);
++         else
++            blended = 2;
++      }
+       _swrast_put_row(ctx, rb, span->array->ChanType, span->end,
+                       span->x, span->y, span->array->rgba,
+                       span->writeAll ? NULL : span->array->mask);
+    }
+ 
++   if (_mesa_ro_stats_state && (_mesa_ro_stats_state > 0 || ro_stats_init())) {
++      const int t = _mesa_ro_stats_tex;
++      ro_stats.fast_spans[t]++;
++      ro_stats.fast_frags[t] += span->end;
++      ro_stats.fast_passed[t] += passed;
++      ro_stats.fast_alpha += ctx->Color.AlphaEnabled;
++      ro_stats.fast_alpha_killed += !alpha_ok;
++      ro_stats.fast_fog += swrast->_FogEnabled;
++      ro_stats.fast_blend += blended != 0;
++      ro_stats.fast_opaque += blended == 2;
++   }
++
+    span->interpMask = origInterpMask;
+    span->arrayMask = origArrayMask;
+    span->arrayAttribs = origArrayAttribs;

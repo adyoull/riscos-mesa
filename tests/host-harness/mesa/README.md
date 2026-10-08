@@ -29,6 +29,7 @@ Renders a few thousand cases and compares a hash of every image with
 | `render-blend.c` | 300 cases of blending and smooth colour spans; on ARM also with MESA_NO_NEON, which must give the same (the NEON blend) |
 | `render-depth.c` | 448 cases of depth testing (16, 24, 24 + 8 and 32-bit depth, RGBA and BGRA, every depth function, depth writes on and off, blended, textured); on ARM also with MESA_NO_NEON, which must give the same (the NEON depth test, Z steps and BGRA rows) |
 | `render-spanfast.c` | 192 cases of perspective, depth-tested triangles (untextured, RGBA8 and RGB textures, GL_FASTEST/GL_NICEST, no fog, vertex and pixel fog, blended, some cut by a scissor box) against hashes made before patch riscos-span-fast; on ARM also with MESA_NO_NEON, which must give the same (the fused span write, the whole-span NEON textured spans) |
+| `render-alphafast.c` | 432 cases of depth-tested triangles with the alpha test on (every function, several references), untextured, opaque, random-alpha, cut-out, nearly opaque and RGB textures, blended or not, no fog, vertex and pixel fog, against hashes made before patch riscos-alpha-fast; on ARM also with MESA_NO_NEON, which must give the same (the NEON alpha test, the opaque-blend shortcut and NEON vertex fog) |
 
     M=<mesa-20.3.5 with patches/mesa applied, built in $M/build> ./run.sh
 

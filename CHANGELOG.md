@@ -39,6 +39,17 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   alpha test, blending, fog, clipping). Nothing drawn changes. It's there
   to show which speed-up a real program would gain from next.
 
+- **The fast route for alpha-tested, blended and fogged games** (new
+  patch `riscos-alpha-fast`), exactly the same picture. TORCS's
+  `MESA_STATS` showed none of its drawing reaching the fast route above,
+  because plib leaves the alpha test on for everything. Now the alpha
+  test is done on that route (with NEON), opaque fragments under
+  `glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)` skip blending (no
+  reading back of the screen), and vertex fog is done eight pixels at a
+  time with NEON. Under emulation a TORCS-like scene with TORCS's
+  settings takes 14% fewer ARM instructions a frame. Not yet timed on a
+  Pi. New check `render-alphafast`.
+
 ## 20.3.5-14: NEON texturing and blending, GLSL shaders compiled to ARM code
 
 Drawing is much faster on CPUs with NEON (every Raspberry Pi 2 and later),
