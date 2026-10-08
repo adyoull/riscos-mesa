@@ -1,6 +1,6 @@
 # RISC OS EGL programming guide
 
-For riscos-mesa v20.3.5-14 (October 2026). Andrew Youll.
+For riscos-mesa v20.3.5-15 (October 2026). Andrew Youll.
 
 > **New to OpenGL, EGL or cross-compiling?** Start with the devkit's
 > beginner's guide (`README.md` at the top of the devkit, `devkit/README.md`
@@ -723,19 +723,21 @@ Rendering is Mesa's software rasteriser on one CPU core, so keep scenes simple a
 | Same, no vsync | ~67 fps | 9.2 ms / 5.7 ms |
 | Same, direct to screen | ~100 fps | 9.9 ms / 0 ms |
 
-The window and full screen figures are from the 20.3.5-4 tests; rendering has got faster since. The riscos-mesa benchmark (`glbench`, Pi 4, 640x480, 24-bit depth + 8-bit stencil, 20.3.5-14, ms per frame and frames per second):
+The window and full screen figures are from the 20.3.5-4 tests; rendering has got faster since. The riscos-mesa benchmark (`glbench`, Pi 4, 640x480, 24-bit depth + 8-bit stencil, 20.3.5-15, ms per frame and frames per second):
 
 | Scene | ms | fps |
 | --- | --- | --- |
-| clear colour + depth | 0.56 | 1790 |
-| lit cube | 1.78 | 563 |
-| 12288 lit triangles | 9.78 | 102 |
-| full-screen bilinear texture | 10.43 | 96 |
-| 4 blended full-screen quads | 10.26 | 97 |
-| fogged sky and ground, depth-tested | 12.12 | 83 |
-| GLSL per-pixel shaded cube | 13.28 | 75 |
+| clear colour + depth | 0.58 | 1725 |
+| lit cube | 1.78 | 562 |
+| 12288 lit triangles | 9.79 | 102 |
+| full-screen bilinear texture | 9.90 | 101 |
+| 4 blended full-screen quads | 10.08 | 99 |
+| fogged sky and ground, depth-tested | 11.31 | 88 |
+| GLSL per-pixel shaded cube | 13.10 | 76 |
+| racing-game-like scene (`game`, run only when named) | 10.72 | 93 |
+| the same as TORCS draws it (`torcs`: alpha test, blending, fog) | 16.84 | 59 |
 
-**NEON:** on CPUs that have it (every Pi 2 and later), the commonest per-pixel work runs four or eight pixels at a time: bilinear (`GL_LINEAR`) RGBA and RGB textures with `GL_MODULATE` or `GL_REPLACE` (and `GL_DECAL` for RGB), the usual transparency (`glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)`), and smooth and one-colour fills. The picture is exactly the same either way. Setting the system variable `MESA_NO_NEON` (`*Set MESA_NO_NEON 1`) turns it all off, for comparison. (`*Set MESA_NO_ROWGATHER 1` turns off just one part of it, the reading of texels a row at a time for pictures drawn square to the screen, for comparison.)
+**NEON:** on CPUs that have it (every Pi 2 and later), the commonest per-pixel work runs four or eight pixels at a time: bilinear (`GL_LINEAR`) RGBA and RGB textures with `GL_MODULATE` or `GL_REPLACE` (and `GL_DECAL` for RGB), the usual transparency (`glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)`), smooth and one-colour fills, the depth test, the alpha test and vertex fog. 3D scenes also get a direct route for depth-tested rows of pixels, and pixels the depth test will hide aren't textured. The picture is exactly the same either way. Setting the system variable `MESA_NO_NEON` (`*Set MESA_NO_NEON 1`) turns it all off, for comparison. (`*Set MESA_NO_ROWGATHER 1` turns off just one part of it, the reading of texels a row at a time for pictures drawn square to the screen, for comparison.)
 
 **GLSL is slower** than fixed-function GL for the same result, but less than it was, because of the shader JIT (from 20.3.5-14; see below). `*Set MESA_NO_JIT 1` turns it off.
 

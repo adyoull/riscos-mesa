@@ -519,7 +519,14 @@ The drawing is done by the processor, so every pixel costs time.
   The EGL guide (`docs/EGL-GUIDE.md`) lists the rest.
 - **For see-through things, use `glBlendFunc(GL_SRC_ALPHA,
   GL_ONE_MINUS_SRC_ALPHA)`**: it's the blend that runs on NEON, about
-  twice as fast as the others.
+  twice as fast as the others, and (from 20.3.5-15) costs next to
+  nothing where everything drawn is opaque.
+- **3D scenes:** a depth-tested, textured scene with fog, `GL_ALPHA_TEST`
+  and that blend takes riscos-mesa's direct route (20.3.5-15); stencil,
+  logic ops, colour masks, separate specular colour and shaders don't.
+  `*Set MESA_STATS <Wimp$ScrapDir>.MesaStats` before your program starts
+  writes a short report, when it ends, of how much took which route and
+  why (the EGL guide has the details).
 - **Don't draw frames nobody sees.** Pace with `Wimp_PollIdle` (about
   50 frames a second is plenty), and draw only when something changes if
   the picture is still.

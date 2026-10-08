@@ -4,7 +4,19 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## 20.3.5-15 (in development)
+## 20.3.5-15: faster 3D scenes
+
+3D scenes draw faster on CPUs with NEON (every Raspberry Pi 2 and
+later), with exactly the same picture: the depth test, fog and the alpha
+test use NEON, depth-tested rows of pixels take a direct route past
+Mesa's general per-row work, opaque pixels skip blending, and pixels the
+depth test will hide aren't textured. On a Pi 4, glbench's
+racing-game-like scene takes 10.72 ms a frame instead of 20.3.5-14's
+12.45 (14% less), fog 11.31 instead of 12.2 and the bilinear texture
+9.90 instead of 10.4 (measured over several sessions, each change
+against the one before; the other scenes are the same within about 1%).
+New: `MESA_STATS`, a report of what a program draws and which route it
+takes.
 
 - **Faster depth testing and BGRA screens, with exactly the same picture**
   (new patch `riscos-depth-neon`). With NEON, the depth test works on

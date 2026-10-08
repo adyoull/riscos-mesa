@@ -25,7 +25,11 @@ draws in half the time, blending in half, and shaders twice as
 fast, with the same picture (shaders within a step in 255; they're now
 compiled to ARM code by a small JIT of our own, explained in the EGL
 guide's "How shaders are made faster"); TORCS,
-YSFlight and Warzone 2100 run 14-30% faster. Not tried on a Pi yet: menus over the overlay, the overlay
+YSFlight and Warzone 2100 run 14-30% faster. 20.3.5-15 speeds up 3D
+scenes: the depth test, fog and the alpha test use NEON, depth-tested
+rows of pixels take a direct route, and pixels that end up hidden aren't
+textured; glbench's racing-game-like scene draws 14% faster than with
+20.3.5-14 on a Pi 4, with the same picture. Not tried on a Pi yet: menus over the overlay, the overlay
 in full screen or across mode changes, SDL's multitasking full screen,
 and GLUT's game mode at the requested size.
 
