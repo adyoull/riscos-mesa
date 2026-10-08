@@ -57,10 +57,14 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   sums take fewer NEON instructions. And a textured quad drawn square
   to the screen (TORCS's scene stretch, a picture scaled up) reads each
   row's texels eight at a time; `*Set MESA_NO_ROWGATHER 1` turns that
-  part off, to compare. Under emulation: glbench tex 5% fewer
-  instructions, a scene with a third hidden 11% fewer. Not yet timed on
-  a Pi. New glbench scenes `torcs` and `stretch` (run only when named),
-  new check `render-stretch`.
+  part off, to compare. On a Raspberry Pi 4 (glbench 640x480, against
+  15rc2): game 11.66 -> 10.72 ms (8% faster), torcs (the game scene
+  drawn as TORCS draws it) 17.82 -> 16.84 ms, stretch (TORCS's scene
+  stretch) 8.99 -> 8.58 ms, tex 10.40 -> 9.90 ms, fog 11.47 -> 11.31 ms;
+  the row gathers' own share is small (stretch 8.65 ms and tex 9.94 ms
+  without them) but they stay on; the other scenes are the same within
+  about 1%. New glbench scenes `torcs` and `stretch` (run only when
+  named), new check `render-stretch`.
 
 ## 20.3.5-14: NEON texturing and blending, GLSL shaders compiled to ARM code
 
