@@ -462,6 +462,21 @@ mesa-20.3.5-riscos-span-fast.patch
     blend, mask or colour step of the fast write, or breaking the segment
     end, the padded pixels or the segment step, fails it.
 
+mesa-20.3.5-riscos-span-stats.patch
+    MESA_STATS: when the variable names a file, s_span.c counts the spans
+    written and writes the counts to the file at exit (atexit) and every
+    500 depth buffer clears (_swrast_Clear calls
+    _mesa_ro_stats_depth_clear): depth-tested spans that took
+    ro_write_rgba_span_fast, split by whether the fast textured triangles
+    textured them (_mesa_ro_stats_tex, set around their
+    _swrast_write_rgba_span calls), with the fragments that passed the
+    depth test; spans that took the general route, by textured / depth
+    test, and how many had a stencil test, alpha test, blending, fog or
+    were cut by the window or scissor box. To see which speed-up a real
+    program would gain from next (e.g. depth testing before texturing).
+    Draws nothing differently; when the variable isn't set the cost is a
+    test of a flag per span.
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean

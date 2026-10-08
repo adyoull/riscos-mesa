@@ -30,6 +30,15 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   scene takes 11% fewer ARM instructions a frame. New check
   `render-spanfast`.
 
+- **`MESA_STATS`: what a program draws** (new patch `riscos-span-stats`).
+  `*Set MESA_STATS <file>` before a program starts makes riscos-mesa
+  count the spans it writes and write the counts to that file when the
+  program ends (and every 500 depth buffer clears): depth-tested spans on
+  the fast route, textured or not, and the share of their pixels that
+  passed the depth test; spans on the general route and why (stencil,
+  alpha test, blending, fog, clipping). Nothing drawn changes. It's there
+  to show which speed-up a real program would gain from next.
+
 ## 20.3.5-14: NEON texturing and blending, GLSL shaders compiled to ARM code
 
 Drawing is much faster on CPUs with NEON (every Raspberry Pi 2 and later),

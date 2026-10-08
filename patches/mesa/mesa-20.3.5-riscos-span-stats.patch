@@ -1,0 +1,224 @@
+diff --git a/src/mesa/swrast/s_clear.c b/src/mesa/swrast/s_clear.c
+index e409be3..c802000 100644
+--- a/src/mesa/swrast/s_clear.c
++++ b/src/mesa/swrast/s_clear.c
+@@ -33,6 +33,7 @@
+ #include "s_context.h"
+ #include "s_depth.h"
+ #include "s_stencil.h"
++#include "s_span.h"
+ 
+ 
+ /**
+@@ -281,6 +282,11 @@ _swrast_Clear(struct gl_context *ctx, GLbitfield buffers)
+ {
+    const GLbitfield BUFFER_DS = BUFFER_BIT_DEPTH | BUFFER_BIT_STENCIL;
+ 
++   /* riscos-mesa: MESA_STATS counts depth buffer clears (about one a
++    * frame in a 3D program) */
++   if (_mesa_ro_stats_state && (buffers & BUFFER_BIT_DEPTH))
++      _mesa_ro_stats_depth_clear();
++
+ #ifdef DEBUG_FOO
+    {
+       const GLbitfield legalBits =
+diff --git a/src/mesa/swrast/s_span.c b/src/mesa/swrast/s_span.c
+index 410b5f0..2c2d313 100644
+--- a/src/mesa/swrast/s_span.c
++++ b/src/mesa/swrast/s_span.c
+@@ -58,6 +58,9 @@
+ #include "s_texcombine.h"
+ 
+ #include <stdbool.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
+ 
+ /**
+  * Set default fragment attributes for the span using the
+@@ -1322,6 +1325,112 @@ _swrast_put_row(struct gl_context *ctx, struct gl_renderbuffer *rb,
+  * span->interpMask and span->arrayMask may be changed but will be restored
+  * to their original values before returning.
+  */
++/**
++ * riscos-mesa: MESA_STATS. When the variable MESA_STATS names a file, the
++ * spans written are counted, and the counts are written to that file
++ * when the program ends: depth-tested spans that took the fast route
++ * (ro_write_rgba_span_fast), textured by the fast textured triangles or
++ * not, with how many of their fragments passed the depth test (the share
++ * of texturing work that was kept); and spans that took the general
++ * route, with the commonest reasons (also written every 500 depth buffer
++ * clears). For finding out what a program draws; it changes nothing
++ * drawn. Off (one test of a flag per span)
++ * when the variable isn't set.
++ */
++int _mesa_ro_stats_state = -1;
++int _mesa_ro_stats_tex;
++
++static struct {
++   char file[256];
++   unsigned long long fast_spans[2], fast_frags[2], fast_passed[2];
++   unsigned long long gen_spans[2][2], gen_frags[2][2];  /* [textured][depth test] */
++   unsigned long long gen_stencil, gen_alpha, gen_blend, gen_fog, gen_clipped;
++   unsigned long long depth_clears;
++} ro_stats;
++
++static double
++ro_pc(unsigned long long a, unsigned long long b)
++{
++   return b ? 100.0 * (double) a / (double) b : 0.0;
++}
++
++static void
++ro_stats_write(void)
++{
++   FILE *f = fopen(ro_stats.file, "w");
++   int t, d;
++   if (!f)
++      return;
++   fprintf(f, "riscos-mesa MESA_STATS\n\n"
++           "Depth buffer clears (about one a frame): %llu\n\n"
++           "Depth-tested spans written by the fast route:\n",
++           ro_stats.depth_clears);
++   for (t = 1; t >= 0; t--)
++      fprintf(f, "  %-10s %12llu spans %14llu fragments, %14llu passed the depth test (%.1f%%)\n",
++              t ? "textured" : "untextured", ro_stats.fast_spans[t],
++              ro_stats.fast_frags[t], ro_stats.fast_passed[t],
++              ro_pc(ro_stats.fast_passed[t], ro_stats.fast_frags[t]));
++   fprintf(f, "\nSpans written by the general route:\n");
++   for (t = 1; t >= 0; t--)
++      for (d = 1; d >= 0; d--)
++         fprintf(f, "  %-10s %-15s %12llu spans %14llu fragments\n",
++                 t ? "textured" : "untextured",
++                 d ? "depth-tested" : "no depth test",
++                 ro_stats.gen_spans[t][d], ro_stats.gen_frags[t][d]);
++   fprintf(f, "  of those spans: %llu with a stencil test, %llu alpha test, "
++           "%llu blended, %llu fogged, %llu cut by the window or scissor box\n",
++           ro_stats.gen_stencil, ro_stats.gen_alpha, ro_stats.gen_blend,
++           ro_stats.gen_fog, ro_stats.gen_clipped);
++   fclose(f);
++}
++
++static int
++ro_stats_init(void)
++{
++   const char *v = getenv("MESA_STATS");
++   if (v && *v && strlen(v) < sizeof ro_stats.file) {
++      strcpy(ro_stats.file, v);
++      atexit(ro_stats_write);
++      _mesa_ro_stats_state = 1;
++   }
++   else
++      _mesa_ro_stats_state = 0;
++   return _mesa_ro_stats_state;
++}
++
++void
++_mesa_ro_stats_depth_clear(void)
++{
++   /* the file is also written every 500 clears, in case the program
++    * doesn't end normally */
++   if ((_mesa_ro_stats_state > 0 || ro_stats_init()) &&
++       ++ro_stats.depth_clears % 500 == 0)
++      ro_stats_write();
++}
++
++/* a span that took the general route */
++static void
++ro_stats_general(struct gl_context *ctx, const SWspan *span)
++{
++   const struct gl_framebuffer *fb = ctx->DrawBuffer;
++   const int t = _mesa_ro_stats_tex || ctx->Texture._EnabledCoordUnits ||
++                 _swrast_use_fragment_program(ctx);
++   const int d = ctx->Depth.Test;
++   if (_mesa_ro_stats_state < 0 && !ro_stats_init())
++      return;
++   ro_stats.gen_spans[t][d]++;
++   ro_stats.gen_frags[t][d] += span->end;
++   ro_stats.gen_stencil += _mesa_stencil_is_enabled(ctx);
++   ro_stats.gen_alpha += ctx->Color.AlphaEnabled;
++   ro_stats.gen_blend += ctx->Color.BlendEnabled & 1;
++   ro_stats.gen_fog += SWRAST_CONTEXT(ctx)->_FogEnabled;
++   if (!(span->arrayMask & SPAN_XY) &&
++       (span->y < fb->_Ymin || span->y >= fb->_Ymax ||
++        span->x < fb->_Xmin || span->x + (GLint) span->end > fb->_Xmax))
++      ro_stats.gen_clipped++;
++}
++
++
+ /**
+  * riscos-mesa: _swrast_write_rgba_span for the commonest span of 3D
+  * games, a horizontal run of shaded (or textured, by the fast textured
+@@ -1343,6 +1452,7 @@ ro_write_rgba_span_fast(struct gl_context *ctx, SWspan *span)
+    GLbitfield64 origArrayAttribs;
+    GLenum origChanType;
+    void *origRgba;
++   GLuint passed;
+ 
+    /* (the commonest reasons not to first) */
+    if (!ctx->Depth.Test || ctx->Texture._EnabledCoordUnits ||
+@@ -1391,7 +1501,14 @@ ro_write_rgba_span_fast(struct gl_context *ctx, SWspan *span)
+ 
+    if (!(span->arrayMask & SPAN_Z))
+       _swrast_span_interpolate_z(ctx, span);
+-   if (_swrast_depth_test_span(ctx, span)) {
++   passed = _swrast_depth_test_span(ctx, span);
++   if (_mesa_ro_stats_state && (_mesa_ro_stats_state > 0 || ro_stats_init())) {
++      const int t = _mesa_ro_stats_tex;
++      ro_stats.fast_spans[t]++;
++      ro_stats.fast_frags[t] += span->end;
++      ro_stats.fast_passed[t] += passed;
++   }
++   if (passed) {
+       if (!(span->arrayMask & SPAN_RGBA))
+          interpolate_int_colors(ctx, span);
+       if (swrast->_FogEnabled)
+@@ -1419,6 +1536,8 @@ _swrast_write_rgba_span( struct gl_context *ctx, SWspan *span)
+    /* riscos-mesa */
+    if (ro_write_rgba_span_fast(ctx, span))
+       return;
++   if (_mesa_ro_stats_state)
++      ro_stats_general(ctx, span);
+ 
+    const SWcontext *swrast = SWRAST_CONTEXT(ctx);
+    const GLbitfield origInterpMask = span->interpMask;
+diff --git a/src/mesa/swrast/s_span.h b/src/mesa/swrast/s_span.h
+index 794f671..bf554ce 100644
+--- a/src/mesa/swrast/s_span.h
++++ b/src/mesa/swrast/s_span.h
+@@ -199,6 +199,11 @@ _swrast_compute_lambda(GLfloat dsdx, GLfloat dsdy, GLfloat dtdx, GLfloat dtdy,
+ extern void
+ _swrast_write_rgba_span( struct gl_context *ctx, SWspan *span);
+ 
++/* riscos-mesa: MESA_STATS, counts of spans and fragments (s_span.c) */
++extern int _mesa_ro_stats_state;   /* -1 not looked at yet, 0 off, 1 on */
++extern int _mesa_ro_stats_tex;     /* set around the fast textured spans' writes */
++void _mesa_ro_stats_depth_clear(void);
++
+ 
+ extern void
+ _swrast_read_rgba_span(struct gl_context *ctx, struct gl_renderbuffer *rb,
+diff --git a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
+index f9ad427..335ccc0 100644
+--- a/src/mesa/swrast/s_triangle.c
++++ b/src/mesa/swrast/s_triangle.c
+@@ -1293,7 +1293,9 @@ affine_span(struct gl_context *ctx, SWspan *span,
+    span->interpMask &= ~SPAN_RGBA;
+    assert(span->arrayMask & SPAN_RGBA);
+ 
++   _mesa_ro_stats_tex = 1;    /* riscos-mesa: MESA_STATS */
+    _swrast_write_rgba_span(ctx, span);
++   _mesa_ro_stats_tex = 0;
+ 
+    /* re-enable texture units */
+    ctx->Texture._EnabledCoordUnits = texEnableSave;
+@@ -1747,7 +1749,9 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+ write:
+ #endif
+    assert(span->arrayMask & SPAN_RGBA);
++   _mesa_ro_stats_tex = 1;    /* riscos-mesa: MESA_STATS */
+    _swrast_write_rgba_span(ctx, span);
++   _mesa_ro_stats_tex = 0;
+ 
+ #undef SPAN_NEAREST
+ #undef SPAN_NEAREST_WRAP

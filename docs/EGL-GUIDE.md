@@ -754,6 +754,7 @@ The fixed-function speed-ups (textures, blending, colour fills) aren't a JIT: fo
 
 **Getting speed out of the renderer**
 
+- **Finding out what your program draws:** `*Set MESA_STATS <Wimp$ScrapDir>.MesaStats` (from 20.3.5-15) before it starts makes riscos-mesa count the spans (rows of a triangle) it writes, and write the counts to that file when the program ends (and every 500 frames or so): how many depth-tested spans took the fast route, how many of their pixels passed the depth test (the rest were textured for nothing), and how many spans took the slower general route, with the commonest reasons (stencil test, alpha test, blending, fog, cut by the window). It changes nothing drawn and costs next to nothing; `*Unset MESA_STATS` turns it off.
 - **Pixels cost most.** Time grows with the pixels drawn: a smaller window, or rendering smaller and scaling up full screen, is the biggest saving.
 - **Textured triangles have a fast path.** It takes one 2D texture, a power of two in size, RGB or RGBA (8 bits a channel), in `GL_REPEAT` or `GL_CLAMP_TO_EDGE` mode (or `GL_CLAMP` with `GL_NEAREST`), with or without fog. Anything else goes through the general path, which can be much slower per pixel.
   - Use `GL_CLAMP_TO_EDGE`, not `GL_CLAMP`, with `GL_LINEAR`: `GL_CLAMP` blends in the border colour at the edges, which only the general path does.
