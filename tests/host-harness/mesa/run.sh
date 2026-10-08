@@ -36,7 +36,7 @@ LIB=$M/build/src/mesa/drivers/osmesa
 [ -e "$LIB/libOSMesa.so.8" ] || { echo "no $LIB/libOSMesa.so.8: build Mesa first" >&2; exit 1; }
 mkdir -p "$OUT"
 
-CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog render-paths glsl-basic glsl-control glsl-edge glsl-special glsl-es2compat render-etc1 glsl-temps render-texspan render-blend render-depth render-spanfast render-alphafast"
+CHECKS="render-fixed render-rows render-tex render-image render-matrix render-fog render-paths glsl-basic glsl-control glsl-edge glsl-special glsl-es2compat render-etc1 glsl-temps render-texspan render-blend render-depth render-spanfast render-alphafast render-stretch"
 for c in $CHECKS; do
     gcc -O2 -w -I"$M/include" "$HERE/$c.c" -o "$OUT/$c" \
         -L"$LIB" -lOSMesa -lm -Wl,-rpath,"$LIB"
@@ -73,7 +73,8 @@ run_all() {
       "$OUT/render-depth" > "$res/render-depth.txt" 2>/dev/null || true
       # (new in 20.3.5-15)
       "$OUT/render-spanfast" > "$res/render-spanfast.txt" 2>/dev/null || true
-      "$OUT/render-alphafast" > "$res/render-alphafast.txt" 2>/dev/null || true )
+      "$OUT/render-alphafast" > "$res/render-alphafast.txt" 2>/dev/null || true
+      "$OUT/render-stretch" > "$res/render-stretch.txt" 2>/dev/null || true )
 }
 
 run_all "$LIB" "$OUT/this"

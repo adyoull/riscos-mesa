@@ -67,7 +67,9 @@ Run in this order and note the output:
    names: clear cube tex blend tris glsl fog. Two more run only when named
    (new in 20.3.5-14): texrgb (tex with a GL_RGB texture) and texfast
    (texrgb with the GL_FASTEST hint), and from 20.3.5-15 game (a
-   racing-game-like textured 3D scene). -bgra draws into a BGRA buffer,
+   racing-game-like textured 3D scene), torcs (game drawn as TORCS draws
+   it: alpha test, blending and fog) and stretch (TORCS's scene stretch:
+   a half-size picture drawn full size). -bgra draws into a BGRA buffer,
    as on a TRGB screen. *Set MESA_NO_NEON 1 before running it times the
    same scenes without NEON. Use -o file to save the results
    (rather than "> file"). Reports the address and RISC OS error if

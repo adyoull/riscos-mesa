@@ -507,6 +507,47 @@ mesa-20.3.5-riscos-alpha-fast.patch
     (NEON or C), treating alpha 254 as opaque (NEON or C) or a wrong fog
     lane fails it or render-spanfast.
 
+mesa-20.3.5-riscos-zfirst.patch
+    Two speed-ups for TORCS, from its MESA_STATS (a third of its scene's
+    textured fragments fail the depth test; its 960x540 scene stretch
+    draws twice as many fragments as the scene). Bit for bit the same.
+    (1) Depth test before texturing: for a span that will take the fast
+    route, the NEON textured spans (fast_persp_span, affine_span) first
+    call _swrast_ro_ztest_first (s_span.c), which does that route's mask,
+    Z and depth test, so groups of four fragments that all failed aren't
+    textured (their coordinates and colours are stepped past as texturing
+    would); ro_write_rgba_span_fast carries on from there. With an alpha
+    test and depth writes on, the depth test is done without writing
+    (ctx->Depth.Mask off for it) and after the alpha test the Z of the
+    fragments that passed both is written as the depth test writes it
+    (ro_zf_write), so the same fragments pass and the same Z is written
+    as when the alpha test comes first. 16-bit and Z24_X8 depth buffers
+    only. It's used while at least 1 in 5 of recent fast-route fragments
+    failed (sums decaying by 1/64 a span), as it costs a little where
+    little is hidden. (2) The bilinear sums (ro_bilerp4): each
+    (w * d) >> 11 is one vqdmulh of d by w << 4 (the same floor of
+    d * w / 2048; |d| <= 255, w < 2048, so it never saturates), eight
+    lanes at a time, instead of two long multiplies and narrowing shifts
+    per four lanes. (3) Row gathers: for spans whose texture t is the same
+    for every pixel (a picture drawn square to the screen: TORCS's scene
+    stretch, glbench's tex), a group of four whose texels lie within eight
+    neighbouring, unwrapped texels of each row loads those eight at once
+    and picks the four pixels' texels out with vtbl/vtbx instead of
+    sixteen separate loads (ro_tex_group_row); MESA_NO_ROWGATHER turns
+    this off, to compare. ARM instructions per frame under qemu (glbench,
+    640x480): tex 6.28M -> 6.26M (5.98M without row gathers), stretch
+    (new opt-in scene: TORCS's stretch) 5.84M -> 5.76M (5.50M without),
+    game 11.60M -> 11.50M; a TORCS-like scene with a near wall hiding a
+    third of it 30.36M -> 26.99M. The row gathers take more instructions
+    but fewer memory accesses: which is quicker is for the Pi to say.
+    Checked by tests/host-harness/mesa/render-stretch.c (240 cases)
+    against hashes made before this patch, and by render-alphafast and
+    render-spanfast (the depth test first, with and without the alpha
+    test, Z16 and Z24); arm/run-arm.sh requires NEON = C. Breaking a row
+    gather's texel offsets or channel order, the bilinear shift, the
+    stepping past skipped fragments, or the deferred Z write fails them;
+    forcing the depth test first for every span changes nothing.
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean

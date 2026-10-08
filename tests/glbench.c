@@ -368,6 +368,70 @@ static void s_game(int f)
     glDisable(GL_BLEND); glDepthMask(GL_TRUE);
 }
 
+/* torcs: the game scene drawn as TORCS (plib) draws: the alpha test on
+ * (GL_GREATER, 0) and blending on for everything, opaque textures, linear
+ * fog; run only when named */
+static void torcs_setup(void)
+{
+    static const float fogc[4] = { 0.6f, 0.7f, 0.8f, 1 };
+    static unsigned char img[128 * 128 * 4];
+    int i, x, y;
+    game_setup();
+    for (y = 0; y < 128; y++) for (x = 0; x < 128; x++) {
+        unsigned char *p = img + (y * 128 + x) * 4;
+        p[0] = (unsigned char)(x ^ y); p[1] = (unsigned char)(x * 3); p[2] = (unsigned char)(y * 5);
+        p[3] = 255;
+    }
+    for (i = 0; i < 2; i++) {
+        glBindTexture(GL_TEXTURE_2D, game_tex[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, i == 0 ? GL_RGB : GL_RGBA, 128, 128, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, img);
+    }
+    glEnable(GL_ALPHA_TEST); glAlphaFunc(GL_GREATER, 0);
+    glEnable(GL_FOG); glFogi(GL_FOG_MODE, GL_LINEAR); glFogf(GL_FOG_START, 5); glFogf(GL_FOG_END, 50);
+    glFogfv(GL_FOG_COLOR, fogc);
+}
+
+static void s_torcs(int f)
+{
+    s_game(f);   /* (its smoke switches blending off at the end) */
+    glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
+
+/* stretch: TORCS's scene stretch: a half-size picture in a 512x512 RGBA
+ * texture drawn over the whole buffer (GL_LINEAR, GL_REPLACE,
+ * GL_CLAMP_TO_EDGE, GL_FASTEST); run only when named */
+static GLuint stretch_tex;
+static void stretch_setup(void)
+{
+    static unsigned char img[512 * 512 * 4];
+    int x, y;
+    for (y = 0; y < 512; y++) for (x = 0; x < 512; x++) {
+        unsigned char *p = img + (y * 512 + x) * 4;
+        p[0] = (unsigned char)(x * 7 ^ y); p[1] = (unsigned char)(y * 3); p[2] = (unsigned char)(x + y);
+        p[3] = 255;
+    }
+    glGenTextures(1, &stretch_tex); glBindTexture(GL_TEXTURE_2D, stretch_tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 512, 512, 0, GL_RGBA, GL_UNSIGNED_BYTE, img);
+    ortho(); glEnable(GL_TEXTURE_2D);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
+}
+
+static void s_stretch(int i)
+{
+    const float u = (W / 2) / 512.0f, v = (H / 2) / 512.0f;
+    (void) i;
+    glBegin(GL_TRIANGLE_STRIP);
+    glTexCoord2f(0, 0); glVertex2f(0, 0); glTexCoord2f(u, 0); glVertex2f(1, 0);
+    glTexCoord2f(0, v); glVertex2f(0, 1); glTexCoord2f(u, v); glVertex2f(1, 1);
+    glEnd();
+}
+
 /* ---------------- harness ---------------- */
 static void reset_state(void)
 {
@@ -378,6 +442,8 @@ static void reset_state(void)
     glColor4f(1, 1, 1, 1);
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_DONT_CARE);
     glDepthMask(GL_TRUE);
+    glDisable(GL_ALPHA_TEST);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 }
 
 static const char *only = NULL;
@@ -454,6 +520,10 @@ int main(int argc, char **argv)
                                             run("texfast", "texrgb with the GL_FASTEST hint (affine)", s_tex); }
     if (only && !strcmp(only, "game"))    { reset_state(); game_setup();
                                             run("game", "racing-game-like textured 3D scene, depth-tested", s_game); }
+    if (only && !strcmp(only, "torcs"))   { reset_state(); torcs_setup();
+                                            run("torcs", "game as TORCS draws it: alpha test, blending, fog", s_torcs); }
+    if (only && !strcmp(only, "stretch")) { reset_state(); stretch_setup();
+                                            run("stretch", "TORCS's scene stretch: half-size picture to full size", s_stretch); }
     out("\ntotal %.1f s\n", hr_seconds() - start);
     OSMesaDestroyContext(ctx);
     return 0;

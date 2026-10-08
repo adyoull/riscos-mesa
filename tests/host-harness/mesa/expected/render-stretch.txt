@@ -1,0 +1,240 @@
+  0  16x16  rgba repeat replace  nicest  depth 0 scale 0.98 s0 0.32 t0 0.34: a6231f82
+  1  64x32  rgba repeat replace  nicest  depth 0 scale 2.03 s0 0.68 t0 0.69: 9808355a
+  2 128x128 rgba repeat replace  nicest  depth 0 scale 1.79 s0 1.16 t0 -0.46: 37c627c9
+  3 256x64  rgba repeat replace  nicest  depth 0 scale 1.42 s0 1.30 t0 -0.94: f4aa3b11
+  4 512x256 rgba repeat replace  nicest  depth 0 scale 1.75 s0 0.89 t0 1.44: a737533e
+  5  16x16  rgb  repeat replace  nicest  depth 0 scale 1.03 s0 -0.48 t0 0.08: 1f14ad5d
+  6  64x32  rgb  repeat replace  nicest  depth 0 scale 3.61 s0 1.33 t0 1.31: 757034eb
+  7 128x128 rgb  repeat replace  nicest  depth 0 scale 2.34 s0 1.30 t0 1.34: 88871345
+  8 256x64  rgb  repeat replace  nicest  depth 0 scale 1.31 s0 1.16 t0 -1.05: fe0bdaa1
+  9 512x256 rgb  repeat replace  nicest  depth 0 scale 3.12 s0 1.23 t0 -0.42: 5e09db25
+ 10  16x16  rgba clamp  replace  nicest  depth 0 scale 2.14 s0 0.88 t0 0.09: 14da434f
+ 11  64x32  rgba clamp  replace  nicest  depth 0 scale 2.13 s0 0.21 t0 0.94: aeec7998
+ 12 128x128 rgba clamp  replace  nicest  depth 0 scale 3.33 s0 -1.15 t0 -0.18: 4cf982de
+ 13 256x64  rgba clamp  replace  nicest  depth 0 scale 3.95 s0 0.79 t0 -0.15: d2ad0837
+ 14 512x256 rgba clamp  replace  nicest  depth 0 scale 3.52 s0 -0.53 t0 0.09: ccba3c0e
+ 15  16x16  rgb  clamp  replace  nicest  depth 0 scale 2.24 s0 0.22 t0 0.39: 143bb885
+ 16  64x32  rgb  clamp  replace  nicest  depth 0 scale 0.93 s0 -0.06 t0 -1.05: 49a520bd
+ 17 128x128 rgb  clamp  replace  nicest  depth 0 scale 2.36 s0 0.39 t0 -0.26: f059aef5
+ 18 256x64  rgb  clamp  replace  nicest  depth 0 scale 2.63 s0 -0.93 t0 -0.96: 1eabdf88
+ 19 512x256 rgb  clamp  replace  nicest  depth 0 scale 2.76 s0 -0.81 t0 0.06: d82b2649
+ 20  16x16  rgba repeat modulate nicest  depth 0 scale 1.46 s0 -0.93 t0 1.44: 1504205d
+ 21  64x32  rgba repeat modulate nicest  depth 0 scale 3.83 s0 -1.07 t0 -0.09: b6fd2b16
+ 22 128x128 rgba repeat modulate nicest  depth 0 scale 1.12 s0 0.41 t0 1.04: e6ecc7c1
+ 23 256x64  rgba repeat modulate nicest  depth 0 scale 3.82 s0 0.84 t0 -0.07: 4f1d715b
+ 24 512x256 rgba repeat modulate nicest  depth 0 scale 2.60 s0 1.08 t0 -1.06: f92ef317
+ 25  16x16  rgb  repeat modulate nicest  depth 0 scale 3.95 s0 -1.15 t0 -0.34: 155dc233
+ 26  64x32  rgb  repeat modulate nicest  depth 0 scale 2.28 s0 -1.23 t0 -1.46: a2260538
+ 27 128x128 rgb  repeat modulate nicest  depth 0 scale 3.12 s0 0.14 t0 0.49: db12c4cf
+ 28 256x64  rgb  repeat modulate nicest  depth 0 scale 2.77 s0 -0.04 t0 -0.64: a02ef5d0
+ 29 512x256 rgb  repeat modulate nicest  depth 0 scale 3.03 s0 0.14 t0 -0.90: f3d5c13c
+ 30  16x16  rgba clamp  modulate nicest  depth 0 scale 1.91 s0 -0.11 t0 -1.29: 22524478
+ 31  64x32  rgba clamp  modulate nicest  depth 0 scale 2.08 s0 1.00 t0 0.07: e9871670
+ 32 128x128 rgba clamp  modulate nicest  depth 0 scale 1.22 s0 -1.15 t0 -1.21: 95c9ac58
+ 33 256x64  rgba clamp  modulate nicest  depth 0 scale 4.00 s0 -0.32 t0 0.42: 39c4fca8
+ 34 512x256 rgba clamp  modulate nicest  depth 0 scale 3.90 s0 -0.75 t0 0.90: 0ca5411c
+ 35  16x16  rgb  clamp  modulate nicest  depth 0 scale 1.79 s0 0.20 t0 0.24: 228c00dd
+ 36  64x32  rgb  clamp  modulate nicest  depth 0 scale 3.63 s0 -0.51 t0 0.65: ac4274a7
+ 37 128x128 rgb  clamp  modulate nicest  depth 0 scale 3.03 s0 -1.25 t0 -0.40: 1f3a5f00
+ 38 256x64  rgb  clamp  modulate nicest  depth 0 scale 3.15 s0 -0.44 t0 0.52: 6b5244e8
+ 39 512x256 rgb  clamp  modulate nicest  depth 0 scale 1.17 s0 0.55 t0 -1.40: 3ced8c0f
+ 40  16x16  rgba repeat replace  fastest depth 0 scale 1.43 s0 -0.19 t0 1.14: 066a63d3
+ 41  64x32  rgba repeat replace  fastest depth 0 scale 1.80 s0 0.84 t0 1.17: 382d3d43
+ 42 128x128 rgba repeat replace  fastest depth 0 scale 2.81 s0 0.47 t0 1.04: 9b7ca7d5
+ 43 256x64  rgba repeat replace  fastest depth 0 scale 0.89 s0 -0.70 t0 -1.23: 6dbc1180
+ 44 512x256 rgba repeat replace  fastest depth 0 scale 1.38 s0 -0.26 t0 0.89: 5728681f
+ 45  16x16  rgb  repeat replace  fastest depth 0 scale 2.92 s0 -0.28 t0 -0.59: f1554777
+ 46  64x32  rgb  repeat replace  fastest depth 0 scale 1.88 s0 -0.44 t0 1.31: ca0c4e3e
+ 47 128x128 rgb  repeat replace  fastest depth 0 scale 3.18 s0 -0.16 t0 -1.45: 179d9469
+ 48 256x64  rgb  repeat replace  fastest depth 0 scale 3.25 s0 0.38 t0 0.89: 51425686
+ 49 512x256 rgb  repeat replace  fastest depth 0 scale 1.40 s0 -0.32 t0 0.64: 334243cf
+ 50  16x16  rgba clamp  replace  fastest depth 0 scale 1.31 s0 -1.41 t0 0.06: 004231b0
+ 51  64x32  rgba clamp  replace  fastest depth 0 scale 1.29 s0 -1.38 t0 -1.49: aa0eed50
+ 52 128x128 rgba clamp  replace  fastest depth 0 scale 2.28 s0 -0.67 t0 0.68: 4d0fc59b
+ 53 256x64  rgba clamp  replace  fastest depth 0 scale 0.89 s0 -0.84 t0 -0.13: 848c6834
+ 54 512x256 rgba clamp  replace  fastest depth 0 scale 2.84 s0 -0.04 t0 -0.23: d844ba2c
+ 55  16x16  rgb  clamp  replace  fastest depth 0 scale 3.35 s0 1.27 t0 0.62: 3009590e
+ 56  64x32  rgb  clamp  replace  fastest depth 0 scale 3.61 s0 0.30 t0 -1.28: 5520ee7e
+ 57 128x128 rgb  clamp  replace  fastest depth 0 scale 3.56 s0 0.45 t0 -1.36: dbe5b976
+ 58 256x64  rgb  clamp  replace  fastest depth 0 scale 3.83 s0 -0.53 t0 0.67: 6e76d9c2
+ 59 512x256 rgb  clamp  replace  fastest depth 0 scale 1.01 s0 -0.90 t0 0.33: bd35d55c
+ 60  16x16  rgba repeat modulate fastest depth 0 scale 3.96 s0 0.98 t0 1.13: 8a631e9f
+ 61  64x32  rgba repeat modulate fastest depth 0 scale 2.30 s0 0.83 t0 1.13: af848b9e
+ 62 128x128 rgba repeat modulate fastest depth 0 scale 0.95 s0 -0.71 t0 0.03: 2aa5c98b
+ 63 256x64  rgba repeat modulate fastest depth 0 scale 1.28 s0 -1.28 t0 -1.28: 0eac66f8
+ 64 512x256 rgba repeat modulate fastest depth 0 scale 1.24 s0 1.13 t0 -0.44: cf26a4eb
+ 65  16x16  rgb  repeat modulate fastest depth 0 scale 1.02 s0 0.79 t0 0.55: e562a3cb
+ 66  64x32  rgb  repeat modulate fastest depth 0 scale 2.57 s0 -0.81 t0 -0.27: 04d72e10
+ 67 128x128 rgb  repeat modulate fastest depth 0 scale 3.22 s0 -0.02 t0 -0.94: 2d79edad
+ 68 256x64  rgb  repeat modulate fastest depth 0 scale 3.41 s0 0.98 t0 -0.62: f800d2c0
+ 69 512x256 rgb  repeat modulate fastest depth 0 scale 2.06 s0 -0.38 t0 0.69: 2ee92f6a
+ 70  16x16  rgba clamp  modulate fastest depth 0 scale 2.07 s0 -0.96 t0 1.06: 1765a471
+ 71  64x32  rgba clamp  modulate fastest depth 0 scale 2.52 s0 0.12 t0 -0.53: 461ce776
+ 72 128x128 rgba clamp  modulate fastest depth 0 scale 1.36 s0 -1.23 t0 -0.89: 08604004
+ 73 256x64  rgba clamp  modulate fastest depth 0 scale 2.47 s0 -0.79 t0 0.84: ff3d2a26
+ 74 512x256 rgba clamp  modulate fastest depth 0 scale 1.46 s0 0.52 t0 -1.26: 25394af0
+ 75  16x16  rgb  clamp  modulate fastest depth 0 scale 1.84 s0 0.22 t0 -0.02: 61ed310d
+ 76  64x32  rgb  clamp  modulate fastest depth 0 scale 1.74 s0 -0.30 t0 -0.93: 8d76f10f
+ 77 128x128 rgb  clamp  modulate fastest depth 0 scale 2.23 s0 1.06 t0 0.86: 51adc78a
+ 78 256x64  rgb  clamp  modulate fastest depth 0 scale 2.23 s0 -0.86 t0 1.26: 233efbe3
+ 79 512x256 rgb  clamp  modulate fastest depth 0 scale 0.97 s0 -1.13 t0 -0.31: 7354cd73
+ 80  16x16  rgba repeat replace  nicest  depth 1 scale 1.40 s0 -0.06 t0 0.33: a242629f
+ 81  64x32  rgba repeat replace  nicest  depth 1 scale 1.52 s0 0.86 t0 -1.19: 5d1ecba2
+ 82 128x128 rgba repeat replace  nicest  depth 1 scale 1.68 s0 0.86 t0 -0.82: 2700b736
+ 83 256x64  rgba repeat replace  nicest  depth 1 scale 2.05 s0 -1.09 t0 -0.11: 7d1561fb
+ 84 512x256 rgba repeat replace  nicest  depth 1 scale 1.08 s0 0.60 t0 0.56: 08c6a5fc
+ 85  16x16  rgb  repeat replace  nicest  depth 1 scale 1.62 s0 -1.40 t0 1.36: 2188018b
+ 86  64x32  rgb  repeat replace  nicest  depth 1 scale 3.49 s0 0.37 t0 -1.36: 1044d940
+ 87 128x128 rgb  repeat replace  nicest  depth 1 scale 1.59 s0 1.10 t0 0.82: 96a01fdb
+ 88 256x64  rgb  repeat replace  nicest  depth 1 scale 2.52 s0 0.94 t0 -1.42: bb561240
+ 89 512x256 rgb  repeat replace  nicest  depth 1 scale 1.86 s0 0.42 t0 0.15: 3f594fe6
+ 90  16x16  rgba clamp  replace  nicest  depth 1 scale 2.37 s0 1.18 t0 0.07: 0dd7e7cf
+ 91  64x32  rgba clamp  replace  nicest  depth 1 scale 2.49 s0 -0.09 t0 0.98: 68c3d7d0
+ 92 128x128 rgba clamp  replace  nicest  depth 1 scale 3.35 s0 -0.46 t0 -1.18: ba9e30a0
+ 93 256x64  rgba clamp  replace  nicest  depth 1 scale 2.08 s0 -1.28 t0 0.20: 64d93d70
+ 94 512x256 rgba clamp  replace  nicest  depth 1 scale 3.56 s0 -1.48 t0 0.05: 1fed4b07
+ 95  16x16  rgb  clamp  replace  nicest  depth 1 scale 2.58 s0 -0.65 t0 0.48: 167738b6
+ 96  64x32  rgb  clamp  replace  nicest  depth 1 scale 3.61 s0 0.22 t0 -1.02: 58896029
+ 97 128x128 rgb  clamp  replace  nicest  depth 1 scale 1.30 s0 0.13 t0 -0.25: d9185058
+ 98 256x64  rgb  clamp  replace  nicest  depth 1 scale 1.89 s0 -1.18 t0 0.38: 8795c341
+ 99 512x256 rgb  clamp  replace  nicest  depth 1 scale 2.10 s0 -0.29 t0 -1.29: 9881622b
+100  16x16  rgba repeat modulate nicest  depth 1 scale 2.53 s0 0.08 t0 -0.99: fd18df29
+101  64x32  rgba repeat modulate nicest  depth 1 scale 0.98 s0 -1.44 t0 -0.68: d8ed7dde
+102 128x128 rgba repeat modulate nicest  depth 1 scale 1.01 s0 -1.19 t0 -0.86: 6d169267
+103 256x64  rgba repeat modulate nicest  depth 1 scale 3.70 s0 0.49 t0 0.30: eb00e20b
+104 512x256 rgba repeat modulate nicest  depth 1 scale 1.76 s0 1.44 t0 1.09: 7905999d
+105  16x16  rgb  repeat modulate nicest  depth 1 scale 1.75 s0 -0.86 t0 -1.35: 8a6a1401
+106  64x32  rgb  repeat modulate nicest  depth 1 scale 3.76 s0 0.44 t0 -0.35: a9a41e16
+107 128x128 rgb  repeat modulate nicest  depth 1 scale 2.80 s0 0.48 t0 0.12: fd329aa3
+108 256x64  rgb  repeat modulate nicest  depth 1 scale 2.13 s0 -0.11 t0 0.66: 7707faf2
+109 512x256 rgb  repeat modulate nicest  depth 1 scale 3.44 s0 0.28 t0 -0.25: 805f8042
+110  16x16  rgba clamp  modulate nicest  depth 1 scale 2.56 s0 -1.08 t0 1.46: 66b9ffc0
+111  64x32  rgba clamp  modulate nicest  depth 1 scale 3.64 s0 0.68 t0 1.31: fe7dab08
+112 128x128 rgba clamp  modulate nicest  depth 1 scale 3.68 s0 -0.75 t0 1.42: 8ca36cea
+113 256x64  rgba clamp  modulate nicest  depth 1 scale 1.90 s0 -0.39 t0 0.87: a128ce4c
+114 512x256 rgba clamp  modulate nicest  depth 1 scale 1.87 s0 0.70 t0 0.40: ba7e1d99
+115  16x16  rgb  clamp  modulate nicest  depth 1 scale 3.27 s0 1.37 t0 0.24: 989b6edc
+116  64x32  rgb  clamp  modulate nicest  depth 1 scale 2.45 s0 -0.38 t0 0.30: d672c61c
+117 128x128 rgb  clamp  modulate nicest  depth 1 scale 1.75 s0 0.04 t0 -0.48: 8878f16c
+118 256x64  rgb  clamp  modulate nicest  depth 1 scale 2.10 s0 -0.52 t0 0.53: 151e498f
+119 512x256 rgb  clamp  modulate nicest  depth 1 scale 1.11 s0 -0.94 t0 -1.46: 6a7c1ccc
+120  16x16  rgba repeat replace  fastest depth 1 scale 3.26 s0 0.32 t0 -0.50: 12efb9fc
+121  64x32  rgba repeat replace  fastest depth 1 scale 3.65 s0 0.70 t0 1.44: 395e4113
+122 128x128 rgba repeat replace  fastest depth 1 scale 2.91 s0 0.24 t0 -0.84: 96659723
+123 256x64  rgba repeat replace  fastest depth 1 scale 2.21 s0 -1.46 t0 0.10: b5500a03
+124 512x256 rgba repeat replace  fastest depth 1 scale 3.77 s0 -0.07 t0 0.47: c57b858c
+125  16x16  rgb  repeat replace  fastest depth 1 scale 1.02 s0 -0.01 t0 -0.34: d1398d17
+126  64x32  rgb  repeat replace  fastest depth 1 scale 3.13 s0 1.17 t0 -1.12: 0dca0e98
+127 128x128 rgb  repeat replace  fastest depth 1 scale 1.21 s0 0.80 t0 -0.97: 9b5c0827
+128 256x64  rgb  repeat replace  fastest depth 1 scale 0.81 s0 -0.71 t0 0.88: 67285fa0
+129 512x256 rgb  repeat replace  fastest depth 1 scale 2.50 s0 -1.45 t0 1.41: bce3ee64
+130  16x16  rgba clamp  replace  fastest depth 1 scale 4.00 s0 -0.27 t0 1.48: 5f56386b
+131  64x32  rgba clamp  replace  fastest depth 1 scale 1.54 s0 0.14 t0 0.72: e8ce948e
+132 128x128 rgba clamp  replace  fastest depth 1 scale 3.22 s0 1.48 t0 0.69: afba335a
+133 256x64  rgba clamp  replace  fastest depth 1 scale 3.13 s0 -0.71 t0 1.20: 9739b3b4
+134 512x256 rgba clamp  replace  fastest depth 1 scale 2.75 s0 -1.37 t0 -0.96: 83d6765f
+135  16x16  rgb  clamp  replace  fastest depth 1 scale 2.64 s0 -0.94 t0 0.81: 58e025b3
+136  64x32  rgb  clamp  replace  fastest depth 1 scale 3.03 s0 -0.17 t0 -0.92: 02ee778b
+137 128x128 rgb  clamp  replace  fastest depth 1 scale 3.55 s0 1.34 t0 -1.21: ea813e23
+138 256x64  rgb  clamp  replace  fastest depth 1 scale 2.22 s0 -0.18 t0 0.87: b5d4a1a2
+139 512x256 rgb  clamp  replace  fastest depth 1 scale 3.14 s0 -0.67 t0 0.15: 28e27366
+140  16x16  rgba repeat modulate fastest depth 1 scale 1.07 s0 -1.08 t0 0.49: f152e935
+141  64x32  rgba repeat modulate fastest depth 1 scale 3.60 s0 0.09 t0 -0.83: 0a4b0942
+142 128x128 rgba repeat modulate fastest depth 1 scale 1.26 s0 -1.48 t0 0.54: abb02d2e
+143 256x64  rgba repeat modulate fastest depth 1 scale 0.89 s0 -1.02 t0 -1.11: 1a2632d6
+144 512x256 rgba repeat modulate fastest depth 1 scale 3.80 s0 -0.41 t0 -0.37: fb3963e2
+145  16x16  rgb  repeat modulate fastest depth 1 scale 2.31 s0 -0.80 t0 0.62: 664c59a8
+146  64x32  rgb  repeat modulate fastest depth 1 scale 1.09 s0 1.18 t0 -0.13: 51957eb2
+147 128x128 rgb  repeat modulate fastest depth 1 scale 2.52 s0 1.28 t0 -0.59: 2cddc162
+148 256x64  rgb  repeat modulate fastest depth 1 scale 0.85 s0 -1.09 t0 -0.58: 99cb58e5
+149 512x256 rgb  repeat modulate fastest depth 1 scale 1.12 s0 -1.44 t0 0.62: 13a24726
+150  16x16  rgba clamp  modulate fastest depth 1 scale 2.16 s0 1.50 t0 -0.08: 5c09ccf9
+151  64x32  rgba clamp  modulate fastest depth 1 scale 1.07 s0 -0.27 t0 0.33: 3ea08efb
+152 128x128 rgba clamp  modulate fastest depth 1 scale 3.45 s0 -0.78 t0 -0.94: d1e9731f
+153 256x64  rgba clamp  modulate fastest depth 1 scale 3.87 s0 0.31 t0 -1.07: 5298eb15
+154 512x256 rgba clamp  modulate fastest depth 1 scale 0.90 s0 1.44 t0 1.01: 9a4666c2
+155  16x16  rgb  clamp  modulate fastest depth 1 scale 1.58 s0 -0.88 t0 -0.47: 47bf726b
+156  64x32  rgb  clamp  modulate fastest depth 1 scale 2.84 s0 -0.90 t0 -0.01: dacc4620
+157 128x128 rgb  clamp  modulate fastest depth 1 scale 4.00 s0 -0.16 t0 0.55: 16074004
+158 256x64  rgb  clamp  modulate fastest depth 1 scale 2.54 s0 -0.78 t0 -0.29: a7e7564a
+159 512x256 rgb  clamp  modulate fastest depth 1 scale 1.88 s0 0.46 t0 0.15: 5c2c1717
+160  16x16  rgba repeat replace  nicest  depth 2 scale 2.25 s0 -0.61 t0 -0.09: e444fc39
+161  64x32  rgba repeat replace  nicest  depth 2 scale 3.73 s0 0.81 t0 0.75: bc61ba1c
+162 128x128 rgba repeat replace  nicest  depth 2 scale 1.94 s0 1.28 t0 0.83: 0e21a54c
+163 256x64  rgba repeat replace  nicest  depth 2 scale 2.21 s0 1.03 t0 -1.45: e23e82dd
+164 512x256 rgba repeat replace  nicest  depth 2 scale 0.94 s0 0.15 t0 -1.26: 48303ab4
+165  16x16  rgb  repeat replace  nicest  depth 2 scale 1.32 s0 0.10 t0 0.02: 8604f96d
+166  64x32  rgb  repeat replace  nicest  depth 2 scale 2.72 s0 1.34 t0 -0.57: 3a8e6a29
+167 128x128 rgb  repeat replace  nicest  depth 2 scale 2.01 s0 0.33 t0 -0.62: eb79ceb9
+168 256x64  rgb  repeat replace  nicest  depth 2 scale 3.73 s0 0.74 t0 -1.30: d51a4c8d
+169 512x256 rgb  repeat replace  nicest  depth 2 scale 3.80 s0 -0.14 t0 1.12: 19896dbb
+170  16x16  rgba clamp  replace  nicest  depth 2 scale 1.33 s0 1.35 t0 -1.15: 753519ef
+171  64x32  rgba clamp  replace  nicest  depth 2 scale 3.12 s0 0.15 t0 0.50: 11f3ca29
+172 128x128 rgba clamp  replace  nicest  depth 2 scale 1.85 s0 -0.28 t0 1.21: aee20e3d
+173 256x64  rgba clamp  replace  nicest  depth 2 scale 1.40 s0 1.49 t0 0.04: 7d46e424
+174 512x256 rgba clamp  replace  nicest  depth 2 scale 2.99 s0 -0.49 t0 -1.37: 23def2b8
+175  16x16  rgb  clamp  replace  nicest  depth 2 scale 3.38 s0 1.50 t0 -0.96: c962d3dd
+176  64x32  rgb  clamp  replace  nicest  depth 2 scale 1.76 s0 0.94 t0 0.97: 3ad0912c
+177 128x128 rgb  clamp  replace  nicest  depth 2 scale 2.76 s0 -0.38 t0 1.06: c8829d58
+178 256x64  rgb  clamp  replace  nicest  depth 2 scale 2.55 s0 -0.70 t0 0.60: f375ae1f
+179 512x256 rgb  clamp  replace  nicest  depth 2 scale 3.01 s0 -1.36 t0 0.40: ea7582f4
+180  16x16  rgba repeat modulate nicest  depth 2 scale 2.69 s0 1.47 t0 0.91: ebb4ccaf
+181  64x32  rgba repeat modulate nicest  depth 2 scale 2.93 s0 0.16 t0 -1.34: 207180df
+182 128x128 rgba repeat modulate nicest  depth 2 scale 3.65 s0 0.40 t0 -0.18: b7f737d9
+183 256x64  rgba repeat modulate nicest  depth 2 scale 1.47 s0 0.11 t0 0.19: 46694e3c
+184 512x256 rgba repeat modulate nicest  depth 2 scale 3.06 s0 0.64 t0 0.24: 48cc3856
+185  16x16  rgb  repeat modulate nicest  depth 2 scale 2.53 s0 -0.75 t0 -1.40: e5b541ce
+186  64x32  rgb  repeat modulate nicest  depth 2 scale 2.72 s0 -1.21 t0 -0.38: 6f187c75
+187 128x128 rgb  repeat modulate nicest  depth 2 scale 3.78 s0 -1.33 t0 -0.71: 5d3f82e6
+188 256x64  rgb  repeat modulate nicest  depth 2 scale 3.73 s0 0.04 t0 0.39: c038d082
+189 512x256 rgb  repeat modulate nicest  depth 2 scale 1.41 s0 1.28 t0 -0.11: e598f808
+190  16x16  rgba clamp  modulate nicest  depth 2 scale 1.80 s0 -1.34 t0 -0.45: 89e7dac1
+191  64x32  rgba clamp  modulate nicest  depth 2 scale 1.38 s0 1.33 t0 0.83: f5f54d0e
+192 128x128 rgba clamp  modulate nicest  depth 2 scale 1.53 s0 0.50 t0 -0.94: 00c09ef5
+193 256x64  rgba clamp  modulate nicest  depth 2 scale 1.80 s0 0.90 t0 0.78: a97a3758
+194 512x256 rgba clamp  modulate nicest  depth 2 scale 2.12 s0 0.48 t0 1.43: 312d31cb
+195  16x16  rgb  clamp  modulate nicest  depth 2 scale 0.92 s0 -0.63 t0 1.20: 162f74f6
+196  64x32  rgb  clamp  modulate nicest  depth 2 scale 2.10 s0 -0.90 t0 -0.82: b6cba210
+197 128x128 rgb  clamp  modulate nicest  depth 2 scale 1.95 s0 0.99 t0 -1.22: 4bb83bf4
+198 256x64  rgb  clamp  modulate nicest  depth 2 scale 0.93 s0 0.94 t0 0.34: f5939a33
+199 512x256 rgb  clamp  modulate nicest  depth 2 scale 1.83 s0 1.31 t0 -0.99: ce53e9c7
+200  16x16  rgba repeat replace  fastest depth 2 scale 3.86 s0 1.17 t0 -0.05: 94a5b4a2
+201  64x32  rgba repeat replace  fastest depth 2 scale 2.48 s0 0.72 t0 -0.36: 9d06abee
+202 128x128 rgba repeat replace  fastest depth 2 scale 1.07 s0 -0.98 t0 -0.42: 48266e6b
+203 256x64  rgba repeat replace  fastest depth 2 scale 2.74 s0 -0.08 t0 1.16: 1fa79799
+204 512x256 rgba repeat replace  fastest depth 2 scale 1.27 s0 -0.70 t0 -0.20: 7838d811
+205  16x16  rgb  repeat replace  fastest depth 2 scale 3.23 s0 1.46 t0 -0.65: e1dc2baa
+206  64x32  rgb  repeat replace  fastest depth 2 scale 1.36 s0 -1.10 t0 -1.28: 03f4a3dd
+207 128x128 rgb  repeat replace  fastest depth 2 scale 1.50 s0 -0.78 t0 -1.24: 43370f71
+208 256x64  rgb  repeat replace  fastest depth 2 scale 3.96 s0 0.31 t0 -0.56: f279eaf1
+209 512x256 rgb  repeat replace  fastest depth 2 scale 3.25 s0 0.88 t0 -0.81: 747001ea
+210  16x16  rgba clamp  replace  fastest depth 2 scale 3.05 s0 1.07 t0 -0.42: 75b42104
+211  64x32  rgba clamp  replace  fastest depth 2 scale 1.54 s0 -0.53 t0 0.20: c3d4be86
+212 128x128 rgba clamp  replace  fastest depth 2 scale 1.56 s0 1.29 t0 -1.21: 80062fec
+213 256x64  rgba clamp  replace  fastest depth 2 scale 3.97 s0 -1.15 t0 -0.36: 7f0ad110
+214 512x256 rgba clamp  replace  fastest depth 2 scale 3.38 s0 -0.80 t0 0.23: 9befd408
+215  16x16  rgb  clamp  replace  fastest depth 2 scale 2.30 s0 0.19 t0 1.11: 64105062
+216  64x32  rgb  clamp  replace  fastest depth 2 scale 2.12 s0 -1.42 t0 0.06: 0271f5c5
+217 128x128 rgb  clamp  replace  fastest depth 2 scale 2.83 s0 0.52 t0 0.47: 23fc20ea
+218 256x64  rgb  clamp  replace  fastest depth 2 scale 1.98 s0 1.28 t0 0.97: 8365a549
+219 512x256 rgb  clamp  replace  fastest depth 2 scale 2.42 s0 0.17 t0 -0.64: d31168c7
+220  16x16  rgba repeat modulate fastest depth 2 scale 3.27 s0 -0.25 t0 -1.32: 6aaa7812
+221  64x32  rgba repeat modulate fastest depth 2 scale 2.86 s0 1.30 t0 0.67: a3348982
+222 128x128 rgba repeat modulate fastest depth 2 scale 0.88 s0 -0.50 t0 1.39: 4b7e7a08
+223 256x64  rgba repeat modulate fastest depth 2 scale 2.93 s0 0.40 t0 1.08: f940b6ab
+224 512x256 rgba repeat modulate fastest depth 2 scale 1.85 s0 -0.37 t0 1.34: 6a96526b
+225  16x16  rgb  repeat modulate fastest depth 2 scale 3.11 s0 -1.19 t0 -1.49: 407040da
+226  64x32  rgb  repeat modulate fastest depth 2 scale 1.34 s0 0.32 t0 0.29: 9ad11669
+227 128x128 rgb  repeat modulate fastest depth 2 scale 0.87 s0 1.18 t0 -0.34: cfd7f939
+228 256x64  rgb  repeat modulate fastest depth 2 scale 3.49 s0 1.31 t0 -1.00: 54f27206
+229 512x256 rgb  repeat modulate fastest depth 2 scale 1.81 s0 -1.03 t0 0.48: be1a3ad1
+230  16x16  rgba clamp  modulate fastest depth 2 scale 3.78 s0 0.44 t0 -1.26: 0a794678
+231  64x32  rgba clamp  modulate fastest depth 2 scale 2.08 s0 -1.00 t0 -0.28: 0d4ba657
+232 128x128 rgba clamp  modulate fastest depth 2 scale 3.44 s0 1.12 t0 -0.17: 75432981
+233 256x64  rgba clamp  modulate fastest depth 2 scale 2.79 s0 0.91 t0 0.35: 7afd3ff5
+234 512x256 rgba clamp  modulate fastest depth 2 scale 1.44 s0 -1.17 t0 0.06: 407a2a14
+235  16x16  rgb  clamp  modulate fastest depth 2 scale 2.00 s0 -1.35 t0 -0.87: b03c87b9
+236  64x32  rgb  clamp  modulate fastest depth 2 scale 2.53 s0 0.64 t0 -0.73: e341da0b
+237 128x128 rgb  clamp  modulate fastest depth 2 scale 2.70 s0 0.02 t0 0.10: 77a7d70a
+238 256x64  rgb  clamp  modulate fastest depth 2 scale 2.77 s0 -0.31 t0 0.81: 9059432c
+239 512x256 rgb  clamp  modulate fastest depth 2 scale 1.66 s0 1.14 t0 1.04: 3777ab80

@@ -735,7 +735,7 @@ The window and full screen figures are from the 20.3.5-4 tests; rendering has go
 | fogged sky and ground, depth-tested | 12.12 | 83 |
 | GLSL per-pixel shaded cube | 13.28 | 75 |
 
-**NEON:** on CPUs that have it (every Pi 2 and later), the commonest per-pixel work runs four or eight pixels at a time: bilinear (`GL_LINEAR`) RGBA and RGB textures with `GL_MODULATE` or `GL_REPLACE` (and `GL_DECAL` for RGB), the usual transparency (`glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)`), and smooth and one-colour fills. The picture is exactly the same either way. Setting the system variable `MESA_NO_NEON` (`*Set MESA_NO_NEON 1`) turns it all off, for comparison.
+**NEON:** on CPUs that have it (every Pi 2 and later), the commonest per-pixel work runs four or eight pixels at a time: bilinear (`GL_LINEAR`) RGBA and RGB textures with `GL_MODULATE` or `GL_REPLACE` (and `GL_DECAL` for RGB), the usual transparency (`glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)`), and smooth and one-colour fills. The picture is exactly the same either way. Setting the system variable `MESA_NO_NEON` (`*Set MESA_NO_NEON 1`) turns it all off, for comparison. (`*Set MESA_NO_ROWGATHER 1` turns off just one part of it, the reading of texels a row at a time for pictures drawn square to the screen, for comparison.)
 
 **GLSL is slower** than fixed-function GL for the same result, but less than it was, because of the shader JIT (from 20.3.5-14; see below). `*Set MESA_NO_JIT 1` turns it off.
 

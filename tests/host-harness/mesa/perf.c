@@ -50,6 +50,8 @@ int main(int argc, char **argv)
     else if (!strcmp(scene, "texrgb"))  { tex_rgb = 1; tex_setup(); frame = s_tex; }
     else if (!strcmp(scene, "texfast")) { tex_rgb = tex_fastest = 1; tex_setup(); frame = s_tex; }
     else if (!strcmp(scene, "game"))    { game_setup(); frame = s_game; }
+    else if (!strcmp(scene, "torcs"))   { torcs_setup(); frame = s_torcs; }
+    else if (!strcmp(scene, "stretch")) { stretch_setup(); frame = s_stretch; }
     else if (!strcmp(scene, "blend")) { blend_setup(); frame = s_blend; }
     else if (!strcmp(scene, "tris"))  { tris_setup();  frame = s_tris; }
     else if (!strcmp(scene, "fog"))   { fog_setup();   frame = s_fog; }

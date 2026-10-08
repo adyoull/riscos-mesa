@@ -50,6 +50,18 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   settings takes 14% fewer ARM instructions a frame. Not yet timed on a
   Pi. New check `render-alphafast`.
 
+- **Hidden pixels aren't textured, and pictures drawn larger are
+  quicker** (new patch `riscos-zfirst`), exactly the same picture. When
+  a good share of a scene is hidden (TORCS: a third), the depth test is
+  done before texturing, so hidden pixels skip it. The bilinear filter's
+  sums take fewer NEON instructions. And a textured quad drawn square
+  to the screen (TORCS's scene stretch, a picture scaled up) reads each
+  row's texels eight at a time; `*Set MESA_NO_ROWGATHER 1` turns that
+  part off, to compare. Under emulation: glbench tex 5% fewer
+  instructions, a scene with a third hidden 11% fewer. Not yet timed on
+  a Pi. New glbench scenes `torcs` and `stretch` (run only when named),
+  new check `render-stretch`.
+
 ## 20.3.5-14: NEON texturing and blending, GLSL shaders compiled to ARM code
 
 Drawing is much faster on CPUs with NEON (every Raspberry Pi 2 and later),

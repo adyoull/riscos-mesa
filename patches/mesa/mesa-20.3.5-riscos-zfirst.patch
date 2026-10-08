@@ -1,0 +1,639 @@
+diff --git a/src/mesa/swrast/s_span.c b/src/mesa/swrast/s_span.c
+index 9580210..5100ae9 100644
+--- a/src/mesa/swrast/s_span.c
++++ b/src/mesa/swrast/s_span.c
+@@ -1529,16 +1529,6 @@ ro_stats_general(struct gl_context *ctx, const SWspan *span)
+ }
+ 
+ 
+-/**
+- * riscos-mesa: _swrast_write_rgba_span for the commonest span of 3D
+- * games, a horizontal run of shaded (or textured, by the fast textured
+- * triangles) pixels, depth-tested, inside the window and scissor box, and
+- * written to one 8-bit colour buffer, perhaps fogged and blended. It does
+- * what _swrast_write_rgba_span does for such a span, in the same order,
+- * skipping the general function's checks and steps that don't apply (each
+- * of which would leave the span as it is). Returns GL_FALSE, having done
+- * nothing, for any other span.
+- */
+ /* riscos-mesa: whether blending is glBlendFunc(GL_SRC_ALPHA,
+  * GL_ONE_MINUS_SRC_ALPHA) with GL_FUNC_ADD (what _swrast_choose_blend_func
+  * gives blend_transparency_ubyte for) and every fragment of the span still
+@@ -1620,20 +1610,15 @@ ro_alpha_test_fast(const struct gl_context *ctx, SWspan *span)
+    return any;
+ }
+ 
+-static GLboolean
+-ro_write_rgba_span_fast(struct gl_context *ctx, SWspan *span)
++/* whether a span can take ro_write_rgba_span_fast (see there); *rbp: the
++ * colour buffer */
++static inline GLboolean
++ro_fast_route(struct gl_context *ctx, const SWspan *span,
++              struct gl_renderbuffer **rbp)
+ {
+-   const SWcontext *swrast = SWRAST_CONTEXT(ctx);
+    struct gl_framebuffer *fb = ctx->DrawBuffer;
+    const struct gl_program *fp = ctx->FragmentProgram._Current;
+    struct gl_renderbuffer *rb;
+-   GLbitfield origInterpMask, origArrayMask;
+-   GLbitfield64 origArrayAttribs;
+-   GLenum origChanType;
+-   void *origRgba;
+-   GLuint passed;
+-   GLint alpha_ok;
+-   int blended = 0;   /* 1 blended, 2 blending skipped (all opaque) */
+ 
+    /* (the commonest reasons not to first) */
+    if (!ctx->Depth.Test || ctx->Texture._EnabledCoordUnits ||
+@@ -1668,6 +1653,160 @@ ro_write_rgba_span_fast(struct gl_context *ctx, SWspan *span)
+        swrast_renderbuffer(rb)->ColorType != GL_UNSIGNED_BYTE ||
+        GET_COLORMASK(ctx->Color.ColorMask, 0) != 0xf)
+       return GL_FALSE;
++   *rbp = rb;
++   return GL_TRUE;
++}
++
++
++/**
++ * riscos-mesa: the depth test before texturing, for the fast textured
++ * triangles (fast_persp_span, affine_span). Mesa textures every fragment
++ * of a span and then tests its depth; in a 3D scene many of them are
++ * hidden, and texturing them is wasted. For a span that will take
++ * ro_write_rgba_span_fast, _swrast_ro_ztest_first does that route's
++ * first steps (mask, Z, depth test) before the texturing, so the
++ * texturing can skip fragments that failed (span->array->mask 0), and
++ * ro_write_rgba_span_fast carries on from there. The result is the same:
++ *  - without an alpha test nothing between the texturing and the depth
++ *    test could change a fragment's mask, Z or the depth buffer, so the
++ *    depth test can come first;
++ *  - with an alpha test (which needs the texture's alpha, so comes after
++ *    the texturing) and depth writes on, the depth test is done without
++ *    writing, and once the alpha test is done the fragments that passed
++ *    both have their Z written as the depth test writes it (ro_zf_write):
++ *    the same fragments pass, and the same Z values are written, as when
++ *    the alpha test comes first.
++ * Only for 16-bit and 24-bit (Z24_X8) depth buffers, whose rows are
++ * tested in place. Returns GL_FALSE, having done nothing, for any other
++ * span.
++ */
++static struct {
++   const SWspan *span;          /* the span it was done for, or NULL */
++   GLint x, y;                  /* (and where it was) */
++   GLuint end;
++   GLuint passed;               /* fragments that passed */
++   GLbitfield interpMask, arrayMask;   /* the span's before */
++   GLboolean zwrite;            /* Z still to be written (alpha test) */
++   struct gl_renderbuffer *rb;  /* the colour buffer */
++   /* how many fragments of recent fast-route spans failed the alpha or
++    * depth test, of how many (sums that decay by 1/64 a span): depth
++    * first only pays when a good share of them are hidden */
++   GLuint frags, failed;
++} ro_zf;
++
++/* depth first when at least 1/RO_ZF_SHARE of recent fragments failed */
++#define RO_ZF_SHARE 5
++
++/* a span on the fast route: n fragments, passed passed */
++static inline void
++ro_zf_count(GLuint n, GLuint passed)
++{
++   ro_zf.frags += n - (ro_zf.frags >> 6);
++   ro_zf.failed += (n - passed) - (ro_zf.failed >> 6);
++}
++
++GLboolean
++_swrast_ro_ztest_first(struct gl_context *ctx, SWspan *span)
++{
++   struct gl_renderbuffer *rb, *zrb;
++   ro_zf.span = NULL;
++   if (ro_zf.failed * RO_ZF_SHARE < ro_zf.frags ||
++       !ro_fast_route(ctx, span, &rb))
++      return GL_FALSE;
++   zrb = ctx->DrawBuffer->Attachment[BUFFER_DEPTH].Renderbuffer;
++   if (!zrb || (zrb->Format != MESA_FORMAT_Z24_UNORM_X8_UINT &&
++                zrb->Format != MESA_FORMAT_Z_UNORM16))
++      return GL_FALSE;
++   ro_zf.interpMask = span->interpMask;
++   ro_zf.arrayMask = span->arrayMask;
++   memset(span->array->mask, 1, span->end);
++   span->writeAll = GL_TRUE;
++   span->leftClip = 0;        /* as clip_span, for a span inside */
++   if (!(span->arrayMask & SPAN_Z))
++      _swrast_span_interpolate_z(ctx, span);
++   ro_zf.zwrite = ctx->Color.AlphaEnabled && ctx->Depth.Mask;
++   if (ro_zf.zwrite) {
++      /* the test without writing (Depth.Mask is all the depth test
++       * functions look at for that) */
++      ctx->Depth.Mask = GL_FALSE;
++      ro_zf.passed = _swrast_depth_test_span(ctx, span);
++      ctx->Depth.Mask = GL_TRUE;
++   }
++   else
++      ro_zf.passed = _swrast_depth_test_span(ctx, span);
++   ro_zf.rb = rb;
++   ro_zf.span = span;
++   ro_zf.x = span->x;
++   ro_zf.y = span->y;
++   ro_zf.end = span->end;
++   return GL_TRUE;
++}
++
++/* the Z writes of the depth test (Z_TEST, Z24_TEST and the NEON test) for
++ * the fragments whose mask is set */
++static void
++ro_zf_write(struct gl_context *ctx, const SWspan *span)
++{
++   struct gl_renderbuffer *zrb =
++      ctx->DrawBuffer->Attachment[BUFFER_DEPTH].Renderbuffer;
++   const GLubyte *mask = span->array->mask;
++   const GLuint *zfrag = span->array->z;
++   GLuint i;
++   if (zrb->Format == MESA_FORMAT_Z_UNORM16) {
++      GLushort *z = (GLushort *) _swrast_pixel_address(zrb, span->x, span->y);
++      for (i = 0; i < span->end; i++)
++         if (mask[i])
++            z[i] = zfrag[i];
++   }
++   else {
++      GLuint *z = (GLuint *) _swrast_pixel_address(zrb, span->x, span->y);
++      for (i = 0; i < span->end; i++)
++         if (mask[i])
++            z[i] = (z[i] & 0xff000000) | zfrag[i];
++   }
++}
++
++/* the fragments of the first n with their mask set */
++static GLuint
++ro_mask_count(const GLubyte *mask, GLuint n)
++{
++   GLuint i, c = 0;
++   for (i = 0; i < n; i++)
++      c += mask[i];
++   return c;
++}
++
++/**
++ * riscos-mesa: _swrast_write_rgba_span for the commonest span of 3D
++ * games, a horizontal run of shaded (or textured, by the fast textured
++ * triangles) pixels, depth-tested, inside the window and scissor box, and
++ * written to one 8-bit colour buffer, perhaps alpha tested, fogged and
++ * blended. It does what _swrast_write_rgba_span does for such a span, in
++ * the same order, skipping the general function's checks and steps that
++ * don't apply (each of which would leave the span as it is); or, for a
++ * span that _swrast_ro_ztest_first depth-tested before its texturing,
++ * the rest. Returns GL_FALSE, having done nothing, for any other span.
++ */
++static GLboolean
++ro_write_rgba_span_fast(struct gl_context *ctx, SWspan *span)
++{
++   const SWcontext *swrast = SWRAST_CONTEXT(ctx);
++   struct gl_renderbuffer *rb;
++   GLbitfield origInterpMask, origArrayMask;
++   GLbitfield64 origArrayAttribs;
++   GLenum origChanType;
++   void *origRgba;
++   GLuint passed;
++   GLint alpha_ok;
++   int blended = 0;   /* 1 blended, 2 blending skipped (all opaque) */
++   const GLboolean zfirst = ro_zf.span == span && ro_zf.x == span->x &&
++                            ro_zf.y == span->y && ro_zf.end == span->end;
++
++   ro_zf.span = NULL;
++   if (zfirst)
++      rb = ro_zf.rb;       /* (checked there) */
++   else if (!ro_fast_route(ctx, span, &rb))
++      return GL_FALSE;
+ 
+    origInterpMask = span->interpMask;
+    origArrayMask = span->arrayMask;
+@@ -1675,19 +1814,38 @@ ro_write_rgba_span_fast(struct gl_context *ctx, SWspan *span)
+    origChanType = span->array->ChanType;
+    origRgba = span->array->rgba;
+ 
+-   memset(span->array->mask, 1, span->end);
+-   span->writeAll = GL_TRUE;
+-   span->leftClip = 0;        /* as clip_span, for a span inside */
+-
+-   /* the alpha test (before Z, as the general function does it) */
+-   alpha_ok = !ctx->Color.AlphaEnabled || ro_alpha_test_fast(ctx, span);
+-   if (alpha_ok) {
+-      if (!(span->arrayMask & SPAN_Z))
+-         _swrast_span_interpolate_z(ctx, span);
+-      passed = _swrast_depth_test_span(ctx, span);
++   if (zfirst) {
++      /* mask, Z and depth test done: the alpha test, if any, on the
++       * fragments that passed it, then their Z */
++      origInterpMask = ro_zf.interpMask;
++      origArrayMask = ro_zf.arrayMask;
++      passed = ro_zf.passed;
++      alpha_ok = 1;
++      if (passed && ctx->Color.AlphaEnabled) {
++         alpha_ok = ro_alpha_test_fast(ctx, span);
++         if (!alpha_ok)
++            passed = 0;
++         else if (alpha_ok != 2)
++            passed = ro_mask_count(span->array->mask, span->end);
++      }
++      if (passed && ro_zf.zwrite)
++         ro_zf_write(ctx, span);
++   }
++   else {
++      memset(span->array->mask, 1, span->end);
++      span->writeAll = GL_TRUE;
++      span->leftClip = 0;        /* as clip_span, for a span inside */
++
++      /* the alpha test (before Z, as the general function does it) */
++      alpha_ok = !ctx->Color.AlphaEnabled || ro_alpha_test_fast(ctx, span);
++      if (alpha_ok) {
++         if (!(span->arrayMask & SPAN_Z))
++            _swrast_span_interpolate_z(ctx, span);
++         passed = _swrast_depth_test_span(ctx, span);
++      }
++      else
++         passed = 0;
+    }
+-   else
+-      passed = 0;
+    if (passed) {
+       if (!(span->arrayMask & SPAN_RGBA))
+          interpolate_int_colors(ctx, span);
+@@ -1710,6 +1868,7 @@ ro_write_rgba_span_fast(struct gl_context *ctx, SWspan *span)
+                       span->writeAll ? NULL : span->array->mask);
+    }
+ 
++   ro_zf_count(span->end, passed);
+    if (_mesa_ro_stats_state && (_mesa_ro_stats_state > 0 || ro_stats_init())) {
+       const int t = _mesa_ro_stats_tex;
+       ro_stats.fast_spans[t]++;
+diff --git a/src/mesa/swrast/s_span.h b/src/mesa/swrast/s_span.h
+index bf554ce..af26d49 100644
+--- a/src/mesa/swrast/s_span.h
++++ b/src/mesa/swrast/s_span.h
+@@ -199,6 +199,10 @@ _swrast_compute_lambda(GLfloat dsdx, GLfloat dsdy, GLfloat dtdx, GLfloat dtdy,
+ extern void
+ _swrast_write_rgba_span( struct gl_context *ctx, SWspan *span);
+ 
++/* riscos-mesa: the depth test before texturing (s_span.c) */
++extern GLboolean
++_swrast_ro_ztest_first(struct gl_context *ctx, SWspan *span);
++
+ /* riscos-mesa: MESA_STATS, counts of spans and fragments (s_span.c) */
+ extern int _mesa_ro_stats_state;   /* -1 not looked at yet, 0 off, 1 on */
+ extern int _mesa_ro_stats_tex;     /* set around the fast textured spans' writes */
+diff --git a/src/mesa/swrast/s_triangle.c b/src/mesa/swrast/s_triangle.c
+index 335ccc0..8b33d3e 100644
+--- a/src/mesa/swrast/s_triangle.c
++++ b/src/mesa/swrast/s_triangle.c
+@@ -560,18 +560,21 @@ ro_cols_done(const struct ro_cols *c, SWspan *span)
+ }
+ 
+ /* one channel of four bilinear samples: a = texels 00 of the four pixels,
+- * then their 10s; b = their 01s, then their 11s (ilerp_2d's sums) */
++ * then their 10s; b = their 01s, then their 11s (ilerp_2d's sums).
++ * Each ilerp's (w * d) >> FIXED_SHIFT (d = the difference of two bytes,
++ * w = 0..2047) is one vqdmulh of d by w << (15 - FIXED_SHIFT): that's
++ * (2 * d * w * 16) >> 16, the same floor of d * w / 2048, never
++ * saturating, eight lanes in one instruction */
+ static inline int16x4_t
+ ro_bilerp4(uint8x8_t a, uint8x8_t b, int16x4_t sf, int16x4_t tf)
+ {
++   const int16x4_t sw = vshl_n_s16(sf, 15 - FIXED_SHIFT);
++   const int16x4_t tw = vshl_n_s16(tf, 15 - FIXED_SHIFT);
+    const int16x8_t x = vreinterpretq_s16_u16(vmovl_u8(a));
+    const int16x8_t y = vreinterpretq_s16_u16(vmovl_u8(b));
+-   const int16x8_t d = vsubq_s16(y, x);
+-   const int16x8_t m = vaddq_s16(x, vcombine_s16(
+-      vshrn_n_s32(vmull_s16(vget_low_s16(d), sf), FIXED_SHIFT),
+-      vshrn_n_s32(vmull_s16(vget_high_s16(d), sf), FIXED_SHIFT)));
++   const int16x8_t m = vaddq_s16(x, vqdmulhq_s16(vsubq_s16(y, x), vcombine_s16(sw, sw)));
+    const int16x4_t m0 = vget_low_s16(m), m1 = vget_high_s16(m);
+-   return vadd_s16(m0, vshrn_n_s32(vmull_s16(vsub_s16(m1, m0), tf), FIXED_SHIFT));
++   return vadd_s16(m0, vqdmulh_s16(vsub_s16(m1, m0), tw));
+ }
+ 
+ /* MODULATE for one channel of four pixels: c * (sample + 1) >> 19,
+@@ -586,6 +589,9 @@ ro_modulate4(int32x4_t c, int16x4_t v)
+ 
+ #define RO_LD3(V, P, K) V = vld3_lane_u8((P), V, K)
+ 
++static inline __attribute__((always_inline)) void
++ro_tex_finish(const int16x4_t v[4], struct ro_cols *cols, int mode, GLchan *dest);
++
+ /* four pixels: texel coordinates sfix, tfix (less FIXED_HALF); colours
+  * from *cols (advanced past the four). Inlined into loops made for each
+  * format and mode (constants there). */
+@@ -607,7 +613,6 @@ ro_tex_group(const struct ro_tex *tx, GLenum format, int32x4_t sfix, int32x4_t t
+    GLint o[16];
+    uint8x8_t a[4], b[4];       /* per channel R G B A, as ro_bilerp4 */
+    int16x4_t v[4];
+-   uint16x4_t out[4];
+    GLuint c;
+    vst1q_s32(o, vaddq_s32(r0, s0));
+    vst1q_s32(o + 4, vaddq_s32(r1, s0));
+@@ -644,6 +649,17 @@ ro_tex_group(const struct ro_tex *tx, GLenum format, int32x4_t sfix, int32x4_t t
+          v[c] = ro_bilerp4(pa.val[2 - c], pb.val[2 - c], sf, tf);
+       v[3] = vdup_n_s16(CHAN_MAX);             /* LINEAR_RGB's alpha */
+    }
++   ro_tex_finish(v, cols, mode, dest);
++}
++
++/* the rest of a group of four: the samples v (channels R G B A, four
++ * pixels each) with the texture environment and the colours from *cols
++ * (advanced past the four), stored at dest */
++static inline __attribute__((always_inline)) void
++ro_tex_finish(const int16x4_t v[4], struct ro_cols *cols, int mode, GLchan *dest)
++{
++   uint16x4_t out[4];
++   GLuint c;
+    if (mode == RO_TEX_MODULATE) {
+       for (c = 0; c < 4; c++)
+          out[c] = ro_modulate4(vaddq_s32(vdupq_n_s32(cols->col[c]), cols->kstep[c]), v[c]);
+@@ -667,6 +683,97 @@ ro_tex_group(const struct ro_tex *tx, GLenum format, int32x4_t sfix, int32x4_t t
+    }
+ }
+ 
++/* one texel coordinate wrapped, as ro_wrap4 */
++static inline GLint
++ro_wrap1(GLint c, GLboolean clamp, GLint mask)
++{
++   if (clamp)
++      return c < 0 ? 0 : (c > mask ? mask : c);
++   return c & mask;
++}
++
++/* ro_tex_group for four pixels on one texture row pair (t the same for
++ * all four, as along a span of an axis-aligned quad: TORCS's scene
++ * stretch, any picture drawn larger) whose texels lie within eight
++ * neighbouring texels of each row, none of them wrapped or clamped:
++ * those eight are loaded at once and the four pixels' texels picked out
++ * of them with table lookups, instead of sixteen separate loads. The
++ * texels picked are the ones ro_tex_group reads, so the result is the
++ * same. Returns GL_FALSE, having done nothing, otherwise. */
++static inline __attribute__((always_inline)) GLboolean
++ro_tex_group_row(const struct ro_tex *tx, GLenum format, int32x4_t sfix,
++                 int32x4_t tfix, struct ro_cols *cols, int mode, GLchan *dest)
++{
++   const int32x4_t si = vshrq_n_s32(sfix, FIXED_SHIFT);
++   const GLuint bpt = format == MESA_FORMAT_R8G8B8A8_UNORM ? 4 : 3;
++   int32x2_t mn = vpmin_s32(vget_low_s32(si), vget_high_s32(si));
++   int32x2_t mx = vpmax_s32(vget_low_s32(si), vget_high_s32(si));
++   GLint base, top, ti, t0, t1;
++   const GLchan *p0, *p1;
++   uint8x8_t k0, k1;
++   int16x4_t v[4];
++   GLuint c;
++   mn = vpmin_s32(mn, mn);
++   mx = vpmax_s32(mx, mx);
++   base = vget_lane_s32(mn, 0);
++   top = vget_lane_s32(mx, 0) + 1;        /* the last pixel's s1 */
++   if (base < 0 || top > tx->smask || top - base > 7 ||
++       base + 8 > tx->smask + 1)
++      return GL_FALSE;
++   ti = vgetq_lane_s32(tfix, 0) >> FIXED_SHIFT;
++   t0 = ro_wrap1(ti, tx->clamp_t, tx->tmask);
++   t1 = ro_wrap1(ti + 1, tx->clamp_t, tx->tmask);
++   p0 = tx->texture + bpt * ((t0 << tx->twidth_log2) + base);
++   p1 = tx->texture + bpt * ((t1 << tx->twidth_log2) + base);
++   {
++      /* byte offsets of the pixels' s0 and s1 texels in the eight,
++       * twice over (lanes 0-3 for row t0, 4-7 for row t1) */
++      const uint16x4_t o = vmovn_u32(vreinterpretq_u32_s32(
++         vmulq_n_s32(vsubq_s32(si, vdupq_n_s32(base)), (int32_t) bpt)));
++      const uint8x8_t o8 = vmovn_u16(vcombine_u16(o, o));
++      k0 = o8;
++      k1 = vadd_u8(o8, vdup_n_u8((uint8_t) bpt));
++   }
++   {
++      /* lanes 4-7 / 0-3 out of the tables' range: vtbl gives 0 there,
++       * vtbx leaves the lane as it is */
++      static const uint8_t hi4[8] = { 0, 0, 0, 0, 255, 255, 255, 255 };
++      static const uint8_t lo4[8] = { 255, 255, 255, 255, 0, 0, 0, 0 };
++      const uint8x8_t hi = vld1_u8(hi4), lo = vld1_u8(lo4);
++      const int16x4_t sf = vmovn_s32(vandq_s32(sfix, vdupq_n_s32(FIXED_FRAC_MASK)));
++      const int16x4_t tf = vdup_n_s16((int16_t) (vgetq_lane_s32(tfix, 0) & FIXED_FRAC_MASK));
++      if (format == MESA_FORMAT_R8G8B8A8_UNORM) {
++         uint8x8x4_t r0, r1;
++         r0.val[0] = vld1_u8(p0);      r0.val[1] = vld1_u8(p0 + 8);
++         r0.val[2] = vld1_u8(p0 + 16); r0.val[3] = vld1_u8(p0 + 24);
++         r1.val[0] = vld1_u8(p1);      r1.val[1] = vld1_u8(p1 + 8);
++         r1.val[2] = vld1_u8(p1 + 16); r1.val[3] = vld1_u8(p1 + 24);
++         for (c = 0; c < 4; c++) {
++            const uint8x8_t cb = vdup_n_u8((uint8_t) c);   /* bytes R G B A */
++            const uint8x8_t i0 = vadd_u8(k0, cb), i1 = vadd_u8(k1, cb);
++            const uint8x8_t a = vtbx4_u8(vtbl4_u8(r0, vorr_u8(i0, hi)), r1, vorr_u8(i0, lo));
++            const uint8x8_t b = vtbx4_u8(vtbl4_u8(r0, vorr_u8(i1, hi)), r1, vorr_u8(i1, lo));
++            v[c] = ro_bilerp4(a, b, sf, tf);
++         }
++      }
++      else {                                      /* BGR: bytes B G R */
++         uint8x8x3_t r0, r1;
++         r0.val[0] = vld1_u8(p0); r0.val[1] = vld1_u8(p0 + 8); r0.val[2] = vld1_u8(p0 + 16);
++         r1.val[0] = vld1_u8(p1); r1.val[1] = vld1_u8(p1 + 8); r1.val[2] = vld1_u8(p1 + 16);
++         for (c = 0; c < 3; c++) {
++            const uint8x8_t cb = vdup_n_u8((uint8_t) (2 - c));
++            const uint8x8_t i0 = vadd_u8(k0, cb), i1 = vadd_u8(k1, cb);
++            const uint8x8_t a = vtbx3_u8(vtbl3_u8(r0, vorr_u8(i0, hi)), r1, vorr_u8(i0, lo));
++            const uint8x8_t b = vtbx3_u8(vtbl3_u8(r0, vorr_u8(i1, hi)), r1, vorr_u8(i1, lo));
++            v[c] = ro_bilerp4(a, b, sf, tf);
++         }
++         v[3] = vdup_n_s16(CHAN_MAX);             /* LINEAR_RGB's alpha */
++      }
++   }
++   ro_tex_finish(v, cols, mode, dest);
++   return GL_TRUE;
++}
++
+ /* ro_tex_group made for each format and mode */
+ typedef void ro_group_fn(const struct ro_tex *tx, int32x4_t sfix, int32x4_t tfix,
+                          struct ro_cols *cols, GLchan *dest);
+@@ -682,12 +789,39 @@ RO_GROUP_FN(ro_group_rgba8_replace, MESA_FORMAT_R8G8B8A8_UNORM, RO_TEX_REPLACE)
+ RO_GROUP_FN(ro_group_bgr_modulate, MESA_FORMAT_BGR_UNORM8, RO_TEX_MODULATE)
+ RO_GROUP_FN(ro_group_bgr_replace, MESA_FORMAT_BGR_UNORM8, RO_TEX_RGB_REPLACE)
+ #undef RO_GROUP_FN
+-
++/* the same for spans along one texture row (t the same for every pixel),
++ * trying ro_tex_group_row first */
++#define RO_GROUP_ROW_FN(NAME, F, M)                                       \
++static void __attribute__((noinline))                                     \
++NAME(const struct ro_tex *tx, int32x4_t sfix, int32x4_t tfix,             \
++     struct ro_cols *cols, GLchan *dest)                                  \
++{                                                                         \
++   if (!ro_tex_group_row(tx, F, sfix, tfix, cols, M, dest))               \
++      ro_tex_group(tx, F, sfix, tfix, cols, M, dest);                     \
++}
++RO_GROUP_ROW_FN(ro_group_row_rgba8_modulate, MESA_FORMAT_R8G8B8A8_UNORM, RO_TEX_MODULATE)
++RO_GROUP_ROW_FN(ro_group_row_rgba8_replace, MESA_FORMAT_R8G8B8A8_UNORM, RO_TEX_REPLACE)
++RO_GROUP_ROW_FN(ro_group_row_bgr_modulate, MESA_FORMAT_BGR_UNORM8, RO_TEX_MODULATE)
++RO_GROUP_ROW_FN(ro_group_row_bgr_replace, MESA_FORMAT_BGR_UNORM8, RO_TEX_RGB_REPLACE)
++#undef RO_GROUP_ROW_FN
++
++/* row: t is the same for every pixel of the span. The row gathers are
++ * used unless MESA_NO_ROWGATHER is set (to compare, as they do the same
++ * work with fewer memory accesses but more instructions) */
++static int ro_row_gather = -1;
+ static ro_group_fn *
+-ro_group_for(GLenum format, int mode)
++ro_group_for(GLenum format, int mode, GLboolean row)
+ {
+-   if (format == MESA_FORMAT_R8G8B8A8_UNORM)
++   if (ro_row_gather < 0)
++      ro_row_gather = !getenv("MESA_NO_ROWGATHER");
++   row = row && ro_row_gather;
++   if (format == MESA_FORMAT_R8G8B8A8_UNORM) {
++      if (row)
++         return mode == RO_TEX_MODULATE ? ro_group_row_rgba8_modulate : ro_group_row_rgba8_replace;
+       return mode == RO_TEX_MODULATE ? ro_group_rgba8_modulate : ro_group_rgba8_replace;
++   }
++   if (row)
++      return mode == RO_TEX_MODULATE ? ro_group_row_bgr_modulate : ro_group_row_bgr_replace;
+    return mode == RO_TEX_MODULATE ? ro_group_bgr_modulate : ro_group_bgr_replace;
+ }
+ 
+@@ -734,7 +868,7 @@ ro_neon_persp_loop(const struct ro_tex *tx, ro_group_fn *group, struct ro_cols *
+                    GLchan *dest, GLuint count, GLuint room,
+                    GLfloat tex_coord[3], const GLfloat tex_step[3],
+                    GLboolean q_one, GLboolean q_constant,
+-                   GLdouble inv_q_constant, int mode)
++                   GLdouble inv_q_constant, int mode, const GLubyte *skip)
+ {
+    /* local copies, which the compiler can keep in registers */
+    GLfloat tc[3] = { tex_coord[0], tex_coord[1], tex_coord[2] };
+@@ -744,6 +878,23 @@ ro_neon_persp_loop(const struct ro_tex *tx, ro_group_fn *group, struct ro_cols *
+       GLfloat sv[4], tv[4];
+       GLfixed sfix[4], tfix[4];
+       const GLuint n = MIN2(4, count - i);
++      /* fragments that failed the depth test already (skip: the span's
++       * mask after _swrast_ro_ztest_first) needn't be textured: their
++       * texture coordinates and colours are stepped past, as texturing
++       * them would */
++      if (skip && !(skip[i] | (n > 1 ? skip[i + 1] : 0) |
++                    (n > 2 ? skip[i + 2] : 0) | (n > 3 ? skip[i + 3] : 0))) {
++         for (k = 0; k < n; k++) {
++            tc[0] += ts[0];
++            tc[1] += ts[1];
++            tc[2] += ts[2];
++         }
++         for (k = 0; k < 4; k++)
++            cols->col[k] += (GLfixed) n * cols->step[k];
++         dest += 4 * n;
++         i += n;
++         continue;
++      }
+       /* a part group at the end is done as a whole one when there's room
+        * after it (room: pixels from dest to the end of the colour array):
+        * the extra pixels' texture coordinates carry on the span's steps
+@@ -803,16 +954,16 @@ ro_neon_persp_seg(const struct ro_tex *tx, ro_group_fn *group, struct ro_cols *c
+                   GLchan *dest, GLuint count, GLuint room,
+                   GLfloat tex_coord[3], const GLfloat tex_step[3],
+                   GLboolean q_one, GLboolean q_constant,
+-                  GLdouble inv_q_constant, int mode)
++                  GLdouble inv_q_constant, int mode, const GLubyte *skip)
+ {
+    /* q_one (2D and orthographic drawing, GL_FASTEST segments) gets a loop
+     * of its own */
+    if (q_one)
+       return ro_neon_persp_loop(tx, group, cols, dest, count, room, tex_coord,
+-                                tex_step, GL_TRUE, GL_FALSE, 0.0, mode);
++                                tex_step, GL_TRUE, GL_FALSE, 0.0, mode, skip);
+    return ro_neon_persp_loop(tx, group, cols, dest, count, room, tex_coord,
+                              tex_step, GL_FALSE, q_constant, inv_q_constant,
+-                             mode);
++                             mode, skip);
+ }
+ 
+ /* fast_persp_span's SPAN_LINEAR for the whole span, segments and all
+@@ -821,9 +972,13 @@ ro_neon_persp_seg(const struct ro_tex *tx, ro_group_fn *group, struct ro_cols *c
+  * values (the same sums, so worked out once). */
+ static void __attribute__((noinline))
+ ro_neon_persp_span(const struct ro_tex *tx, GLboolean subdivide, SWspan *span,
+-                   const GLfloat coord0[3], const GLfloat step0[3], int mode)
++                   const GLfloat coord0[3], const GLfloat step0[3], int mode,
++                   const GLubyte *skip)
+ {
+-   ro_group_fn *group = ro_group_for(tx->format, mode);
++   /* t the same for every pixel: q constant and no t step (in the
++    * GL_FASTEST segments too, as their t steps are then 0) */
++   ro_group_fn *group = ro_group_for(tx->format, mode,
++                                     step0[1] == 0.0F && step0[2] == 0.0F);
+    GLchan *dest = span->array->rgba[0];
+    const GLuint end = span->end;
+    struct ro_cols cols;
+@@ -837,7 +992,7 @@ ro_neon_persp_span(const struct ro_tex *tx, GLboolean subdivide, SWspan *span,
+       ro_neon_persp_seg(tx, group, &cols, dest, end, SWRAST_MAX_WIDTH,
+                         tex_coord, tex_step,
+                         q_constant && inv_q_constant == 1.0, q_constant,
+-                        inv_q_constant, mode);
++                        inv_q_constant, mode, skip);
+    }
+    else {
+       GLuint done, count;
+@@ -863,7 +1018,8 @@ ro_neon_persp_span(const struct ro_tex *tx, GLboolean subdivide, SWspan *span,
+          tex_step[2] = 0.0F;
+          dest = ro_neon_persp_seg(tx, group, &cols, dest, count,
+                                   SWRAST_MAX_WIDTH - done, tex_coord, tex_step,
+-                                  GL_TRUE, GL_TRUE, 1.0, mode);
++                                  GL_TRUE, GL_TRUE, 1.0, mode,
++                                  skip ? skip + done : NULL);
+       }
+    }
+    ro_cols_done(&cols, span);
+@@ -872,9 +1028,11 @@ ro_neon_persp_span(const struct ro_tex *tx, GLboolean subdivide, SWspan *span,
+ /* affine_span's SPAN_LINEAR: the whole span, from span->intTex (BGR
+  * textures: RGBA8 ones don't take the affine triangles) */
+ static void
+-ro_neon_affine_linear(const struct ro_tex *tx, SWspan *span, int mode)
++ro_neon_affine_linear(const struct ro_tex *tx, SWspan *span, int mode,
++                      const GLubyte *skip)
+ {
+-   ro_group_fn *group = ro_group_for(MESA_FORMAT_BGR_UNORM8, mode);
++   ro_group_fn *group = ro_group_for(MESA_FORMAT_BGR_UNORM8, mode,
++                                     span->intTexStep[1] == 0);
+    static const int32_t k4[4] = { 0, 1, 2, 3 };
+    struct ro_cols cols;
+    GLchan *dest = span->array->rgba[0];
+@@ -887,8 +1045,16 @@ ro_neon_affine_linear(const struct ro_tex *tx, SWspan *span, int mode)
+ 
+    ro_cols_init(&cols, span);
+    for (i = 0; i + 4 <= count; i += 4) {
+-      group(tx, vaddq_s32(vdupq_n_s32(s), sk), vaddq_s32(vdupq_n_s32(t), tk),
+-            &cols, dest);
++      /* fragments that failed the depth test already: stepped past, as
++       * in ro_neon_persp_loop */
++      if (skip && !(skip[i] | skip[i + 1] | skip[i + 2] | skip[i + 3])) {
++         GLuint c;
++         for (c = 0; c < 4; c++)
++            cols.col[c] += 4 * cols.step[c];
++      }
++      else
++         group(tx, vaddq_s32(vdupq_n_s32(s), sk), vaddq_s32(vdupq_n_s32(t), tk),
++               &cols, dest);
+       s += 4 * ss;
+       t += 4 * ts;
+       dest += 16;
+@@ -1218,9 +1384,12 @@ affine_span(struct gl_context *ctx, SWspan *span,
+          if ((info->envmode == GL_MODULATE || info->envmode == GL_REPLACE ||
+               info->envmode == GL_DECAL) && _mesa_ro_have_neon()) {
+             const struct ro_tex tx = RO_TEX_FROM(info);
++            /* depth test first: hidden fragments aren't textured */
++            const GLubyte *skip = _swrast_ro_ztest_first(ctx, span) ?
++                                  span->array->mask : NULL;
+             ro_neon_affine_linear(&tx, span,
+                                   info->envmode == GL_MODULATE ? RO_TEX_MODULATE :
+-                                  RO_TEX_RGB_REPLACE);
++                                  RO_TEX_RGB_REPLACE, skip);
+             break;
+          }
+ #endif
+@@ -1574,7 +1743,11 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
+       }
+       if (mode >= 0) {
+          const struct ro_tex tx = RO_TEX_FROM(info);
+-         ro_neon_persp_span(&tx, info->subdivide, span, coord0, step0, mode);
++         /* depth test first: hidden fragments aren't textured */
++         const GLubyte *skip = _swrast_ro_ztest_first(ctx, span) ?
++                               span->array->mask : NULL;
++         ro_neon_persp_span(&tx, info->subdivide, span, coord0, step0, mode,
++                            skip);
+          goto write;
+       }
+    }
