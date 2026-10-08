@@ -21,10 +21,14 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   done a whole span at a time with NEON (one divide per GL_FASTEST
   segment instead of two, and the short ends of spans as NEON groups),
   and depth-tested spans take a direct route past Mesa's general per-span
-  checks. Under emulation: glbench's racing-game-like scene takes 11%
-  fewer ARM instructions a frame, its fog scene 5% fewer, and a
-  TORCS-like scene 11% fewer; the other scenes are within 0.3%. Not yet
-  timed on a Pi. New check `render-spanfast`.
+  checks. On a Raspberry Pi 4 (640x480, two sessions): glbench's
+  racing-game-like scene 12.16 -> 11.32 ms (7% faster), 12.46 -> 11.57 ms
+  into a BGRA buffer, fog 11.69 -> 11.16 ms; tex 1% slower (10.25 ->
+  10.35 ms), the other scenes the same. (In the first session blend
+  looked 4% slower, but the unchanged 15b build moved by as much between
+  sessions and the second showed none.) Under emulation a TORCS-like
+  scene takes 11% fewer ARM instructions a frame. New check
+  `render-spanfast`.
 
 ## 20.3.5-14: NEON texturing and blending, GLSL shaders compiled to ARM code
 
