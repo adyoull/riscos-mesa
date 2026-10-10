@@ -54,14 +54,19 @@ int rw_open(rw_window *w, const char *title, int x, int y, int width, int height
     int wb[23], block[8];
     int xeig = vdu_var(4), yeig = vdu_var(5);
     int sw = (vdu_var(11) + 1) << xeig, sh = (vdu_var(12) + 1) << yeig;
-    int ow = width << xeig, oh = height << yeig, x0, y1;
+    int scale = eglWindowScaleRISCOS(eglGetDisplay(EGL_DEFAULT_DISPLAY), width, height);
+    int ow, oh, x0, y1;
     _kernel_swi_regs r;
 
+    if (scale < 1)
+        scale = 1;                               /* EGL not initialised */
+    ow = (width * scale) << xeig;
+    oh = (height * scale) << yeig;
     memset(w, 0, sizeof *w);
-    w->width = width; w->height = height;
+    w->width = width; w->height = height; w->scale = scale;
     snprintf(w->title, sizeof w->title, "%s", title);
-    x0 = x < 0 ? (sw - ow) / 2 : x << xeig;
-    y1 = y < 0 ? sh - (sh - oh) / 2 : sh - (y << yeig);
+    x0 = x < 0 ? (sw - ow) / 2 : (x * scale) << xeig;
+    y1 = y < 0 ? sh - (sh - oh) / 2 : sh - ((y * scale) << yeig);
     memset(wb, 0, sizeof wb);
     wb[0] = x0; wb[1] = y1 - oh; wb[2] = x0 + ow; wb[3] = y1;
     wb[6] = -1;                                  /* on top */

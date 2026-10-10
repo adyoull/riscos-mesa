@@ -425,6 +425,15 @@ desktop doesn't remember what was in your window. When it asks you to
 redraw (reason code 1 from `Wimp_Poll`), call `eglRedrawWindowRISCOS`;
 EGL keeps your last frame and repaints it. See example 2.
 
+**My window is tiny on a high resolution desktop.** In an EX0 EY0
+("180 dpi") mode one OS unit is one pixel, so a window sized in pixels
+comes out half as wide and high. Ask EGL for the window scale with
+`eglWindowScaleRISCOS` (2 there, 1 in normal modes), open the window
+that many times the size, and pass the same value as
+`EGL_WINDOW_SCALE_RISCOS` when making the surface: your program still
+draws at its own size, shown 2x2. Examples 2 and 3 do this; GLUT does it
+for you.
+
 **My full-screen program leaves a mess on the desktop.** Full-screen
 drawing goes over the desktop, and the desktop doesn't know. Make the
 program a desktop task for its run (`Wimp_Initialise` at the start: it

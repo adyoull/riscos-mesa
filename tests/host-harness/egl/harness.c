@@ -858,6 +858,146 @@ static void test_eig0(void)
     eglDestroyContext(dpy, ctx);
 }
 
+/* Window scale (EGL_WINDOW_SCALE_RISCOS, eglWindowScaleRISCOS) on a high
+   resolution (EX0 EY0) desktop: each surface pixel shown as 2x2, so a
+   window is the size it is in a normal mode. */
+static void test_window_scale(void)
+{
+    EGLConfig cfg;
+    EGLContext ctx;
+    EGLSurface ws, wa, bad;
+    EGLint w = 0, h = 0, v = 0;
+    EGLint two[] = { EGL_WINDOW_SCALE_RISCOS, 2, EGL_NONE };
+    EGLint any[] = { EGL_WINDOW_SCALE_RISCOS, EGL_DONT_CARE, EGL_NONE };
+    EGLint five[] = { EGL_WINDOW_SCALE_RISCOS, 5, EGL_NONE };
+    EGLint zero[] = { EGL_WINDOW_SCALE_RISCOS, 0, EGL_NONE };
+    EGLint wa2[] = { EGL_WORK_AREA_X_RISCOS, 20, EGL_WORK_AREA_Y_RISCOS, -10,
+                     EGL_WORK_AREA_WIDTH_RISCOS, 50, EGL_WORK_AREA_HEIGHT_RISCOS, 40,
+                     EGL_WINDOW_SCALE_RISCOS, 2, EGL_NONE };
+
+    eglTerminate(dpy);
+    fake_set_screen(1280, 960, 0, 5);
+    fake_screen.xeig = fake_screen.yeig = 0;
+    fake_reset_clip();
+    CHECK(eglWindowScaleRISCOS(dpy, 320, 240) == 0, "scale: 0 before eglInitialize");
+    eglInitialize(dpy, NULL, NULL);
+    CHECK(eglWindowScaleRISCOS(dpy, 320, 240) == 2, "scale: 2 in EX0 EY0");
+    CHECK(eglWindowScaleRISCOS(dpy, 0, 0) == 2, "scale: 2 without a size");
+    CHECK(eglWindowScaleRISCOS(dpy, 700, 400) == 1, "scale: 1 when twice as wide doesn't fit");
+    CHECK(eglWindowScaleRISCOS(dpy, 400, 450) == 1, "scale: 1 when twice as high doesn't fit");
+    setenv("EGL$WindowScale", "3", 1);
+    CHECK(eglWindowScaleRISCOS(dpy, 700, 400) == 3, "scale: EGL$WindowScale chooses");
+    setenv("EGL$WindowScale", "7", 1);
+    CHECK(eglWindowScaleRISCOS(dpy, 320, 240) == 2, "scale: EGL$WindowScale 7 ignored");
+    unsetenv("EGL$WindowScale");
+    cfg = choose(EGL_RISCOS_VISUAL_TBGR, 0, EGL_WINDOW_BIT);
+    ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+
+    /* bad values and surfaces refused */
+    fake_open_window(0x1002, 100, 200, 740, 680, 0, 0);     /* 640x480 pixels */
+    bad = eglCreateWindowSurface(dpy, cfg, 0x1002, five);
+    CHECK(bad == EGL_NO_SURFACE && eglGetError() == EGL_BAD_ATTRIBUTE, "scale 5 refused");
+    bad = eglCreateWindowSurface(dpy, cfg, 0x1002, zero);
+    CHECK(bad == EGL_NO_SURFACE && eglGetError() == EGL_BAD_ATTRIBUTE, "scale 0 refused");
+    bad = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, two);
+    CHECK(bad == EGL_NO_SURFACE && eglGetError() == EGL_BAD_ATTRIBUTE, "scale on full screen refused");
+
+    /* visible area 640x480 pixels, scale 2: renders 320x240, shown 2x2 */
+    ws = eglCreateWindowSurface(dpy, cfg, 0x1002, two);
+    eglQuerySurface(dpy, ws, EGL_WIDTH, &w);
+    eglQuerySurface(dpy, ws, EGL_HEIGHT, &h);
+    eglQuerySurface(dpy, ws, EGL_WINDOW_SCALE_RISCOS, &v);
+    CHECK(w == 320 && h == 240 && v == 2, "scale 2: surface %dx%d, scale %d", w, h, v);
+    eglMakeCurrent(dpy, ws, ws, ctx);
+    memset(fake_screen.mem, 0, fake_screen.w * fake_screen.h * 4);
+    clear(1, 0, 0);
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(0, 0, 160, 240);                  /* left half green */
+    clear(0, 1, 0);
+    glDisable(GL_SCISSOR_TEST);
+    eglSwapBuffers(dpy, ws);
+    CHECK(box_is(100, 280, 320, 480, GREEN) && box_is(420, 280, 320, 480, RED_TBGR),
+          "scale 2: fills the visible area, each pixel 2x2");
+    CHECK(RGB(fake_screen_pixel(740, 280)) == 0 && RGB(fake_screen_pixel(100, 760)) == 0 &&
+          RGB(fake_screen_pixel(99, 280)) == 0 && RGB(fake_screen_pixel(100, 279)) == 0,
+          "scale 2: and not beyond it");
+    /* the redraw helper plots it scaled too */
+    memset(fake_screen.mem, 0, fake_screen.w * fake_screen.h * 4);
+    {
+        int block[11];
+        block[0] = 0x1002;
+        eglRedrawWindowRISCOS(dpy, block);
+    }
+    CHECK(box_is(100, 280, 320, 480, GREEN) && box_is(420, 280, 320, 480, RED_TBGR),
+          "scale 2: redraw");
+    /* back to 1 with eglSurfaceAttrib: the real size at once */
+    CHECK(eglSurfaceAttrib(dpy, ws, EGL_WINDOW_SCALE_RISCOS, 1), "scale set to 1");
+    eglQuerySurface(dpy, ws, EGL_WIDTH, &w);
+    eglQuerySurface(dpy, ws, EGL_WINDOW_SCALE_RISCOS, &v);
+    CHECK(w == 640 && v == 1, "scale 1: surface %d wide, scale %d", w, v);
+    CHECK(!eglSurfaceAttrib(dpy, ws, EGL_WINDOW_SCALE_RISCOS, 9) && eglGetError() == EGL_BAD_PARAMETER,
+          "scale 9 refused by eglSurfaceAttrib");
+    /* EGL_DONT_CARE follows the desktop: 2 here, 1 after a change to EX1 EY1 */
+    CHECK(eglSurfaceAttrib(dpy, ws, EGL_WINDOW_SCALE_RISCOS, EGL_DONT_CARE), "scale: don't care");
+    eglQuerySurface(dpy, ws, EGL_WIDTH, &w);
+    eglQuerySurface(dpy, ws, EGL_WINDOW_SCALE_RISCOS, &v);
+    CHECK(w == 320 && v == 2, "don't care in EX0 EY0: %d wide, scale %d", w, v);
+    glViewport(0, 0, w, 240);
+    clear(0, 0, 1);
+    eglSwapBuffers(dpy, ws);
+    CHECK(box_is(100, 280, 640, 480, BLUE_TBGR), "after eglSurfaceAttrib: drawn at the new size, shown scaled");
+    setenv("EGL$WindowScale", "1", 1);
+    eglSwapBuffers(dpy, ws);
+    eglQuerySurface(dpy, ws, EGL_WINDOW_SCALE_RISCOS, &v);
+    CHECK(v == 1, "don't care: EGL$WindowScale 1 turns it off (%d)", v);
+    unsetenv("EGL$WindowScale");
+    fake_screen.xeig = fake_screen.yeig = 1;    /* same pixels: the window is now 320x240 */
+    eglSwapBuffers(dpy, ws);
+    eglSwapBuffers(dpy, ws);
+    eglQuerySurface(dpy, ws, EGL_WIDTH, &w);
+    eglQuerySurface(dpy, ws, EGL_WINDOW_SCALE_RISCOS, &v);
+    CHECK(w == 320 && v == 1, "don't care in EX1 EY1: %d wide, scale %d", w, v);
+    fake_screen.xeig = fake_screen.yeig = 0;
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, ws);
+    CHECK(!eglSurfaceAttrib(dpy, eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, NULL),
+                            EGL_WINDOW_SCALE_RISCOS, 2) && eglGetError() == EGL_BAD_MATCH,
+          "eglSurfaceAttrib scale on full screen refused");
+
+    /* work area surface 50x40 at (20, -10), scale 2: shown 100x80 at
+       px (900 + 20, 960 - 400 + 10) */
+    fake_open_window(0x1003, 900, 100, 1200, 400, 0, 0);
+    wa = eglCreateWindowSurface(dpy, cfg, 0x1003, wa2);
+    eglQuerySurface(dpy, wa, EGL_WIDTH, &w);
+    eglQuerySurface(dpy, wa, EGL_WINDOW_SCALE_RISCOS, &v);
+    CHECK(w == 50 && v == 2, "work area scale 2: %d wide, scale %d", w, v);
+    eglMakeCurrent(dpy, wa, wa, ctx);
+    memset(fake_screen.mem, 0, fake_screen.w * fake_screen.h * 4);
+    clear(1, 1, 1);
+    eglSwapBuffers(dpy, wa);
+    CHECK(box_is(920, 570, 100, 80, 0xFFFFFF), "work area scale 2: shown twice its size");
+    CHECK(RGB(fake_screen_pixel(1020, 570)) == 0 && RGB(fake_screen_pixel(920, 650)) == 0 &&
+          RGB(fake_screen_pixel(919, 570)) == 0, "work area scale 2: and only there");
+    /* a visible-area surface in the same window is never plotted under all
+       of the scaled work area surface (its shown size, not its own) */
+    ws = eglCreateWindowSurface(dpy, cfg, 0x1003, two);
+    eglMakeCurrent(dpy, ws, ws, ctx);
+    clear(1, 0, 0);
+    fake_watch[0] = 920; fake_watch[1] = 570; fake_watch[2] = 1020; fake_watch[3] = 650;
+    fake_watch_value = RED_TBGR;
+    fake_watch_hits = 0;
+    eglSwapBuffers(dpy, ws);
+    fake_watch[2] = fake_watch[0];      /* watch off */
+    CHECK(fake_watch_hits == 0 && box_is(920, 570, 100, 80, 0xFFFFFF) &&
+          RGB(fake_screen_pixel(1021, 570)) == RED_TBGR,
+          "scaled work area surface: window surface plotted around it (%d px under)", fake_watch_hits);
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, ws);
+    eglDestroySurface(dpy, wa);
+    eglDestroyContext(dpy, ctx);
+    fake_screen.xeig = fake_screen.yeig = 1;
+}
+
 /* A TRGB config on a TBGR screen renders into a sprite made from a mode
    selector that carries the screen's eig factors. A mode change that keeps
    the pixel size but changes the eigs (EX1 EY1 to EX0 EY0) must make the
@@ -1716,6 +1856,7 @@ static void *run(void *arg)
     test_gles(dpy);
     test_dispmanx(dpy);
     test_eig0();
+    test_window_scale();
     test_eig_change_selector();
     test_trgb_screen();
     test_overlay(dpy);          /* last: hooks in the fake VideoOverlay */

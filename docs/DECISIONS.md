@@ -57,7 +57,7 @@ be worked out again. Each says what would have to change to revisit it.
   another way to write programs, and it never changes native behaviour
   (native window types are checked first).
 - **The RISC OS extensions' enum values are provisional** (0x3FF0 to
-  0x3FF8) until registered with Khronos; the registration is ready in
+  0x3FF9) until registered with Khronos; the registration is ready in
   `docs/khronos/`. The library will keep accepting the old values.
 
 ## Never stop the desktop

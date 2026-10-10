@@ -92,6 +92,11 @@ expect gm.txt "screen top left 0000ff, bottom right 00ff00, just above and left 
 expect gm.txt "click 320,180" "game mode pointer mapped to the render size"
 OVL=1 FRAMES=30 KEYS=n PPM=gmo.ppm ./glutpaths gamemode </dev/null >gmo.txt 2>&1 || true
 expect gmo.txt "overlay 640x360, showing buffer [0-9]" "game mode through a hardware overlay where there is one (Pi)"
+EIG0=1 FRAMES=30 KEYS=c40:20,u,n PPM=sc.ppm ./glutpaths scaled </dev/null >sc.txt 2>&1 || true
+expect sc.txt "screen 640x360, window 320x180" "EX0 EY0: GLUT pixels are 2x2 screen pixels (window scale 2)"
+expect sc.txt "reshape 320x180" "EX0 EY0: reshape callback gets the size asked for"
+expect sc.txt "pixels 0000ff 0000ff 00ff00 00ff00, outside 000000" "EX0 EY0: the window is shown twice its size"
+expect sc.txt "click 20,10" "EX0 EY0: pointer in the program's pixels"
 FRAMES=500 KEYS=n PPM=st.ppm ./glutpaths slowtimer </dev/null >st.txt 2>&1 || true
 expect st.txt "slowtimer: 2 timer calls" "single-buffered window with a slow timer runs"
 expect st.txt "plots [0-4]," "  ... and isn't copied to the screen while the timer waits"

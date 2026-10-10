@@ -2,7 +2,8 @@
  * riscos_wimpwin.h - the smallest Wimp task with one window, for porting
  * OpenGL and OpenGL ES examples that expect "open a window, run a loop,
  * get keys". The window handle is the native window for riscos-mesa's EGL
- * (eglCreateWindowSurface(dpy, cfg, w.handle, NULL)); EGL does all the
+ * (eglCreateWindowSurface(dpy, cfg, w.handle, attributes) with
+ * EGL_WINDOW_SCALE_RISCOS = w.scale: see rw_open); EGL does all the
  * plotting, this code only runs the Wimp side.
  *
  * Part of riscos-mesa. MIT licence (see LICENCES.txt).
@@ -11,6 +12,7 @@
 #define RISCOS_WIMPWIN_H
 
 #include <EGL/egl.h>
+#include <EGL/eglext_riscos.h>
 
 /* RISC OS key codes (Wimp Key_Pressed), for the keys ports usually need.
    Shift adds 0x10 and Ctrl 0x20 to the function and cursor keys. */
@@ -27,6 +29,8 @@
 typedef struct {
     int handle;             /* Wimp window handle: the EGL native window */
     int width, height;      /* size asked for, in pixels */
+    int scale;              /* window scale: screen pixels per pixel each way
+                               (2 on a high resolution desktop) */
     char title[128];        /* indirected title text */
 } rw_window;
 
@@ -46,7 +50,13 @@ int rw_in_taskwindow(void);
 /* Create and open a window with a visible area of width x height pixels.
    x, y: top left in pixels from the screen's top left, or -1 to centre.
    The window has a title, close, back, toggle size and adjust size icons
-   and no scroll bars: an EGL window surface follows its visible area. */
+   and no scroll bars: an EGL window surface follows its visible area.
+   On a high resolution (EX0 EY0) desktop the window is opened w->scale
+   times as big (eglWindowScaleRISCOS: 2 when that fits, EGL$WindowScale
+   overrides) so it's the size it is in a normal mode: give
+   EGL_WINDOW_SCALE_RISCOS = w->scale when making the surface (or set it
+   with eglSurfaceAttrib straight after), and the surface stays width x
+   height. Call eglInitialize first (without it the scale is 1). */
 int rw_open(rw_window *w, const char *title, int x, int y, int width, int height);
 
 /* Change the title bar text. */

@@ -192,7 +192,16 @@ for (;;) {
 - Give the window a **background colour** (not transparent). The Wimp then clears any part of the window the GL image doesn't cover, for example just after a resize.
 - A plain GL window doesn't need scroll bars. Without them, the scroll wheel is free for your program (the wheel position is `OS_Pointer 2`).
 
-**High resolution desktops (EX0 EY0).** In a "180 dpi" mode, where one OS unit is one pixel, a window surface is the window's visible area in real screen pixels, and it plots pixel for pixel: GL output is as sharp as the rest of the desktop. Size your window in OS units as usual, and read `EGL_WIDTH` and `EGL_HEIGHT` for its size in pixels.
+**High resolution desktops (EX0 EY0).** In a "180 dpi" mode one OS unit is one pixel, so a window opened at your program's size in pixels (`WIDTH << XEigFactor` OS units) comes out half as wide and high as in a normal mode. Use the window scale, as SDL programs get automatically:
+
+```c
+EGLint scale = eglWindowScaleRISCOS(display, WIDTH, HEIGHT);  /* after eglInitialize */
+/* open the window (WIDTH * scale) << XEigFactor by (HEIGHT * scale) << YEigFactor OS units */
+EGLint attrs[] = { EGL_WINDOW_SCALE_RISCOS, scale, EGL_NONE };
+surface = eglCreateWindowSurface(display, config, window, attrs);
+```
+
+`eglWindowScaleRISCOS` returns 2 in an EX0 EY0 mode when a window twice the size fits on the screen, else 1; the user can choose 1 to 4 for every program with `*Set EGL$WindowScale`. With the scale the surface renders at the visible area's size divided by it (`EGL_WIDTH` and `EGL_HEIGHT` are `WIDTH` x `HEIGHT` here) and each pixel is shown as 2x2 screen pixels, so the window is the size it is in a normal mode and costs no more to draw. Pointer positions in your pixels are (OS units from the visible area's left `>> XEigFactor`) / scale. `EGL_WINDOW_SCALE_RISCOS` = `EGL_DONT_CARE` follows the desktop instead (2 in EX0 EY0, 1 otherwise, changing with the mode). Without the attribute a surface is drawn pixel for pixel in real screen pixels, as sharp as the rest of the desktop but four times the pixels. freeglut programs and the ports' window code use the window scale already.
 
 **Redraws.** When another window is dragged over yours, the Wimp sends Redraw_Window_Request. `eglRedrawWindowRISCOS(dpy, block)` runs the whole `Wimp_RedrawWindow` / `Wimp_GetRectangle` loop and plots the last finished frame of every EGL surface in that window. It returns `EGL_FALSE`, without starting a redraw, if the window has no EGL surfaces.
 
@@ -507,6 +516,7 @@ All of these are in `EGL/eglext_riscos.h`, under the extension name `EGL_RISCOS_
 | `EGL_WORK_AREA_WIDTH_RISCOS` | 0x3FF2 | Window surface attribute: width in pixels |
 | `EGL_WORK_AREA_HEIGHT_RISCOS` | 0x3FF3 | Window surface attribute: height in pixels |
 | `EGL_SCREEN_BANKS_RISCOS` | 0x3FF4 | Full screen: banks wanted (0, 2, 3) at creation; banks in use when queried. Experimental |
+| `EGL_WINDOW_SCALE_RISCOS` | 0x3FF9 | Wimp window surface attribute and `eglSurfaceAttrib` (at once): show each pixel as scale x scale screen pixels, 1 to 4 (default 1), or `EGL_DONT_CARE` for the desktop's (2 in EX0 EY0). A visible-area surface renders at the visible area / scale; a work area surface is shown scale times its size. Queried: the scale in use. A render size takes precedence. See "High resolution desktops" in [Desktop programs](#desktop-programs-gl-in-a-wimp-window) |
 | `EGL_RENDER_WIDTH_RISCOS` | 0x3FF7 | Visible-area window or full screen surface: render width, the frame stretched to fill the window or screen (with `EGL_RENDER_HEIGHT_RISCOS` at creation; either with `eglSurfaceAttrib`, 0 = follow the window). Extension `EGL_RISCOS_overlay` |
 | `EGL_RENDER_HEIGHT_RISCOS` | 0x3FF8 | Render height, as above |
 | `EGL_OVERLAY_RISCOS` | 0x3FF6 | Window surface attribute and `eglSurfaceAttrib`: `EGL_TRUE` asks for a hardware overlay, `EGL_FALSE` refuses one (default: none, unless `EGL$Overlay` is `on`). Queried: 0 plotted, 1 shown through an overlay, 2 overlay hidden. Extension `EGL_RISCOS_overlay` |
@@ -526,6 +536,12 @@ EGLBoolean eglPlotSurfaceRISCOS(EGLDisplay dpy, EGLSurface surface, const int *b
 ```
 
 Plots one window surface's last frame for the current rectangle of a redraw or update loop you are running yourself (`block` as returned by `Wimp_RedrawWindow` / `Wimp_GetRectangle`). Not for full screen surfaces.
+
+```c
+EGLint eglWindowScaleRISCOS(EGLDisplay dpy, EGLint width, EGLint height);
+```
+
+The window scale for a window showing `width` x `height` pixels on the current screen: `EGL$WindowScale` (1 to 4) if the user set it, else 2 in a high resolution (EX0 EY0) mode when a window twice the size fits on the screen (with room for a title bar; 0 for either size skips that check), else 1. Open the window that many times the size and give the same value as `EGL_WINDOW_SCALE_RISCOS`. Returns 0 if `dpy` isn't initialised.
 
 ```c
 EGLBoolean eglCheckOverlaysRISCOS(EGLDisplay dpy);

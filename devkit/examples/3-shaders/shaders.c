@@ -98,9 +98,9 @@ static int vdu_var(int var)
     return out[0];
 }
 
-static int open_window(void)       /* as in example 2, where each word is explained */
+static int open_window(int scale)  /* as in example 2, where each word is explained */
 {
-    int w = WIDTH << vdu_var(4), h = HEIGHT << vdu_var(5), block[23], open[8];
+    int w = (WIDTH * scale) << vdu_var(4), h = (HEIGHT * scale) << vdu_var(5), block[23], open[8];
     _kernel_swi_regs r;
     memset(block, 0, sizeof block);
     block[0] = 240; block[1] = 260; block[2] = 240 + w; block[3] = 260 + h;
@@ -140,6 +140,7 @@ int main(void)
     GLuint program, vs, fs;
     GLint angle, aspect;
     int task, window, frame = 0, running = 1, block[64];
+    EGLint scale_attrs[] = { EGL_WINDOW_SCALE_RISCOS, 1, EGL_NONE };
     unsigned next_frame;
     _kernel_swi_regs r;
     _kernel_oserror *error;
@@ -154,14 +155,17 @@ int main(void)
         return 1;
     }
     task = r.r[1];
-    if (!(window = open_window()))
-        return 1;
 
     display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     eglInitialize(display, NULL, NULL);
     eglBindAPI(EGL_OPENGL_ES_API);       /* ES (this is also EGL's default) */
     eglChooseConfig(display, want, &config, 1, &count);
-    surface = eglCreateWindowSurface(display, config, window, NULL);
+    /* the window scale, as in example 2: 2x2 screen pixels per pixel on a
+       high resolution desktop */
+    scale_attrs[1] = eglWindowScaleRISCOS(display, WIDTH, HEIGHT);
+    if (!(window = open_window(scale_attrs[1])))
+        return 1;
+    surface = eglCreateWindowSurface(display, config, window, scale_attrs);
     context = eglCreateContext(display, config, EGL_NO_CONTEXT, es2);
     eglMakeCurrent(display, surface, surface, context);
 

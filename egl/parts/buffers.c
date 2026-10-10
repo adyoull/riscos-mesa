@@ -122,6 +122,7 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
     _kernel_swi_regs r;
     int w, h, size, mode, sprite_h, *area;
 
+    surf->scale = surface_scale(surf, s);
     if (!wanted_size(surf, s, &w, &h))
         return fail(EGL_BAD_NATIVE_WINDOW), -1;
 

@@ -156,8 +156,8 @@ void fgPlatformInitialize( const char* displayName )
     }
     d->Task = r.r[1];
 
-    fghRiscosReadScreen( );
     fghInitialiseEGL( );
+    fghRiscosReadScreen( );             /* (asks EGL for the window scale) */
 
     /* Get start time */
     fgState.Time = fgSystemTime();

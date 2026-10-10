@@ -4,6 +4,28 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## Unreleased
+
+- **EGL windows the right size on high resolution (EX0 EY0, "180 dpi")
+  desktops.** A window opened at a program's size in pixels came out half
+  as wide and high there (one OS unit is one pixel), unlike SDL windows,
+  which the SDL driver doubles. New window scale: `eglWindowScaleRISCOS`
+  chooses it (2 in an EX0 EY0 mode when twice the size fits, else 1;
+  `*Set EGL$WindowScale 1`-`4` chooses for every program), the program
+  opens its window that many times the size and passes the same value as
+  the new surface attribute `EGL_WINDOW_SCALE_RISCOS` (0x3FF9,
+  provisional; also `EGL_DONT_CARE` to follow the desktop, and
+  `eglSurfaceAttrib`/`eglQuerySurface`). The surface keeps the program's
+  size and each pixel is shown 2x2, by the sprite plot or the hardware
+  overlay; work area surfaces too. Programs that don't ask are unchanged
+  (pixel for pixel). Using it: freeglut (a GLUT pixel is 2x2 screen
+  pixels, so windows, `GLUT_SCREEN_WIDTH`/`HEIGHT`, game mode and the
+  pointer are as in a normal mode), the devkit examples 2 and 3, and the
+  ports' window code (mesa-demos, OpenGL ES book). Programs built with
+  freeglut or the devkit need relinking. New checks: EGL harness 506
+  (window scale, its plot around work area surfaces), glut and examples
+  on an EX0 EY0 screen. Not yet tried on a Pi.
+
 ## 20.3.5-15: faster 3D scenes
 
 3D scenes draw faster on CPUs with NEON (every Raspberry Pi 2 and

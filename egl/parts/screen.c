@@ -251,6 +251,54 @@ static int get_window_state(int handle, window_state *ws)
     return _kernel_swi(Wimp_GetWindowState, &r, &r) == NULL;
 }
 
+/* EGL$WindowScale: 1 to 4 sets the window scale (see eglWindowScaleRISCOS)
+   for every program that lets EGL choose; 0 if unset or anything else.
+   Read with OS_ReadVarVal, not getenv (see ovl_user_setting). */
+static int user_window_scale(void)
+{
+    char v[4];
+    _kernel_swi_regs r;
+    r.r[0] = (int) "EGL$WindowScale";
+    r.r[1] = (int) v;
+    r.r[2] = (int) sizeof v - 1;
+    r.r[3] = 0;
+    r.r[4] = 3;                                 /* expanded to a string */
+    if (_kernel_swi(OS_ReadVarVal, &r, &r) != NULL || r.r[2] != 1)
+        return 0;
+    return v[0] >= '1' && v[0] <= '4' ? v[0] - '0' : 0;
+}
+
+/* The window scale for a window showing w x h pixels (0: don't check that
+   it fits): EGL$WindowScale if set; else 2 in a high resolution (EX0 EY0,
+   "180 dpi") mode, so a window is the size it would be in a normal mode,
+   unless that wouldn't fit on the screen (with room for a title bar); else
+   1. The same choice as SDL's RISC OS driver makes for its windows. */
+static int choose_window_scale(const screen_info *s, int w, int h)
+{
+    int scale = user_window_scale();
+    if (scale)
+        return scale;
+    if (s->xeig >= 1 || s->yeig >= 1)
+        return 1;
+    if ((w > 0 && w * 2 > s->width) || (h > 0 && h * 2 > s->height - (80 >> s->yeig)))
+        return 1;
+    return 2;
+}
+
+/* The scale a window surface is shown at now: what the program asked for
+   (EGL_WINDOW_SCALE_RISCOS), or for EGL_DONT_CARE the desktop's (followed
+   when the mode changes). Not for full screen, DispmanX or render size
+   surfaces. */
+static int surface_scale(const egl_surface *surf, const screen_info *s)
+{
+    if (surf->kind != SURF_WINDOW || surf->handle == HANDLE_SCREEN || surf->dmx ||
+        (surf->rw && !surf->fixed))
+        return 1;
+    if (surf->scale_want == EGL_DONT_CARE)
+        return choose_window_scale(s, 0, 0);
+    return surf->scale_want;
+}
+
 /* The size a window surface should have now. */
 static int wanted_size(const egl_surface *surf, const screen_info *s, int *w, int *h)
 {
@@ -268,8 +316,8 @@ static int wanted_size(const egl_surface *surf, const screen_info *s, int *w, in
     } else {
         if (!get_window_state(surf->handle, &ws))
             return 0;
-        *w = (ws.x1 - ws.x0) >> s->xeig;
-        *h = (ws.y1 - ws.y0) >> s->yeig;
+        *w = ((ws.x1 - ws.x0) >> s->xeig) / surf->scale;
+        *h = ((ws.y1 - ws.y0) >> s->yeig) / surf->scale;
     }
     if (*w < 1) *w = 1;
     if (*h < 1) *h = 1;
@@ -316,20 +364,24 @@ static void set_graphics_window(const os_rect *c)
 }
 
 /* A surface with a render size (EGL_RENDER_WIDTH/HEIGHT_RISCOS): shown
-   scaled to fill its window's visible area, or the screen. */
+   scaled to fill its window's visible area, or the screen; or a window
+   surface with a window scale above 1 (EGL_WINDOW_SCALE_RISCOS): a
+   visible-area one likewise fills the visible area, a work area one is
+   shown that many times its size. */
 static int is_scaled(const egl_surface *surf)
 {
-    return surf->rw && !surf->fixed && !surf->dmx;
+    return (surf->rw && !surf->fixed && !surf->dmx) || surf->scale > 1;
 }
 
-/* The size, in screen pixels, a visible-area or full screen surface is
-   shown at: its own size, or for a scaled one the window's or screen's. */
+/* The size, in screen pixels, a surface is shown at: its own size, or for
+   a scaled one the window's or screen's (a work area one: times its
+   window scale). */
 static void shown_size(const egl_surface *surf, const window_state *ws, const screen_info *s,
                        int *w, int *h)
 {
-    if (!is_scaled(surf)) {
-        *w = surf->w;
-        *h = surf->h;
+    if (!is_scaled(surf) || surf->fixed) {
+        *w = surf->w * surf->scale;
+        *h = surf->h * surf->scale;
         return;
     }
     if (surf->handle == HANDLE_SCREEN) {
@@ -380,6 +432,11 @@ static void plot_rectangle(const egl_surface *surf, const int *block, const scre
             top_os = s->height << s->yeig;
             pl.w = s->width;
             pl.h = s->height;
+        } else if (surf->fixed) {
+            base_x = block[1] - block[5] + surf->wa_x;  /* work area origin + offset */
+            top_os = block[4] - block[6] + surf->wa_y;
+            pl.w = surf->w * surf->scale;
+            pl.h = surf->h * surf->scale;
         } else {
             base_x = block[1];
             top_os = block[4];
@@ -429,8 +486,8 @@ static os_rect fixed_rect(const egl_surface *surf, const int *block, const scree
     os_rect r;
     r.x0 = block[1] - block[5] + surf->wa_x;
     r.y1 = block[4] - block[6] + surf->wa_y;
-    r.x1 = r.x0 + (surf->w << s->xeig);
-    r.y0 = r.y1 - (surf->h << s->yeig);
+    r.x1 = r.x0 + ((surf->w * surf->scale) << s->xeig);
+    r.y0 = r.y1 - ((surf->h * surf->scale) << s->yeig);
     return r;
 }
 
@@ -745,6 +802,8 @@ static void present_window(egl_display *d, egl_surface *surf, const screen_info 
     if (surf->fixed) {
         left = surf->wa_x;
         top = surf->wa_y;
+        dw = surf->w * surf->scale;
+        dh = surf->h * surf->scale;
     } else {
         window_state ws;
         if (!get_window_state(surf->handle, &ws))

@@ -8,6 +8,8 @@
 #     on the dark blue background, and a clean exit;
 #   2-window's menu: "Draw at 240x180" and "Hardware overlay" (with the
 #     fake VideoOverlay module, ../ovl/fake_ovl.c) end up in the title;
+#   2-window and 3-shaders on a high resolution (EX0 EY0) screen with a
+#     window scale of 2: the window is shown at twice the size;
 #   5-glut: the orange teapot, Space and Escape handled;
 #   6-sound: built against the host SDL and OpenAL of ../openal (run that
 #     first), recorded with SDL's disk driver: three notes, left, middle,
@@ -63,10 +65,19 @@ expect "2-window menu: the menu opened"       grep -q "Hardware overlay" window-
 expect "2-window menu: title shows both options" grep -q 'title "Spinning triangle: overlay, 240x180"' window-menu.txt
 expect "2-window menu: no fake VideoOverlay errors" bash -c '! grep -q FAKE-ERROR window-menu.txt'
 
+# A high resolution (EX0 EY0) screen with EGL$WindowScale 2 (the fake
+# screen is too small for EGL to choose 2 itself): the 480x360 window is
+# shown at twice the size, so well over 480x360 background pixels (some of
+# it is off the top of the 1280x720 screen)
+EIG0=1 FRAMES=20 KEYS=n PPM=window-x2.ppm env 'EGL$WindowScale=2' ./window </dev/null > window-x2.txt 2>&1 || true
+expect "2-window, EX0 EY0: shown twice the size" python3 "$HERE/colours.py" window-x2.ppm triangle 260000
+
 app shaders 3-shaders/shaders.c
 FRAMES=20 KEYS=n PPM=shaders.ppm ./shaders </dev/null > shaders.txt 2>&1 || true
 expect "3-shaders: quits on the close request" grep -q "app_main returned" shaders.txt
 expect "3-shaders: shaded triangle in the window" python3 "$HERE/colours.py" shaders.ppm triangle
+EIG0=1 FRAMES=20 KEYS=n PPM=shaders-x2.ppm env 'EGL$WindowScale=2' ./shaders </dev/null > shaders-x2.txt 2>&1 || true
+expect "3-shaders, EX0 EY0: shown twice the size" python3 "$HERE/colours.py" shaders-x2.ppm triangle 260000
 
 if [ -n "${GLUT:-}" ] && [ -n "${GLU:-}" ]; then
   gcc $F -D__riscos__ -Dmain=app_main -I$H/fake -I$R/egl/include -I$M/include \

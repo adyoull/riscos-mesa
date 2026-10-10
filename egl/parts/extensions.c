@@ -595,6 +595,25 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS(EGLDisplay dpy, EGLSurface 
     return wait ? EGL_TRUE : EGL_FALSE;
 }
 
+/* EGL_RISCOS_wimp_window: the window scale for a window showing width x
+   height pixels (<= 0: don't check that it fits) on the current screen:
+   EGL$WindowScale (1 to 4) if set, else 2 in a high resolution (EX0 EY0)
+   mode when twice the size fits on the screen, else 1. Open the window
+   that many times the size, (width * scale) << XEigFactor OS units wide,
+   and give the same value as EGL_WINDOW_SCALE_RISCOS: EGL_WIDTH and
+   EGL_HEIGHT are then width x height. 0 if dpy isn't initialised. */
+EGLAPI EGLint EGLAPIENTRY eglWindowScaleRISCOS(EGLDisplay dpy, EGLint width, EGLint height)
+{
+    screen_info scr;
+
+    ENTER();
+    if (!get_display(dpy, 1))
+        return 0;
+    read_screen(&scr);
+    ok();
+    return choose_window_scale(&scr, width, height);
+}
+
 EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS(EGLDisplay dpy, EGLSurface surface,
                                                    const int *block)
 {
@@ -650,7 +669,7 @@ static const struct {
     F(eglSignalSyncKHR), F(eglSwapBuffersWithDamageEXT), F(eglSwapBuffersWithDamageKHR),
     F(eglUnlockSurfaceKHR), F(eglWaitSyncKHR),
     F(eglRedrawWindowRISCOS), F(eglPlotSurfaceRISCOS), F(eglCheckOverlaysRISCOS),
-    F(eglSwapWouldWaitRISCOS),
+    F(eglSwapWouldWaitRISCOS), F(eglWindowScaleRISCOS),
 };
 #undef F
 

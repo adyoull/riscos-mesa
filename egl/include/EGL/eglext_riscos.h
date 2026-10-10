@@ -45,6 +45,30 @@
  *   (A window shown through a hardware overlay is the exception: see
  *   EGL_RISCOS_overlay below.)
  *
+ *   High resolution (EX0 EY0, "180 dpi") desktops: one OS unit is one
+ *   pixel there, so a window opened at the program's size in pixels is
+ *   half as wide and high as in a normal mode. A window scale shows each
+ *   pixel as scale x scale screen pixels, as SDL's RISC OS driver does:
+ *     scale = eglWindowScaleRISCOS(dpy, width, height);
+ *       (2 in an EX0 EY0 mode if that fits on the screen, else 1; the user
+ *       can set EGL$WindowScale to 1-4 to choose for every program)
+ *     open the window (width * scale) << XEigFactor by
+ *       (height * scale) << YEigFactor OS units;
+ *     EGL_WINDOW_SCALE_RISCOS = scale in eglCreateWindowSurface's
+ *       attributes (or EGL_DONT_CARE: the desktop's scale, followed when
+ *       the mode changes).
+ *   A visible-area surface then renders at the visible area's size divided
+ *   by the scale (EGL_WIDTH/EGL_HEIGHT report it: width x height here),
+ *   stretched over the visible area; a work area surface renders at its
+ *   EGL_WORK_AREA_WIDTH/HEIGHT_RISCOS and is shown scale times that size.
+ *   Pointer positions: (OS units from the visible area's left
+ *   >> XEigFactor) / scale. eglSurfaceAttrib changes the scale at any time
+ *   (at once: EGL_WIDTH/EGL_HEIGHT change; a program whose
+ *   eglCreateWindowSurface call is in code it can't change sets it just
+ *   after); eglQuerySurface gives the scale in use. Not
+ *   for full screen surfaces; a render size (below) takes precedence. The
+ *   default is 1: pixel for pixel, as before.
+ *
  *   EGL_NATIVE_VISUAL_ID of a config is the RISC OS ModeFlags colour order
  *   of its pixels: 0 (0x00BBGGRR, as sprite type 6) or 0x4000 (0x00RRGGBB).
  *   The configs matching the current screen mode have the lowest IDs.
@@ -69,6 +93,9 @@ extern "C" {
 #define EGL_WORK_AREA_HEIGHT_RISCOS     0x3FF3
 /* Full screen: screen banks to flip between; creation (0, 2, 3) and query */
 #define EGL_SCREEN_BANKS_RISCOS         0x3FF4
+/* Window scale for high resolution (EX0 EY0) desktops: creation, query,
+   eglSurfaceAttrib; 1 to 4 or EGL_DONT_CARE */
+#define EGL_WINDOW_SCALE_RISCOS         0x3FF9
 
 /* Hardware overlay for a visible-area window surface (EGL_RISCOS_overlay,
    below): creation attribute, eglSurfaceAttrib and eglQuerySurface. */
@@ -81,16 +108,19 @@ extern "C" {
 #define EGL_RENDER_WIDTH_RISCOS         0x3FF7
 #define EGL_RENDER_HEIGHT_RISCOS        0x3FF8
 
+
 /* ModeFlags colour order bits reported as EGL_NATIVE_VISUAL_ID */
 #define EGL_RISCOS_VISUAL_TBGR          0x0000
 #define EGL_RISCOS_VISUAL_TRGB          0x4000
 
 typedef EGLBoolean (EGLAPIENTRYP PFNEGLREDRAWWINDOWRISCOSPROC) (EGLDisplay dpy, int *block);
 typedef EGLBoolean (EGLAPIENTRYP PFNEGLPLOTSURFACERISCOSPROC) (EGLDisplay dpy, EGLSurface surface, const int *block);
+typedef EGLint (EGLAPIENTRYP PFNEGLWINDOWSCALERISCOSPROC) (EGLDisplay dpy, EGLint width, EGLint height);
 
 #ifdef EGL_EGLEXT_PROTOTYPES
 EGLAPI EGLBoolean EGLAPIENTRY eglRedrawWindowRISCOS (EGLDisplay dpy, int *block);
 EGLAPI EGLBoolean EGLAPIENTRY eglPlotSurfaceRISCOS (EGLDisplay dpy, EGLSurface surface, const int *block);
+EGLAPI EGLint EGLAPIENTRY eglWindowScaleRISCOS (EGLDisplay dpy, EGLint width, EGLint height);
 #endif
 
 #endif /* EGL_RISCOS_wimp_window */

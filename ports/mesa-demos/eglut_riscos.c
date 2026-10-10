@@ -88,6 +88,11 @@ void _eglutNativeEventLoop(void)
        redraw requests are answered by EGL from the surface, so draw it
        once to begin with (programs without an idle callback need this). */
     _eglut->redisplay = 1;
+    /* eglut made the surface without attributes: give it the window scale
+       rw_open chose (2x2 screen pixels per pixel on a high resolution
+       desktop), before the first frame */
+    if (_eglut->current && rwin.scale > 1)
+        eglSurfaceAttrib(_eglut->dpy, _eglut->current->surface, EGL_WINDOW_SCALE_RISCOS, rwin.scale);
     for (;;) {
         struct eglut_window *win = _eglut->current;
         int animate = _eglut->idle_cb != NULL || _eglut->redisplay;

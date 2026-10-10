@@ -14,6 +14,10 @@
  *               again while it waits (it used to be, every 20 ms).
  *   drawtimer   a single-buffered window drawn from a 100 ms timer without
  *               glutPostRedisplay: each frame is shown.
+ *   scaled      run with EIG0=1 (a high resolution, EX0 EY0 screen): a
+ *               320x180 window is shown 640x360 screen pixels (window
+ *               scale 2), the program still sees 320x180 and a half size
+ *               screen, and pointer positions are in its pixels.
  *
  * Time in the fake runs at 20 ms per Wimp_Poll, so the counts are exact.
  * Part of riscos-mesa, MIT licence.
@@ -96,6 +100,34 @@ static void sb_timer(int v)
     glutTimerFunc(v, sb_timer, v);
 }
 
+/* -- scaled -- */
+static void sc_display(void)
+{
+    glViewport(0, 0, glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT));
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, 320, 180, 0, -1, 1);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glClearColor(0, 1, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glColor3f(1, 0, 0);
+    quad(0, 0, 160, 90);                /* the top left quarter red */
+    glutSwapBuffers();
+}
+static void sc_timer(int v)
+{
+    /* the window's top left on the screen: GLUT pixels, 2x2 screen pixels each */
+    int x = glutGet(GLUT_WINDOW_X) * 2, y = glutGet(GLUT_WINDOW_Y) * 2;
+    (void) v;
+    printf("screen %dx%d, window %dx%d\n", glutGet(GLUT_SCREEN_WIDTH), glutGet(GLUT_SCREEN_HEIGHT),
+           glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT));
+    printf("pixels %06x %06x %06x %06x, outside %06x\n",
+           fake_screen_pixel(x + 1, y + 1) & 0xFFFFFF, fake_screen_pixel(x + 318, y + 178) & 0xFFFFFF,
+           fake_screen_pixel(x + 321, y + 181) & 0xFFFFFF, fake_screen_pixel(x + 638, y + 358) & 0xFFFFFF,
+           fake_screen_pixel(x + 641, y + 358) & 0xFFFFFF);
+}
+
 int main(int argc, char **argv)
 {
     glutInit(&argc, argv);
@@ -112,6 +144,14 @@ int main(int argc, char **argv)
         glutReshapeFunc(gm_reshape);
         glutMouseFunc(gm_mouse);
         glutTimerFunc(200, gm_timer, 0);
+    } else if (!strcmp(mode, "scaled")) {
+        glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+        glutInitWindowSize(320, 180);
+        glutCreateWindow(mode);
+        glutDisplayFunc(sc_display);
+        glutReshapeFunc(gm_reshape);
+        glutMouseFunc(gm_mouse);
+        glutTimerFunc(200, sc_timer, 0);
     } else {
         glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB);
         glutInitWindowSize(200, 150);

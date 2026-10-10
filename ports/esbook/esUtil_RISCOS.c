@@ -60,6 +60,7 @@ GLboolean ESUTIL_API esCreateWindow(ESContext *esContext, const char *title,
     static const EGLint ctx_attribs[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
     EGLConfig config;
     EGLint n = 0;
+    EGLint surf_attribs[] = { EGL_WINDOW_SCALE_RISCOS, 1, EGL_NONE };
 
     if (!esContext)
         return GL_FALSE;
@@ -74,20 +75,21 @@ GLboolean ESUTIL_API esCreateWindow(ESContext *esContext, const char *title,
     }
     atexit(finish);
     snprintf(base_title, sizeof base_title, "%s", title);
-    if (!rw_open(&rwin, title, -1, -1, width, height))
-        return GL_FALSE;
-    esContext->width = width;
-    esContext->height = height;
-    esContext->hWnd = (EGLNativeWindowType) rwin.handle;
-
     esContext->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (esContext->eglDisplay == EGL_NO_DISPLAY ||
         !eglInitialize(esContext->eglDisplay, NULL, NULL) ||
         !eglChooseConfig(esContext->eglDisplay, attribs, &config, 1, &n) || n < 1)
         return GL_FALSE;
+    /* (after eglInitialize: rw_open asks EGL for the window scale) */
+    if (!rw_open(&rwin, title, -1, -1, width, height))
+        return GL_FALSE;
+    esContext->width = width;
+    esContext->height = height;
+    esContext->hWnd = (EGLNativeWindowType) rwin.handle;
     eglBindAPI(EGL_OPENGL_ES_API);
+    surf_attribs[1] = rwin.scale;
     esContext->eglSurface = eglCreateWindowSurface(esContext->eglDisplay, config,
-                                                   esContext->hWnd, NULL);
+                                                   esContext->hWnd, surf_attribs);
     esContext->eglContext = eglCreateContext(esContext->eglDisplay, config,
                                              EGL_NO_CONTEXT, ctx_attribs);
     if (esContext->eglSurface == EGL_NO_SURFACE || esContext->eglContext == EGL_NO_CONTEXT)

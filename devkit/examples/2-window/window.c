@@ -126,11 +126,14 @@ static int vdu_var(int var)
 
 /* Creates the window and puts it on the screen. The desktop measures in
  * "OS units", not pixels: on most modes a pixel is 2 OS units, on high
- * resolution (EX0 EY0) modes it's 1. We read which from the mode. */
-static int open_window(void)
+ * resolution (EX0 EY0, "180 dpi") modes it's 1. We read which from the
+ * mode. scale is the window scale EGL chose (see main): 2 on a high
+ * resolution desktop, so the window is the size it would be in a normal
+ * mode, each of our pixels shown as 2x2. */
+static int open_window(int scale)
 {
     int xeig = vdu_var(4), yeig = vdu_var(5);
-    int w = WIDTH << xeig, h = HEIGHT << yeig;
+    int w = (WIDTH * scale) << xeig, h = (HEIGHT * scale) << yeig;
     int x0 = 200, y0 = 300;              /* bottom left corner, OS units */
     int block[23], open[8];
     _kernel_swi_regs r;
@@ -206,7 +209,7 @@ int main(void)
     EGLSurface surface;
     EGLContext context;
     EGLint count, width, height;
-    int task, window, frame = 0, running = 1, block[64];
+    int task, window, frame = 0, running = 1, block[64], scale;
     int want_overlay = 0, small = 0;     /* the two menu options */
     int menu_x = 0, menu_y = 0;          /* where the menu was opened */
     EGLint shown;
@@ -231,10 +234,6 @@ int main(void)
     }
     task = r.r[1];
 
-    window = open_window();
-    if (!window)
-        return fail("Wimp_CreateWindow");
-
     /* 2. EGL, as in example 1, except that the surface is our window's
      * handle instead of the whole screen. */
     display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -243,11 +242,23 @@ int main(void)
     eglBindAPI(EGL_OPENGL_API);
     if (!eglChooseConfig(display, want, &config, 1, &count) || count < 1)
         return fail("eglChooseConfig");
+
+    /* The window scale: 2 on a high resolution desktop if a window twice
+     * the size fits on the screen, else 1 (the user can choose with
+     * *Set EGL$WindowScale). We open the window that many times the size
+     * and tell EGL the same scale: the surface stays WIDTH x HEIGHT. */
+    scale = eglWindowScaleRISCOS(display, WIDTH, HEIGHT);
+    window = open_window(scale);
+    if (!window)
+        return fail("Wimp_CreateWindow");
+
     /* Start with the hardware overlay off, since it's a menu option.
      * Saying so here (rather than leaving it out) also stops a user's
      * "*Set EGL$Overlay on" from turning it on behind the menu's back. */
     {
-        static const EGLint surface_attrs[] = { EGL_OVERLAY_RISCOS, EGL_FALSE, EGL_NONE };
+        EGLint surface_attrs[] = { EGL_OVERLAY_RISCOS, EGL_FALSE,
+                                   EGL_WINDOW_SCALE_RISCOS, 0, EGL_NONE };
+        surface_attrs[3] = scale;
         surface = eglCreateWindowSurface(display, config, window, surface_attrs);
     }
     if (surface == EGL_NO_SURFACE)

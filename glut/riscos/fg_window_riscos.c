@@ -24,6 +24,7 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#define EGL_EGLEXT_PROTOTYPES 1         /* eglWindowScaleRISCOS */
 #include <kernel.h>
 #include <swis.h>
 #include <GL/freeglut.h>
@@ -69,15 +70,32 @@ static int fghModeVariable( int var, int fallback )
     return r.r[2];
 }
 
-/* Read the screen size and pixel shape (after a mode change too). */
+/* Read the screen size and pixel shape (after a mode change too).
+   On a high resolution (EX0 EY0, "180 dpi") desktop EGL chooses a window
+   scale of 2 (eglWindowScaleRISCOS; EGL$WindowScale overrides): a GLUT
+   pixel is then 2x2 screen pixels, so windows are the size they are in a
+   normal mode, and the screen is half as many GLUT pixels each way. GLUT
+   works in GLUT pixels throughout (XEig/YEig are log2 OS units per GLUT
+   pixel); the EGL surfaces render at that size and are shown scaled. Only
+   1, 2 and 4 (3 is taken as 2). */
 void fghRiscosReadScreen( void )
 {
     SFG_PlatformDisplay *d = &fgDisplay.pDisplay;
+    int shift = 0, scale = 1;
 
-    d->XEig = fghModeVariable( 4, 1 );
-    d->YEig = fghModeVariable( 5, 1 );
-    fgDisplay.ScreenWidth  = fghModeVariable( 11, 639 ) + 1;
-    fgDisplay.ScreenHeight = fghModeVariable( 12, 479 ) + 1;
+    if( d->Display != EGL_NO_DISPLAY && d->Display != NULL )
+        scale = eglWindowScaleRISCOS( d->Display,
+                                      fgState.Size.Use ? fgState.Size.X : 0,
+                                      fgState.Size.Use ? fgState.Size.Y : 0 );
+    if( scale >= 4 )
+        shift = 2;
+    else if( scale >= 2 )
+        shift = 1;
+    d->Scale = 1 << shift;
+    d->XEig = fghModeVariable( 4, 1 ) + shift;
+    d->YEig = fghModeVariable( 5, 1 ) + shift;
+    fgDisplay.ScreenWidth  = ( fghModeVariable( 11, 639 ) + 1 ) >> shift;
+    fgDisplay.ScreenHeight = ( fghModeVariable( 12, 479 ) + 1 ) >> shift;
     /* 180 OS units to the inch */
     fgDisplay.ScreenWidthMM  = (int) ( fgDisplay.ScreenWidth  * ( 1 << d->XEig ) * 25.4f / 180.0f + 0.5f );
     fgDisplay.ScreenHeightMM = (int) ( fgDisplay.ScreenHeight * ( 1 << d->YEig ) * 25.4f / 180.0f + 0.5f );
@@ -376,7 +394,7 @@ static void fghCreateSurface( SFG_Window *window )
 {
     SFG_PlatformContext *pc = &window->Window.pContext;
     SFG_Window *top = fghRiscosTopWindow( window );
-    EGLint attributes[10];
+    EGLint attributes[12];
     int x, y;
 
     if( window->IsMenu || pc->Surface != EGL_NO_SURFACE )
@@ -396,11 +414,15 @@ static void fghCreateSurface( SFG_Window *window )
         attributes[2] = EGL_WORK_AREA_Y_RISCOS;      attributes[3] = -( y << YEIG );
         attributes[4] = EGL_WORK_AREA_WIDTH_RISCOS;  attributes[5] = window->State.Width  > 0 ? window->State.Width  : 1;
         attributes[6] = EGL_WORK_AREA_HEIGHT_RISCOS; attributes[7] = window->State.Height > 0 ? window->State.Height : 1;
-        attributes[8] = EGL_NONE;
+        attributes[8] = EGL_WINDOW_SCALE_RISCOS;     attributes[9] = fgDisplay.pDisplay.Scale;
+        attributes[10] = EGL_NONE;
     }
     else
     {
         int n = 0;
+        /* GLUT pixels: the window scale (a render size takes precedence) */
+        attributes[n++] = EGL_WINDOW_SCALE_RISCOS;
+        attributes[n++] = fgDisplay.pDisplay.Scale;
         if( window->State.pWState.RenderW > 0 )
         {
             /* game mode at a resolution other than the screen's: draw at
@@ -505,6 +527,9 @@ void fghRiscosModeChanged( void )
     {
         if( window->IsMenu || !window->State.pWState.Open )
             continue;
+        if( window->Window.pContext.Surface != EGL_NO_SURFACE )
+            eglSurfaceAttrib( fgDisplay.pDisplay.Display, window->Window.pContext.Surface,
+                              EGL_WINDOW_SCALE_RISCOS, fgDisplay.pDisplay.Scale );
         fghReadVisibleArea( window );
         fghRecreateSubSurfaces( window );
         fghVisibleToGlut( window, &x, &y, &w, &h );

@@ -61,7 +61,9 @@ struct tagSFG_PlatformDisplay
     EGLDisplay  Display;
     EGLint      MajorVersion, MinorVersion;     /* EGL's version */
     int         Task;                           /* Wimp task handle */
-    int         XEig, YEig;                     /* log2 OS units per pixel */
+    int         XEig, YEig;                     /* log2 OS units per GLUT pixel */
+    int         Scale;                          /* screen pixels per GLUT pixel (window
+                                                   scale: 2 on a 180 dpi desktop) */
     char        TaskName[64];
 };
 

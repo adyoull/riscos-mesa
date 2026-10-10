@@ -179,6 +179,7 @@ static egl_surface *new_surface(egl_display *d, const egl_config *c, int kind)
     s->plot_vsync = -1;
     s->ovl_want = -1;           /* hardware overlay only if asked for (or EGL$Overlay on) */
     s->ovl_last = -1;
+    s->scale_want = s->scale = 1;   /* pixel for pixel unless asked */
     return s;
 }
 
@@ -250,6 +251,14 @@ static EGLSurface create_window_surface(EGLDisplay dpy, EGLConfig config,
             break;
         case EGL_RENDER_WIDTH_RISCOS:     s->rw = v; have_rw = 1; break;
         case EGL_RENDER_HEIGHT_RISCOS:    s->rh = v; have_rh = 1; break;
+        case EGL_WINDOW_SCALE_RISCOS:
+            /* Wimp windows only (visible area or work area surfaces) */
+            if ((v < 1 || v > MAX_WINDOW_SCALE) && v != EGL_DONT_CARE)
+                goto bad_attr;
+            if (s->handle == HANDLE_SCREEN || s->dmx)
+                goto bad_attr;
+            s->scale_want = v;
+            break;
         case EGL_WORK_AREA_X_RISCOS:      s->wa_x = v; break;
         case EGL_WORK_AREA_Y_RISCOS:      s->wa_y = v; break;
         case EGL_WORK_AREA_WIDTH_RISCOS:  s->w = v; have_w = 1; break;
@@ -447,6 +456,7 @@ static EGLBoolean query_surface(EGLDisplay dpy, EGLSurface surface, EGLint attri
     case EGL_SCREEN_BANKS_RISCOS: *value = s->banks; break;
     case EGL_RENDER_WIDTH_RISCOS:  *value = s->rw; break;
     case EGL_RENDER_HEIGHT_RISCOS: *value = s->rh; break;
+    case EGL_WINDOW_SCALE_RISCOS:  *value = s->scale; break;   /* in use now */
     case EGL_OVERLAY_RISCOS:
         /* 0 not using one, 1 shown through it, 2 one exists but it's hidden
            (something overlaps the window) */
@@ -588,6 +598,27 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSurfaceAttrib(EGLDisplay dpy, EGLSurface surfac
         } else {
             s->rh = value;
             if (!s->rw) s->rw = s->w;
+        }
+        break;
+    case EGL_WINDOW_SCALE_RISCOS:
+        /* a new window scale (EGL_DONT_CARE = the desktop's), at once: a
+           program setting it just after eglCreateWindowSurface (when that
+           call is in code it can't change) gets the new size before its
+           first frame */
+        if (s->kind != SURF_WINDOW || s->handle == HANDLE_SCREEN || s->dmx)
+            return fail(EGL_BAD_MATCH);
+        if ((value < 1 || value > MAX_WINDOW_SCALE) && value != EGL_DONT_CARE)
+            return fail(EGL_BAD_PARAMETER);
+        s->scale_want = value;
+        {
+            screen_info scr;
+            int changed;
+            read_screen(&scr);
+            changed = update_window_buffer(s, &scr);
+            if (changed < 0)
+                return EGL_FALSE;
+            if (changed && !surface_changed(s))
+                return fail(EGL_BAD_ALLOC);
         }
         break;
     case EGL_MULTISAMPLE_RESOLVE:

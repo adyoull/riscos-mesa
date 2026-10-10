@@ -97,6 +97,9 @@
    Cleaning the CPU cache or using SpriteOp 52 didn't help; padding did. */
 #define MIN_SPRITE_BYTES (1024 * 1024)
 
+/* EGL_WINDOW_SCALE_RISCOS and EGL$WindowScale: 1 to this */
+#define MAX_WINDOW_SCALE 4
+
 /* 32bpp sprite type 6 (0x00BBGGRR) at the screen's resolution, so it plots
    pixel for pixel: 90 dpi in a normal (EX1 EY1) mode, 180 dpi in a high
    resolution (EX0 EY0) one. */
@@ -174,6 +177,8 @@ typedef struct egl_surface {
     int banks;                  /* > 0: flipping between this many screen banks */
     int draw_bank;              /* bank being drawn (1..banks) */
     int rw, rh;                 /* EGL_RENDER_WIDTH/HEIGHT_RISCOS: render size, scaled to the window or screen (0 = follow it) */
+    int scale_want;             /* EGL_WINDOW_SCALE_RISCOS: 1 to 4, or EGL_DONT_CARE (the desktop's) */
+    int scale;                  /* the window scale in use now (1 = pixel for pixel) */
     int bank_vsync;             /* vsync counter (OS_Byte 176) at the last bank switch, -1 none */
     int plot_vsync;             /* full screen, one buffer: the vsync counter at the last plot, -1 none */
     void *bank_addr[MAX_BANKS + 1];

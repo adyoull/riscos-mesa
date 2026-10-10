@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""colours.py SCREEN.ppm triangle|teapot: checks what an example drew.
+"""colours.py SCREEN.ppm triangle|teapot [MIN_BG]: checks what an example drew.
 
 triangle: the dark blue background (0.1, 0.1, 0.3) and pixels close to
 each corner colour (red, green, blue) of the smoothly shaded triangle.
-teapot: the background and plenty of lit orange."""
+teapot: the background and plenty of lit orange. MIN_BG: at least that
+many background pixels (default 5000)."""
 import sys
 
 def load(path):
@@ -28,10 +29,11 @@ def main():
         elif r > 110 and r > g * 1.2 and g > b * 1.3 and b < 90:
             counts['orange'] += 1
     print(sys.argv[1], counts)
+    min_bg = int(sys.argv[3]) if len(sys.argv) > 3 else 5000
     if sys.argv[2] == 'triangle':
-        ok = counts['bg'] > 5000 and min(counts['red'], counts['green'], counts['blue']) >= 10
+        ok = counts['bg'] > min_bg and min(counts['red'], counts['green'], counts['blue']) >= 10
     else:
-        ok = counts['bg'] > 5000 and counts['orange'] > 2000
+        ok = counts['bg'] > min_bg and counts['orange'] > 2000
     sys.exit(0 if ok else 1)
 
 main()
