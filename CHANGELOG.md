@@ -4,7 +4,16 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## Unreleased
+## 20.3.5-16: windows the right size on 180 dpi desktops
+
+On a high resolution (EX0 EY0, "180 dpi") desktop, EGL and GLUT programs
+opened their windows at half the width and height they have on a normal
+desktop. Now they are the same size, as SDL programs' windows already
+were, with each of the program's pixels shown as 2x2 screen pixels (so a
+window costs no more to draw than before). `*Set EGL$WindowScale 1`
+gives back the small, sharp windows; nothing changes on normal desktops.
+Rendering is the same as 20.3.5-15. Programs built with GLUT or the
+devkit need relinking to get it.
 
 - **EGL windows the right size on high resolution (EX0 EY0, "180 dpi")
   desktops.** A window opened at a program's size in pixels came out half

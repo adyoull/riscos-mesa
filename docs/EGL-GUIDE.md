@@ -1,6 +1,6 @@
 # RISC OS EGL programming guide
 
-For riscos-mesa v20.3.5-15 (October 2026). Andrew Youll.
+For riscos-mesa v20.3.5-16 (October 2026). Andrew Youll.
 
 > **New to OpenGL, EGL or cross-compiling?** Start with the devkit's
 > beginner's guide (`README.md` at the top of the devkit, `devkit/README.md`

@@ -29,7 +29,11 @@ YSFlight and Warzone 2100 run 14-30% faster. 20.3.5-15 speeds up 3D
 scenes: the depth test, fog and the alpha test use NEON, depth-tested
 rows of pixels take a direct route, and pixels that end up hidden aren't
 textured; glbench's racing-game-like scene draws 14% faster than with
-20.3.5-14 on a Pi 4, with the same picture. Not tried on a Pi yet: menus over the overlay, the overlay
+20.3.5-14 on a Pi 4, with the same picture. 20.3.5-16 opens EGL and
+GLUT windows at the right size on high resolution (EX0 EY0, "180 dpi")
+desktops, as SDL windows already were: each pixel is shown 2x2, so a
+window is the size it is in a normal mode and costs no more to draw.
+Not tried on a Pi yet: menus over the overlay, the overlay
 in full screen or across mode changes, SDL's multitasking full screen,
 and GLUT's game mode at the requested size.
 
