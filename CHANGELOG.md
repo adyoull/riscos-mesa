@@ -24,7 +24,8 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   ports' window code (mesa-demos, OpenGL ES book). Programs built with
   freeglut or the devkit need relinking. New checks: EGL harness 506
   (window scale, its plot around work area surfaces), glut and examples
-  on an EX0 EY0 screen. Not yet tried on a Pi.
+  on an EX0 EY0 screen. Confirmed working on a Raspberry Pi 4 (EX0 EY0
+  desktop, test build 16a).
 
 ## 20.3.5-15: faster 3D scenes
 
