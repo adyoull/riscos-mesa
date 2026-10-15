@@ -406,7 +406,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
      SDL_WindowData *driverdata;
  
      driverdata = (SDL_WindowData *) SDL_calloc(1, sizeof(*driverdata));
-@@ -41,21 +429,280 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
+@@ -41,21 +429,283 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
          return SDL_OutOfMemory();
      }
      driverdata->window = window;
@@ -467,6 +467,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    handle = vdata->wimp_window;
 +    regs.r[1] = (int)&handle;
 +    _kernel_swi(Wimp_DeleteWindow, &regs, &regs);
++    RISCOS_KeepPointerOffBottom(_this, SDL_FALSE);
 +    vdata->wimp_window = 0;
 +    vdata->wimp_sdl_window = NULL;
 +    vdata->full_window = SDL_FALSE;
@@ -636,6 +637,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    handle = vdata->wimp_window;
 +    regs.r[1] = (int)&handle;
 +    _kernel_swi(Wimp_CloseWindow, &regs, &regs);
++    RISCOS_KeepPointerOffBottom(_this, SDL_FALSE);
 +
 +    if (vdata->pointer_in) {
 +        vdata->pointer_in = SDL_FALSE;
@@ -679,6 +681,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +        int handle = vdata->wimp_window;
 +        regs.r[1] = (int)&handle;
 +        _kernel_swi(Wimp_DeleteWindow, &regs, &regs);
++        RISCOS_KeepPointerOffBottom(_this, SDL_FALSE);
 +        vdata->wimp_window = 0;
 +        vdata->wimp_sdl_window = NULL;
 +        vdata->full_window = SDL_FALSE;
@@ -691,7 +694,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
      if (!driverdata)
          return;
  
-@@ -63,6 +710,69 @@ RISCOS_DestroyWindow(_THIS, SDL_Window * window)
+@@ -63,6 +713,70 @@ RISCOS_DestroyWindow(_THIS, SDL_Window * window)
      window->driverdata = NULL;
  }
  
@@ -699,6 +702,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +RISCOS_WimpQuit(_THIS)
 +{
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
++    RISCOS_KeepPointerOffBottom(_this, SDL_FALSE);
 +    if (vdata->wimp_task != 0) {
 +        _kernel_swi_regs regs;
 +        RISCOS_RestartShutdown();   /* while we are still a Wimp task */

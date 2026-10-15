@@ -4,6 +4,22 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## Unreleased
+
+- **SDL: the icon bar no longer flashes over full screen games.** With
+  the desktop's "bring the icon bar to the front automatically" option
+  on, pushing the pointer to the bottom of the screen in a multitasking
+  full screen SDL program (fheroes2 scrolling its map) brought the icon
+  bar over the game for a moment. While the pointer is over a full
+  screen window, the mouse now stops 2 pixels above the screen's bottom
+  (its bounding box, `OS_Word 21,1`), and that lowest reachable row
+  counts as the window's bottom row, so scrolling at the bottom edge
+  still works. The whole screen comes back as soon as the pointer is over
+  anything else (a menu, an error box, another task's window), when the
+  window closes, on a mode change and when the program exits.
+  `*Set SDL$PointerMargin 0` turns it off (or sets the margin in pixels).
+  New checks in the sdl-wimp harness (73). Not yet tried on a Pi.
+
 ## 20.3.5-16: windows the right size on 180 dpi desktops
 
 On a high resolution (EX0 EY0, "180 dpi") desktop, EGL and GLUT programs

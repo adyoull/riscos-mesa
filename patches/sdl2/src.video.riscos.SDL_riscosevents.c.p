@@ -1,7 +1,7 @@
 diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents.c
 --- src/video/riscos/SDL_riscosevents.c
 +++ src/video/riscos/SDL_riscosevents.c
-@@ -23,15 +23,110 @@
+@@ -23,15 +23,112 @@
  #if SDL_VIDEO_DRIVER_RISCOS
  
  #include "../../events/SDL_events_c.h"
@@ -95,6 +95,8 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +        break;
 +    case 0x400C1: /* Message_ModeChange: the desktop's screen mode changed */
 +        RISCOS_UpdateEigs(_this);                /* OS units per pixel may have too */
++        RISCOS_PointerBoxReset();                /* the mouse's box is the new screen now;
++                                                    the next poll raises its bottom again */
 +        RISCOS_DesktopModeChanged(_this);        /* SDL's desktop display mode */
 +        RISCOS_WindowModeChanged(_this);         /* the window fits the new mode */
 +        break;
@@ -112,7 +114,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  static SDL_Scancode
  SDL_RISCOS_translate_keycode(int keycode)
  {
-@@ -50,6 +145,44 @@ SDL_RISCOS_translate_keycode(int keycode)
+@@ -50,6 +147,44 @@ SDL_RISCOS_translate_keycode(int keycode)
      return scancode;
  }
  
@@ -157,7 +159,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  void
  RISCOS_PollKeyboard(_THIS)
  {
-@@ -57,17 +190,39 @@ RISCOS_PollKeyboard(_THIS)
+@@ -57,17 +192,39 @@ RISCOS_PollKeyboard(_THIS)
      Uint8 key = 2;
      int i;
  
@@ -198,7 +200,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
      while (key < 0xff) {
          key = _kernel_osbyte(121, key + 1, 0) & 0xff;
          switch (key) {
-@@ -84,20 +239,48 @@ RISCOS_PollKeyboard(_THIS)
+@@ -84,20 +241,48 @@ RISCOS_PollKeyboard(_THIS)
              break;
  
          default:
@@ -250,12 +252,107 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  }
  
  static const Uint8 mouse_button_map[] = {
-@@ -111,36 +294,185 @@ static const Uint8 mouse_button_map[] = {
+@@ -111,36 +296,290 @@ static const Uint8 mouse_button_map[] = {
      SDL_BUTTON_X2 + 3
  };
  
--void
++/* 2026: the icon bar's "bring to front automatically" option (Configure,
++   Windows) brings it forward when the pointer reaches the bottom of the
++   screen. Over a full window (full screen that multitasks) that flashed
++   the icon bar over the game whenever the player pushed the pointer down
++   to scroll (reported with fheroes2). So while the pointer is over a full
++   window the mouse's bounding box (OS_Word 21,1) stops a few pixels above
++   the screen's bottom, and a pointer at the box's bottom edge is reported
++   to the program as the window's bottom row (RISCOS_PollMouseWindowed),
++   so edge scrolling on the last row still works. The whole screen comes
++   back when the pointer leaves the window (onto a menu or another task's
++   window), when the window goes, on a mode change and at exit.
++   SDL$PointerMargin sets the margin in pixels (default 2, 0 = off). */
++static int riscos_box_raised;      /* OS units the bottom is raised by, 0 = whole screen */
++static int riscos_box_margin = -1; /* pixels, -1 = not read yet */
++
++static int
++RISCOS_ModeVar(int var)
++{
++    _kernel_swi_regs regs;
++    regs.r[0] = -1;
++    regs.r[1] = var;
++    if (_kernel_swi(OS_ReadModeVariable, &regs, &regs) != NULL)
++        return 0;
++    return regs.r[2];
++}
++
++static void
++RISCOS_WriteMouseBox(int bottom)
++{
++    /* the whole screen, but for the bottom: XWindLimit/YWindLimit are the
++       last pixel, so the box's right and top are inclusive OS units */
++    int right = ((RISCOS_ModeVar(11) + 1) << RISCOS_ModeVar(4)) - 1;
++    int top = ((RISCOS_ModeVar(12) + 1) << RISCOS_ModeVar(5)) - 1;
++    unsigned char block[9];
++    _kernel_swi_regs regs;
++
++    block[0] = 1;                  /* OS_Word 21,1: define the mouse's bounding box */
++    block[1] = 0; block[2] = 0;    /* left, bottom, right, top: 16 bits, low byte first */
++    block[3] = bottom & 0xff; block[4] = (bottom >> 8) & 0xff;
++    block[5] = right & 0xff;  block[6] = (right >> 8) & 0xff;
++    block[7] = top & 0xff;    block[8] = (top >> 8) & 0xff;
++    regs.r[0] = 21;
++    regs.r[1] = (int)block;
++    _kernel_swi(OS_Word, &regs, &regs);
++}
++
++static void
++RISCOS_RestoreMouseBox(void)
++{
++    if (riscos_box_raised) {
++        RISCOS_WriteMouseBox(0);
++        riscos_box_raised = 0;
++    }
++}
++
+ void
 -RISCOS_PollMouse(_THIS)
++RISCOS_KeepPointerOffBottom(_THIS, SDL_bool keep)
++{
++    static SDL_bool at_exit;
++    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
++    int raise = 0;
++
++    if (keep) {
++        if (riscos_box_margin < 0) {
++            const char *env = SDL_getenv("SDL$PointerMargin");
++            riscos_box_margin = 2;
++            if (env && *env >= '0' && *env <= '9') {
++                riscos_box_margin = SDL_atoi(env);
++                if (riscos_box_margin > 64)
++                    riscos_box_margin = 64;
++            }
++        }
++        raise = riscos_box_margin << vdata->yeig;
++    }
++    if (raise == riscos_box_raised)
++        return;
++    if (raise && !at_exit) {
++        atexit(RISCOS_RestoreMouseBox);     /* never leave the desktop's pointer boxed in */
++        at_exit = SDL_TRUE;
++    }
++    RISCOS_WriteMouseBox(raise);
++    riscos_box_raised = raise;
++}
++
++int
++RISCOS_PointerBoxRaised(void)
++{
++    return riscos_box_raised;
++}
++
++void
++RISCOS_PointerBoxReset(void)
++{
++    riscos_box_raised = 0;
++}
++
 +/* 2026: mouse handling for a Wimp window. */
 +static void
 +RISCOS_PollMouseWindowed(_THIS)
@@ -303,6 +400,15 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +    /* Keep reporting while a button pressed inside the window is held (drags). */
 +    if (!inside && driverdata->buttons_inside != 0 && buttons != 0)
 +        inside = SDL_TRUE;
++
++    /* 2026: over a full window the pointer can't reach the screen's
++       bottom few pixels (the icon bar would come forward: see
++       RISCOS_KeepPointerOffBottom); on the lowest pixel row it can reach
++       it counts as the bottom row, so edge scrolling still works */
++    RISCOS_KeepPointerOffBottom(_this, (inside && driverdata->full_window) ? SDL_TRUE : SDL_FALSE);
++    if (inside && driverdata->full_window && RISCOS_PointerBoxRaised() > 0 &&
++        ptr.y < RISCOS_PointerBoxRaised() + (1 << yeig))
++        ptr.y = 0;
 +
 +    x = (ptr.x - (state.open.visible.x0 - state.open.scroll_x)) >> xeig;
 +    /* (visible.y1 is exclusive: the top row of pixels starts 1 OS unit
@@ -443,7 +549,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  int
  RISCOS_InitEvents(_THIS)
  {
-@@ -150,6 +482,7 @@ RISCOS_InitEvents(_THIS)
+@@ -150,6 +589,7 @@ RISCOS_InitEvents(_THIS)
  
      for (i = 0; i < RISCOS_MAX_KEYS_PRESSED; i++)
          driverdata->key_pressed[i] = 255;
@@ -451,7 +557,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  
      status = (_kernel_osbyte(202, 0, 255) & 0xFF);
      SDL_ToggleModState(KMOD_NUM,    (status & (1 << 2)) == 0);
-@@ -165,10 +498,349 @@ RISCOS_InitEvents(_THIS)
+@@ -165,10 +605,349 @@ RISCOS_InitEvents(_THIS)
      return 0;
  }
  

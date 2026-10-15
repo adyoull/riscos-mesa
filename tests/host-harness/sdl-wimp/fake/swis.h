@@ -3,7 +3,9 @@
 #ifndef FAKE_SWIS_H
 #define FAKE_SWIS_H
 #define OS_Byte               0x06
+#define OS_Word               0x07
 #define OS_Mouse              0x1C
+#define OS_ReadModeVariable   0x35
 #define OS_ReadMonotonicTime  0x42
 #define OS_Pointer            0x64
 #define Wimp_OpenWindow       0x400C5

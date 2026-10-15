@@ -3,7 +3,9 @@
  * handling (SDL_riscosevents.c): quitting from the desktop
  * (Message_PreQuit, Message_Quit), the close icon, the icon bar menu, the
  * keys handed to the Wimp, and key presses and auto-repeat read from the
- * keyboard (OS_Byte 121/129, delay and rate from OS_Byte 196).
+ * keyboard (OS_Byte 121/129, delay and rate from OS_Byte 196), the mouse,
+ * and the pointer kept off the screen's bottom over a full window (so the
+ * icon bar doesn't come forward over a full screen game).
  *
  * The driver file is compiled in here (#include), so its static functions
  * can be given Wimp_Poll blocks directly. The SWIs it calls are recorded by
@@ -69,6 +71,8 @@ static int calls_to(int swi, _kernel_swi_regs *last, RISCOS_Message *message)
 
 #define WINDOW_H 0x1234
 static int fake_ptr_on, fake_ptr[2], fake_ptr_icon = -1;     /* -1: the work area */
+static int fake_vis_x0 = 100, fake_vis_y1 = 900;            /* the window's visible area */
+static unsigned char fake_box[9];                           /* the last OS_Word 21,1 block */
 
 _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
 {
@@ -96,11 +100,18 @@ _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out
         memset((char *)(intptr_t)in->r[1] + 4, 0, sizeof(RISCOS_WindowState) - 4);
         if (fake_ptr_on) {
             RISCOS_WindowState *w = (RISCOS_WindowState *)(intptr_t)in->r[1];
-            w->open.visible.x0 = 100; w->open.visible.y1 = 900;     /* top left, OS units */
+            w->open.visible.x0 = fake_vis_x0; w->open.visible.y1 = fake_vis_y1;  /* top left, OS units */
         }
         break;
     case OS_Mouse:
         out->r[0] = fake_ptr[0]; out->r[1] = fake_ptr[1]; out->r[2] = 0;
+        break;
+    case OS_ReadModeVariable:   /* a 1920x1080 screen, 2 OS units per pixel */
+        out->r[2] = in->r[1] == 11 ? 1919 : in->r[1] == 12 ? 1079 : 1;
+        break;
+    case OS_Word:
+        if (in->r[0] == 21 && *(unsigned char *)(intptr_t)in->r[1] == 1)
+            memcpy(fake_box, (void *)(intptr_t)in->r[1], sizeof fake_box);
         break;
     case OS_ReadMonotonicTime:
         out->r[0] = (int)(ticks / 10);
@@ -171,6 +182,8 @@ SDL_threadID SDL_ThreadID_REAL(void) { return 1; }
 Uint32 SDL_GetTicks_REAL(void) { return ticks; }
 size_t SDL_strlcpy_REAL(char *d, const char *s, size_t n) { snprintf(d, n, "%s", s); return strlen(s); }
 size_t SDL_strlen_REAL(const char *s) { return strlen(s); }
+char *SDL_getenv_REAL(const char *n) { return getenv(n); }
+int SDL_atoi_REAL(const char *s) { return atoi(s); }
 void *SDL_memset_REAL(void *d, int c, size_t n) { return memset(d, c, n); }
 void *SDL_memcpy_REAL(void *d, const void *s, size_t n) { return memcpy(d, s, n); }
 int SDL_SendQuit(void) { n_sdl_quit++; return 1; }
@@ -609,6 +622,97 @@ static void test_mouse(void)
     fake_ptr_on = 0;
 }
 
+/* The mouse's bounding box written last: bottom and top (OS units) */
+static int box_bottom(void) { return (short)(fake_box[3] | fake_box[4] << 8); }
+static int box_right(void) { return (short)(fake_box[5] | fake_box[6] << 8); }
+static int box_top(void) { return (short)(fake_box[7] | fake_box[8] << 8); }
+
+/* Over a full window the pointer is kept 2 pixels above the screen's
+   bottom (the icon bar's auto-front would bring it over the game), the
+   box's bottom edge counts as the bottom row, and the whole screen comes
+   back when the pointer leaves, the window goes, or the mode changes. */
+static void test_pointer_box(void)
+{
+    RISCOS_PollBlock event;
+    int words;
+
+    fake_ptr_on = 1;
+    vdata.xeig = vdata.yeig = 1;
+    vdata.wimp_window = WINDOW_H;
+    vdata.full_window = SDL_TRUE;
+    fake_vis_x0 = 0; fake_vis_y1 = 2160;            /* the whole 1920x1080 screen */
+    window.w = 1920; window.h = 1080;
+    memset(fake_box, 0, sizeof fake_box);
+
+    reset();
+    fake_ptr[0] = 1000; fake_ptr[1] = 1000;
+    RISCOS_PollMouse(&device);
+    CHECK(calls_to(OS_Word, NULL, NULL) == 1 && box_bottom() == 4, "full window: box bottom 2 pixels up (%d)", box_bottom());
+    CHECK(box_right() == 3839 && box_top() == 2159, "the rest the whole screen (%d, %d)", box_right(), box_top());
+    reset();
+    RISCOS_PollMouse(&device);
+    CHECK(calls_to(OS_Word, NULL, NULL) == 0, "written once, not every poll");
+    fake_ptr[1] = 4;                                /* the box's bottom edge */
+    RISCOS_PollMouse(&device);
+    CHECK(mouse.y == 1079, "the box's bottom edge is the bottom row (%d)", mouse.y);
+    fake_ptr[1] = 5;                                /* the same pixel row */
+    RISCOS_PollMouse(&device);
+    CHECK(mouse.y == 1079, "the rest of that pixel row too (%d)", mouse.y);
+    fake_ptr[1] = 6;
+    RISCOS_PollMouse(&device);
+    CHECK(mouse.y == 1076, "the row above it as it is (%d)", mouse.y);
+
+    /* the pointer over something else (a menu, an error box): the whole screen */
+    reset();
+    fake_ptr_icon = -3;
+    RISCOS_PollMouse(&device);
+    CHECK(calls_to(OS_Word, NULL, NULL) == 1 && box_bottom() == 0, "pointer elsewhere: the whole screen (%d)", box_bottom());
+    fake_ptr_icon = -1;
+    reset();
+    RISCOS_PollMouse(&device);
+    CHECK(box_bottom() == 4, "back over the window: raised again (%d)", box_bottom());
+
+    /* a mode change resets the box: the next poll raises it again */
+    reset();
+    SDL_zero(event);
+    event.message.size = 20;
+    event.message.action = 0x400C1;
+    wimp_event(17, &event);
+    RISCOS_PollMouse(&device);
+    CHECK(calls_to(OS_Word, NULL, NULL) == 1 && box_bottom() == 4, "after a mode change: raised again");
+
+    /* the window going (or the program quitting) gives the whole screen back */
+    reset();
+    RISCOS_KeepPointerOffBottom(&device, SDL_FALSE);
+    CHECK(calls_to(OS_Word, NULL, NULL) == 1 && box_bottom() == 0, "window gone: the whole screen");
+    reset();
+    RISCOS_KeepPointerOffBottom(&device, SDL_FALSE);
+    CHECK(calls_to(OS_Word, NULL, NULL) == 0, "and not written again");
+
+    /* an ordinary window: the pointer is never boxed in */
+    reset();
+    vdata.full_window = SDL_FALSE;
+    RISCOS_PollMouse(&device);
+    CHECK(calls_to(OS_Word, NULL, NULL) == 0, "ordinary window: no box");
+
+    /* SDL$PointerMargin 0 turns it off (read once, at the first use: so
+       last, with a fresh margin) */
+    riscos_box_margin = -1;
+    setenv("SDL$PointerMargin", "0", 1);
+    vdata.full_window = SDL_TRUE;
+    reset();
+    RISCOS_PollMouse(&device);
+    CHECK(calls_to(OS_Word, NULL, NULL) == 0, "SDL$PointerMargin 0: no box");
+    unsetenv("SDL$PointerMargin");
+    riscos_box_margin = -1;
+
+    vdata.full_window = SDL_FALSE;
+    vdata.wimp_window = WINDOW;
+    fake_vis_x0 = 100; fake_vis_y1 = 900;
+    window.w = 320; window.h = 240;
+    fake_ptr_on = 0;
+}
+
 static void *run(void *arg)
 {
     (void)arg;
@@ -633,6 +737,7 @@ static void *run(void *arg)
     test_keyboard();
     test_icon_sprite_name();
     test_mouse();
+    test_pointer_box();
     return NULL;
 }
 
