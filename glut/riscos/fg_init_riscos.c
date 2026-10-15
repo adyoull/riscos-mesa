@@ -175,6 +175,7 @@ void fgPlatformCloseDisplay( void )
     SFG_PlatformDisplay *d = &fgDisplay.pDisplay;
     _kernel_swi_regs r;
 
+    fghRiscosKeepPointerOffBottom( 0 );
     if( d->Display != EGL_NO_DISPLAY )
     {
         eglMakeCurrent( d->Display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT );

@@ -82,6 +82,7 @@ extern int fake_wimp_desktop;           /* Wimp_ReadSysInfo 0 reports a desktop 
    OS_Byte 106 calls (pointer on/off) and the internal keys held down
    (OS_Byte 121) */
 extern int fake_pointer[3], fake_wheel, fake_menus_opened, fake_pointer_shape;
+extern int fake_mouse_box[4];   /* OS_Word 21,1: left, bottom, right, top (OS units) */
 extern const int *fake_menu;            /* the last Wimp_CreateMenu block */
 extern unsigned char fake_keys_down[128];
 extern int fake_log_menus;              /* print each menu opened to stderr */

@@ -28,6 +28,7 @@
 #include <GL/freeglut.h>
 
 unsigned int fake_screen_pixel(int x, int y);
+extern int fake_mouse_box[4];
 /* the fake VideoOverlay (../ovl/fake_ovl.c), linked in for OVL=1 */
 int fake_ovl_info(int *w, int *h, int *banks, int *flags, int *shown, int *scale_w, int *scale_h)
     __attribute__((weak));
@@ -75,6 +76,7 @@ static void gm_timer(int v)
     else
         printf("screen top left %06x, bottom right %06x, just above and left of the middle %06x\n",
                tl, br, mid);
+    printf("mouse box bottom %d\n", fake_mouse_box[1]);
 }
 
 /* -- slowtimer / drawtimer -- */
@@ -120,6 +122,7 @@ static void sc_timer(int v)
     /* the window's top left on the screen: GLUT pixels, 2x2 screen pixels each */
     int x = glutGet(GLUT_WINDOW_X) * 2, y = glutGet(GLUT_WINDOW_Y) * 2;
     (void) v;
+    printf("mouse box bottom %d\n", fake_mouse_box[1]);
     printf("screen %dx%d, window %dx%d\n", glutGet(GLUT_SCREEN_WIDTH), glutGet(GLUT_SCREEN_HEIGHT),
            glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT));
     printf("pixels %06x %06x %06x %06x, outside %06x\n",

@@ -543,6 +543,9 @@ static void fghPollPointer( void )
     if( _kernel_swi( Wimp_GetPointerInfo_, &r, &r ) != NULL )
         return;
     under = fghPointerWindow( block[3], block[0], block[1] );
+    /* over a full screen window: keep the pointer off the screen's bottom,
+       or the icon bar comes forward over it (fg_window_riscos.c) */
+    fghRiscosKeepPointerOffBottom( under && fghRiscosTopWindow( under )->State.IsFullscreen );
 
     /* Entry callbacks */
     if( ( under ? under->ID : 0 ) != fghUnderID )

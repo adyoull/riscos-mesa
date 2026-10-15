@@ -19,6 +19,11 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   window closes, on a mode change and when the program exits.
   `*Set SDL$PointerMargin 0` turns it off (or sets the margin in pixels).
   New checks in the sdl-wimp harness (73). Not yet tried on a Pi.
+- **GLUT: the same for game mode and `glutFullScreen` windows.** The
+  pointer stops 2 pixels above the screen's bottom while it is over a full
+  screen GLUT window, and that row counts as the bottom row;
+  `*Set FreeGLUT$PointerMargin 0` turns it off. New glut harness checks.
+  Not yet tried on a Pi.
 
 ## 20.3.5-16: windows the right size on 180 dpi desktops
 

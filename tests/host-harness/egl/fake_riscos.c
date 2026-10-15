@@ -34,6 +34,7 @@ int fake_sprite_creates;
 int fake_force_redraws, fake_force_rect[5], fake_scaled_plots;
 int fake_wimp_nulls, fake_wimp_script[FAKE_SCRIPT_MAX][4], fake_wimp_script_len;
 int fake_pointer[3], fake_wheel, fake_menus_opened, fake_pointer_shape = 1;
+int fake_mouse_box[4] = { 0, 0, 0x7fff, 0x7fff };     /* OS_Word 21,1: left, bottom, right, top */
 const int *fake_menu;
 unsigned char fake_keys_down[128];
 int fake_log_menus;
@@ -243,6 +244,11 @@ static void pointer_to(int x, int y)
     if (!w) return;
     fake_pointer[0] = w->x0 + (x << fake_screen.xeig);
     fake_pointer[1] = w->y1 - (y << fake_screen.yeig) - 1;
+    /* the mouse stays inside its bounding box, as on RISC OS */
+    if (fake_pointer[0] < fake_mouse_box[0]) fake_pointer[0] = fake_mouse_box[0];
+    if (fake_pointer[1] < fake_mouse_box[1]) fake_pointer[1] = fake_mouse_box[1];
+    if (fake_pointer[0] > fake_mouse_box[2]) fake_pointer[0] = fake_mouse_box[2];
+    if (fake_pointer[1] > fake_mouse_box[3]) fake_pointer[1] = fake_mouse_box[3];
 }
 
 /* The window under the pointer: the newest one if it's there, else any */
@@ -546,10 +552,14 @@ static _kernel_oserror *swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
         if (r.r[0] != 2) { e = error("OS_Pointer reason not faked"); break; }
         r.r[0] = 0; r.r[1] = fake_wheel;
         break;
-    case 0x07:      /* OS_Word: 21,3 / 21,5 (set mouse / pointer position) */
+    case 0x07:      /* OS_Word: 21,1 (mouse bounding box), 21,3 / 21,5 (set mouse / pointer position) */
         if (r.r[0] == 21) {
             const unsigned char *b = (const unsigned char *) (long) r.r[1];
-            if (b[0] == 3 || b[0] == 5) {
+            if (b[0] == 1) {
+                int i;
+                for (i = 0; i < 4; i++)
+                    fake_mouse_box[i] = (short) (b[1 + 2 * i] | (b[2 + 2 * i] << 8));
+            } else if (b[0] == 3 || b[0] == 5) {
                 fake_pointer[0] = (short) (b[1] | (b[2] << 8));
                 fake_pointer[1] = (short) (b[3] | (b[4] << 8));
             }

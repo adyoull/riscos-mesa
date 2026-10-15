@@ -157,6 +157,85 @@ static void fghVisibleToGlut( SFG_Window *window, int *x, int *y, int *w, int *h
     }
 }
 
+/* -- Pointer kept off the screen's bottom over a full screen window ------ */
+
+/* The icon bar's "bring to front automatically" option (Configure,
+   Windows) brings it forward when the pointer reaches the bottom of the
+   screen, so it flashed over a full screen window (game mode or
+   glutFullScreen) whenever the pointer went down there. While the pointer
+   is over such a window the mouse's bounding box (OS_Word 21,1) stops a
+   few screen pixels above the bottom, and the lowest row it can reach
+   counts as the bottom row (fghRiscosScreenToClient), so programs still
+   see the pointer reach the bottom edge. The whole screen comes back when
+   the pointer is over anything else, a window closes, the mode changes
+   and at exit. FreeGLUT$PointerMargin sets the margin in screen pixels
+   (default 2, 0 = off). The same as SDL's RISC OS driver does. */
+static int fghBoxRaised;                /* OS units the bottom is raised by, 0 = whole screen */
+static int fghBoxMargin = -1;           /* screen pixels, -1 = not read yet */
+
+static void fghWriteMouseBox( int bottom )
+{
+    int right = ( ( fghModeVariable( 11, 639 ) + 1 ) << fghModeVariable( 4, 1 ) ) - 1;
+    int top = ( ( fghModeVariable( 12, 479 ) + 1 ) << fghModeVariable( 5, 1 ) ) - 1;
+    unsigned char block[9];
+    _kernel_swi_regs r;
+
+    block[0] = 1;                       /* define the mouse's bounding box */
+    block[1] = 0; block[2] = 0;         /* left, bottom, right, top: 16 bits each */
+    block[3] = bottom & 255; block[4] = ( bottom >> 8 ) & 255;
+    block[5] = right & 255;  block[6] = ( right >> 8 ) & 255;
+    block[7] = top & 255;    block[8] = ( top >> 8 ) & 255;
+    r.r[0] = 21;
+    r.r[1] = (int) block;
+    _kernel_swi( OS_Word_, &r, &r );
+}
+
+static void fghRestoreMouseBox( void )
+{
+    if( fghBoxRaised )
+    {
+        fghWriteMouseBox( 0 );
+        fghBoxRaised = 0;
+    }
+}
+
+void fghRiscosKeepPointerOffBottom( int keep )
+{
+    static int at_exit;
+    int raise = 0;
+
+    if( keep )
+    {
+        if( fghBoxMargin < 0 )
+        {
+            const char *v = getenv( "FreeGLUT$PointerMargin" );
+            fghBoxMargin = 2;
+            if( v && *v >= '0' && *v <= '9' )
+            {
+                fghBoxMargin = atoi( v );
+                if( fghBoxMargin > 64 )
+                    fghBoxMargin = 64;
+            }
+        }
+        raise = fghBoxMargin << fghModeVariable( 5, 1 );
+    }
+    if( raise == fghBoxRaised )
+        return;
+    if( raise && !at_exit )
+    {
+        atexit( fghRestoreMouseBox );   /* never leave the desktop's pointer boxed in */
+        at_exit = 1;
+    }
+    fghWriteMouseBox( raise );
+    fghBoxRaised = raise;
+}
+
+/* After a mode change: the OS has reset the box to the new screen */
+void fghRiscosPointerBoxReset( void )
+{
+    fghBoxRaised = 0;
+}
+
 /* Screen position (OS units) to a top-level window's client pixels: its
    render size's if it has one (EGL stretches the frame over the visible
    area), else the screen's. */
@@ -164,7 +243,14 @@ void fghRiscosScreenToClient( SFG_Window *top, int sx, int sy, int *x, int *y )
 {
     const SFG_PlatformWindowState *ws = &top->State.pWState;
     const int *v = ws->Visible;
-    int px = ( sx - v[0] ) >> XEIG, py = ( v[3] - 1 - sy ) >> YEIG;
+    int px, py;
+
+    /* the lowest row the pointer can reach while its box is raised is the
+       screen's bottom row (see fghRiscosKeepPointerOffBottom) */
+    if( fghBoxRaised && sy < fghBoxRaised + ( 1 << fghModeVariable( 5, 1 ) ) )
+        sy = 0;
+    px = ( sx - v[0] ) >> XEIG;
+    py = ( v[3] - 1 - sy ) >> YEIG;
     if( ws->RenderW > 0 )
     {
         int vw = ( v[2] - v[0] ) >> XEIG, vh = ( v[3] - v[1] ) >> YEIG;
@@ -522,6 +608,7 @@ void fghRiscosModeChanged( void )
     int x, y, w, h;
 
     fghRiscosReadScreen( );
+    fghRiscosPointerBoxReset( );
     for( window = (SFG_Window *) fgStructure.Windows.First; window;
          window = (SFG_Window *) window->Node.Next )
     {
@@ -645,6 +732,8 @@ void fgPlatformCloseWindow( SFG_Window* window )
         return;
 
     top = fghRiscosTopWindow( window );
+    if( !window->Parent )
+        fghRiscosKeepPointerOffBottom( 0 );     /* the next poll decides again */
     if( fgStructure.CurrentWindow == window )
         eglMakeCurrent( fgDisplay.pDisplay.Display, EGL_NO_SURFACE, EGL_NO_SURFACE,
                         EGL_NO_CONTEXT );

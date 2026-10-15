@@ -124,6 +124,8 @@ void  fghRiscosPresent( struct tagSFG_Window *window );
 void  fghRiscosReadScreen( void );
 void  fghRiscosTakeFocus( struct tagSFG_Window *window );
 void  fghRiscosScreenToClient( struct tagSFG_Window *top, int sx, int sy, int *x, int *y );
+void  fghRiscosKeepPointerOffBottom( int keep );
+void  fghRiscosPointerBoxReset( void );
 
 /* fg_main_riscos.c */
 int   fghRiscosPointerHidden( void );

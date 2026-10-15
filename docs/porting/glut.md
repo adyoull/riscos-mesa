@@ -68,6 +68,12 @@ saying so.
   window without a title bar that covers the screen. **The screen mode
   isn't changed** (that would change it for every task), and other tasks
   keep running underneath.
+  While the pointer is over it, it stops 2 pixels above the screen's
+  bottom, so the icon bar's "bring to front automatically" option doesn't
+  pop the icon bar over the game; that row counts as the bottom row, so
+  the program still sees the pointer reach the bottom edge
+  (`*Set FreeGLUT$PointerMargin 0` turns this off). Shift-F12 still
+  brings the icon bar forward.
 - **Game mode draws at the resolution the program asks for**
   (`glutGameModeString("640x480")`), stretched over the whole screen, so
   a program asking for 640x480 on a 1920x1080 desktop draws 640x480
