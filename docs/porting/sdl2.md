@@ -40,9 +40,14 @@ context from SDL has no window code to change.
   - `SDL_WINDOW_FULLSCREEN_DESKTOP` gives a *full window*: a borderless
     desktop window covering the screen, as RDPClient's full window mode.
     The program keeps multitasking: other programs (a game server in a
-    TaskWindow, say) keep running, the icon bar pops up at the bottom
-    edge, other windows can open over it, and a click on the game brings
-    it back to the front.
+    TaskWindow, say) keep running, other windows can open over it, and a
+    click on the game brings it back to the front. While the pointer is
+    over the game it stops 2 pixels above the screen's bottom, so the
+    icon bar's "bring to front automatically" option doesn't pop the icon
+    bar over the game; that row counts as the bottom row, so edge
+    scrolling still works (`*Set SDL$PointerMargin 0` turns this off).
+    The icon bar is still reached with Shift-F12 or by moving the pointer onto
+    another window first.
   - `SDL_WINDOW_FULLSCREEN` changes the screen mode and owns the screen:
     the desktop stops until the program goes back to a window. It's the
     faster kind.
