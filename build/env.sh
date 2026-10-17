@@ -1,6 +1,8 @@
 # Source this. Point GCCSDK_ENV at the GCCSDK GCC 10 install (the directory
-# containing bin/arm-riscos-gnueabihf-gcc), e.g. from the OpenTTD buildkit.
-: "${GCCSDK_ENV:=$HOME/gccsdk/env}"
+# containing bin/arm-riscos-gnueabihf-gcc): riscos-crossdev's toolchain
+# ($RISCOS_TOOLCHAIN, set in its container image) is used when GCCSDK_ENV
+# isn't set, else ~/gccsdk/env.
+: "${GCCSDK_ENV:=${RISCOS_TOOLCHAIN:-$HOME/gccsdk/env}}"
 : "${STAGE:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/stage}"   # install prefix for our libs
 : "${SRC:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/src}"      # downloaded sources
 export GCCSDK_ENV STAGE SRC
@@ -40,6 +42,20 @@ fresh_build_dir() {   # dir: starts afresh when the FPU or compiler flags change
   fi
   mkdir -p "$1"
   echo "$RO_FPU $RO_CFLAGS" > "$1/.ro-fpu"
+}
+
+# libtool archives (.la) in a relocated toolchain name the directory it
+# was built in: riscos-crossdev's prebuilt toolchain (the CI image's) has
+# libdir='/opt/b14/...' in libstdc++.la and libm.la, and libtool, finding
+# them for -lstdc++ -lm, fails with "is not a valid libtool archive". Our
+# libraries are static and take nothing from those files, so after
+# configure, keep libtool from looking for them, in the toolchain's
+# directories or the C++ compiler's (-lstdc++ and -lm then go to the
+# compiler driver as they are).
+libtool_ignore_toolchain_la() {   # [path to the generated libtool script]
+  sed -i -e 's|^sys_lib_search_path_spec=.*|sys_lib_search_path_spec=""|' \
+         -e 's|^compiler_lib_search_dirs=.*|compiler_lib_search_dirs=""|' \
+         -e 's|^compiler_lib_search_path=.*|compiler_lib_search_path=""|' "${1:-libtool}"
 }
 
 # Pinned sources: each downloaded tarball's version, URL and SHA-256, in one

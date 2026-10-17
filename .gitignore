@@ -9,3 +9,5 @@ CLAUDE.md
 # never committed
 handoffs/
 *handoff*.md
+# build/ci.sh's meson and Mako
+.ci-tools/

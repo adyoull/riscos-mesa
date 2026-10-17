@@ -1,0 +1,7 @@
+# NAME TAG: the owner's repositories (github.com/adyoull) this one is built
+# with, at a release tag. Read by .github/workflows/riscos-*.yml (from
+# riscos-crossdev's ci/, docs/CI.md): the riscos-crossdev line chooses the
+# container image the build runs in (its toolchain is GCCSDK GCC 10.2 with
+# riscos-unixlib). A daily workflow opens a pull request when one of these
+# makes a newer release.
+riscos-crossdev v1.8.1

@@ -1,0 +1,120 @@
+# Once a day, see whether any repository named in .riscos-deps has a newer
+# release than the one pinned there (riscos-crossdev, riscos-mesa,
+# riscos-ffmpeg, ...). If one has, move the pin, build and test this
+# repository with it in the riscos-crossdev container image, and open a
+# pull request saying what changed and whether the build passed. Nothing
+# changes until you merge it, and nothing is released: test on RISC OS,
+# then release yourself (which in turn lets the repositories that depend on
+# this one see your release).
+#
+# .riscos-deps, at the top of the repository, one line each:
+#   NAME TAG            e.g.  riscos-crossdev v1.8
+# NAME is a repository at github.com/adyoull (or OWNER/NAME for another
+# owner's), TAG its release tag. The riscos-crossdev line also chooses the
+# container image (ghcr.io/adyoull/riscos-crossdev:<TAG without v>).
+#
+# If this repository pins a dependency somewhere else as well (a checksum
+# file, build/env.sh, ...), give it an executable ci/riscos-deps-hook.sh:
+# it's run as `ci/riscos-deps-hook.sh NAME OLD_TAG NEW_TAG` from the top of
+# the repository, before .riscos-deps is changed, to update those files.
+#
+# Copy to .github/workflows/riscos-deps-update.yml; set BUILD as in
+# riscos-build.yml. Needs, in Settings > Actions > General: "Workflow
+# permissions: Read and write" and "Allow GitHub Actions to create and
+# approve pull requests".
+#
+# From riscos-crossdev's ci/ (docs/CI.md). MIT licence.
+name: Dependency updates
+
+on:
+  schedule:
+    - cron: '41 6 * * *'         # every day, 06:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  BUILD: build/ci.sh ci          # the same as in riscos-build.yml
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Newer releases of what .riscos-deps names
+        id: deps
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          : > "$RUNNER_TEMP/changes.md"; hookfail=0
+          cp .riscos-deps "$RUNNER_TEMP/deps.in"
+          while read -r name tag _; do
+            case $name in ''|'#'*) continue;; esac
+            repo=$name; case $repo in */*) ;; *) repo=adyoull/$repo;; esac
+            latest=$(gh api "repos/$repo/releases/latest" --jq .tag_name 2>/dev/null || true)
+            # Only ever forwards: a "latest" release older than the pin
+            # (one marked latest by mistake, say) is left alone.
+            if [ -z "$latest" ] || [ "$latest" = "$tag" ] ||
+               [ "$(printf '%s\n%s\n' "$tag" "$latest" | sort -V | tail -1)" != "$latest" ]; then
+              echo "$name: $tag (latest: ${latest:-no release})"; continue
+            fi
+            echo "$name: $tag -> $latest"
+            if [ -x ci/riscos-deps-hook.sh ] && ! ci/riscos-deps-hook.sh "$name" "$tag" "$latest"; then
+              hookfail=1
+              echo "- **$name: $tag → $latest: \`ci/riscos-deps-hook.sh\` failed**" >> "$RUNNER_TEMP/changes.md"
+            else
+              echo "- $name: $tag → $latest ([release notes](https://github.com/$repo/releases/tag/$latest))" >> "$RUNNER_TEMP/changes.md"
+            fi
+            awk -v n="$name" -v t="$latest" '$1 == n {$2 = t} {print}' .riscos-deps > "$RUNNER_TEMP/deps"
+            cat "$RUNNER_TEMP/deps" > .riscos-deps
+          done < "$RUNNER_TEMP/deps.in"
+          if [ -s "$RUNNER_TEMP/changes.md" ]; then echo "new=true" >> "$GITHUB_OUTPUT"; else echo "new=false" >> "$GITHUB_OUTPUT"; fi
+          echo "hookfail=$hookfail" >> "$GITHUB_OUTPUT"
+          echo "crossdev=$(awk '$1 == "riscos-crossdev" || $1 == "adyoull/riscos-crossdev" {sub(/^v/, "", $2); print $2}' .riscos-deps)" >> "$GITHUB_OUTPUT"
+
+      - name: Build with them (in a copy, so only the pins are committed)
+        id: build
+        if: steps.deps.outputs.new == 'true'
+        continue-on-error: true
+        env:
+          IMAGE: ghcr.io/adyoull/riscos-crossdev:${{ steps.deps.outputs.crossdev }}
+        run: |
+          cp -a . "$RUNNER_TEMP/build"
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$RUNNER_TEMP/build":/src "$IMAGE" \
+            sh -c "$BUILD" 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: The pull request's text
+        if: steps.deps.outputs.new == 'true'
+        env:
+          OUTCOME: ${{ steps.build.outcome }}
+          HOOKFAIL: ${{ steps.deps.outputs.hookfail }}
+        run: |
+          {
+            echo "Newer releases of this repository's dependencies:"
+            echo
+            cat "$RUNNER_TEMP/changes.md"
+            echo
+            if [ "$OUTCOME" = success ] && [ "$HOOKFAIL" = 0 ]; then
+              echo "\`$BUILD\` passed with them, on Linux."
+            else
+              echo "**\`$BUILD\` failed with them.** The end of the output:"
+              echo
+              echo '```'
+              tail -40 "$RUNNER_TEMP/build.log" 2>/dev/null || echo "(no build: see the workflow run)"
+              echo '```'
+            fi
+            echo
+            echo "Nothing has run on RISC OS: merge, test there, then release."
+          } > "$RUNNER_TEMP/body.md"
+
+      - uses: peter-evans/create-pull-request@v8
+        if: steps.deps.outputs.new == 'true'
+        with:
+          branch: riscos-deps-update
+          commit-message: "Dependency updates (.riscos-deps)"
+          title: "Dependency updates"
+          body-path: ${{ runner.temp }}/body.md
+          delete-branch: true

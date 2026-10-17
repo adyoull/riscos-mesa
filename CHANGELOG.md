@@ -24,6 +24,18 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   screen GLUT window, and that row counts as the bottom row;
   `*Set FreeGLUT$PointerMargin 0` turns it off. New glut harness checks.
   Not yet tried on a Pi.
+- **Builds on GitHub, in riscos-crossdev's image.** `build/ci.sh` builds
+  everything from a clean checkout with the image's toolchain (GCCSDK GCC
+  10.2 with riscos-unixlib 5.0.3.3, the same compiler as before), makes
+  the zips and devkit, and runs riscos-crossdev's checks (static linking,
+  stack probes, VFPv3 only, UnixLib) on the test programs.
+  `.github/workflows/riscos-build.yml` runs it on every push;
+  `riscos-deps-update.yml` opens a pull request when riscos-crossdev
+  (named in `.riscos-deps`) makes a new release. With that toolchain's
+  relocated libtool files, libtool is kept from reading the toolchain's
+  `.la` files (`libtool_ignore_toolchain_la` in `build/env.sh`). The
+  libraries built this way render exactly as before (all host tests and
+  the emulated Cortex-A8 checks pass).
 
 ## 20.3.5-16: windows the right size on 180 dpi desktops
 

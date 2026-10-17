@@ -1,0 +1,45 @@
+# A port's build on GitHub, in the riscos-crossdev container image.
+# Copy to .github/workflows/riscos-build.yml in your repository. The image
+# is the one for the riscos-crossdev release named in .riscos-deps at the
+# top of the repository (a line `riscos-crossdev v1.8`; see
+# riscos-deps-update.yml). Change BUILD to your build and test command, and
+# ARTIFACTS to what it makes.
+#
+# From riscos-crossdev's ci/ (docs/CI.md). MIT licence.
+name: RISC OS build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  BUILD: build/ci.sh ci          # everything, the release zips and devkit (named "ci"), checks
+  ARTIFACTS: dist/*-ci.*         # the devkit .tgz and the zips
+
+jobs:
+  pin:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.pin.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: pin
+        run: |
+          v=$(awk '$1 == "riscos-crossdev" || $1 == "adyoull/riscos-crossdev" {sub(/^v/, "", $2); print $2}' .riscos-deps)
+          [ -n "$v" ] || { echo ".riscos-deps has no riscos-crossdev line" >&2; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: pin
+    runs-on: ubuntu-24.04
+    container: ghcr.io/adyoull/riscos-crossdev:${{ needs.pin.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build, check and test
+        run: ${{ env.BUILD }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: riscos-build
+          path: ${{ env.ARTIFACTS }}
+          if-no-files-found: warn

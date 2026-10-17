@@ -1,7 +1,9 @@
 # Building GCCSDK GCC 10.2.0 (arm-riscos-gnueabihf) from source
 
-You only need this if you don't already have a GCCSDK GCC 10 install (e.g. the
-OpenTTD buildkit). It follows GCCSDK's autobuilder recipe
+riscos-mesa's releases and its GitHub builds use riscos-crossdev's
+toolchain (GCCSDK GCC 10.2 with riscos-unixlib 5.0.3.3), in its container
+image (`build/ci.sh`; README "Build"). You only need what follows if you
+want a GCCSDK GCC 10 install of your own. It follows GCCSDK's autobuilder recipe
 `autobuilder/develop/gcc/setvars` with two deviations, both marked below.
 
 1. binutils 2.30 + GCCSDK's `.pp` patches and RISC OS emulation files, then

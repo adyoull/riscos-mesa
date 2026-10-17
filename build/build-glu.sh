@@ -15,4 +15,5 @@ fresh_build_dir build-ro && cd build-ro
 OSMESA_CFLAGS="-I$STAGE/include" OSMESA_LIBS="-L$STAGE/lib -lOSMesa -lstdc++ -lz -lm" \
 CFLAGS="$RO_CFLAGS" CXXFLAGS="$RO_CFLAGS" \
   ../configure --host=$HOST --prefix="$STAGE" --enable-osmesa --disable-shared --enable-static
+libtool_ignore_toolchain_la
 make -j"$(nproc)" && make install

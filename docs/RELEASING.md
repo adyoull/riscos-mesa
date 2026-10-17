@@ -31,11 +31,19 @@ binaries go on the release, never into git.
 
 ## 3. Build
 
+In riscos-crossdev's image (the toolchain `.riscos-deps` names), as the
+GitHub build does:
+
+    docker run --rm -v "$PWD":/src ghcr.io/adyoull/riscos-crossdev:1.8.1 build/ci.sh 20.3.5-N
+
+or with a toolchain of your own:
+
     export GCCSDK_ENV=/path/to/gccsdk/env
     build/build-all.sh 20.3.5-N
 
 This builds everything in order (logs in `stage/logs/`) and packages
-`dist/`:
+`dist/` (`build/ci.sh` then runs riscos-crossdev's checks on the test
+programs):
 
 | File | Contents |
 | --- | --- |
@@ -54,11 +62,33 @@ RISC OS with SparkFS or `unzip`.
     git commit -m "Release 20.3.5-N"          # the CHANGELOG and version changes
     git tag -a v20.3.5-N -m "riscos-mesa 20.3.5-N"
     git push origin main v20.3.5-N
-    gh release create v20.3.5-N --title "riscos-mesa 20.3.5-N: ..." \
+    gh release create v20.3.5-N --latest --title "riscos-mesa 20.3.5-N: ..." \
         --notes-file RELEASE-NOTES-20.3.5-N.md dist/*-20.3.5-N.*
+
+The devkit must keep its name, `riscos-mesa-devkit-20.3.5-N.tgz` on tag
+`v20.3.5-N`: riscos-crossdev's `toolchain/deps-hook.sh` downloads it by
+that name when its daily workflow sees the release. Only releases marked
+"latest" are seen, so publish test builds and release candidates with
+`--prerelease`.
 
 Then start a new `## 20.3.5-(N+1) (in development)` section at the top of
 `CHANGELOG.md` for the next changes.
+
+## The GitHub build and dependency updates
+
+`.github/workflows/riscos-build.yml` runs `build/ci.sh` in riscos-crossdev's
+image on every push and pull request and keeps the zips and devkit as a
+download on the run's page. `riscos-deps-update.yml` runs daily: when the
+riscos-crossdev release named in `.riscos-deps` has a newer one, it builds
+with it and opens a pull request saying whether that passed. Nothing is
+merged or released by itself. Both need, in Settings > Actions > General,
+"Workflow permissions: Read and write" and "Allow GitHub Actions to create
+and approve pull requests" (riscos-crossdev's `docs/CI.md`).
+
+riscos-crossdev in turn pins this repository's devkit, so a riscos-mesa
+release gives crossdev a pull request, and the crossdev release after it
+gives riscos-mesa one. While crossdev's toolchain hasn't changed, that one
+changes nothing here: merge or close it.
 
 ## 5. Tell people
 

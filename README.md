@@ -170,6 +170,18 @@ The zips store RISC OS filetypes. Releases are numbered after the Mesa version t
 
 ## Build (Linux, GCCSDK GCC 10 installed)
 
+The simplest way is riscos-crossdev's container image, which has the
+compiler (GCCSDK GCC 10.2 with riscos-unixlib): from a clean checkout,
+
+    docker run --rm -v "$PWD":/src ghcr.io/adyoull/riscos-crossdev:1.8.1 build/ci.sh [VERSION]
+
+builds everything, makes the release zips and devkit in `dist/` and runs
+riscos-crossdev's checks on the test programs. GitHub runs the same
+(`.github/workflows/riscos-build.yml`); `.riscos-deps` names the
+riscos-crossdev release it uses, and a daily workflow
+(`riscos-deps-update.yml`) opens a pull request when there's a newer one.
+With a toolchain of your own:
+
     export GCCSDK_ENV=/path/to/gccsdk/env   # has bin/arm-riscos-gnueabihf-gcc
     build/build-all.sh [VERSION]            # everything below, in order
 
@@ -191,8 +203,10 @@ changing only `egl/`, say, run `build-egl.sh` and the steps after it):
     build/package.sh VERSION # the release zips and devkit -> dist/
 
 Everything installs into `stage/`. No GCCSDK GCC 10 yet? See
-[build/TOOLCHAIN.md](build/TOOLCHAIN.md). The host needs meson, ninja,
-python3-mako, bison, flex, autoconf, automake, libtool and cmake.
+[build/TOOLCHAIN.md](build/TOOLCHAIN.md), or use riscos-crossdev's
+(`$RISCOS_TOOLCHAIN`). The host needs meson, ninja, python3-mako, bison,
+flex, autoconf, automake, libtool and cmake (`build/ci.sh` installs meson
+and Mako itself if they're missing).
 
 **Working on riscos-mesa itself:** [docs/DECISIONS.md](docs/DECISIONS.md)
 explains why things are the way they are (Mesa 20.3.5, EGL as the API,

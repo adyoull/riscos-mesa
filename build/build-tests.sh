@@ -39,7 +39,10 @@ $CC $RO_CFLAGS $GL -static "$H/render-etc1.c" -o "$STAGE/tests/etc1check,e1f" $L
 $CC $RO_CFLAGS $GL -static "$H/glsl-es2compat.c" -o "$STAGE/tests/es2check,e1f" $LIBS
 # VideoOverlay (hardware overlay) tests for the Pi: plain C, no GL
 $CC $RO_CFLAGS -static "$T/ovltest.c" "$T/hrtime.c" -o "$STAGE/tests/ovltest,e1f"
-for f in "$STAGE"/tests/*,e1f; do $STRIP "$f"; done
+# Unstripped copies for checking (build/ci.sh runs riscos-crossdev's
+# checks on them: stack probes and UnixLib need the symbols); not packaged
+rm -rf "$STAGE/elf"; mkdir -p "$STAGE/elf"
+for f in "$STAGE"/tests/*,e1f; do cp "$f" "$STAGE/elf/"; $STRIP "$f"; done
 cp "$T/ReadMe,fff" "$T"/egl-*,feb "$T"/dmx-*,feb "$T"/gles-*,feb "$T"/al-*,feb "$T"/ovl-*,feb "$T"/sdl-*,feb "$T"/gl-*,feb "$STAGE/tests/"
 # UnixLib 5.0.1's PThreadTicker module, which al-tone loads for altest's
 # threads (OpenAL mixes in SDL's audio thread)

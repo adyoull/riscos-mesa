@@ -47,4 +47,5 @@ for b in SDL_ARM_SIMD_BLITTERS SDL_ARM_NEON_BLITTERS; do
   grep -q "define $b 1" include/SDL_config.h || { echo "$b NOT enabled"; exit 1; }
 done
 grep -q "define SDL_VIDEO_RENDER_OGL 1" include/SDL_config.h && { echo "SDL GL renderer enabled - must stay off"; exit 1; }
+libtool_ignore_toolchain_la
 make -j"$(nproc)" && make install
