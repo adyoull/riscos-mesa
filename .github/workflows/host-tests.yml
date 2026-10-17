@@ -17,13 +17,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install the host tools
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential meson ninja-build python3-mako \
-            bison flex autoconf automake libtool cmake git curl valgrind zlib1g-dev
+            bison flex autoconf automake libtool cmake git curl valgrind zlib1g-dev \
+            python3-numpy
 
       - name: Cache the sources and the host Mesa build
         uses: actions/cache@v4
@@ -39,7 +40,7 @@ jobs:
 
       - name: Keep the logs if something failed
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: host-test-logs
           path: |

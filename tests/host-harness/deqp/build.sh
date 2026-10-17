@@ -45,7 +45,7 @@ cp "$HERE"/tcuRiscos*.cpp "$HERE"/tcuRiscos*.hpp "$CTS/framework/platform/riscos
 # The EGL under test, with the fake RISC OS, as one static library
 E=$R/tests/host-harness/egl
 mkdir -p "$OUT/egl"
-F="-no-pie -fno-pie -O1 -g -w -std=gnu99 -I$E/fake -I$E -I$R/dispmanx -I$R/dispmanx/include -I$R/egl/include -I$M/include"
+F="-no-pie -fno-pie -O1 -g -w -std=gnu99 -DEGL_RISCOS_HOST -I$E/fake -I$E -I$R/dispmanx -I$R/dispmanx/include -I$R/egl/include -I$M/include"
 gcc $F -c "$R/egl/egl_riscos.c" -o "$OUT/egl/egl_riscos.o"
 gcc $F -c "$E/fake_riscos.c" -o "$OUT/egl/fake_riscos.o"
 rm -f "$OUT/egl/libegl_riscos_fake.a"

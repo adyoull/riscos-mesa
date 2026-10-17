@@ -27,7 +27,7 @@ heap in one arena, and the tests run on a thread whose stack is at 1.5 GB.
        -Dplatforms= -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled>
     (with patches/mesa applied: the ES tests need OSMESA_ES1/ES2_PROFILE)
     O=$M/build/src/mesa/drivers/osmesa; X=../../../dispmanx
-    F="-no-pie -O1 -w -std=gnu99 -Ifake -I$X/include -I$X -I../../../egl/include -I$M/include"
+    F="-no-pie -O1 -w -std=gnu99 -DEGL_RISCOS_HOST -Ifake -I$X/include -I$X -I../../../egl/include -I$M/include"
     gcc $F -D__riscos__ -c harness_es.c $X/bcm_host.c
     gcc -no-pie -O1 -w -std=gnu99 -I../ovl/fake -I. -Ifake -c ../ovl/fake_ovl.c
     gcc $F harness.c harness_ovl.c fake_riscos.c fake_ovl.o ../../../egl/egl_riscos.c harness_es.o bcm_host.o \

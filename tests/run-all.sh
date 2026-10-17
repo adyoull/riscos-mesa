@@ -96,7 +96,7 @@ gen_check() {
 egl_harness() {
     cd "$H/egl" || return 1
     local X=$R/dispmanx
-    local F="-no-pie -O1 -w -std=gnu99 -Ifake -I$X/include -I$X -I$R/egl/include -I$M/include"
+    local F="-no-pie -O1 -w -std=gnu99 -DEGL_RISCOS_HOST -Ifake -I$X/include -I$X -I$R/egl/include -I$M/include"
     gcc $F -D__riscos__ -c harness_es.c -o "$OUT/harness_es.o" &&
     gcc $F -D__riscos__ -c "$X/bcm_host.c" -o "$OUT/bcm_host.o" &&
     gcc -no-pie -O1 -w -std=gnu99 -I"$H/ovl/fake" -I. -Ifake -c "$H/ovl/fake_ovl.c" -o "$OUT/fake_ovl.o" &&
@@ -109,10 +109,10 @@ sdl_harness() {
     local S=$SRC/SDL-release-2.26.0
     [ -f "$S/src/video/riscos/SDL_riscosopengl.c" ] || { echo "no patched SDL in $S (run build/build-sdl2.sh)"; return 1; }
     cd "$H" || return 1
-    local SF="-no-pie -O1 -w -std=gnu99 -DSDL_VIDEO_DRIVER_RISCOS=1 -DSDL_VIDEO_OPENGL=1 \
+    local SF="-no-pie -O1 -w -std=gnu99 -DEGL_RISCOS_HOST -DSDL_VIDEO_DRIVER_RISCOS=1 -DSDL_VIDEO_OPENGL=1 \
         -DSDL_VIDEO_OPENGL_OSMESA=1 -I$S/include -I$S/src/video/riscos -I$S/src/video \
         -I$S/src -Iegl/fake -Iegl -I$R/egl/include -I$M/include -include $S/src/SDL_internal.h"
-    local EF="-no-pie -O1 -w -std=gnu99 -Iegl/fake -I$R/dispmanx/include -I$R/dispmanx -I$R/egl/include -I$M/include"
+    local EF="-no-pie -O1 -w -std=gnu99 -DEGL_RISCOS_HOST -Iegl/fake -I$R/dispmanx/include -I$R/dispmanx -I$R/egl/include -I$M/include"
     gcc $SF -c harness.c -o "$OUT/sdl-harness.o" &&
     gcc $SF -c "$S/src/video/riscos/SDL_riscosopengl.c" -o "$OUT/sdl-gl.o" &&
     gcc $EF -c "$R/egl/egl_riscos.c" -o "$OUT/sdl-egl.o" &&

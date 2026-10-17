@@ -89,9 +89,11 @@ typedef int EGLNativeDisplayType;
 typedef int EGLNativePixmapType;
 typedef int EGLNativeWindowType;
 
-#elif defined(__riscos__)
+#elif defined(__riscos__) || defined(EGL_RISCOS_HOST)
 
-/* RISC OS (riscos-mesa, see egl/README.md):
+/* RISC OS (riscos-mesa, see egl/README.md). EGL_RISCOS_HOST picks these
+ * types on another machine: riscos-mesa's host tests build the library on
+ * Linux against a stand-in RISC OS (tests/host-harness).
  *   display: 0 (EGL_DEFAULT_DISPLAY) = the screen.
  *   window:  a Wimp window handle, or -1 (EGL_RISCOS_SCREEN_WINDOW) for the
  *            whole screen (full screen / single tasking).
