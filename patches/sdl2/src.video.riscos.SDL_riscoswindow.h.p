@@ -1,7 +1,7 @@
 diff --git src/video/riscos/SDL_riscoswindow.h src/video/riscos/SDL_riscoswindow.h
 --- src/video/riscos/SDL_riscoswindow.h
 +++ src/video/riscos/SDL_riscoswindow.h
-@@ -30,10 +30,67 @@ typedef struct
+@@ -30,10 +30,79 @@ typedef struct
      SDL_Window *window;
      sprite_area *fb_area;
      sprite_header *fb_sprite;
@@ -18,6 +18,18 @@ diff --git src/video/riscos/SDL_riscoswindow.h src/video/riscos/SDL_riscoswindow
 +    int egl_handle;             /* its native window: the Wimp window, or -1 (the screen) */
 +    int egl_rw, egl_rh;         /* the render size it was given */
 +    int gl_pending;             /* a finished frame waits for a vsync (overlay) */
++    /* 2026: a software framebuffer shown through EGL (fb_egl;
++       SDL_HINT_RISCOS_FB_*): the program draws into fb_buf (window->w x
++       window->h, fb_pitch bytes a row); each update copies the changed
++       rectangles into the EGL surface (egl_surface, made without a
++       context and written through EGL_KHR_lock_surface) and shows it.
++       fb_dirty: the union of the rectangles not shown yet (x0, y0, x1, y1;
++       empty when x0 >= x1), when a frame is held for a vsync. */
++    int fb_egl;
++    void *fb_config;            /* the EGLConfig for its surface */
++    void *fb_buf;
++    int fb_pitch;
++    int fb_dirty[4];
 +    /* 2026: render size (SDL_HINT_RISCOS_GL_RENDER_SIZE). When render_w is
 +       set, window->w/h is the render size (what the program sees) and
 +       disp_w/h is the size the program asked for: the desktop window's

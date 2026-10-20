@@ -2,7 +2,7 @@ diff --git src/video/riscos/SDL_riscosopengl.c src/video/riscos/SDL_riscosopengl
 new file mode 100644
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.c
-@@ -0,0 +1,815 @@
+@@ -0,0 +1,1035 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -276,9 +276,14 @@ new file mode 100644
 +{
 +    SDL_WindowData *data = (SDL_WindowData *) window->driverdata;
 +    int w, h;
-+    if (!data || !(window->flags & SDL_WINDOW_OPENGL) ||
-+        !RISCOS_GL_ParseSize(SDL_GetHint(SDL_HINT_RISCOS_GL_RENDER_SIZE), &w, &h))
++    if (!data)
 +        return;
++    if (window->flags & SDL_WINDOW_OPENGL) {
++        if (!RISCOS_GL_ParseSize(SDL_GetHint(SDL_HINT_RISCOS_GL_RENDER_SIZE), &w, &h))
++            return;
++    } else if (!RISCOS_GL_ParseSize(SDL_GetHint(SDL_HINT_RISCOS_FB_RENDER_SIZE), &w, &h)) {
++        return;                         /* a software framebuffer's render size */
++    }
 +    data->render_w = w;
 +    data->render_h = h;
 +    data->disp_w = window->w;           /* what the program asked for */
@@ -571,6 +576,217 @@ new file mode 100644
 +    return 0;
 +}
 +
++/* ---- software framebuffers through EGL ---- */
++
++/* SDL_GetWindowSurface / SDL_UpdateWindowSurface(Rects) for a window that
++   asks for it (SDL_HINT_RISCOS_FB_RENDER_SIZE or _FB_OVERLAY): the program
++   draws into ordinary memory (fb_buf, the window's size, which is the
++   render size when one is set); each update copies the changed rectangles
++   into an EGL window surface and shows them. EGL does the rest as for a GL
++   window: the hardware overlay where there is one (it scales the picture),
++   else the sprite plot (stretched by OS_SpriteOp 52 when the render size
++   isn't the window's), redraws, overlays hidden under menus and windows,
++   mode changes. The surface is made with no GL context and written with
++   EGL_KHR_lock_surface; the program's own buffer stays put, whatever EGL
++   does with its own. */
++
++SDL_bool
++RISCOS_FB_Wanted(SDL_Window *window)
++{
++    int w, h;
++    const char *ovl;
++    if (window->flags & SDL_WINDOW_OPENGL)
++        return SDL_FALSE;
++    if (RISCOS_GL_ParseSize(SDL_GetHint(SDL_HINT_RISCOS_FB_RENDER_SIZE), &w, &h))
++        return SDL_TRUE;
++    ovl = SDL_GetHint(SDL_HINT_RISCOS_FB_OVERLAY);
++    return (ovl && *ovl && SDL_GetStringBoolean(ovl, SDL_FALSE)) ? SDL_TRUE : SDL_FALSE;
++}
++
++/* An EGL config for the framebuffer: a lockable window surface in the
++   screen's colour order */
++static EGLConfig
++RISCOS_FB_Config(SDL_Window *window)
++{
++    static const EGLint want[] = {
++        EGL_SURFACE_TYPE, EGL_WINDOW_BIT | EGL_LOCK_SURFACE_BIT_KHR,
++        EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
++        EGL_DEPTH_SIZE, 0, EGL_STENCIL_SIZE, 0,
++        EGL_NONE
++    };
++    EGLConfig cfgs[16];
++    EGLint n = 0, i, v, visual = RISCOS_GL_Visual(window);
++    if (!eglChooseConfig(gl_dpy, want, cfgs, 16, &n))
++        return NULL;
++    for (i = 0; i < n; i++)
++        if (eglGetConfigAttrib(gl_dpy, cfgs[i], EGL_NATIVE_VISUAL_ID, &v) && v == visual)
++            return cfgs[i];
++    return n > 0 ? cfgs[0] : NULL;
++}
++
++/* The window's EGL surface on the right target (its desktop window, or the
++   screen) at the program's size; *made is set when a new one was made */
++static int
++RISCOS_FB_EnsureSurface(_THIS, SDL_Window *window, int *made)
++{
++    SDL_WindowData *data = (SDL_WindowData *) window->driverdata;
++    int handle = RISCOS_GL_Target(_this, window);
++    const char *ovl;
++    EGLint attrs[8];
++    int n = 0;
++    EGLSurface surf;
++
++    *made = 0;
++    if (data->egl_surface && data->egl_handle == handle &&
++        data->egl_rw == window->w && data->egl_rh == window->h)
++        return 0;
++    RISCOS_GL_DestroySurface(window);
++    attrs[n++] = EGL_RENDER_WIDTH_RISCOS;  attrs[n++] = window->w;
++    attrs[n++] = EGL_RENDER_HEIGHT_RISCOS; attrs[n++] = window->h;
++    ovl = SDL_GetHint(SDL_HINT_RISCOS_FB_OVERLAY);
++    if (handle >= 0 && ovl && *ovl) {
++        attrs[n++] = EGL_OVERLAY_RISCOS;
++        attrs[n++] = SDL_GetStringBoolean(ovl, SDL_FALSE) ? EGL_TRUE : EGL_FALSE;
++    }
++    attrs[n] = EGL_NONE;
++    surf = eglCreateWindowSurface(gl_dpy, (EGLConfig) data->fb_config,
++                                  (EGLNativeWindowType) handle, attrs);
++    if (surf == EGL_NO_SURFACE)
++        return SDL_SetError("eglCreateWindowSurface failed (0x%x)", (unsigned) eglGetError());
++    data->egl_surface = surf;
++    data->egl_config = data->fb_config;
++    data->egl_handle = handle;
++    data->egl_rw = window->w;
++    data->egl_rh = window->h;
++    data->gl_pending = 0;
++    *made = 1;
++    return 0;
++}
++
++int
++RISCOS_FB_Create(_THIS, SDL_Window *window, Uint32 *format, void **pixels, int *pitch)
++{
++    SDL_WindowData *data = (SDL_WindowData *) window->driverdata;
++    EGLConfig cfg;
++    EGLint visual = 0;
++    int made;
++
++    if (!RISCOS_FB_Wanted(window) || RISCOS_GL_Display() < 0)
++        return 0;
++    RISCOS_FB_Destroy(window);
++    if (!(cfg = RISCOS_FB_Config(window)))
++        return 0;
++    eglGetConfigAttrib(gl_dpy, cfg, EGL_NATIVE_VISUAL_ID, &visual);
++    data->fb_pitch = window->w * 4;
++    data->fb_buf = SDL_calloc(1, (size_t) data->fb_pitch * window->h);
++    if (!data->fb_buf)
++        return 0;
++    data->fb_config = cfg;
++    if (RISCOS_FB_EnsureSurface(_this, window, &made) < 0) {
++        SDL_free(data->fb_buf);         /* not possible: the ordinary framebuffer */
++        data->fb_buf = NULL;
++        data->fb_config = NULL;
++        SDL_ClearError();
++        return 0;
++    }
++    data->fb_egl = 1;
++    data->gl_egl = 1;                   /* the pointer maps onto the render size */
++    data->fb_dirty[0] = data->fb_dirty[1] = 0;
++    data->fb_dirty[2] = data->fb_dirty[3] = 0;
++    /* EGL's colour orders: 0x00BBGGRR or 0x00RRGGBB */
++    *format = visual == EGL_RISCOS_VISUAL_TRGB ? SDL_PIXELFORMAT_XRGB8888 : SDL_PIXELFORMAT_XBGR8888;
++    *pixels = data->fb_buf;
++    *pitch = data->fb_pitch;
++    return 1;
++}
++
++/* Show what has changed (fb_dirty): copy it into the surface, swap */
++static void
++RISCOS_FB_Show(SDL_Window *window)
++{
++    SDL_WindowData *data = (SDL_WindowData *) window->driverdata;
++    static const EGLint lock[] = { EGL_LOCK_USAGE_HINT_KHR, EGL_WRITE_SURFACE_BIT_KHR, EGL_NONE };
++    int *d = data->fb_dirty, y;
++    EGLAttribKHR dst = 0, dpitch = 0;
++    EGLint damage[4];
++
++    data->gl_pending = 0;
++    if (d[0] >= d[2] || d[1] >= d[3])
++        return;
++    if (!eglLockSurfaceKHR(gl_dpy, data->egl_surface, lock))
++        return;
++    if (eglQuerySurface64KHR(gl_dpy, data->egl_surface, EGL_BITMAP_POINTER_KHR, &dst) &&
++        eglQuerySurface64KHR(gl_dpy, data->egl_surface, EGL_BITMAP_PITCH_KHR, &dpitch) && dst) {
++        for (y = d[1]; y < d[3]; y++)
++            SDL_memcpy((Uint8 *) dst + (size_t) y * dpitch + d[0] * 4,
++                       (Uint8 *) data->fb_buf + (size_t) y * data->fb_pitch + d[0] * 4,
++                       (size_t) (d[2] - d[0]) * 4);
++    }
++    eglUnlockSurfaceKHR(gl_dpy, data->egl_surface);
++    /* (damage rectangles are from the bottom left) */
++    damage[0] = d[0];
++    damage[1] = window->h - d[3];
++    damage[2] = d[2] - d[0];
++    damage[3] = d[3] - d[1];
++    d[0] = d[1] = d[2] = d[3] = 0;
++    eglSwapBuffersWithDamageKHR(gl_dpy, data->egl_surface, damage, 1);
++}
++
++int
++RISCOS_FB_Update(_THIS, SDL_Window *window, const SDL_Rect *rects, int numrects)
++{
++    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
++    SDL_WindowData *data = (SDL_WindowData *) window->driverdata;
++    int *d = data->fb_dirty, i, made;
++
++    if (!data->fb_egl)
++        return 0;
++    /* full screen <-> window, or a new size: a new surface, all of it to show */
++    if (RISCOS_FB_EnsureSurface(_this, window, &made) < 0)
++        return 1;
++    if (made || numrects <= 0) {
++        d[0] = 0; d[1] = 0; d[2] = window->w; d[3] = window->h;
++    } else {
++        for (i = 0; i < numrects; i++) {
++            int x0 = SDL_max(rects[i].x, 0), y0 = SDL_max(rects[i].y, 0);
++            int x1 = SDL_min(rects[i].x + rects[i].w, window->w);
++            int y1 = SDL_min(rects[i].y + rects[i].h, window->h);
++            if (x0 >= x1 || y0 >= y1)
++                continue;
++            if (d[0] >= d[2] || d[1] >= d[3]) {
++                d[0] = x0; d[1] = y0; d[2] = x1; d[3] = y1;
++            } else {
++                d[0] = SDL_min(d[0], x0); d[1] = SDL_min(d[1], y0);
++                d[2] = SDL_max(d[2], x1); d[3] = SDL_max(d[3], y1);
++            }
++        }
++    }
++    /* Through an overlay EGL would wait for a vsync if a frame was shown
++       less than one ago: don't stop the desktop, hold the frame and show
++       it from the event loop (RISCOS_GL_Idle) once one has passed, with
++       anything drawn meanwhile. (Only on the event loop's thread.) */
++    if (SDL_ThreadID() == vdata->main_thread && eglSwapWouldWaitRISCOS(gl_dpy, data->egl_surface)) {
++        data->gl_pending = 1;
++        return 1;
++    }
++    RISCOS_FB_Show(window);
++    return 1;
++}
++
++void
++RISCOS_FB_Destroy(SDL_Window *window)
++{
++    SDL_WindowData *data = (SDL_WindowData *) window->driverdata;
++    if (!data || !data->fb_egl)
++        return;
++    RISCOS_GL_DestroySurface(window);
++    SDL_free(data->fb_buf);
++    data->fb_buf = NULL;
++    data->fb_egl = 0;
++    data->gl_egl = 0;
++    data->fb_config = NULL;
++}
++
 +/* ---- the sprite path ---- */
 +
 +static SDL_GLContext
@@ -732,7 +948,11 @@ new file mode 100644
 +    data = (SDL_WindowData *) window->driverdata;
 +    if (!data || !data->egl_surface || data->egl_handle != vdata->wimp_window)
 +        return 0;
-+    if (run && data->gl_pending) {
++    if (run && data->gl_pending && data->fb_egl) {
++        /* a held software frame: show it once a vsync has passed */
++        if (!eglSwapWouldWaitRISCOS(gl_dpy, data->egl_surface))
++            RISCOS_FB_Show(window);
++    } else if (run && data->gl_pending) {
 +        /* a held frame: show it once a vsync has passed (only while its
 +           surface is still the one being drawn to) */
 +        if (eglGetCurrentSurface(EGL_DRAW) != data->egl_surface) {

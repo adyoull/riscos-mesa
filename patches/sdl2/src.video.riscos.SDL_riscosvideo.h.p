@@ -9,7 +9,7 @@ diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
  
  #define RISCOS_MAX_KEYS_PRESSED 6
  
-@@ -31,8 +32,85 @@ typedef struct SDL_VideoData
+@@ -31,8 +32,96 @@ typedef struct SDL_VideoData
  {
      int last_mouse_buttons;
      Uint8 key_pressed[RISCOS_MAX_KEYS_PRESSED];
@@ -85,6 +85,17 @@ diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
 +   render size or "1" for the overlay also select it; otherwise GL renders
 +   into the window's sprite, as before) */
 +#define SDL_HINT_RISCOS_GL_EGL "SDL_RISCOS_GL_EGL"
++/* 2026: the same for software framebuffers (SDL_GetWindowSurface /
++   SDL_UpdateWindowSurface): SDL_RISCOS_FB_RENDER_SIZE "WxH" makes the
++   window surface the program draws into WxH, stretched to fill the window
++   (or the screen); SDL_RISCOS_FB_OVERLAY "1" shows it through a hardware
++   overlay (the Pi's VideoOverlay) where there is one, which also does the
++   stretching, "0" refuses one. Either one shows the surface through EGL
++   (SDL_riscosopengl.c); without them nothing changes. A full screen
++   window is then a full window (overlays need a Wimp window). Also as
++   system variables of those names, read when a window is made. */
++#define SDL_HINT_RISCOS_FB_RENDER_SIZE "SDL_RISCOS_FB_RENDER_SIZE"
++#define SDL_HINT_RISCOS_FB_OVERLAY "SDL_RISCOS_FB_OVERLAY"
 +
 +extern void RISCOS_ApplyPointerVisibility(_THIS);
 +extern void RISCOS_WimpPlotWindow(_THIS, SDL_Window *window, RISCOS_Redraw *redraw, int more);

@@ -5,8 +5,9 @@
    VideoOverlay (ovl/fake_ovl.c), and drives it the way SDL does: a desktop
    window, a render size (SDL_RISCOS_GL_RENDER_SIZE), redraws, full screen
    and back, the other colour order, an overlay (SDL_RISCOS_GL_OVERLAY) with
-   frames held for a vsync, OpenGL ES, and the pacing of swap interval 1.
-   See README.md. */
+   frames held for a vsync, OpenGL ES, and the pacing of swap interval 1;
+   then software framebuffers shown through EGL (SDL_RISCOS_FB_RENDER_SIZE,
+   SDL_RISCOS_FB_OVERLAY). See README.md. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,8 +50,13 @@ int SDL_GetCurrentDisplayMode(int i, SDL_DisplayMode *m) {
     m->driverdata = (void *) (intptr_t) (1 | (90 << 1) | (90 << 14) | (6 << 27));  /* the screen's sprite mode */
     return 0;
 }
-static const char *hint_size, *hint_ovl, *hint_egl;
+static const char *hint_size, *hint_ovl, *hint_egl, *hint_fbsize, *hint_fbovl;
+void SDL_ClearError(void) { errbuf[0] = 0; }
+#undef SDL_memcpy
+void *SDL_memcpy_REAL(void *d, const void *s, size_t n) { return memcpy(d, s, n); }
 const char *SDL_GetHint(const char *name) {
+    if (!strcmp(name, SDL_HINT_RISCOS_FB_RENDER_SIZE)) return hint_fbsize;
+    if (!strcmp(name, SDL_HINT_RISCOS_FB_OVERLAY)) return hint_fbovl;
     if (!strcmp(name, SDL_HINT_RISCOS_GL_RENDER_SIZE)) return hint_size;
     if (!strcmp(name, SDL_HINT_RISCOS_GL_OVERLAY)) return hint_ovl;
     if (!strcmp(name, SDL_HINT_RISCOS_GL_EGL)) return hint_egl;
@@ -359,6 +365,121 @@ static void *run(void *arg)
     RISCOS_GL_DestroyWindowBuffer(&win);
     CHECK(!wd->egl_surface && fake_ovl_live() == 0 && fake_ovl_errors() == 0,
           "window destroyed: surface gone, VideoOverlay used by the rules");
+
+    /* ---- software framebuffers through EGL (SDL_RISCOS_FB_*) ---- */
+    {
+        SDL_Window fw; SDL_WindowData *fd;
+        Uint32 fmt = 0; void *pix = NULL; int pitch = 0, x, y;
+        unsigned *p;
+        SDL_Rect r;
+        memset(&fw, 0, sizeof fw);
+        fd = SDL_calloc(1, sizeof *fd); fd->window = &fw;
+        fw.driverdata = fd; fw.w = 200; fw.h = 160; fw.flags = 0;
+        vd.wimp_window = 0x6000; vd.wimp_sdl_window = &fw;
+        cur_win = &fw;
+
+        CHECK(!RISCOS_FB_Wanted(&fw) && RISCOS_FB_Create(&dev, &fw, &fmt, &pix, &pitch) == 0 && !fd->fb_egl,
+              "framebuffer, no hints: the ordinary framebuffer");
+        hint_fbsize = "100x80";
+        RISCOS_GL_ApplyRenderSize(&fw);
+        CHECK(fw.w == 100 && fw.h == 80 && fd->disp_w == 200 && fd->disp_h == 160 && RISCOS_FB_Wanted(&fw),
+              "FB render size: the program sees 100x80, the desktop window stays 200x160");
+        CHECK(RISCOS_FB_Create(&dev, &fw, &fmt, &pix, &pitch) == 1 && pix && pitch == 400 &&
+              fmt == SDL_PIXELFORMAT_XBGR8888 && fd->fb_egl && fd->gl_egl &&
+              fd->egl_surface && fd->egl_handle == 0x6000,
+              "FB: a 100x80 XBGR buffer in ordinary memory, an EGL surface on the window (%s)", errbuf);
+        p = pix;
+        for (y = 0; y < 80; y++)
+            for (x = 0; x < 100; x++)
+                p[y * 100 + x] = y < 40 ? 0x000000FFu : 0x00FF0000u;   /* red top, blue bottom */
+        wipe(); sp = fake_scaled_plots;
+        CHECK(RISCOS_FB_Update(&dev, &fw, NULL, 0) == 1, "FB update");
+        CHECK(fake_scaled_plots > sp && px(WX + 5, WY + 5) == 0x0000FF && px(WX + 195, WY + 75) == 0x0000FF &&
+              px(WX + 5, WY + 85) == 0xFF0000 && px(WX + 195, WY + 155) == 0xFF0000 &&
+              px(WX - 1, WY + 5) == 0 && px(WX + 200, WY + 5) == 0,
+              "FB: stretched 2x over the whole window (%06X %06X)", px(WX + 195, WY + 75), px(WX + 195, WY + 155));
+        /* a rectangle: only it is copied (a change outside it isn't shown) */
+        for (y = 10; y < 20; y++)
+            for (x = 10; x < 20; x++)
+                p[y * 100 + x] = 0x0000FF00u;
+        p[60 * 100 + 60] = 0x0000FF00u;
+        r.x = 10; r.y = 10; r.w = 10; r.h = 10;
+        wipe();
+        RISCOS_FB_Update(&dev, &fw, &r, 1);
+        CHECK(px(WX + 30, WY + 30) == 0x00FF00 && px(WX + 5, WY + 5) == 0x0000FF &&
+              px(WX + 121, WY + 121) == 0xFF0000,
+              "FB: one rectangle copied, the rest as before (%06X %06X)", px(WX + 30, WY + 30), px(WX + 121, WY + 121));
+        r.x = 55; r.y = 55; r.w = 100; r.h = 100;     /* clipped to the buffer */
+        RISCOS_FB_Update(&dev, &fw, &r, 1);
+        CHECK(px(WX + 121, WY + 121) == 0x00FF00, "FB: a rectangle past the edge is clipped, and shown");
+        wipe();
+        block[0] = 0x6000;
+        CHECK(RISCOS_GL_Redraw(&dev, &fw, block) && px(WX + 30, WY + 30) == 0x00FF00 && px(WX + 195, WY + 155) == 0xFF0000,
+              "FB: Redraw_Window_Request redraws the last picture");
+        CHECK(RISCOS_GL_Idle(&dev, SDL_FALSE) == 0, "FB, no overlay: the event loop isn't woken");
+
+        /* the other colour order */
+        fake_set_screen(640, 480, 1, 5);
+        screen_format = SDL_PIXELFORMAT_XRGB8888;
+        CHECK(RISCOS_FB_Create(&dev, &fw, &fmt, &pix, &pitch) == 1 && fmt == SDL_PIXELFORMAT_XRGB8888,
+              "FB in an XRGB mode: an XRGB8888 buffer");
+        p = pix;
+        for (y = 0; y < 80; y++)
+            for (x = 0; x < 100; x++)
+                p[y * 100 + x] = 0x00FF0000u;                          /* red, XRGB */
+        wipe();
+        RISCOS_FB_Update(&dev, &fw, NULL, 0);
+        CHECK(px(WX + 5, WY + 5) == 0xFF0000, "XRGB: red is 0xFF0000 (%06X)", px(WX + 5, WY + 5));
+        fake_set_screen(640, 480, 0, 5);
+        screen_format = SDL_PIXELFORMAT_XBGR8888;
+
+        /* an overlay: made at the render size, scaled to the window, frames
+           held for a vsync and shown by the event loop */
+        fake_ovl_init();
+        hint_fbovl = "1";
+        CHECK(RISCOS_FB_Create(&dev, &fw, &fmt, &pix, &pitch) == 1, "FB with an overlay");
+        p = pix;
+        for (y = 0; y < 80; y++)
+            for (x = 0; x < 100; x++)
+                p[y * 100 + x] = 0x0000FF00u;
+        for (n = 0; n < 3; n++) { fake_vsyncs++; RISCOS_FB_Update(&dev, &fw, NULL, 0); }
+        fake_ovl_info(&w, &h, NULL, NULL, &shown, &sw, &sh);
+        CHECK(fake_ovl_live() == 1 && w == 100 && h == 80 && sw == 200 && sh == 160 && shown >= 0,
+              "FB overlay: 100x80, scaled to 200x160 (%dx%d -> %dx%d)", w, h, sw, sh);
+        n = fake_ovl_displays; delays = 0; sp = fake_vsyncs;
+        r.x = 0; r.y = 0; r.w = 5; r.h = 5;
+        p[0] = 0x000000FFu;
+        RISCOS_FB_Update(&dev, &fw, &r, 1);              /* no vsync since the last switch */
+        CHECK(fd->gl_pending == 1 && fake_ovl_displays == n && delays == 0 && fake_vsyncs == sp,
+              "FB overlay, no vsync since the last switch: frame held, no wait");
+        CHECK(RISCOS_GL_Idle(&dev, SDL_FALSE) == 1, "FB: the event loop is asked to come back soon");
+        RISCOS_GL_Idle(&dev, SDL_TRUE);
+        CHECK(fd->gl_pending == 1 && fake_ovl_displays == n, "FB: still no vsync, still held");
+        fake_vsyncs++;
+        RISCOS_GL_Idle(&dev, SDL_TRUE);
+        CHECK(fd->gl_pending == 0 && fake_ovl_displays == n + 1, "FB: a vsync later the event loop shows it");
+        fake_thread = 2; n = fake_ovl_displays; fake_vsyncs++;
+        RISCOS_FB_Update(&dev, &fw, NULL, 0);
+        CHECK(fd->gl_pending == 0 && fake_ovl_displays == n + 1, "FB: another thread's update isn't held");
+        fake_thread = 1;
+
+        /* full screen keeps the Wimp window; a desktop window going away
+           (a mode change, say) moves the surface at the next update */
+        vd.wimp_window = 0; vd.wimp_sdl_window = NULL;
+        RISCOS_FB_Update(&dev, &fw, &r, 1);
+        CHECK(fd->egl_handle == -1 && fake_ovl_live() == 0 && px(20, 20) == 0x00FF00 && px(2, 2) == 0x0000FF && px(634, 474) == 0x00FF00,
+              "FB without a desktop window: the whole picture stretched to the screen (%06X)", px(634, 474));
+        vd.wimp_window = 0x6000; vd.wimp_sdl_window = &fw;
+        RISCOS_FB_Update(&dev, &fw, &r, 1);
+        CHECK(fd->egl_handle == 0x6000, "FB: back in the window");
+
+        RISCOS_FB_Destroy(&fw);
+        CHECK(!fd->fb_egl && !fd->fb_buf && !fd->egl_surface && !fd->gl_egl && fake_ovl_live() == 0,
+              "FB destroyed: buffer, surface and overlay gone");
+        hint_fbovl = NULL; hint_fbsize = NULL;
+        SDL_free(fd);
+        CHECK(fake_ovl_errors() == 0, "FB: VideoOverlay used by the rules");
+    }
     printf("%s\n", fails ? "FAILURES" : "ALL CHECKS PASSED");
     return NULL;
 }

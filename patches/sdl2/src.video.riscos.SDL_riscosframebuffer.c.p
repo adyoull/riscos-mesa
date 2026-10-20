@@ -1,7 +1,15 @@
 diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosframebuffer.c
 --- src/video/riscos/SDL_riscosframebuffer.c
 +++ src/video/riscos/SDL_riscosframebuffer.c
-@@ -40,6 +40,11 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
+@@ -26,6 +26,7 @@
+ #include "SDL_riscosframebuffer_c.h"
+ #include "SDL_riscosvideo.h"
+ #include "SDL_riscoswindow.h"
++#include "SDL_riscosopengl.h"
+ 
+ #include <kernel.h>
+ #include <swis.h>
+@@ -40,9 +41,20 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
      SDL_DisplayMode mode;
      int size;
  
@@ -13,7 +21,16 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
      /* Free the old framebuffer surface */
      RISCOS_DestroyWindowFramebuffer(_this, window);
  
-@@ -53,6 +58,26 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
++#if SDL_VIDEO_OPENGL_OSMESA
++    /* 2026: shown through EGL (a hardware overlay, a render size), if the
++       program asked for it and it can be had */
++    if (RISCOS_FB_Create(_this, window, format, pixels, pitch))
++        return 0;
++#endif
+     /* Create a new one */
+     SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(window), &mode);
+     if ((SDL_ISPIXELFORMAT_PACKED(mode.format) || SDL_ISPIXELFORMAT_ARRAY(mode.format))) {
+@@ -53,6 +65,26 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
          sprite_mode = (1 | (90 << 1) | (90 << 14) | (6 << 27));
      }
  
@@ -40,7 +57,7 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
      /* Calculate pitch */
      *pitch = (((window->w * SDL_BYTESPERPIXEL(*format)) + 3) & ~3);
  
-@@ -88,32 +113,176 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
+@@ -88,32 +120,183 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
      return 0;
  }
  
@@ -207,6 +224,10 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 +{
 +    SDL_WindowData *driverdata = (SDL_WindowData *) window->driverdata;
 +
++#if SDL_VIDEO_OPENGL_OSMESA
++    if (driverdata && driverdata->fb_egl)
++        return RISCOS_FB_Update(_this, window, rects, numrects) ? 0 : -1;
++#endif
 +    if (RISCOS_IsWindowed((SDL_VideoData *)_this->driverdata) &&
 +        ((SDL_VideoData *) _this->driverdata)->wimp_sdl_window == window) {
 +        return RISCOS_WimpUpdateFramebuffer(_this, window, rects, numrects);
@@ -225,6 +246,9 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 +    if (driverdata->gl_active)
 +        return;             /* 2026: the GL sprite is freed by the GL code */
 +    driverdata->fb_direct = 0;
++#if SDL_VIDEO_OPENGL_OSMESA
++    RISCOS_FB_Destroy(window);
++#endif
 +
      if (driverdata->fb_area) {
          SDL_free(driverdata->fb_area);

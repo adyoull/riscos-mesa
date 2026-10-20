@@ -1,7 +1,7 @@
 diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow.c
 --- src/video/riscos/SDL_riscoswindow.c
 +++ src/video/riscos/SDL_riscoswindow.c
-@@ -24,16 +24,404 @@
+@@ -24,16 +24,410 @@
  
  #include "SDL_version.h"
  #include "SDL_syswm.h"
@@ -290,6 +290,12 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    const char *hint = SDL_GetHint(SDL_HINT_RISCOS_FULLSCREEN_WINDOW);
 +    if (hint && *hint)
 +        return (*hint != '0') ? SDL_TRUE : SDL_FALSE;
++#if SDL_VIDEO_OPENGL_OSMESA
++    /* a framebuffer shown through EGL (a hardware overlay needs a Wimp
++       window to be attached to) */
++    if (RISCOS_FB_Wanted(window))
++        return SDL_TRUE;
++#endif
 +    return ((window->flags & SDL_WINDOW_FULLSCREEN_DESKTOP) == SDL_WINDOW_FULLSCREEN_DESKTOP)
 +           ? SDL_TRUE : SDL_FALSE;
 +}
@@ -406,7 +412,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
      SDL_WindowData *driverdata;
  
      driverdata = (SDL_WindowData *) SDL_calloc(1, sizeof(*driverdata));
-@@ -41,21 +429,283 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
+@@ -41,21 +435,283 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
          return SDL_OutOfMemory();
      }
      driverdata->window = window;
@@ -694,7 +700,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
      if (!driverdata)
          return;
  
-@@ -63,6 +713,70 @@ RISCOS_DestroyWindow(_THIS, SDL_Window * window)
+@@ -63,6 +719,70 @@ RISCOS_DestroyWindow(_THIS, SDL_Window * window)
      window->driverdata = NULL;
  }
  

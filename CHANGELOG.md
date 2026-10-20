@@ -36,6 +36,20 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   `.la` files (`libtool_ignore_toolchain_la` in `build/env.sh`). The
   libraries built this way render exactly as before (all host tests and
   the emulated Cortex-A8 checks pass).
+- **SDL: software framebuffers through EGL, with a render size and the
+  hardware overlay** (asked for by VCMI). With
+  `SDL_RISCOS_FB_RENDER_SIZE` (`WxH`) and/or `SDL_RISCOS_FB_OVERLAY` (`1`)
+  set (hints or system variables), a window without `SDL_WINDOW_OPENGL`
+  gets a window surface of the render size in ordinary memory; each
+  `SDL_UpdateWindowSurface(Rects)` copies the changed area into a lockable
+  EGL window surface (`EGL_KHR_lock_surface3`, no GL context) and shows it
+  with `eglSwapBuffersWithDamageKHR`: through a VideoOverlay overlay,
+  scaled by the display, or else stretched by the sprite plot. Mouse and
+  window sizes are in the render size; frames that would wait for a vsync
+  are held and shown by the event loop; full screen keeps a Wimp window;
+  if no EGL surface can be made the ordinary framebuffer is used. Without
+  the hints nothing changes, and the no-GL build (OpenTTD) has none of it.
+  New checks in the SDL host harness. Not yet tried on a Pi.
 
 ## 20.3.5-16: windows the right size on 180 dpi desktops
 

@@ -178,6 +178,33 @@ second drawing at full size, 134 drawing at 640x480, and 214 drawing at
   and menus over the game, full screen and screen mode changes have only
   been tested on a PC against a stand-in for the Pi's display.
 
+### The same for software-drawn games (`SDL_GetWindowSurface`)
+
+Games that draw into SDL's window surface (or use SDL's software
+renderer) can have both too, with two other hints (or system variables):
+
+```c
+SDL_SetHint("SDL_RISCOS_FB_RENDER_SIZE", "800x600");   /* the surface is 800x600 */
+SDL_SetHint("SDL_RISCOS_FB_OVERLAY", "1");             /* use an overlay if there is one */
+window = SDL_CreateWindow("Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                          1600, 1200, 0);
+surface = SDL_GetWindowSurface(window);                /* 800x600, ordinary memory */
+```
+
+The surface stays in ordinary memory at the render size (32 bits a pixel,
+in the screen's colour order); `SDL_UpdateWindowSurface` and
+`SDL_UpdateWindowSurfaceRects` copy what changed (the rectangles' bounding
+box) to riscos-mesa's EGL, which shows it through an overlay, or else
+plots it stretched over the window. As for GL, the program sees the
+render size everywhere (window size, events, the mouse), held frames are
+shown by the next `SDL_PollEvent`, full screen keeps a multitasking
+full screen window, and anything that doesn't work out (no EGL surface)
+leaves the ordinary framebuffer. `SDL_RISCOS_FB_OVERLAY` on its own
+gives the overlay at the window's size. Without either hint software
+windows work exactly as before, and SDL built without GL (OpenTTD's
+build) has none of this. So far tested only on a PC against stand-ins
+for RISC OS and the Pi's display.
+
 ## Step by step
 
 1. **Link riscos-mesa's SDL2 and Mesa:**

@@ -2,7 +2,7 @@ diff --git src/video/riscos/SDL_riscosopengl.h src/video/riscos/SDL_riscosopengl
 new file mode 100644
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.h
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,64 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -44,8 +44,17 @@ new file mode 100644
 +extern void RISCOS_GL_DestroyWindowBuffer(SDL_Window *window);
 +/* 2026: the EGL path's surface only (the desktop window is going) */
 +extern void RISCOS_GL_DestroySurface(SDL_Window *window);
-+/* 2026: render size (SDL_HINT_RISCOS_GL_RENDER_SIZE) for a new GL window */
++/* 2026: render size (SDL_HINT_RISCOS_GL_RENDER_SIZE) for a new GL window,
++   SDL_HINT_RISCOS_FB_RENDER_SIZE for any other */
 +extern void RISCOS_GL_ApplyRenderSize(SDL_Window *window);
++/* 2026: software framebuffers shown through EGL (SDL_HINT_RISCOS_FB_*):
++   whether the window asks for it; make its framebuffer (1: made, 0: not
++   asked for or not possible, use the ordinary one); show the changed
++   rectangles (1: done); free it. */
++extern SDL_bool RISCOS_FB_Wanted(SDL_Window *window);
++extern int RISCOS_FB_Create(_THIS, SDL_Window *window, Uint32 *format, void **pixels, int *pitch);
++extern int RISCOS_FB_Update(_THIS, SDL_Window *window, const SDL_Rect *rects, int numrects);
++extern void RISCOS_FB_Destroy(SDL_Window *window);
 +/* 2026: a Redraw_Window_Request for a GL window: 1 if handled */
 +extern int RISCOS_GL_Redraw(_THIS, SDL_Window *window, void *redraw_block);
 +/* 2026: between frames (PumpEvents): show a frame held for a vsync, keep an
