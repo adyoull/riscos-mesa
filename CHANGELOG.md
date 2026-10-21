@@ -67,6 +67,20 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     - every overlay buffer shown holds the whole current picture.
 
   Not yet tried on a Pi.
+- **A Pi test for software framebuffers: `sdlfbtest`** in the tests zip.
+  It draws squares moving over a grid into SDL's window surface and
+  sends only the changed rectangles, as 2D games do. It reports the
+  frame rate and the time spent in the update call. At the end it checks
+  that its own picture is right, so anything wrong on the screen is in
+  showing it.
+
+  Obey files run it five ways: `sdl-fb-plain` (the ordinary framebuffer),
+  `sdl-fb-plot` (stretched by the sprite plot), `sdl-fb-overlay`,
+  `sdl-fb-whole` (the whole picture each frame) and `sdl-fb-full` (full
+  screen through an overlay).
+
+  The ReadMe says what to look for: slivers left behind the squares, and
+  ghosts after a menu has been over the overlay. Also checked in CI.
 
 ## 20.3.5-16: windows the right size on 180 dpi desktops
 

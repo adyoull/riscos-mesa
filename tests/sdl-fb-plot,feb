@@ -1,0 +1,4 @@
+| riscos-mesa SDL test: a 400x300 software picture stretched over a 1024x768 window by the sprite plot.
+| Look for coloured slivers left behind the squares. Results in SDLFBplot.
+Dir <Obey$Dir>
+Run sdlfbtest 1024 768 -S 400x300 -N -t 30 -o SDLFBplot

@@ -1,0 +1,5 @@
+| riscos-mesa SDL test: a 640x360 software picture full screen through a hardware overlay (a "full window").
+| F: back to a window and full screen again. Results in SDLFBfull.
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+Dir <Obey$Dir>
+Run sdlfbtest 1024 768 -S 640x360 -V -f -t 30 -o SDLFBfull

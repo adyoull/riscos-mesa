@@ -1,0 +1,5 @@
+| riscos-mesa SDL test: as sdl-fb-overlay, but the whole picture is updated every frame, to compare.
+| Results in SDLFBwhole.
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+Dir <Obey$Dir>
+Run sdlfbtest 1024 768 -S 400x300 -V -a -t 30 -o SDLFBwhole

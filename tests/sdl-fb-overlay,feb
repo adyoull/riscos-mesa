@@ -1,0 +1,5 @@
+| riscos-mesa SDL test: a 400x300 software picture stretched over a 1024x768 window by a hardware overlay.
+| Open a menu over it now and then: no ghosts or jumping squares after it closes. Results in SDLFBovl.
+RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+Dir <Obey$Dir>
+Run sdlfbtest 1024 768 -S 400x300 -V -t 30 -o SDLFBovl

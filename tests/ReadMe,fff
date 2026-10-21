@@ -90,6 +90,34 @@ Run in this order and note the output:
    frame a key was held gave a repeat. Escape quits; the events are in
    KeyLog.
 
+6d. sdlfbtest  (new in 20.3.5-17)
+   SDL's software framebuffer (SDL_GetWindowSurface, as 2D games such as
+   VCMI, fheroes2 and Julius draw) shown through EGL: the picture drawn at
+   a render size, stretched to the window by a hardware overlay or the
+   sprite plot, and only the changed rectangles sent each frame. Small
+   squares with white edges move over a grid. Each Obey file runs for 30
+   seconds (Escape stops it sooner) and saves a summary: fps and the time
+   spent in the update call. The title shows the same while it runs.
+     sdl-fb-plain    1024x768 the old way (SDL's ordinary framebuffer)
+     sdl-fb-plot     400x300 stretched over 1024x768 by the sprite plot
+     sdl-fb-overlay  the same through a hardware overlay
+     sdl-fb-whole    as sdl-fb-overlay, the whole picture sent each frame
+     sdl-fb-full     640x360 full screen through an overlay; F goes back
+                     to a window and to full screen again
+   What to look for:
+   - Coloured slivers or bits of white edge left on the grid behind the
+     squares (sdl-fb-plot especially): the plot missed an edge.
+   - Squares that flicker, jump back or leave ghosts, most likely just
+     after something was over the picture (sdl-fb-overlay: open a menu
+     over it, e.g. the Filer's, or drag a window across it, and close
+     it): an overlay buffer wasn't brought up to date.
+   - The grid should be even and fill the window, full screen too.
+   The summary's last line says whether the program's own picture was
+   right at the end (it should be), so anything wrong on the screen is in
+   showing it. A key A switches between rectangles and whole-picture
+   updates while it runs. Please send the five summaries (SDLFBplain,
+   SDLFBplot, SDLFBovl, SDLFBwhole, SDLFBfull) and anything you saw.
+
 7. egltest  (the new EGL library)
    The egl-* Obey files run each case with a double-click and save the
    results next to them (eglcheck, eglwindow, eglfull, ...).

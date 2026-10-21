@@ -1,0 +1,4 @@
+| riscos-mesa SDL test: a 1024x768 software window the old way (SDL's ordinary framebuffer), to compare.
+| Squares move over a grid for 30 seconds; the title shows fps. Results in SDLFBplain.
+Dir <Obey$Dir>
+Run sdlfbtest 1024 768 -t 30 -o SDLFBplain

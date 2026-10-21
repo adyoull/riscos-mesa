@@ -25,6 +25,9 @@ $CC $RO_CFLAGS $GL -static "$T/prof.c"       -o "$STAGE/tests/prof,e1f"       $L
 # SDL's 2D drawing speed (no window), for comparing SDL builds
 [ -f "$STAGE/lib/libSDL2.a" ] && $CC $RO_CFLAGS $GL -I"$STAGE/include/SDL2" -static "$T/sdlblitbench.c" "$T/hrtime.c" \
     -o "$STAGE/tests/sdlblitbench,e1f" -lSDL2 -lEGL $LIBS
+# SDL's software framebuffer through EGL (render size, overlay, rectangles)
+[ -f "$STAGE/lib/libSDL2.a" ] && $CC $RO_CFLAGS $GL -I"$STAGE/include/SDL2" -static "$T/sdlfbtest.c" "$T/hrtime.c" \
+    -o "$STAGE/tests/sdlfbtest,e1f" -lSDL2 -lEGL $LIBS
 # SDL's key events: one press, repeats only at the keyboard's delay and rate
 [ -f "$STAGE/lib/libSDL2.a" ] && $CC $RO_CFLAGS $GL -I"$STAGE/include/SDL2" -static "$T/sdlkeys.c" \
     -o "$STAGE/tests/sdlkeys,e1f" -lSDL2 -lEGL $LIBS

@@ -51,7 +51,7 @@ echo "meson $(meson --version), Mako $(python3 -c 'import mako; print(mako.__ver
 if [ -n "${RCD_DIR:-}" ] && [ -x "$RCD_DIR/checks/check-all.sh" ]; then
   S=${STAGE:-$R/stage}
   libs=$(ls "$S"/lib/lib{OSMesa,EGL,GLU,SDL2}.a 2>/dev/null || true)
-  for p in glbench egltest glestest sdlgltest; do
+  for p in glbench egltest glestest sdlgltest sdlfbtest; do
     f=$(ls "$S"/elf/$p,e1f 2>/dev/null | head -1)
     [ -n "$f" ] || { echo "no $p to check" >&2; exit 1; }
     "$RCD_DIR/checks/check-all.sh" "$f" $libs
