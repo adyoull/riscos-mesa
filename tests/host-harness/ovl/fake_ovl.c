@@ -14,6 +14,9 @@
  * (not BGR565), YV12, YV16, NV12; plane strides are wider than a row, to
  * catch code that ignores them. A mode change (User_Message 0x400C1 in
  * the script) destroys every overlay, as the driver does.
+ * Create/Vet without R2 bit 0 ("must scale") give the overlay's own size
+ * as the only size it can be shown at, which is what a Pi 4 seems to do:
+ * EGL asking without it plotted every scaled surface (20.3.5-12 to -17h).
  * FAKE_OVL_VET_BROKEN=1: every Vet fails, as on the Pi (VideoOverlay 0.02).
  * FAKE_OVL_GPU_BYTES=<n>: MapBuffer fails once the buffers would need more
  * (the Pi with Geminus loaded couldn't map a third 1920x1080 buffer).
@@ -117,7 +120,12 @@ static _kernel_oserror *parse(const int *s, int banks_default, fovl_t *o)
 static void limits(const fovl_t *o, _kernel_swi_regs *r)
 {
     const char *l = getenv("FAKE_OVL_LIMITS");
+    int must_scale = r->r[2] & 1;
     r->r[1] = o->type;
+    if (!must_scale) {                  /* only its own size */
+        r->r[2] = o->w; r->r[3] = o->h; r->r[4] = o->w; r->r[5] = o->h;
+        return;
+    }
     r->r[2] = 1; r->r[3] = 1; r->r[4] = 4096; r->r[5] = 4096;
     if (l)
         sscanf(l, "%d,%d,%d,%d", &r->r[2], &r->r[3], &r->r[4], &r->r[5]);

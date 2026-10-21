@@ -89,6 +89,21 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   the overlay wasn't in use. SDL now keeps the framebuffer's EGL surface
   as the window's data `"SDL_RISCOS_FB_EGLSurface"`, so a program can ask
   EGL (`EGL_OVERLAY_RISCOS`).
+- **Fixed: hardware overlays weren't used for scaled pictures** (render
+  sizes, window scales), from 20.3.5-12. On a Pi 4 sdl-scaled said
+  "plotted", and so did all of sdlfbtest's overlay runs. EGL made its
+  overlays without VideoOverlay_Create's "must scale" flag (R2 bit 0).
+  Since -12, EGL checks the sizes Create says the overlay can be shown
+  at, and without the flag those seem to be just the overlay's own size,
+  so every scaled surface was plotted instead. ovltest, whose Pi results
+  the code was based on, always set the flag. EGL now sets it. The fake
+  VideoOverlay in the host tests now behaves the same way, so the old
+  code fails 29 host checks.
+- **`EGL$OverlayStatus`**: EGL notes how the last overlay-backed surface
+  was shown, or why it was plotted (VideoOverlay not loaded, Create
+  refused, a size the overlay can't be shown at, too big).
+  `*Show EGL$OverlayStatus` after running a program. sdlfbtest's summary
+  includes it.
 
 ## 20.3.5-16: windows the right size on 180 dpi desktops
 

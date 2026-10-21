@@ -12,6 +12,8 @@
 #ifndef EGL_INTERNAL_H
 #define EGL_INTERNAL_H
 
+#include <stdarg.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -132,6 +134,9 @@
 #endif
 #ifndef OS_ScreenMode
 #define OS_ScreenMode       0x65
+#endif
+#ifndef OS_SetVarVal
+#define OS_SetVarVal        0x24
 #endif
 #ifndef OS_SWINumberFromString
 #define OS_SWINumberFromString 0x39

@@ -228,6 +228,11 @@ static void report(FILE *f, const char *how, int win_w, int win_h, int pic_w, in
         if (st->shown[i])
             fprintf(f, " %s %.0f%%", shown_name[i], st->frames ? 100.0 * st->shown[i] / st->frames : 0.0);
     fprintf(f, "\n");
+    {
+        const char *why = getenv("EGL$OverlayStatus");     /* set by EGL, from 20.3.5-17i */
+        if (why)
+            fprintf(f, "  EGL$OverlayStatus: %s\n", why);
+    }
     fprintf(f, "  timer: %s\n", hr_source());
     if (bad)
         fprintf(f, "  FAIL: %ld pixels of the program's own picture are wrong (a fault in sdlfbtest)\n", bad);

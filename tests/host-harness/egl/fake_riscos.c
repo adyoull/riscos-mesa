@@ -494,6 +494,14 @@ static _kernel_oserror *swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
         r.r[2] = (int) strlen(v);
         break;
     }
+    case 0x24:      /* OS_SetVarVal (r4 = 4, literal string): into the host's environment */
+        if (r.r[4] != 4 || r.r[2] < 0) { e = error("SetVarVal type not faked"); break; }
+        {
+            char v[256];
+            snprintf(v, sizeof v, "%.*s", r.r[2], (const char *) (long) r.r[1]);
+            setenv((const char *) (long) r.r[0], v, 1);
+        }
+        break;
     case 0x42:      /* OS_ReadMonotonicTime: centiseconds */
         r.r[0] = fake_time_us >= 0 ? (int) (fake_time_us / 10000) : fake_wimp_polls * 2;
         break;

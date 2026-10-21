@@ -60,6 +60,11 @@
 #define OVL_WARMUP   3          /* swaps in a row before an overlay is made */
 #define OVL_GAP_CS   25         /* ... each at most this long after the last */
 #define OVL_TYPE_BASIC 1        /* VideoOverlay_Create's type: on top of everything */
+/* VideoOverlay_Create R2 bit 0: the overlay must be able to scale. Without
+   it the sizes Create says the overlay can be shown at (R2-R5 on exit) may
+   be just its own size, and EGL then plots every scaled surface: what
+   happened on a Pi 4 from 20.3.5-12 to -17h (ovltest always set it). */
+#define OVL_CREATE_MUST_SCALE 1
 /* The largest overlay EGL makes: at most 2048 pixels each way (the Pi's
    overlays), and no more pixels than 2048x1200. Each buffer is 32bpp, so
    that's under 10 MB a buffer, 30 MB for three. riscos-ffmpeg found that a
@@ -134,6 +139,29 @@ static int ovl_user_setting(void)
 
 /* Does this surface want an overlay? Opt-in: the program asks with
    EGL_OVERLAY_RISCOS = EGL_TRUE, or the user sets EGL$Overlay on. */
+/* EGL$OverlayStatus: how the last overlay-backed surface is shown, and why
+   when it isn't ("*Show EGL$OverlayStatus" after running a program). Only
+   set when it changes. */
+static void ovl_status(const char *fmt, ...)
+{
+    static char last[128];
+    char text[128];
+    va_list a;
+    _kernel_swi_regs r;
+    va_start(a, fmt);
+    vsnprintf(text, sizeof text, fmt, a);
+    va_end(a);
+    if (strcmp(text, last) == 0)
+        return;
+    strcpy(last, text);
+    r.r[0] = (int) "EGL$OverlayStatus";
+    r.r[1] = (int) text;
+    r.r[2] = (int) strlen(text);
+    r.r[3] = 0;
+    r.r[4] = 4;                                 /* a literal string */
+    _kernel_swi(OS_SetVarVal, &r, &r);
+}
+
 static int ovl_wanted(const egl_surface *surf)
 {
     int user = ovl_user_setting();
@@ -204,10 +232,12 @@ static int ovl_create(egl_surface *surf, const screen_info *s)
         sel[11] = -1;
         r.r[0] = (int) sel;
         r.r[1] = (surf->w << 16) | surf->h;
-        r.r[2] = 0;
+        r.r[2] = OVL_CREATE_MUST_SCALE;     /* render sizes and window scales */
         r.r[3] = task;
-        if (_kernel_swi(OVL_SWI(CREATE), &r, &r) != NULL)
+        if (_kernel_swi(OVL_SWI(CREATE), &r, &r) != NULL) {
+            ovl_status("plotted: VideoOverlay_Create refused %dx%d", surf->w, surf->h);
             return 0;                   /* can't have one of this size or format */
+        }
         surf->ovl_id = r.r[0];
         surf->ovl_type = r.r[1] & 0xFF;
         surf->ovl_min_w = r.r[2]; surf->ovl_min_h = r.r[3];   /* the sizes it can be */
@@ -251,8 +281,11 @@ static int ovl_place(egl_surface *surf, const window_state *ws, const screen_inf
     /* A size the overlay said it can't be shown at (Create's R2-R5) would
        be shown wrongly with no error, so plot instead */
     if (dw < surf->ovl_min_w || dh < surf->ovl_min_h ||
-        (surf->ovl_max_w > 0 && dw > surf->ovl_max_w) || (surf->ovl_max_h > 0 && dh > surf->ovl_max_h))
+        (surf->ovl_max_w > 0 && dw > surf->ovl_max_w) || (surf->ovl_max_h > 0 && dh > surf->ovl_max_h)) {
+        ovl_status("plotted: the overlay can't be shown at %dx%d (only %dx%d to %dx%d)",
+                   dw, dh, surf->ovl_min_w, surf->ovl_min_h, surf->ovl_max_w, surf->ovl_max_h);
         return 0;
+    }
     if (surf->ovl_placed[0] == ws->scroll_x && surf->ovl_placed[1] == ws->scroll_y &&
         surf->ovl_placed[2] == dw && surf->ovl_placed[3] == dh)
         return 1;
@@ -260,8 +293,10 @@ static int ovl_place(egl_surface *surf, const window_state *ws, const screen_inf
     r.r[1] = dw;
     r.r[2] = dh;
     r.r[3] = (surf->w << 16) | surf->h;
-    if (_kernel_swi(OVL_SWI(SET_SCALE), &r, &r) != NULL)
+    if (_kernel_swi(OVL_SWI(SET_SCALE), &r, &r) != NULL) {
+        ovl_status("plotted: VideoOverlay_SetScale %dx%d failed", dw, dh);
         return 0;
+    }
     r.r[0] = surf->ovl_id;
     r.r[1] = ws->scroll_x;
     r.r[2] = ws->scroll_y;
@@ -269,8 +304,11 @@ static int ovl_place(egl_surface *surf, const window_state *ws, const screen_inf
     r.r[4] = ws->scroll_y - (dh << s->yeig);
     r.r[5] = ws->scroll_x + (dw << s->xeig);
     r.r[6] = ws->scroll_y;
-    if (_kernel_swi(OVL_SWI(SET_POSITION), &r, &r) != NULL)
+    if (_kernel_swi(OVL_SWI(SET_POSITION), &r, &r) != NULL) {
+        ovl_status("plotted: VideoOverlay_SetPosition failed");
         return 0;
+    }
+    ovl_status("overlay: %dx%d shown at %dx%d", surf->w, surf->h, dw, dh);
     surf->ovl_placed[0] = ws->scroll_x;
     surf->ovl_placed[1] = ws->scroll_y;
     surf->ovl_placed[2] = dw;
@@ -329,8 +367,10 @@ static int ovl_candidate(egl_display *d, egl_surface *surf)
     if (surf->kind != SURF_WINDOW || surf->handle < 0 || surf->fixed || surf->dmx ||
         !ovl_wanted(surf) || !surf->sprite || surf->destroy_pending)
         return 0;
-    if (surf->w > OVL_MAX_SIDE || surf->h > OVL_MAX_SIDE || surf->w * surf->h > OVL_MAX_PIXELS)
+    if (surf->w > OVL_MAX_SIDE || surf->h > OVL_MAX_SIDE || surf->w * surf->h > OVL_MAX_PIXELS) {
+        ovl_status("plotted: %dx%d is too big for an overlay (give it a render size)", surf->w, surf->h);
         return 0;                               /* too big: see OVL_MAX_PIXELS */
+    }
     /* work area surfaces in the same window would be under the overlay */
     for (o = d->surfaces; o; o = o->next)
         if (o != surf && window_surface_in(o, surf->handle))
@@ -488,6 +528,8 @@ static void ovl_hide(egl_display *d, egl_surface *surf, const window_state *ws,
    if it has to stay hidden for now. */
 static int ovl_start(egl_surface *surf, const window_state *ws, const screen_info *s)
 {
+    if (!ovl_available())
+        ovl_status("plotted: VideoOverlay isn't loaded");
     if (!ovl_available() || !ovl_create(surf, s)) {
         if (ovl_module > 0) {
             surf->ovl_state = OVL_FAILED;

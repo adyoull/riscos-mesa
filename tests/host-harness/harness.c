@@ -274,6 +274,11 @@ static void *run(void *arg)
     fake_ovl_info(&w, &h, NULL, NULL, &shown, &sw, &sh);
     CHECK(fake_ovl_live() == 1 && w == 100 && h == 80 && sw == 200 && sh == 160 && shown >= 0,
           "overlay: 100x80, scaled to 200x160 (%dx%d -> %dx%d)", w, h, sw, sh);
+    {
+        const char *st = getenv("EGL$OverlayStatus");
+        CHECK(st && !strcmp(st, "overlay: 100x80 shown at 200x160"),
+              "EGL$OverlayStatus says how it's shown (%s)", st ? st : "unset");
+    }
     n = fake_ovl_displays; delays = 0;
     frame(1, 0, 0); RISCOS_GL_SwapWindow(&dev, &win);       /* no vsync since the last switch */
     CHECK(wd->gl_pending == 1 && fake_ovl_displays == n && delays == 0,
