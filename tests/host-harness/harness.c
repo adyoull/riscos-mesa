@@ -52,6 +52,13 @@ int SDL_GetCurrentDisplayMode(int i, SDL_DisplayMode *m) {
 }
 static const char *hint_size, *hint_ovl, *hint_egl, *hint_fbsize, *hint_fbovl;
 void SDL_ClearError(void) { errbuf[0] = 0; }
+static void *fb_egl_surface_data;               /* SDL_SetWindowData(SDL_RISCOS_FB_EGL_SURFACE) */
+void *SDL_SetWindowData(SDL_Window *w, const char *name, void *v) {
+    void *old = fb_egl_surface_data;
+    (void) w;
+    if (!strcmp(name, SDL_RISCOS_FB_EGL_SURFACE)) fb_egl_surface_data = v;
+    return old;
+}
 #undef SDL_memcpy
 void *SDL_memcpy_REAL(void *d, const void *s, size_t n) { return memcpy(d, s, n); }
 #undef SDL_memset
@@ -392,6 +399,7 @@ static void *run(void *arg)
               fmt == SDL_PIXELFORMAT_XBGR8888 && fd->fb_egl && fd->gl_egl &&
               fd->egl_surface && fd->egl_handle == 0x6000,
               "FB: a 100x80 XBGR buffer in ordinary memory, an EGL surface on the window (%s)", errbuf);
+        CHECK(fb_egl_surface_data == fd->egl_surface, "FB: the EGL surface is the window's data, for programs to ask EGL");
         p = pix;
         for (y = 0; y < 80; y++)
             for (x = 0; x < 100; x++)
@@ -570,6 +578,7 @@ static void *run(void *arg)
         RISCOS_FB_Destroy(&fw);
         CHECK(!fd->fb_egl && !fd->fb_buf && !fd->egl_surface && !fd->gl_egl && fake_ovl_live() == 0,
               "FB destroyed: buffer, surface and overlay gone");
+        CHECK(fb_egl_surface_data == NULL, "FB destroyed: no EGL surface in the window's data");
         hint_fbovl = NULL; hint_fbsize = NULL;
         SDL_free(fd);
         CHECK(fake_ovl_errors() == 0, "FB: VideoOverlay used by the rules");

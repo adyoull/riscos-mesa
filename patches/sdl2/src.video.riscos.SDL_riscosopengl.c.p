@@ -2,7 +2,7 @@ diff --git src/video/riscos/SDL_riscosopengl.c src/video/riscos/SDL_riscosopengl
 new file mode 100644
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.c
-@@ -0,0 +1,1067 @@
+@@ -0,0 +1,1070 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -641,6 +641,7 @@ new file mode 100644
 +        data->egl_rw == window->w && data->egl_rh == window->h)
 +        return 0;
 +    RISCOS_GL_DestroySurface(window);
++    SDL_SetWindowData(window, SDL_RISCOS_FB_EGL_SURFACE, NULL);
 +    attrs[n++] = EGL_RENDER_WIDTH_RISCOS;  attrs[n++] = window->w;
 +    attrs[n++] = EGL_RENDER_HEIGHT_RISCOS; attrs[n++] = window->h;
 +    ovl = SDL_GetHint(SDL_HINT_RISCOS_FB_OVERLAY);
@@ -654,6 +655,7 @@ new file mode 100644
 +    if (surf == EGL_NO_SURFACE)
 +        return SDL_SetError("eglCreateWindowSurface failed (0x%x)", (unsigned) eglGetError());
 +    data->egl_surface = surf;
++    SDL_SetWindowData(window, SDL_RISCOS_FB_EGL_SURFACE, surf);
 +    data->egl_config = data->fb_config;
 +    data->egl_handle = handle;
 +    data->egl_rw = window->w;
@@ -812,6 +814,7 @@ new file mode 100644
 +    if (!data || !data->fb_egl)
 +        return;
 +    RISCOS_GL_DestroySurface(window);
++    SDL_SetWindowData(window, SDL_RISCOS_FB_EGL_SURFACE, NULL);
 +    SDL_free(data->fb_buf);
 +    data->fb_buf = NULL;
 +    data->fb_egl = 0;

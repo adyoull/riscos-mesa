@@ -15,8 +15,10 @@
  *     overlay buffer wasn't brought up to date;
  *   - a grid that isn't even, or a picture that isn't the window's size:
  *     the stretch.
- * The title shows the frame rate and the time spent in the update call;
- * a summary is written when it quits (printing while it runs would pop up
+ * The title shows the frame rate, the time spent in the update call and
+ * how the picture is shown (overlay, overlay hidden, plotted, or SDL's
+ * ordinary framebuffer); the summary gives the share of frames each way.
+ * A summary is written when it quits (printing while it runs would pop up
  * a command window over the desktop).
  *
  * Usage: sdlfbtest [width height] [-S WxH] [-V|-N] [-f] [-a] [-n squares]
@@ -39,6 +41,11 @@
 #include <string.h>
 #include "SDL.h"
 #include "hrtime.h"
+#ifdef __riscos__
+#define EGL_EGLEXT_PROTOTYPES 1
+#include <EGL/egl.h>
+#include <EGL/eglext_riscos.h>
+#endif
 
 #define MAX_SQUARES 64
 #define SQUARE 16                       /* side, in the program's pixels */
@@ -173,24 +180,54 @@ static long scene_check(const scene *sc)
     return bad;
 }
 
+/* ---- how the picture is shown ---- */
+
+enum { SHOWN_PLOTTED, SHOWN_OVERLAY, SHOWN_HIDDEN, SHOWN_ORDINARY, SHOWN_WAYS };
+static const char *const shown_name[SHOWN_WAYS] = {
+    "plotted", "overlay", "overlay hidden", "ordinary framebuffer"
+};
+
+/* SDL publishes the EGL surface of a framebuffer shown through EGL as the
+   window's data "SDL_RISCOS_FB_EGLSurface"; EGL_OVERLAY_RISCOS says how
+   it's shown: 0 plotted, 1 overlay, 2 overlay hidden. */
+static int shown_way(SDL_Window *win)
+{
+#ifdef __riscos__
+    EGLSurface s = SDL_GetWindowData(win, "SDL_RISCOS_FB_EGLSurface");
+    EGLint v = 0;
+    if (s && eglQuerySurface(eglGetDisplay(EGL_DEFAULT_DISPLAY), s, EGL_OVERLAY_RISCOS, &v))
+        return v == 1 ? SHOWN_OVERLAY : v == 2 ? SHOWN_HIDDEN : SHOWN_PLOTTED;
+#else
+    (void) win;
+#endif
+    return SHOWN_ORDINARY;
+}
+
 /* ---- running it ---- */
 
 typedef struct {
     int frames;
     double update_s;                    /* time in SDL_UpdateWindowSurface(Rects) */
     double start;
+    int shown[SHOWN_WAYS];              /* frames shown each way (asked after the update) */
 } stats;
 
 static void report(FILE *f, const char *how, int win_w, int win_h, int pic_w, int pic_h,
                    int whole, const stats *st, double now, long bad)
 {
     double t = now - st->start;
+    int i;
     fprintf(f, "sdlfbtest: %s\n", how);
     fprintf(f, "  window %dx%d, picture %dx%d, %s updates\n", win_w, win_h, pic_w, pic_h,
             whole ? "whole-picture" : "rectangle");
     fprintf(f, "  %d frames in %.1f s: %.1f fps, %.3f ms a frame in the update call\n",
             st->frames, t, t > 0 ? st->frames / t : 0.0,
             st->frames ? 1000.0 * st->update_s / st->frames : 0.0);
+    fprintf(f, "  shown:");
+    for (i = 0; i < SHOWN_WAYS; i++)
+        if (st->shown[i])
+            fprintf(f, " %s %.0f%%", shown_name[i], st->frames ? 100.0 * st->shown[i] / st->frames : 0.0);
+    fprintf(f, "\n");
     fprintf(f, "  timer: %s\n", hr_source());
     if (bad)
         fprintf(f, "  FAIL: %ld pixels of the program's own picture are wrong (a fault in sdlfbtest)\n", bad);
@@ -253,7 +290,7 @@ int main(int argc, char **argv)
     while (running) {
         SDL_Event ev;
         double t0, now;
-        int nr;
+        int nr, way;
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) running = 0;
             else if (ev.type == SDL_KEYDOWN) {
@@ -279,12 +316,14 @@ int main(int argc, char **argv)
         now = hr_seconds();
         st.update_s += now - t0;
         st.frames++;
+        way = shown_way(win);
+        st.shown[way]++;
         if (now - last_title >= 1.0) {
             double t = now - last_title;
             int f = st.frames - shown.frames;
-            snprintf(title, sizeof title, "sdlfbtest %dx%d - %.1f fps, update %.2f ms - %s%s",
+            snprintf(title, sizeof title, "sdlfbtest %dx%d - %.1f fps, update %.2f ms - %s - %s",
                      surf->w, surf->h, f / t, f ? 1000.0 * (st.update_s - shown.update_s) / f : 0.0,
-                     whole ? "whole" : "rectangles", size || ovl ? "" : " - ordinary");
+                     whole ? "whole" : "rectangles", shown_name[way]);
             SDL_SetWindowTitle(win, title);
             shown = st;
             last_title = now;

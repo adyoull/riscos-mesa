@@ -200,7 +200,12 @@ render size everywhere (window size, events, the mouse), held frames are
 shown by the next `SDL_PollEvent`, full screen keeps a multitasking
 full screen window, and anything that doesn't work out (no EGL surface)
 leaves the ordinary framebuffer. `SDL_RISCOS_FB_OVERLAY` on its own
-gives the overlay at the window's size. Without either hint software
+gives the overlay at the window's size. To find out how the picture is
+being shown, ask EGL about the surface SDL keeps as the window's data
+`"SDL_RISCOS_FB_EGLSurface"`: `eglQuerySurface(eglGetDisplay(EGL_DEFAULT_DISPLAY),
+SDL_GetWindowData(window, "SDL_RISCOS_FB_EGLSurface"), EGL_OVERLAY_RISCOS, &v)`
+gives 1 through an overlay, 2 overlay hidden, 0 plotted (NULL data: the
+ordinary framebuffer). Without either hint software
 windows work exactly as before, and SDL built without GL (OpenTTD's
 build) has none of this. So far tested only on a PC against stand-ins
 for RISC OS and the Pi's display.

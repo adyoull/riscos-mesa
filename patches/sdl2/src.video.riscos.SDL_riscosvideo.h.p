@@ -9,7 +9,7 @@ diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
  
  #define RISCOS_MAX_KEYS_PRESSED 6
  
-@@ -31,8 +32,96 @@ typedef struct SDL_VideoData
+@@ -31,8 +32,101 @@ typedef struct SDL_VideoData
  {
      int last_mouse_buttons;
      Uint8 key_pressed[RISCOS_MAX_KEYS_PRESSED];
@@ -96,6 +96,11 @@ diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
 +   system variables of those names, read when a window is made. */
 +#define SDL_HINT_RISCOS_FB_RENDER_SIZE "SDL_RISCOS_FB_RENDER_SIZE"
 +#define SDL_HINT_RISCOS_FB_OVERLAY "SDL_RISCOS_FB_OVERLAY"
++/* While such a framebuffer is shown through EGL, its EGLSurface is the
++   window's data of this name (SDL_GetWindowData), so a program or test can
++   ask EGL how it is shown (EGL_OVERLAY_RISCOS: 0 plotted, 1 overlay,
++   2 overlay hidden); NULL otherwise. */
++#define SDL_RISCOS_FB_EGL_SURFACE "SDL_RISCOS_FB_EGLSurface"
 +
 +extern void RISCOS_ApplyPointerVisibility(_THIS);
 +extern void RISCOS_WimpPlotWindow(_THIS, SDL_Window *window, RISCOS_Redraw *redraw, int more);

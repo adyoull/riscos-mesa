@@ -96,8 +96,10 @@ Run in this order and note the output:
    a render size, stretched to the window by a hardware overlay or the
    sprite plot, and only the changed rectangles sent each frame. Small
    squares with white edges move over a grid. Each Obey file runs for 30
-   seconds (Escape stops it sooner) and saves a summary: fps and the time
-   spent in the update call. The title shows the same while it runs.
+   seconds (Escape stops it sooner) and saves a summary: fps, the time
+   spent in the update call, and how the frames were shown (overlay,
+   overlay hidden, plotted, or SDL's ordinary framebuffer; from
+   20.3.5-17h). The title shows the same while it runs.
      sdl-fb-plain    1024x768 the old way (SDL's ordinary framebuffer)
      sdl-fb-plot     400x300 stretched over 1024x768 by the sprite plot
      sdl-fb-overlay  the same through a hardware overlay

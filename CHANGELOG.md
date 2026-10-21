@@ -81,6 +81,14 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
   The ReadMe says what to look for: slivers left behind the squares, and
   ghosts after a menu has been over the overlay. Also checked in CI.
+- **sdlfbtest says how the picture is shown**: overlay, overlay hidden,
+  plotted or the ordinary framebuffer, in the title and as a share of
+  frames in the summary. The first Pi results had the overlay and plotted
+  runs at the same speed (0.27 ms an update, and 3.8 ms for whole-picture
+  updates, about what plotting the whole window costs), which suggests
+  the overlay wasn't in use. SDL now keeps the framebuffer's EGL surface
+  as the window's data `"SDL_RISCOS_FB_EGLSurface"`, so a program can ask
+  EGL (`EGL_OVERLAY_RISCOS`).
 
 ## 20.3.5-16: windows the right size on 180 dpi desktops
 
