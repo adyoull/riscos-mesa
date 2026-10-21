@@ -57,8 +57,8 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     whole window each frame.
   - Overlay buffers: these are now brought up to date with only what
     changed since each was last filled, not a whole-frame copy per frame.
-    For a 10x10 cell at 100x80 that's 2,400 bytes an update instead of
-    32,000.
+    At 100x80, with a 10x10 cell moving each frame, that's 2,400 bytes
+    an update instead of 32,000.
   - SDL: keeps up to 8 separate update rectangles, instead of one box
     around all of them.
   - Host checks:
