@@ -54,6 +54,8 @@ static const char *hint_size, *hint_ovl, *hint_egl, *hint_fbsize, *hint_fbovl;
 void SDL_ClearError(void) { errbuf[0] = 0; }
 #undef SDL_memcpy
 void *SDL_memcpy_REAL(void *d, const void *s, size_t n) { return memcpy(d, s, n); }
+#undef SDL_memset
+void *SDL_memset_REAL(void *d, int c, size_t n) { return memset(d, c, n); }
 const char *SDL_GetHint(const char *name) {
     if (!strcmp(name, SDL_HINT_RISCOS_FB_RENDER_SIZE)) return hint_fbsize;
     if (!strcmp(name, SDL_HINT_RISCOS_FB_OVERLAY)) return hint_fbovl;
@@ -102,6 +104,8 @@ static void frame(float r, float g, float b) {   /* top half colour, bottom half
 /* the screen pixel at x, y (from the top) */
 static unsigned px(int x, int y) { return RGB(fake_screen_pixel(x, y)); }
 static void wipe(void) { memset(fake_screen.mem, 0, (size_t) fake_screen.w * fake_screen.h * 4); }
+static void poke(int x, int y, unsigned v) { fake_screen.mem[(size_t) y * (fake_screen.line_length / 4) + x] = v; }
+extern unsigned long egl_host_ovl_bytes;        /* egl/parts/overlay.c, host builds */
 
 /* window 0x6000: visible area OS 200..600 x 200..520 = 200x160 pixels,
    top left pixel (100, 220) on the 640x480 eig 1 screen */
@@ -404,11 +408,32 @@ static void *run(void *arg)
                 p[y * 100 + x] = 0x0000FF00u;
         p[60 * 100 + 60] = 0x0000FF00u;
         r.x = 10; r.y = 10; r.w = 10; r.h = 10;
-        wipe();
+        poke(WX + 150, WY + 150, 0x123456);         /* plotted over only by a whole-window plot */
         RISCOS_FB_Update(&dev, &fw, &r, 1);
         CHECK(px(WX + 30, WY + 30) == 0x00FF00 && px(WX + 5, WY + 5) == 0x0000FF &&
-              px(WX + 121, WY + 121) == 0xFF0000,
-              "FB: one rectangle copied, the rest as before (%06X %06X)", px(WX + 30, WY + 30), px(WX + 121, WY + 121));
+              px(WX + 150, WY + 150) == 0x123456,
+              "FB stretched: only where the rectangle lands is plotted (%06X %06X)",
+              px(WX + 30, WY + 30), px(WX + 150, WY + 150));
+        wipe();
+        RISCOS_GL_Redraw(&dev, &fw, block);
+        CHECK(px(WX + 30, WY + 30) == 0x00FF00 && px(WX + 121, WY + 121) == 0xFF0000,
+              "FB: only the rectangle was copied (a change outside it isn't shown) (%06X)", px(WX + 121, WY + 121));
+        /* two cells far apart stay two rectangles: what's between isn't copied */
+        p[5 * 100 + 50] = 0x0000FF00u;              /* not in either */
+        p[2 * 100 + 2] = 0x0000FF00u;
+        p[76 * 100 + 96] = 0x0000FF00u;
+        {
+            SDL_Rect two[2] = { { 0, 0, 4, 4 }, { 96, 76, 4, 4 } };
+            RISCOS_FB_Update(&dev, &fw, two, 2);
+        }
+        wipe();
+        RISCOS_GL_Redraw(&dev, &fw, block);
+        CHECK(px(WX + 5, WY + 5) == 0x00FF00 && px(WX + 193, WY + 153) == 0x00FF00 &&
+              px(WX + 101, WY + 11) == 0x0000FF,
+              "FB: two rectangles far apart are copied apart (%06X)", px(WX + 101, WY + 11));
+        p[5 * 100 + 50] = 0x000000FFu;
+        p[2 * 100 + 2] = 0x000000FFu;
+        p[76 * 100 + 96] = 0x00FF0000u;
         r.x = 55; r.y = 55; r.w = 100; r.h = 100;     /* clipped to the buffer */
         RISCOS_FB_Update(&dev, &fw, &r, 1);
         CHECK(px(WX + 121, WY + 121) == 0x00FF00, "FB: a rectangle past the edge is clipped, and shown");
@@ -417,6 +442,43 @@ static void *run(void *arg)
         CHECK(RISCOS_GL_Redraw(&dev, &fw, block) && px(WX + 30, WY + 30) == 0x00FF00 && px(WX + 195, WY + 155) == 0xFF0000,
               "FB: Redraw_Window_Request redraws the last picture");
         CHECK(RISCOS_GL_Idle(&dev, SDL_FALSE) == 0, "FB, no overlay: the event loop isn't woken");
+
+        /* An odd stretch (100x80 over 230x150): plotting rectangles one
+           by one leaves exactly what plotting the whole picture does */
+        {
+            /* window 0x6002: top left pixel (100, 230) */
+            const int X2 = 100, Y2 = 230;
+            unsigned *after = malloc(230 * 150 * sizeof *after);
+            int k, same = 1, seed = 1;
+            fake_open_window(0x6002, 200, 200, 660, 500, 0, 0);
+            vd.wimp_window = 0x6002;
+            RISCOS_FB_Update(&dev, &fw, NULL, 0);           /* moves to the window */
+            for (k = 0; k < 40; k++) {
+                seed = seed * 1103515245 + 12345;
+                r.x = (seed >> 8) % 95; r.y = (seed >> 16) % 75;
+                r.w = 1 + (seed >> 4) % 6; r.h = 1 + (seed >> 12) % 6;
+                for (y = r.y; y < r.y + r.h; y++)
+                    for (x = r.x; x < r.x + r.w; x++)
+                        p[y * 100 + x] = (unsigned) (seed * 2654435761u) & 0xFFFFFFu;
+                RISCOS_FB_Update(&dev, &fw, &r, 1);
+            }
+            for (y = 0; y < 150; y++)
+                for (x = 0; x < 230; x++)
+                    after[y * 230 + x] = px(X2 + x, Y2 + y);
+            wipe();
+            block[0] = 0x6002;
+            RISCOS_GL_Redraw(&dev, &fw, block);
+            for (y = 0; y < 150 && same; y++)
+                for (x = 0; x < 230 && same; x++)
+                    if (after[y * 230 + x] != px(X2 + x, Y2 + y)) {
+                        same = 0;
+                        printf("  differs at %d,%d: %06X, whole plot %06X\n", x, y, after[y * 230 + x], px(X2 + x, Y2 + y));
+                    }
+            CHECK(same, "FB stretched 2.3 x 1.875: 40 rectangles plotted one by one = the whole picture plotted");
+            free(after);
+            vd.wimp_window = 0x6000; block[0] = 0x6000;
+            RISCOS_FB_Update(&dev, &fw, NULL, 0);           /* back to window 0x6000 */
+        }
 
         /* the other colour order */
         fake_set_screen(640, 480, 1, 5);
@@ -462,12 +524,44 @@ static void *run(void *arg)
         RISCOS_FB_Update(&dev, &fw, NULL, 0);
         CHECK(fd->gl_pending == 0 && fake_ovl_displays == n + 1, "FB: another thread's update isn't held");
         fake_thread = 1;
+        /* Each overlay buffer gets only what changed since it was last
+           filled, and every buffer shown holds the whole current picture */
+        {
+            int k, good = 1, bank;
+            unsigned long before;
+            for (k = 0; k < 3; k++) { fake_vsyncs++; RISCOS_FB_Update(&dev, &fw, NULL, 0); }
+            before = egl_host_ovl_bytes;
+            for (k = 0; k < 9; k++) {
+                if (k == 3)
+                    before = egl_host_ovl_bytes;    /* the buffers have caught up on the whole frames */
+                r.x = 10 * k; r.y = 5 * k; r.w = 10; r.h = 10;
+                for (y = r.y; y < r.y + r.h; y++)
+                    for (x = r.x; x < r.x + r.w; x++)
+                        p[y * 100 + x] = 0x00100000u * (unsigned) (k + 1) | 0x40u;
+                fake_vsyncs++;
+                RISCOS_FB_Update(&dev, &fw, &r, 1);
+                fake_ovl_info(NULL, NULL, NULL, NULL, &bank, NULL, NULL);
+                for (y = 0; y < 80 && good; y++)
+                    for (x = 0; x < 100 && good; x++)
+                        if ((fake_ovl_pixel(bank, x, y) & 0xFFFFFFu) != (p[y * 100 + x] & 0xFFFFFFu)) {
+                            good = 0;
+                            printf("  frame %d, buffer %d differs at %d,%d\n", k, bank, x, y);
+                        }
+            }
+            CHECK(good, "FB overlay: every buffer shown holds the whole current picture");
+            /* each buffer catches up on the last 3 cells, a 30x20 box: 2400
+               bytes an update instead of 32000 */
+            printf("  6 updates of a 10x10 cell: %lu bytes into overlay buffers\n", egl_host_ovl_bytes - before);
+            CHECK(egl_host_ovl_bytes - before == 6 * 30 * 20 * 4,
+                  "FB overlay: only the changed areas are copied into the buffers");
+        }
 
         /* full screen keeps the Wimp window; a desktop window going away
            (a mode change, say) moves the surface at the next update */
         vd.wimp_window = 0; vd.wimp_sdl_window = NULL;
         RISCOS_FB_Update(&dev, &fw, &r, 1);
-        CHECK(fd->egl_handle == -1 && fake_ovl_live() == 0 && px(20, 20) == 0x00FF00 && px(2, 2) == 0x0000FF && px(634, 474) == 0x00FF00,
+        CHECK(fd->egl_handle == -1 && fake_ovl_live() == 0 && px(2, 2) == (p[0] & 0xFFFFFFu) &&
+              px(634, 474) == (p[79 * 100 + 99] & 0xFFFFFFu),
               "FB without a desktop window: the whole picture stretched to the screen (%06X)", px(634, 474));
         vd.wimp_window = 0x6000; vd.wimp_sdl_window = &fw;
         RISCOS_FB_Update(&dev, &fw, &r, 1);

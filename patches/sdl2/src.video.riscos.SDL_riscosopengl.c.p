@@ -2,7 +2,7 @@ diff --git src/video/riscos/SDL_riscosopengl.c src/video/riscos/SDL_riscosopengl
 new file mode 100644
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.c
-@@ -0,0 +1,1035 @@
+@@ -0,0 +1,1067 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -691,8 +691,7 @@ new file mode 100644
 +    }
 +    data->fb_egl = 1;
 +    data->gl_egl = 1;                   /* the pointer maps onto the render size */
-+    data->fb_dirty[0] = data->fb_dirty[1] = 0;
-+    data->fb_dirty[2] = data->fb_dirty[3] = 0;
++    data->fb_ndirty = 0;
 +    /* EGL's colour orders: 0x00BBGGRR or 0x00RRGGBB */
 +    *format = visual == EGL_RISCOS_VISUAL_TRGB ? SDL_PIXELFORMAT_XRGB8888 : SDL_PIXELFORMAT_XBGR8888;
 +    *pixels = data->fb_buf;
@@ -700,36 +699,76 @@ new file mode 100644
 +    return 1;
 +}
 +
-+/* Show what has changed (fb_dirty): copy it into the surface, swap */
++/* Note that r (already clipped to the buffer) changed. A rectangle that
++   overlaps or touches one already noted is merged with it; past
++   RISCOS_FB_MAX_RECTS a new one goes into the one that grows least, so
++   cells far apart stay apart and only what changed is copied and shown. */
++static void
++RISCOS_FB_AddDirty(SDL_WindowData *data, const SDL_Rect *r)
++{
++    SDL_Rect *d = data->fb_dirty, grown;
++    int i, best = 0;
++    Sint64 best_growth = -1;
++
++    for (i = 0; i < data->fb_ndirty; i++) {
++        if (r->x <= d[i].x + d[i].w && d[i].x <= r->x + r->w &&
++            r->y <= d[i].y + d[i].h && d[i].y <= r->y + r->h) {
++            SDL_UnionRect(&d[i], r, &d[i]);
++            return;
++        }
++    }
++    if (data->fb_ndirty < RISCOS_FB_MAX_RECTS) {
++        d[data->fb_ndirty++] = *r;
++        return;
++    }
++    for (i = 0; i < data->fb_ndirty; i++) {
++        Sint64 growth;
++        SDL_UnionRect(&d[i], r, &grown);
++        growth = (Sint64) grown.w * grown.h - (Sint64) d[i].w * d[i].h;
++        if (best_growth < 0 || growth < best_growth) {
++            best_growth = growth;
++            best = i;
++        }
++    }
++    SDL_UnionRect(&d[best], r, &d[best]);
++}
++
++/* Show what has changed (fb_dirty): copy it into the surface, swap with
++   the same rectangles as damage */
 +static void
 +RISCOS_FB_Show(SDL_Window *window)
 +{
 +    SDL_WindowData *data = (SDL_WindowData *) window->driverdata;
 +    static const EGLint lock[] = { EGL_LOCK_USAGE_HINT_KHR, EGL_WRITE_SURFACE_BIT_KHR, EGL_NONE };
-+    int *d = data->fb_dirty, y;
 +    EGLAttribKHR dst = 0, dpitch = 0;
-+    EGLint damage[4];
++    EGLint damage[RISCOS_FB_MAX_RECTS * 4];
++    int i, y, n = data->fb_ndirty;
 +
 +    data->gl_pending = 0;
-+    if (d[0] >= d[2] || d[1] >= d[3])
++    data->fb_ndirty = 0;
++    if (n == 0)
 +        return;
 +    if (!eglLockSurfaceKHR(gl_dpy, data->egl_surface, lock))
 +        return;
 +    if (eglQuerySurface64KHR(gl_dpy, data->egl_surface, EGL_BITMAP_POINTER_KHR, &dst) &&
 +        eglQuerySurface64KHR(gl_dpy, data->egl_surface, EGL_BITMAP_PITCH_KHR, &dpitch) && dst) {
-+        for (y = d[1]; y < d[3]; y++)
-+            SDL_memcpy((Uint8 *) dst + (size_t) y * dpitch + d[0] * 4,
-+                       (Uint8 *) data->fb_buf + (size_t) y * data->fb_pitch + d[0] * 4,
-+                       (size_t) (d[2] - d[0]) * 4);
++        for (i = 0; i < n; i++) {
++            const SDL_Rect *r = &data->fb_dirty[i];
++            for (y = r->y; y < r->y + r->h; y++)
++                SDL_memcpy((Uint8 *) dst + (size_t) y * dpitch + r->x * 4,
++                           (Uint8 *) data->fb_buf + (size_t) y * data->fb_pitch + r->x * 4,
++                           (size_t) r->w * 4);
++        }
 +    }
 +    eglUnlockSurfaceKHR(gl_dpy, data->egl_surface);
-+    /* (damage rectangles are from the bottom left) */
-+    damage[0] = d[0];
-+    damage[1] = window->h - d[3];
-+    damage[2] = d[2] - d[0];
-+    damage[3] = d[3] - d[1];
-+    d[0] = d[1] = d[2] = d[3] = 0;
-+    eglSwapBuffersWithDamageKHR(gl_dpy, data->egl_surface, damage, 1);
++    for (i = 0; i < n; i++) {           /* EGL's damage is from the bottom left */
++        const SDL_Rect *r = &data->fb_dirty[i];
++        damage[i * 4] = r->x;
++        damage[i * 4 + 1] = window->h - (r->y + r->h);
++        damage[i * 4 + 2] = r->w;
++        damage[i * 4 + 3] = r->h;
++    }
++    eglSwapBuffersWithDamageKHR(gl_dpy, data->egl_surface, damage, n);
 +}
 +
 +int
@@ -737,29 +776,22 @@ new file mode 100644
 +{
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +    SDL_WindowData *data = (SDL_WindowData *) window->driverdata;
-+    int *d = data->fb_dirty, i, made;
++    SDL_Rect all, r;
++    int i, made;
 +
 +    if (!data->fb_egl)
 +        return 0;
 +    /* full screen <-> window, or a new size: a new surface, all of it to show */
 +    if (RISCOS_FB_EnsureSurface(_this, window, &made) < 0)
 +        return 1;
++    all.x = 0; all.y = 0; all.w = window->w; all.h = window->h;
 +    if (made || numrects <= 0) {
-+        d[0] = 0; d[1] = 0; d[2] = window->w; d[3] = window->h;
++        data->fb_ndirty = 0;
++        RISCOS_FB_AddDirty(data, &all);
 +    } else {
-+        for (i = 0; i < numrects; i++) {
-+            int x0 = SDL_max(rects[i].x, 0), y0 = SDL_max(rects[i].y, 0);
-+            int x1 = SDL_min(rects[i].x + rects[i].w, window->w);
-+            int y1 = SDL_min(rects[i].y + rects[i].h, window->h);
-+            if (x0 >= x1 || y0 >= y1)
-+                continue;
-+            if (d[0] >= d[2] || d[1] >= d[3]) {
-+                d[0] = x0; d[1] = y0; d[2] = x1; d[3] = y1;
-+            } else {
-+                d[0] = SDL_min(d[0], x0); d[1] = SDL_min(d[1], y0);
-+                d[2] = SDL_max(d[2], x1); d[3] = SDL_max(d[3], y1);
-+            }
-+        }
++        for (i = 0; i < numrects; i++)
++            if (SDL_IntersectRect(&rects[i], &all, &r))
++                RISCOS_FB_AddDirty(data, &r);
 +    }
 +    /* Through an overlay EGL would wait for a vsync if a frame was shown
 +       less than one ago: don't stop the desktop, hold the frame and show

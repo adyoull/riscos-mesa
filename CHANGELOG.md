@@ -50,6 +50,23 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   if no EGL surface can be made the ordinary framebuffer is used. Without
   the hints nothing changes, and the no-GL build (OpenTTD) has none of it.
   New checks in the SDL host harness. Not yet tried on a Pi.
+- **Less copying and plotting for partial updates** (mostly for the
+  software framebuffers above):
+  - EGL: a surface stretched to a render size now plots only where the
+    damage rectangles land on the screen (rounded out a pixel), not the
+    whole window each frame.
+  - Overlay buffers: these are now brought up to date with only what
+    changed since each was last filled, not a whole-frame copy per frame.
+    For a 10x10 cell at 100x80 that's 2,400 bytes an update instead of
+    32,000.
+  - SDL: keeps up to 8 separate update rectangles, instead of one box
+    around all of them.
+  - Host checks:
+    - 40 random rectangles plotted one by one at a 2.3 x 1.875 stretch
+      give exactly the picture a whole plot does;
+    - every overlay buffer shown holds the whole current picture.
+
+  Not yet tried on a Pi.
 
 ## 20.3.5-16: windows the right size on 180 dpi desktops
 

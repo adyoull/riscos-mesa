@@ -578,6 +578,44 @@ static void plot_loop(egl_display *d, int handle, egl_surface *only, int *block,
     }
 }
 
+/* ---- damage: what a frame changed ---- */
+
+static int px_rect_empty(const px_rect *r)
+{
+    return r->x0 >= r->x1 || r->y0 >= r->y1;
+}
+
+/* *acc grows to cover r as well */
+static void px_rect_union(px_rect *acc, const px_rect *r)
+{
+    if (px_rect_empty(r))
+        return;
+    if (px_rect_empty(acc)) {
+        *acc = *r;
+        return;
+    }
+    if (r->x0 < acc->x0) acc->x0 = r->x0;
+    if (r->y0 < acc->y0) acc->y0 = r->y0;
+    if (r->x1 > acc->x1) acc->x1 = r->x1;
+    if (r->y1 > acc->y1) acc->y1 = r->y1;
+}
+
+static int clamp_int(long long v, int lo, int hi)
+{
+    return v < lo ? lo : v > hi ? hi : (int) v;
+}
+
+static long long div_floor(long long a, long long b)   /* b > 0 */
+{
+    long long q = a / b;
+    return (a % b != 0 && a < 0) ? q - 1 : q;
+}
+
+static long long div_ceil(long long a, long long b)    /* b > 0 */
+{
+    return -div_floor(-a, b);
+}
+
 /* Clip damage rectangles (x, y, w, h in pixels from the bottom left, as
    eglSwapBuffersWithDamageKHR gives them) to the surface and turn them into
    OS unit offsets from its top left: out[i] = x0, y0, x1, y1 with y going up
@@ -623,6 +661,50 @@ static int damage_rects(const egl_surface *surf, const EGLint *rects, int n,
         return 1;
     }
     return m;
+}
+
+/* The bounding box of damage_rects()'s rectangles, in surface pixels from
+   the top left. */
+static px_rect damage_bounds(const screen_info *s, const os_rect *dmg, int nd)
+{
+    px_rect box = { 0, 0, 0, 0 };
+    int i;
+    for (i = 0; i < nd; i++) {
+        px_rect r;
+        r.x0 = dmg[i].x0 >> s->xeig;
+        r.x1 = dmg[i].x1 >> s->xeig;
+        r.y0 = -(dmg[i].y1 >> s->yeig);     /* y up from the top -> rows down */
+        r.y1 = -(dmg[i].y0 >> s->yeig);
+        px_rect_union(&box, &r);
+    }
+    return box;
+}
+
+/* Does a stretched surface plot only its damage? A render size stretched
+   over the window or screen does (stretch_damage); a work area surface's
+   window scale plots all of it. */
+static int stretches_damage(const egl_surface *surf)
+{
+    return surf->rw && !surf->fixed && !surf->dmx;
+}
+
+/* damage_rects()'s rectangles of a surface stretched to dw x dh screen
+   pixels, moved to where they land on the screen. Rounded out by a pixel
+   each side, which covers the nearest-neighbour stretch's rounding both
+   ways (OS_SpriteOp 52 picks each screen pixel's source pixel). The
+   offsets are whole pixels, so the shifts are exact. */
+static void stretch_damage(const egl_surface *surf, const screen_info *s, int dw, int dh,
+                           os_rect *dmg, int nd)
+{
+    int i;
+    for (i = 0; i < nd; i++) {
+        long long x0 = dmg[i].x0 >> s->xeig, x1 = dmg[i].x1 >> s->xeig;
+        long long y0 = dmg[i].y0 >> s->yeig, y1 = dmg[i].y1 >> s->yeig;   /* <= 0 */
+        dmg[i].x0 = clamp_int(div_floor(x0 * dw, surf->w) - 1, 0, dw) << s->xeig;
+        dmg[i].x1 = clamp_int(div_ceil(x1 * dw, surf->w) + 1, 0, dw) << s->xeig;
+        dmg[i].y0 = clamp_int(div_floor(y0 * dh, surf->h) - 1, -dh, 0) << s->yeig;
+        dmg[i].y1 = clamp_int(div_ceil(y1 * dh, surf->h) + 1, -dh, 0) << s->yeig;
+    }
 }
 
 /* DispmanX compatibility: plot the surface (its source rectangle) scaled to
@@ -731,7 +813,7 @@ static void present_dmx(egl_surface *surf, const screen_info *s)
 /* Present a full screen surface: switch screen banks, or wait for the
    vsync and plot the frame (all of it, or the nd damaged rectangles;
    nd < 0 = all). */
-static void present_fullscreen(egl_surface *surf, const screen_info *s, const os_rect *dmg, int nd)
+static void present_fullscreen(egl_surface *surf, const screen_info *s, os_rect *dmg, int nd)
 {
     os_rect all;
     int top = s->height << s->yeig, i;
@@ -764,6 +846,8 @@ static void present_fullscreen(egl_surface *surf, const screen_info *s, const os
         return;
     all.x0 = 0; all.y0 = 0;
     all.x1 = s->width << s->xeig; all.y1 = top;
+    if (nd > 0 && is_scaled(surf))
+        stretch_damage(surf, s, s->width, s->height, dmg, nd);
     if (nd < 0) {
         plot_rectangle(surf, NULL, s, &all);
         return;
@@ -782,7 +866,7 @@ static void present_fullscreen(egl_surface *surf, const screen_info *s, const os
    showing, else update the part of the work area it covers (or each of
    the nd damaged parts; nd < 0 = all) and plot it there. */
 static void present_window(egl_display *d, egl_surface *surf, const screen_info *s,
-                           const os_rect *dmg, int nd)
+                           os_rect *dmg, int nd)
 {
     _kernel_swi_regs r;
     int block[11];
@@ -811,6 +895,8 @@ static void present_window(egl_display *d, egl_surface *surf, const screen_info 
         left = ws.scroll_x;
         top = ws.scroll_y;
         shown_size(surf, &ws, s, &dw, &dh);
+        if (nd > 0 && is_scaled(surf))
+            stretch_damage(surf, s, dw, dh, dmg, nd);
     }
     for (i = 0; i < (nd < 0 ? 1 : nd); i++) {
         block[0] = surf->handle;
@@ -833,7 +919,9 @@ static void present_window(egl_display *d, egl_surface *surf, const screen_info 
 }
 
 /* Show a finished frame of a window surface: all of it, or only the damaged
-   rectangles (rects/n as for eglSwapBuffersWithDamageKHR; NULL = all). */
+   rectangles (rects/n as for eglSwapBuffersWithDamageKHR; NULL = all).
+   A surface stretched to a render size plots only where the damage lands
+   on the screen; the overlay's buffers are told what changed. */
 static void present(egl_display *d, egl_surface *surf, const screen_info *s,
                     const EGLint *rects, int n)
 {
@@ -847,8 +935,14 @@ static void present(egl_display *d, egl_surface *surf, const screen_info *s,
     nd = damage_rects(surf, rects, n, s, dmg);
     if (nd == 0 && !surf->banks)
         return;                         /* all rectangles empty: nothing changed */
-    if (is_scaled(surf))
-        nd = -1;                        /* scaled: always all of it */
+    if (nd < 0) {
+        ovl_note_damage(surf, NULL);
+    } else {
+        px_rect box = damage_bounds(s, dmg, nd);
+        ovl_note_damage(surf, &box);
+    }
+    if (is_scaled(surf) && !stretches_damage(surf))
+        nd = -1;                        /* a window scale: always all of it */
     if (surf->handle == HANDLE_SCREEN)
         present_fullscreen(surf, s, dmg, nd);
     else

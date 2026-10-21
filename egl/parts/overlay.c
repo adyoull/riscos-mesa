@@ -231,6 +231,7 @@ static int ovl_create(egl_surface *surf, const screen_info *s)
     }
     surf->ovl_banks = banks;
     surf->ovl_next = 0;
+    ovl_all_stale(surf);                /* the new buffers hold nothing yet */
     surf->ovl_w = surf->w;
     surf->ovl_h = surf->h;
     surf->ovl_mode = ovl_mode_signature(s);
@@ -365,25 +366,77 @@ static void ovl_just_shown(egl_surface *surf, const window_state *ws, const scre
     _kernel_swi(Wimp_ForceRedraw, &r, &r);
 }
 
-/* Copy the finished frame into overlay buffer b (mapped just for the
-   copy). Returns 0 if the buffer can't be mapped. */
+/* ---- what each overlay buffer is missing ----
+
+   Each buffer is filled from the surface when it is next shown, which with
+   3 buffers is 3 frames after it was last filled. Only what has changed
+   since then is copied: every frame's damage is added to every buffer's
+   stale rectangle (ovl_note_damage, from present()), and filling buffer b
+   copies its stale rectangle and empties it. Frames plotted while the
+   overlay is hidden count too, so the buffers are right when it's shown
+   again. Anything that invalidates the buffers (a new overlay, a new pixel
+   buffer behind the surface) makes all of them stale. */
+
+static void ovl_all_stale(egl_surface *surf)
+{
+    px_rect all = { 0, 0, surf->w, surf->h };
+    int b;
+    for (b = 0; b < OVL_MAX_BANKS; b++)
+        surf->ovl_stale[b] = all;
+    surf->ovl_src = surf->pixels;
+}
+
+/* This frame changed *changed (all of the surface if NULL). */
+static void ovl_note_damage(egl_surface *surf, const px_rect *changed)
+{
+    int b;
+    if (!surf->ovl_id)
+        return;                         /* no buffers: a new overlay starts all stale */
+    if (!changed || surf->ovl_src != surf->pixels) {
+        ovl_all_stale(surf);
+        return;
+    }
+    for (b = 0; b < OVL_MAX_BANKS; b++)
+        px_rect_union(&surf->ovl_stale[b], changed);
+}
+
+#ifdef EGL_RISCOS_HOST
+unsigned long egl_host_ovl_bytes;       /* bytes copied into overlay buffers (host tests) */
+#endif
+
+/* Bring overlay buffer b (mapped just for the copy) up to date with the
+   finished frame. Returns 0 if the buffer can't be mapped. */
 static int ovl_copy_frame(egl_surface *surf, int b)
 {
     _kernel_swi_regs r;
     const int *planes;
+    const uint8_t *src;
     uint8_t *dst;
+    px_rect *stale = &surf->ovl_stale[b];
+    size_t row_bytes;
     int stride, y;
+
+    if (px_rect_empty(stale))
+        return 1;                       /* nothing changed since it was filled */
     r.r[0] = surf->ovl_id;
     r.r[1] = b;
     if (_kernel_swi(OVL_SWI(MAP), &r, &r) != NULL)
         return 0;
     planes = (const int *) r.r[0];          /* plane 0: address, row stride */
-    dst = (uint8_t *) planes[0];
     stride = planes[1];
-    for (y = 0; y < surf->h; y++)
-        memcpy(dst + (size_t) y * stride, (const uint8_t *) surf->pixels + (size_t) y * surf->stride * 4,
-               (size_t) surf->w * 4);
+    dst = (uint8_t *) planes[0] + (size_t) stale->y0 * stride + (size_t) stale->x0 * 4;
+    src = (const uint8_t *) surf->pixels + ((size_t) stale->y0 * surf->stride + stale->x0) * 4;
+    row_bytes = (size_t) (stale->x1 - stale->x0) * 4;
+    for (y = stale->y0; y < stale->y1; y++) {
+        memcpy(dst, src, row_bytes);
+        dst += stride;
+        src += (size_t) surf->stride * 4;
+    }
+#ifdef EGL_RISCOS_HOST
+    egl_host_ovl_bytes += row_bytes * (size_t) (stale->y1 - stale->y0);
+#endif
     ovl_call(OVL_SWI(UNMAP), surf->ovl_id, b);
+    stale->x0 = stale->y0 = stale->x1 = stale->y1 = 0;
     return 1;
 }
 

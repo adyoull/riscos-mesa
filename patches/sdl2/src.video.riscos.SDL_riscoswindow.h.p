@@ -1,7 +1,7 @@
 diff --git src/video/riscos/SDL_riscoswindow.h src/video/riscos/SDL_riscoswindow.h
 --- src/video/riscos/SDL_riscoswindow.h
 +++ src/video/riscos/SDL_riscoswindow.h
-@@ -30,10 +30,79 @@ typedef struct
+@@ -30,10 +30,81 @@ typedef struct
      SDL_Window *window;
      sprite_area *fb_area;
      sprite_header *fb_sprite;
@@ -23,13 +23,15 @@ diff --git src/video/riscos/SDL_riscoswindow.h src/video/riscos/SDL_riscoswindow
 +       window->h, fb_pitch bytes a row); each update copies the changed
 +       rectangles into the EGL surface (egl_surface, made without a
 +       context and written through EGL_KHR_lock_surface) and shows it.
-+       fb_dirty: the union of the rectangles not shown yet (x0, y0, x1, y1;
-+       empty when x0 >= x1), when a frame is held for a vsync. */
++       fb_dirty: the rectangles not shown yet (more than one when a frame
++       is held for a vsync); past RISCOS_FB_MAX_RECTS they are merged. */
 +    int fb_egl;
 +    void *fb_config;            /* the EGLConfig for its surface */
 +    void *fb_buf;
 +    int fb_pitch;
-+    int fb_dirty[4];
++#define RISCOS_FB_MAX_RECTS 8
++    SDL_Rect fb_dirty[RISCOS_FB_MAX_RECTS];
++    int fb_ndirty;
 +    /* 2026: render size (SDL_HINT_RISCOS_GL_RENDER_SIZE). When render_w is
 +       set, window->w/h is the render size (what the program sees) and
 +       disp_w/h is the size the program asked for: the desktop window's

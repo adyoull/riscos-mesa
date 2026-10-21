@@ -115,10 +115,11 @@ sdl_harness() {
     local EF="-no-pie -O1 -w -std=gnu99 -DEGL_RISCOS_HOST -Iegl/fake -I$R/dispmanx/include -I$R/dispmanx -I$R/egl/include -I$M/include"
     gcc $SF -c harness.c -o "$OUT/sdl-harness.o" &&
     gcc $SF -c "$S/src/video/riscos/SDL_riscosopengl.c" -o "$OUT/sdl-gl.o" &&
+    gcc $SF -c "$S/src/video/SDL_rect.c" -o "$OUT/sdl-rect.o" &&
     gcc $EF -c "$R/egl/egl_riscos.c" -o "$OUT/sdl-egl.o" &&
     gcc $EF -c egl/fake_riscos.c -o "$OUT/sdl-fake.o" &&
     gcc -no-pie -O1 -w -std=gnu99 -Iovl/fake -Iegl -Iegl/fake -c ovl/fake_ovl.c -o "$OUT/sdl-fake-ovl.o" &&
-    gcc -no-pie "$OUT/sdl-harness.o" "$OUT/sdl-gl.o" "$OUT/sdl-egl.o" "$OUT/sdl-fake.o" "$OUT/sdl-fake-ovl.o" \
+    gcc -no-pie "$OUT/sdl-harness.o" "$OUT/sdl-gl.o" "$OUT/sdl-rect.o" "$OUT/sdl-egl.o" "$OUT/sdl-fake.o" "$OUT/sdl-fake-ovl.o" \
         -o "$OUT/sdl-harness" -L"$O" -lOSMesa -lstdc++ -lz -lm -lpthread -Wl,-rpath,"$O" &&
     "$OUT/sdl-harness" | tee "$OUT/sdl.out" | tail -1 && grep -q "ALL CHECKS PASSED" "$OUT/sdl.out"
 }
