@@ -108,6 +108,8 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 - **First Pi 4 figures for software framebuffers through EGL** (17j,
   1024x768 window, 8 squares moving, sdlfbtest):
 
+  Flat out (the 17j runs; later runs are paced to the refresh):
+
   | Run | Update call | Shown |
   |---|---|---|
   | ordinary framebuffer, 1:1 | 0.090 ms | ordinary |
@@ -119,9 +121,12 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   Through an overlay most updates are held for the next refresh, so those
   times are mostly that of holding one. The earlier plotted run had
   whole-picture updates at 3.8 ms.
-- **sdlfbtest: P pauses the squares, `-r fps` caps the frame rate.** Flat
-  out, plotted squares look sheared (each screen row catches them at a
-  later place); paused they should be square. The summary shows
+- **sdlfbtest moves the squares once per screen refresh**, as a game
+  does (SDL's refresh rate, else 60), and says so in the summary.
+  Running flat out, the plotted runs on the Pi showed the squares as
+  parallelograms: each screen row caught them at a later place. `-r N`
+  sets another rate, and `-r 0` runs flat out. P pauses the squares;
+  paused, they should be square. The summary shows
   `EGL$OverlayStatus` only for runs through EGL, and EGL now says when a
   program refused an overlay.
 

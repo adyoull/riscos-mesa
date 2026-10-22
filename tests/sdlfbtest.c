@@ -32,11 +32,12 @@
  *   -a  update the whole picture every frame, to compare with the
  *       rectangles (key A switches)
  *   -n  how many squares (default 8)
- *   -r  at most this many frames a second (default: flat out). Flat out,
- *       the squares move thousands of times a second, faster than the
- *       screen refreshes: a plotted picture then shows them sheared (each
- *       screen row catches them at a later place), which isn't a fault.
- *       Press P, or use -r 50, to see their real shape
+ *   -r  frames a second (default: the screen's refresh rate, as a game
+ *       would). -r 0 runs flat out, to see the most updates the path can
+ *       take: the squares then move thousands of times a second, faster
+ *       than the screen refreshes, and a plotted picture shows them
+ *       sheared (each screen row catches them at a later place), which
+ *       isn't a fault
  *   -t  quit by itself after this many seconds
  *   -o  write the summary to file as well
  * Keys: F full screen and back, A whole/rectangles, P pause (the squares
@@ -211,6 +212,32 @@ static int shown_way(SDL_Window *win)
 
 /* ---- running it ---- */
 
+/* The screen's refresh rate, or 60 if SDL doesn't know it */
+static int refresh_rate(SDL_Window *win)
+{
+    SDL_DisplayMode m;
+    if (SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(win), &m) == 0 &&
+        m.refresh_rate >= 24 && m.refresh_rate <= 240)
+        return m.refresh_rate;
+    return 60;
+}
+
+/* Wait until time t (hr_seconds). SDL_Delay lets other programs run but
+   only keeps to about 10 ms on RISC OS, so it sleeps until just before t
+   and the rest is a short busy wait. Returns 0 after a long sleep, so the
+   caller can deal with events first and come back. */
+static int wait_until(double t)
+{
+    double left = t - hr_seconds();
+    if (left > 0.012) {
+        SDL_Delay((Uint32) ((left - 0.011) * 1000.0));
+        return 0;
+    }
+    while (hr_seconds() < t)
+        ;
+    return 1;
+}
+
 typedef struct {
     int frames;
     double update_s;                    /* time in SDL_UpdateWindowSurface(Rects) */
@@ -219,13 +246,17 @@ typedef struct {
 } stats;
 
 static void report(FILE *f, const char *how, int win_w, int win_h, int pic_w, int pic_h,
-                   int whole, const stats *st, double now, long bad)
+                   int whole, int fps_cap, const stats *st, double now, long bad)
 {
     double t = now - st->start;
     int i;
     fprintf(f, "sdlfbtest: %s\n", how);
     fprintf(f, "  window %dx%d, picture %dx%d, %s updates\n", win_w, win_h, pic_w, pic_h,
             whole ? "whole-picture" : "rectangle");
+    if (fps_cap > 0)
+        fprintf(f, "  paced to %d frames a second\n", fps_cap);
+    else
+        fprintf(f, "  flat out (-r 0)\n");
     fprintf(f, "  %d frames in %.1f s: %.1f fps, %.3f ms a frame in the update call\n",
             st->frames, t, t > 0 ? st->frames / t : 0.0,
             st->frames ? 1000.0 * st->update_s / st->frames : 0.0);
@@ -250,7 +281,7 @@ static void report(FILE *f, const char *how, int win_w, int win_h, int pic_w, in
 
 int main(int argc, char **argv)
 {
-    int w = 1024, h = 768, full = 0, whole = 0, n = 8, seconds = 0, fps_cap = 0, i;
+    int w = 1024, h = 768, full = 0, whole = 0, n = 8, seconds = 0, fps_cap = -1, i;
     int paused = 0, way = SHOWN_ORDINARY;
     double next_frame = 0;
     const char *size = NULL, *ovl = NULL, *out = NULL;
@@ -296,6 +327,8 @@ int main(int argc, char **argv)
         SDL_Quit();
         return 1;
     }
+    if (fps_cap < 0)
+        fps_cap = refresh_rate(win);
     scene_start(&sc, surf, n);
     SDL_UpdateWindowSurface(win);
 
@@ -332,12 +365,11 @@ int main(int argc, char **argv)
             last_title = hr_seconds() - 1.0;        /* a fresh title when it goes on */
             continue;
         }
-        if (fps_cap > 0) {                          /* at most fps_cap frames a second */
+        if (fps_cap > 0) {                          /* fps_cap frames a second */
+            if (!wait_until(next_frame))
+                continue;                           /* events first */
             now = hr_seconds();
-            if (now < next_frame) {
-                SDL_Delay((Uint32) ((next_frame - now) * 1000.0));
-                continue;
-            }
+            /* the next one a frame on (from now if it fell well behind) */
             next_frame = (next_frame > 0 && now - next_frame < 0.1 ? next_frame : now) + 1.0 / fps_cap;
         }
         nr = scene_step(&sc, rects);
@@ -368,10 +400,10 @@ int main(int argc, char **argv)
         long bad = scene_check(&sc);
         SDL_DestroyWindow(win);
         SDL_Quit();
-        report(stdout, how, w, h, pw, ph, whole, &st, now, bad);
+        report(stdout, how, w, h, pw, ph, whole, fps_cap, &st, now, bad);
         if (out) {
             FILE *f = fopen(out, "w");
-            if (f) { report(f, how, w, h, pw, ph, whole, &st, now, bad); fclose(f); }
+            if (f) { report(f, how, w, h, pw, ph, whole, fps_cap, &st, now, bad); fclose(f); }
         }
     }
     return 0;
