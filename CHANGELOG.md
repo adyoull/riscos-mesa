@@ -105,6 +105,25 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   shown at; too big).
   `*Show EGL$OverlayStatus` after running a program. sdlfbtest's summary
   includes it.
+- **First Pi 4 figures for software framebuffers through EGL** (17j,
+  1024x768 window, 8 squares moving, sdlfbtest):
+
+  | Run | Update call | Shown |
+  |---|---|---|
+  | ordinary framebuffer, 1:1 | 0.090 ms | ordinary |
+  | 400x300 stretched by the sprite plot | 0.239 ms | plotted |
+  | 400x300 through an overlay | 0.003 ms | overlay 100% |
+  | the same, whole picture each time | 0.002 ms | overlay 100% |
+  | 640x360 full screen through an overlay | 0.005 ms | overlay 100% |
+
+  Through an overlay most updates are held for the next refresh, so those
+  times are mostly that of holding one. The earlier plotted run had
+  whole-picture updates at 3.8 ms.
+- **sdlfbtest: P pauses the squares, `-r fps` caps the frame rate.** Flat
+  out, plotted squares look sheared (each screen row catches them at a
+  later place); paused they should be square. The summary shows
+  `EGL$OverlayStatus` only for runs through EGL, and EGL now says when a
+  program refused an overlay.
 
 ## 20.3.5-16: windows the right size on 180 dpi desktops
 

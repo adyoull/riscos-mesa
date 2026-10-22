@@ -111,6 +111,14 @@ Run in this order and note the output:
    Watch them on the Pi's own screen: overlays never reach a remote
    desktop, and RDPServer turns them off (EGL$Overlay) while a client is
    connected, so through it every run says "plotted".
+   They run flat out, so the squares move thousands of times a second:
+   plotted (sdl-fb-plain, sdl-fb-plot) they look sheared, like
+   parallelograms, because each screen row catches them at a later
+   place. That isn't a fault: press P to stop them (they should then be
+   square), or run sdlfbtest with -r 50 to move them 50 times a second.
+   An overlay switches whole pictures at the screen's refresh, so it
+   doesn't shear. Through an overlay most updates are held for the next
+   refresh, so the update time there is mostly that of holding one.
    What to look for:
    - Coloured slivers or bits of white edge left on the grid behind the
      squares (sdl-fb-plot especially): the plot missed an edge.

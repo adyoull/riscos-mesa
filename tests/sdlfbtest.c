@@ -22,7 +22,7 @@
  * a command window over the desktop).
  *
  * Usage: sdlfbtest [width height] [-S WxH] [-V|-N] [-f] [-a] [-n squares]
- *                  [-t seconds] [-o file]
+ *                  [-r fps] [-t seconds] [-o file]
  *   width height  the window (default 1024x768)
  *   -S  the program's picture is WxH, stretched to the window
  *       (SDL_RISCOS_FB_RENDER_SIZE)
@@ -32,9 +32,15 @@
  *   -a  update the whole picture every frame, to compare with the
  *       rectangles (key A switches)
  *   -n  how many squares (default 8)
+ *   -r  at most this many frames a second (default: flat out). Flat out,
+ *       the squares move thousands of times a second, faster than the
+ *       screen refreshes: a plotted picture then shows them sheared (each
+ *       screen row catches them at a later place), which isn't a fault.
+ *       Press P, or use -r 50, to see their real shape
  *   -t  quit by itself after this many seconds
  *   -o  write the summary to file as well
- * Keys: F full screen and back, A whole/rectangles, Escape quits.
+ * Keys: F full screen and back, A whole/rectangles, P pause (the squares
+ * stop: they should be square), Escape quits.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -229,8 +235,10 @@ static void report(FILE *f, const char *how, int win_w, int win_h, int pic_w, in
             fprintf(f, " %s %.0f%%", shown_name[i], st->frames ? 100.0 * st->shown[i] / st->frames : 0.0);
     fprintf(f, "\n");
     {
-        const char *why = getenv("EGL$OverlayStatus");     /* set by EGL, from 20.3.5-17i */
-        if (why)
+        /* set by EGL (from 20.3.5-17i) for the last surface that could have
+           had an overlay: only this run's if it went through EGL */
+        const char *why = getenv("EGL$OverlayStatus");
+        if (why && st->shown[SHOWN_ORDINARY] < st->frames)
             fprintf(f, "  EGL$OverlayStatus: %s\n", why);
     }
     fprintf(f, "  timer: %s\n", hr_source());
@@ -242,7 +250,9 @@ static void report(FILE *f, const char *how, int win_w, int win_h, int pic_w, in
 
 int main(int argc, char **argv)
 {
-    int w = 1024, h = 768, full = 0, whole = 0, n = 8, seconds = 0, i;
+    int w = 1024, h = 768, full = 0, whole = 0, n = 8, seconds = 0, fps_cap = 0, i;
+    int paused = 0, way = SHOWN_ORDINARY;
+    double next_frame = 0;
     const char *size = NULL, *ovl = NULL, *out = NULL;
     char how[128], title[160];
     SDL_Window *win;
@@ -261,6 +271,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-a")) whole = 1;
         else if (!strcmp(argv[i], "-n") && i + 1 < argc) n = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-t") && i + 1 < argc) seconds = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "-r") && i + 1 < argc) fps_cap = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-o") && i + 1 < argc) out = argv[++i];
         else if (i + 1 < argc && atoi(argv[i]) > 0) { w = atoi(argv[i]); h = atoi(argv[++i]); }
     }
@@ -295,13 +306,14 @@ int main(int argc, char **argv)
     while (running) {
         SDL_Event ev;
         double t0, now;
-        int nr, way;
+        int nr;
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) running = 0;
             else if (ev.type == SDL_KEYDOWN) {
                 SDL_Keycode k = ev.key.keysym.sym;
                 if (k == SDLK_ESCAPE) running = 0;
                 else if (k == SDLK_a) whole = !whole;
+                else if (k == SDLK_p) paused = !paused;
                 else if (k == SDLK_f) {
                     full = !full;
                     SDL_SetWindowFullscreen(win, full ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
@@ -314,6 +326,20 @@ int main(int argc, char **argv)
         }
         if (!running)
             break;
+        if (paused) {
+            SDL_SetWindowTitle(win, "sdlfbtest - paused (P goes on): the squares should be square");
+            SDL_Delay(20);
+            last_title = hr_seconds() - 1.0;        /* a fresh title when it goes on */
+            continue;
+        }
+        if (fps_cap > 0) {                          /* at most fps_cap frames a second */
+            now = hr_seconds();
+            if (now < next_frame) {
+                SDL_Delay((Uint32) ((next_frame - now) * 1000.0));
+                continue;
+            }
+            next_frame = (next_frame > 0 && now - next_frame < 0.1 ? next_frame : now) + 1.0 / fps_cap;
+        }
         nr = scene_step(&sc, rects);
         t0 = hr_seconds();
         if (whole) SDL_UpdateWindowSurface(win);

@@ -365,7 +365,9 @@ static int ovl_covered(const window_state *ws)
 static int ovl_candidate(egl_display *d, egl_surface *surf)
 {
     egl_surface *o;
-    if (surf->ovl_want > 0 && ovl_user_setting() < 0)
+    if (surf->ovl_want == 0 && surf->kind == SURF_WINDOW && surf->handle >= 0)
+        ovl_status("plotted: the program refused an overlay (EGL_OVERLAY_RISCOS EGL_FALSE)");
+    else if (surf->ovl_want > 0 && ovl_user_setting() < 0)
         ovl_status("plotted: overlays are off (EGL$Overlay off: RDPServer sets it while a client is connected)");
     if (surf->kind != SURF_WINDOW || surf->handle < 0 || surf->fixed || surf->dmx ||
         !ovl_wanted(surf) || !surf->sprite || surf->destroy_pending)
