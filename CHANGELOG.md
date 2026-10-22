@@ -49,7 +49,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   are held and shown by the event loop; full screen keeps a Wimp window;
   if no EGL surface can be made the ordinary framebuffer is used. Without
   the hints nothing changes, and the no-GL build (OpenTTD) has none of it.
-  New checks in the SDL host harness. Not yet tried on a Pi.
+  New checks in the SDL host harness. Tried on a Pi 4 with sdlfbtest
+  (17j to 17m): through the overlay in a window and full screen, and
+  plotted, with no faults seen (figures below).
 - **Less copying and plotting for partial updates** (mostly for the
   software framebuffers above):
   - EGL: a surface stretched to a render size now plots only where the
@@ -66,7 +68,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
       give exactly the picture a whole plot does;
     - every overlay buffer shown holds the whole current picture.
 
-  Not yet tried on a Pi.
+  Tried on a Pi 4 with sdlfbtest: no slivers behind the moving squares
+  when plotted, and no ghosts after a menu or window over the overlay
+  (so VideoOverlay keeps a buffer's contents while it's hidden).
 - **A Pi test for software framebuffers: `sdlfbtest`** in the tests zip.
   It draws squares moving over a grid into SDL's window surface and
   sends only the changed rectangles, as 2D games do. It reports the
