@@ -60,10 +60,11 @@
 #define OVL_WARMUP   3          /* swaps in a row before an overlay is made */
 #define OVL_GAP_CS   25         /* ... each at most this long after the last */
 #define OVL_TYPE_BASIC 1        /* VideoOverlay_Create's type: on top of everything */
-/* VideoOverlay_Create R2 bit 0: the overlay must be able to scale. Without
-   it the sizes Create says the overlay can be shown at (R2-R5 on exit) may
-   be just its own size, and EGL then plots every scaled surface: what
-   happened on a Pi 4 from 20.3.5-12 to -17h (ovltest always set it). */
+/* VideoOverlay_Create R2 bit 0: the overlay must be able to scale. EGL
+   scales overlays (render sizes, window scales) and keeps to the sizes
+   Create says it can be shown at (R2-R5 on exit), so it asks for scaling,
+   as ovltest did when the Pi gave 1x1..4096x4096. What the limits are
+   without the flag isn't known. */
 #define OVL_CREATE_MUST_SCALE 1
 /* The largest overlay EGL makes: at most 2048 pixels each way (the Pi's
    overlays), and no more pixels than 2048x1200. Each buffer is 32bpp, so
@@ -364,6 +365,8 @@ static int ovl_covered(const window_state *ws)
 static int ovl_candidate(egl_display *d, egl_surface *surf)
 {
     egl_surface *o;
+    if (surf->ovl_want > 0 && ovl_user_setting() < 0)
+        ovl_status("plotted: overlays are off (EGL$Overlay off: RDPServer sets it while a client is connected)");
     if (surf->kind != SURF_WINDOW || surf->handle < 0 || surf->fixed || surf->dmx ||
         !ovl_wanted(surf) || !surf->sprite || surf->destroy_pending)
         return 0;

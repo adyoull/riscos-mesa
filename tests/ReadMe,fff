@@ -108,6 +108,9 @@ Run in this order and note the output:
      sdl-fb-whole    as sdl-fb-overlay, the whole picture sent each frame
      sdl-fb-full     640x360 full screen through an overlay; F goes back
                      to a window and to full screen again
+   Watch them on the Pi's own screen: overlays never reach a remote
+   desktop, and RDPServer turns them off (EGL$Overlay) while a client is
+   connected, so through it every run says "plotted".
    What to look for:
    - Coloured slivers or bits of white edge left on the grid behind the
      squares (sdl-fb-plot especially): the plot missed an edge.

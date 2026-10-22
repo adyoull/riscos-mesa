@@ -15,8 +15,9 @@
  * catch code that ignores them. A mode change (User_Message 0x400C1 in
  * the script) destroys every overlay, as the driver does.
  * Create/Vet without R2 bit 0 ("must scale") give the overlay's own size
- * as the only size it can be shown at, which is what a Pi 4 seems to do:
- * EGL asking without it plotted every scaled surface (20.3.5-12 to -17h).
+ * as the only size it can be shown at: the strictest reading of the wiki
+ * (what the Pi does without the flag isn't known), so code that scales an
+ * overlay has to ask for scaling.
  * FAKE_OVL_VET_BROKEN=1: every Vet fails, as on the Pi (VideoOverlay 0.02).
  * FAKE_OVL_GPU_BYTES=<n>: MapBuffer fails once the buffers would need more
  * (the Pi with Geminus loaded couldn't map a third 1920x1080 buffer).

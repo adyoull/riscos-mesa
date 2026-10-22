@@ -86,22 +86,23 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   frames in the summary. The first Pi results had the overlay and plotted
   runs at the same speed (0.27 ms an update, and 3.8 ms for whole-picture
   updates, about what plotting the whole window costs), which suggests
-  the overlay wasn't in use. SDL now keeps the framebuffer's EGL surface
+  the overlay wasn't in use (it was off: the runs were watched through
+  RDPServer, see below). SDL now keeps the framebuffer's EGL surface
   as the window's data `"SDL_RISCOS_FB_EGLSurface"`, so a program can ask
   EGL (`EGL_OVERLAY_RISCOS`).
-- **Fixed: hardware overlays weren't used for scaled pictures** (render
-  sizes, window scales), from 20.3.5-12. On a Pi 4 sdl-scaled said
-  "plotted", and so did all of sdlfbtest's overlay runs. EGL made its
-  overlays without VideoOverlay_Create's "must scale" flag (R2 bit 0).
-  Since -12, EGL checks the sizes Create says the overlay can be shown
-  at, and without the flag those seem to be just the overlay's own size,
-  so every scaled surface was plotted instead. ovltest, whose Pi results
-  the code was based on, always set the flag. EGL now sets it. The fake
-  VideoOverlay in the host tests now behaves the same way, so the old
-  code fails 29 host checks.
+- **EGL asks VideoOverlay for an overlay that can scale** (Create's
+  "must scale" flag, R2 bit 0). EGL scales overlays (render sizes, window
+  scales) and keeps to the sizes Create says it can be shown at; the
+  Pi's limits (1x1 to 4096x4096) were measured by ovltest with the flag
+  set. Without the flag they aren't known. (An earlier note here
+  called this the cause of sdl-scaled and sdlfbtest showing "plotted" on
+  a Pi 4. It wasn't: they were watched through RDPServer, which turns
+  overlays off with `EGL$Overlay` while a client is connected.)
 - **`EGL$OverlayStatus`**: EGL notes how the last overlay-backed surface
-  was shown, or why it was plotted (VideoOverlay not loaded, Create
-  refused, a size the overlay can't be shown at, too big).
+  was shown, or why it was plotted (overlays turned off with
+  `EGL$Overlay`, as RDPServer does while a client is connected;
+  VideoOverlay not loaded; Create refused; a size the overlay can't be
+  shown at; too big).
   `*Show EGL$OverlayStatus` after running a program. sdlfbtest's summary
   includes it.
 

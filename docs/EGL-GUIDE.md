@@ -270,7 +270,7 @@ The devkit's example 2 (`!GLWindow`) does all of this from its menu, with commen
   (GL counts y from the bottom: use `render_h - 1 - py` for that. SDL programs get all this done for them: see [porting/sdl2.md](porting/sdl2.md).)
 - **Screen grabs** (Snapper, `*ScreenSave`) don't see an overlay: they show what's plotted underneath.
 - **Users can override you:** `*Set EGL$Overlay off` turns overlays off for every program; `*Set EGL$Overlay on` gives one to every program that hasn't said no. Leaving the attribute out isn't saying no; giving `EGL_OVERLAY_RISCOS, EGL_FALSE` is.
-- **Why isn't it an overlay?** `*Show EGL$OverlayStatus` after running the program: EGL sets it to how the last overlay-backed surface was shown (`overlay: 640x480 shown at 1024x768`) or why it was plotted (VideoOverlay not loaded, Create refused, a shown size the overlay can't do, too big).
+- **Why isn't it an overlay?** `*Show EGL$OverlayStatus` after running the program: EGL sets it to how the last overlay-backed surface was shown (`overlay: 640x480 shown at 1024x768`) or why it was plotted (overlays off with `EGL$Overlay`, which RDPServer sets while a client is connected; VideoOverlay not loaded; Create refused; a shown size the overlay can't do; too big). Overlays never reach a remote desktop client, so watch overlay tests on the Pi's own screen.
 - **To check it's working,** `eglQuerySurface(dpy, surf, EGL_OVERLAY_RISCOS, &v)` gives 1 when frames are going through an overlay, 2 when it's hidden because something overlaps, and 0 when they're being plotted. Example 2 shows this in its title bar.
 
 #### The details

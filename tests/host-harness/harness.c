@@ -579,6 +579,17 @@ static void *run(void *arg)
         vd.wimp_window = 0x6000; vd.wimp_sdl_window = &fw;
         RISCOS_FB_Update(&dev, &fw, &r, 1);
         CHECK(fd->egl_handle == 0x6000, "FB: back in the window");
+        /* EGL$Overlay off (RDPServer sets it while a client is connected):
+           plotted, and EGL$OverlayStatus says why */
+        setenv("EGL$Overlay", "off", 1);
+        fake_vsyncs++;
+        RISCOS_FB_Update(&dev, &fw, NULL, 0);
+        {
+            const char *st = getenv("EGL$OverlayStatus");
+            CHECK(fake_ovl_live() == 0 && st && !strncmp(st, "plotted: overlays are off", 25),
+                  "EGL$Overlay off: plotted, and the status says so (%s)", st ? st : "unset");
+        }
+        unsetenv("EGL$Overlay");
 
         RISCOS_FB_Destroy(&fw);
         CHECK(!fd->fb_egl && !fd->fb_buf && !fd->egl_surface && !fd->gl_egl && fake_ovl_live() == 0,
