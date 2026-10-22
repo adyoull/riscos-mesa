@@ -33,9 +33,14 @@ textured; glbench's racing-game-like scene draws 14% faster than with
 GLUT windows at the right size on high resolution (EX0 EY0, "180 dpi")
 desktops, as SDL windows already were: each pixel is shown 2x2, so a
 window is the size it is in a normal mode and costs no more to draw.
-Not tried on a Pi yet: menus over the overlay, the overlay
-in full screen or across mode changes, SDL's multitasking full screen,
-and GLUT's game mode at the requested size.
+20.3.5-17 gives SDL programs that draw in software (2D games using
+`SDL_GetWindowSurface`) the same render size and hardware overlay, as an
+option: the game draws at its own size and the Pi's display scales it, in
+a window or full screen, sending only what changed each frame (under half
+a millisecond a frame on a Pi 4). It also stops the icon bar flashing over
+full screen SDL and GLUT games, and `*Show EGL$OverlayStatus` says how a
+program's picture is being shown. Not tried on a Pi yet: the overlay
+across mode changes, and GLUT's game mode at the requested size.
 
 ## Three ways in
 

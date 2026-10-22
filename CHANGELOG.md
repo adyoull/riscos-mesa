@@ -4,154 +4,109 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## Unreleased
+## 20.3.5-17: software-drawn SDL games through the hardware overlay
 
-- **SDL: the icon bar no longer flashes over full screen games.** With
-  the desktop's "bring the icon bar to the front automatically" option
-  on, pushing the pointer to the bottom of the screen in a multitasking
-  full screen SDL program (fheroes2 scrolling its map) brought the icon
-  bar over the game for a moment. While the pointer is over a full
-  screen window, the mouse now stops 2 pixels above the screen's bottom
-  (its bounding box, `OS_Word 21,1`), and that lowest reachable row
-  counts as the window's bottom row, so scrolling at the bottom edge
-  still works. The whole screen comes back as soon as the pointer is over
-  anything else (a menu, an error box, another task's window), when the
-  window closes, on a mode change and when the program exits.
-  `*Set SDL$PointerMargin 0` turns it off (or sets the margin in pixels).
-  New checks in the sdl-wimp harness (73). Not yet tried on a Pi.
-- **GLUT: the same for game mode and `glutFullScreen` windows.** The
-  pointer stops 2 pixels above the screen's bottom while it is over a full
-  screen GLUT window, and that row counts as the bottom row;
-  `*Set FreeGLUT$PointerMargin 0` turns it off. New glut harness checks.
-  Not yet tried on a Pi.
+SDL programs that draw in software (2D games such as VCMI, fheroes2 and
+Julius, which use `SDL_GetWindowSurface`) can now have the same render
+size and hardware overlay as GL programs: the game draws at its own
+size and the Pi's display scales it, smoothly and for free, in a window
+or full screen. It's opt-in, with two hints or system variables; without
+them nothing changes. Full screen SDL and GLUT games no longer have the
+icon bar flash over them. Rendering is the same as 20.3.5-16. Programs
+need relinking with the new devkit to get any of it.
+
+- **SDL: software framebuffers through EGL, with a render size and the
+  hardware overlay** (asked for by VCMI).
+  - `SDL_RISCOS_FB_RENDER_SIZE` (`WxH`) and/or `SDL_RISCOS_FB_OVERLAY`
+    (`1`), as hints or system variables, give a window without
+    `SDL_WINDOW_OPENGL` a window surface of the render size in ordinary
+    memory.
+  - Each `SDL_UpdateWindowSurface(Rects)` copies the changed rectangles
+    (up to 8 kept apart) into a lockable EGL window surface
+    (`EGL_KHR_lock_surface3`, no GL context) and shows them through a
+    VideoOverlay overlay, scaled by the display, or else stretched by the
+    sprite plot.
+  - Mouse positions and window sizes are in the render size. Frames that
+    would wait for a vsync are held and shown by the event loop. Full
+    screen keeps a Wimp window (the overlay needs one). If no EGL surface
+    can be made, the ordinary framebuffer is used.
+  - SDL keeps the surface as the window's data
+    `"SDL_RISCOS_FB_EGLSurface"`, so a program can ask EGL how it's shown
+    (`EGL_OVERLAY_RISCOS`).
+  - The no-GL SDL build (OpenTTD's) has none of it.
+- **Less copying and plotting for partial updates:**
+  - a surface stretched to a render size plots only where the damage
+    rectangles land on the screen (rounded out a pixel), not the whole
+    window;
+  - each overlay buffer is brought up to date with only what changed
+    since it was last filled, not a whole-frame copy per frame.
+- **`EGL$OverlayStatus`:** after running a program, `*Show
+  EGL$OverlayStatus` says how the last overlay-backed surface was shown
+  (`overlay: 400x300 shown at 1024x768`), or why it was plotted:
+  - overlays turned off with `EGL$Overlay` (RDPServer does this while a
+    client is connected, and overlays never reach a remote desktop);
+  - the program refused one;
+  - VideoOverlay isn't loaded;
+  - VideoOverlay refused to create it;
+  - a size the overlay can't be shown at;
+  - too big for an overlay.
+- **EGL asks VideoOverlay for an overlay that can scale** (Create's "must
+  scale" flag, R2 bit 0). EGL scales overlays and keeps to the sizes
+  Create says they can be shown at; the Pi's limits were measured with
+  this flag set.
+- **The icon bar no longer flashes over full screen games** (reported for
+  fheroes2). With the desktop's "bring the icon bar to the front
+  automatically" option on, pushing the pointer to the bottom of the
+  screen in a multitasking full screen game brought the icon bar over it
+  for a moment.
+  - While the pointer is over a full screen SDL window, or a GLUT game
+    mode or `glutFullScreen` window, the mouse stops 2 pixels above the
+    screen's bottom (its bounding box, `OS_Word 21,1`). That lowest
+    reachable row counts as the window's bottom row, so scrolling at the
+    bottom edge still works.
+  - The whole screen comes back as soon as the pointer is over anything
+    else (a menu, an error box, another task's window), when the window
+    closes, on a mode change and when the program exits.
+  - `*Set SDL$PointerMargin 0` and `*Set FreeGLUT$PointerMargin 0` turn
+    it off, or set the margin in pixels.
 - **Builds on GitHub, in riscos-crossdev's image.** `build/ci.sh` builds
   everything from a clean checkout with the image's toolchain (GCCSDK GCC
   10.2 with riscos-unixlib 5.0.3.3, the same compiler as before), makes
   the zips and devkit, and runs riscos-crossdev's checks (static linking,
   stack probes, VFPv3 only, UnixLib) on the test programs.
-  `.github/workflows/riscos-build.yml` runs it on every push;
-  `riscos-deps-update.yml` opens a pull request when riscos-crossdev
-  (named in `.riscos-deps`) makes a new release. With that toolchain's
-  relocated libtool files, libtool is kept from reading the toolchain's
-  `.la` files (`libtool_ignore_toolchain_la` in `build/env.sh`). The
-  libraries built this way render exactly as before (all host tests and
-  the emulated Cortex-A8 checks pass).
-- **SDL: software framebuffers through EGL, with a render size and the
-  hardware overlay** (asked for by VCMI). With
-  `SDL_RISCOS_FB_RENDER_SIZE` (`WxH`) and/or `SDL_RISCOS_FB_OVERLAY` (`1`)
-  set (hints or system variables), a window without `SDL_WINDOW_OPENGL`
-  gets a window surface of the render size in ordinary memory; each
-  `SDL_UpdateWindowSurface(Rects)` copies the changed area into a lockable
-  EGL window surface (`EGL_KHR_lock_surface3`, no GL context) and shows it
-  with `eglSwapBuffersWithDamageKHR`: through a VideoOverlay overlay,
-  scaled by the display, or else stretched by the sprite plot. Mouse and
-  window sizes are in the render size; frames that would wait for a vsync
-  are held and shown by the event loop; full screen keeps a Wimp window;
-  if no EGL surface can be made the ordinary framebuffer is used. Without
-  the hints nothing changes, and the no-GL build (OpenTTD) has none of it.
-  New checks in the SDL host harness. Tried on a Pi 4 with sdlfbtest
-  (17j to 17m): through the overlay in a window and full screen, and
-  plotted, with no faults seen (figures below).
-- **Less copying and plotting for partial updates** (mostly for the
-  software framebuffers above):
-  - EGL: a surface stretched to a render size now plots only where the
-    damage rectangles land on the screen (rounded out a pixel), not the
-    whole window each frame.
-  - Overlay buffers: these are now brought up to date with only what
-    changed since each was last filled, not a whole-frame copy per frame.
-    At 100x80, with a 10x10 cell moving each frame, that's 2,400 bytes
-    an update instead of 32,000.
-  - SDL: keeps up to 8 separate update rectangles, instead of one box
-    around all of them.
-  - Host checks:
-    - 40 random rectangles plotted one by one at a 2.3 x 1.875 stretch
-      give exactly the picture a whole plot does;
-    - every overlay buffer shown holds the whole current picture.
-
-  Tried on a Pi 4 with sdlfbtest: no slivers behind the moving squares
-  when plotted, and no ghosts after a menu or window over the overlay
-  (so VideoOverlay keeps a buffer's contents while it's hidden).
+  - `.github/workflows/riscos-build.yml` runs it on every push.
+  - `riscos-deps-update.yml` opens a pull request when riscos-crossdev
+    (named in `.riscos-deps`) makes a new release.
+  - With that toolchain's relocated libtool files, libtool is kept from
+    reading the toolchain's `.la` files.
+  - The libraries built this way render exactly as before.
 - **A Pi test for software framebuffers: `sdlfbtest`** in the tests zip.
   It draws squares moving over a grid into SDL's window surface and
-  sends only the changed rectangles, as 2D games do. It reports the
-  frame rate and the time spent in the update call. At the end it checks
-  that its own picture is right, so anything wrong on the screen is in
-  showing it.
+  sends only the changed rectangles, once per screen refresh, as a game
+  does (`-r N` sets another rate, `-r 0` runs flat out, P pauses). It
+  reports the frame rate, the time spent in the update call, how the
+  frames were shown and `EGL$OverlayStatus`, and checks its own picture
+  at the end. Obey files run it five ways: `sdl-fb-plain`,
+  `sdl-fb-plot`, `sdl-fb-overlay`, `sdl-fb-whole` and `sdl-fb-full`.
 
-  Obey files run it five ways: `sdl-fb-plain` (the ordinary framebuffer),
-  `sdl-fb-plot` (stretched by the sprite plot), `sdl-fb-overlay`,
-  `sdl-fb-whole` (the whole picture each frame) and `sdl-fb-full` (full
-  screen through an overlay).
+**Tested on a Raspberry Pi 4.** sdlfbtest, 1024x768 window, 8 squares
+moving, 60 frames a second:
 
-  The ReadMe says what to look for: slivers left behind the squares, and
-  ghosts after a menu has been over the overlay. Also checked in CI.
-- **sdlfbtest says how the picture is shown**: overlay, overlay hidden,
-  plotted or the ordinary framebuffer, in the title and as a share of
-  frames in the summary. The first Pi results had the overlay and plotted
-  runs at the same speed (0.27 ms an update, and 3.8 ms for whole-picture
-  updates, about what plotting the whole window costs), which suggests
-  the overlay wasn't in use (it was off: the runs were watched through
-  RDPServer, see below). SDL now keeps the framebuffer's EGL surface
-  as the window's data `"SDL_RISCOS_FB_EGLSurface"`, so a program can ask
-  EGL (`EGL_OVERLAY_RISCOS`).
-- **EGL asks VideoOverlay for an overlay that can scale** (Create's
-  "must scale" flag, R2 bit 0). EGL scales overlays (render sizes, window
-  scales) and keeps to the sizes Create says it can be shown at; the
-  Pi's limits (1x1 to 4096x4096) were measured by ovltest with the flag
-  set. Without the flag they aren't known. (An earlier note here
-  called this the cause of sdl-scaled and sdlfbtest showing "plotted" on
-  a Pi 4. It wasn't: they were watched through RDPServer, which turns
-  overlays off with `EGL$Overlay` while a client is connected.)
-- **`EGL$OverlayStatus`**: EGL notes how the last overlay-backed surface
-  was shown, or why it was plotted (overlays turned off with
-  `EGL$Overlay`, as RDPServer does while a client is connected;
-  VideoOverlay not loaded; Create refused; a size the overlay can't be
-  shown at; too big).
-  `*Show EGL$OverlayStatus` after running a program. sdlfbtest's summary
-  includes it.
-- **First Pi 4 figures for software framebuffers through EGL** (17j,
-  1024x768 window, 8 squares moving, sdlfbtest):
+| Run | Update call | Shown |
+|---|---|---|
+| SDL's ordinary framebuffer, 1:1 | 0.111 ms | ordinary |
+| 400x300 stretched by the sprite plot | 0.277 ms | plotted |
+| 400x300 through an overlay | 0.392 ms | overlay |
+| the same, whole picture each frame | 0.381 ms | overlay |
+| 640x360 full screen through an overlay | 0.447 ms | overlay |
 
-  Flat out (the 17j runs; later runs are paced to the refresh):
-
-  | Run | Update call | Shown |
-  |---|---|---|
-  | ordinary framebuffer, 1:1 | 0.090 ms | ordinary |
-  | 400x300 stretched by the sprite plot | 0.239 ms | plotted |
-  | 400x300 through an overlay | 0.003 ms | overlay 100% |
-  | the same, whole picture each time | 0.002 ms | overlay 100% |
-  | 640x360 full screen through an overlay | 0.005 ms | overlay 100% |
-
-  Through an overlay most updates are held for the next refresh, so those
-  times are mostly that of holding one. The earlier plotted run had
-  whole-picture updates at 3.8 ms.
-- **Paced Pi 4 figures** (17l, 60 frames a second, 1024x768 window, 8
-  squares moving; paced, they're square):
-
-  | Run | Update call | Shown |
-  |---|---|---|
-  | ordinary framebuffer, 1:1 | 0.111 ms | ordinary |
-  | 400x300 stretched by the sprite plot | 0.277 ms | plotted |
-  | 400x300 through an overlay | 0.392 ms | overlay 100% |
-  | the same, whole picture each frame | 0.381 ms | overlay 100% |
-  | 640x360 full screen through an overlay | 0.447 ms | overlay 100% |
-
-  Through an overlay a frame costs about the same whatever changed (the
-  buffer switch and placing it), where plotting the whole stretched
-  picture took 3.8 ms.
-- **Fixed: `EGL$OverlayStatus` said "the program refused an overlay"
-  after an SDL program closed.** SDL refuses the overlay just before it
-  destroys the surface, and that was reported. Refusals now count only
-  while the surface has no overlay. sdlfbtest also reads the status
-  while its window is still open.
-- **sdlfbtest moves the squares once per screen refresh**, as a game
-  does (SDL's refresh rate, else 60), and says so in the summary.
-  Running flat out, the plotted runs on the Pi showed the squares as
-  parallelograms: each screen row caught them at a later place. `-r N`
-  sets another rate, and `-r 0` runs flat out. P pauses the squares;
-  paused, they should be square. The summary shows
-  `EGL$OverlayStatus` only for runs through EGL, and EGL now says when a
-  program refused an overlay.
+Through an overlay a frame costs about the same whatever changed; plotting
+the whole stretched picture took 3.8 ms. No slivers were seen when
+plotted, no ghosts after a menu or window over the overlay, and full
+screen was right. fheroes2 1.1.17-riscos5, built with the pointer margin,
+was tried on a Pi; the GLUT margin hasn't been. All host checks pass,
+including new ones for all of the above, and the rendering checks pass
+under an emulated Cortex-A8.
 
 ## 20.3.5-16: windows the right size on 180 dpi desktops
 
