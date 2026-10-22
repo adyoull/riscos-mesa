@@ -320,6 +320,11 @@ static void *run(void *arg)
        the desktop window) */
     RISCOS_GL_DestroyWindowBuffer(&win);
     CHECK(fake_ovl_live() == 0, "surface destroyed: overlay gone");
+    {
+        const char *st = getenv("EGL$OverlayStatus");
+        CHECK(st && !strncmp(st, "overlay:", 8),
+              "after the surface goes, EGL$OverlayStatus still says how it was shown (%s)", st ? st : "unset");
+    }
     vd.wimp_window = 0; vd.wimp_sdl_window = NULL;
     RISCOS_GL_SwapWindow(&dev, &win);
     frame(0, 1, 0); RISCOS_GL_SwapWindow(&dev, &win);

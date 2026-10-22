@@ -121,6 +121,25 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   Through an overlay most updates are held for the next refresh, so those
   times are mostly that of holding one. The earlier plotted run had
   whole-picture updates at 3.8 ms.
+- **Paced Pi 4 figures** (17l, 60 frames a second, 1024x768 window, 8
+  squares moving; paced, they're square):
+
+  | Run | Update call | Shown |
+  |---|---|---|
+  | ordinary framebuffer, 1:1 | 0.111 ms | ordinary |
+  | 400x300 stretched by the sprite plot | 0.277 ms | plotted |
+  | 400x300 through an overlay | 0.392 ms | overlay 100% |
+  | the same, whole picture each frame | 0.381 ms | overlay 100% |
+  | 640x360 full screen through an overlay | 0.447 ms | overlay 100% |
+
+  Through an overlay a frame costs about the same whatever changed (the
+  buffer switch and placing it), where plotting the whole stretched
+  picture took 3.8 ms.
+- **Fixed: `EGL$OverlayStatus` said "the program refused an overlay"
+  after an SDL program closed.** SDL refuses the overlay just before it
+  destroys the surface, and that was reported. Refusals now count only
+  while the surface has no overlay. sdlfbtest also reads the status
+  while its window is still open.
 - **sdlfbtest moves the squares once per screen refresh**, as a game
   does (SDL's refresh rate, else 60), and says so in the summary.
   Running flat out, the plotted runs on the Pi showed the squares as

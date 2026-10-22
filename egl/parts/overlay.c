@@ -365,7 +365,10 @@ static int ovl_covered(const window_state *ws)
 static int ovl_candidate(egl_display *d, egl_surface *surf)
 {
     egl_surface *o;
-    if (surf->ovl_want == 0 && surf->kind == SURF_WINDOW && surf->handle >= 0)
+    /* (not while an overlay is being taken away: SDL and others refuse it
+       just before destroying the surface, and the status should still say
+       how the surface was shown) */
+    if (surf->ovl_want == 0 && !surf->ovl_id && surf->kind == SURF_WINDOW && surf->handle >= 0)
         ovl_status("plotted: the program refused an overlay (EGL_OVERLAY_RISCOS EGL_FALSE)");
     else if (surf->ovl_want > 0 && ovl_user_setting() < 0)
         ovl_status("plotted: overlays are off (EGL$Overlay off: RDPServer sets it while a client is connected)");

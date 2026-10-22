@@ -243,6 +243,7 @@ typedef struct {
     double update_s;                    /* time in SDL_UpdateWindowSurface(Rects) */
     double start;
     int shown[SHOWN_WAYS];              /* frames shown each way (asked after the update) */
+    char egl_status[128];               /* EGL$OverlayStatus while the window was open */
 } stats;
 
 static void report(FILE *f, const char *how, int win_w, int win_h, int pic_w, int pic_h,
@@ -265,13 +266,8 @@ static void report(FILE *f, const char *how, int win_w, int win_h, int pic_w, in
         if (st->shown[i])
             fprintf(f, " %s %.0f%%", shown_name[i], st->frames ? 100.0 * st->shown[i] / st->frames : 0.0);
     fprintf(f, "\n");
-    {
-        /* set by EGL (from 20.3.5-17i) for the last surface that could have
-           had an overlay: only this run's if it went through EGL */
-        const char *why = getenv("EGL$OverlayStatus");
-        if (why && st->shown[SHOWN_ORDINARY] < st->frames)
-            fprintf(f, "  EGL$OverlayStatus: %s\n", why);
-    }
+    if (st->egl_status[0] && st->shown[SHOWN_ORDINARY] < st->frames)
+        fprintf(f, "  EGL$OverlayStatus: %s\n", st->egl_status);
     fprintf(f, "  timer: %s\n", hr_source());
     if (bad)
         fprintf(f, "  FAIL: %ld pixels of the program's own picture are wrong (a fault in sdlfbtest)\n", bad);
@@ -398,6 +394,10 @@ int main(int argc, char **argv)
         double now = hr_seconds();
         int pw = surf->w, ph = surf->h;     /* the surface goes with the window */
         long bad = scene_check(&sc);
+        /* EGL (from 20.3.5-17i) says how the last surface that could have had
+           an overlay was shown: read it while this one is still there */
+        const char *why = getenv("EGL$OverlayStatus");
+        snprintf(st.egl_status, sizeof st.egl_status, "%s", why ? why : "");
         SDL_DestroyWindow(win);
         SDL_Quit();
         report(stdout, how, w, h, pw, ph, whole, fps_cap, &st, now, bad);
