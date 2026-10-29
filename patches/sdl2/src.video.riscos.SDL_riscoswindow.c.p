@@ -1,13 +1,14 @@
 diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow.c
 --- src/video/riscos/SDL_riscoswindow.c
 +++ src/video/riscos/SDL_riscoswindow.c
-@@ -24,16 +24,410 @@
+@@ -24,16 +24,411 @@
  
  #include "SDL_version.h"
  #include "SDL_syswm.h"
 +#include "SDL_hints.h"
  #include "../SDL_sysvideo.h"
  #include "../../events/SDL_mouse_c.h"
++#include "../../events/SDL_keyboard_c.h"
 +#include "../../events/SDL_windowevents_c.h"
  
  
@@ -412,7 +413,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
      SDL_WindowData *driverdata;
  
      driverdata = (SDL_WindowData *) SDL_calloc(1, sizeof(*driverdata));
-@@ -41,21 +435,283 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
+@@ -41,21 +436,285 @@ RISCOS_CreateWindow(_THIS, SDL_Window * window)
          return SDL_OutOfMemory();
      }
      driverdata->window = window;
@@ -439,6 +440,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +           until we return to a window or quit (fix 13). */
 +        window->flags |= SDL_WINDOW_FULLSCREEN;
 +        SDL_SetMouseFocus(window);
++        SDL_SetKeyboardFocus(window);   /* the only window there is */
 +    } else {
 +        if (RISCOS_WimpCreateWindow(_this, window, SDL_FALSE) < 0) {
 +            window->driverdata = NULL;
@@ -519,6 +521,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +           go back to a window or quit. Never Wimp_CloseDown here (fix 13). */
 +        RISCOS_UpdateEigs(_this);
 +        SDL_SetMouseFocus(window);
++        SDL_SetKeyboardFocus(window);   /* the only window there is */
 +        RISCOS_ApplyPointerVisibility(_this);
 +        {
 +            /* A render size is kept full screen: stretched to the screen
@@ -650,7 +653,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +        SDL_SetMouseFocus(NULL);
 +        RISCOS_ApplyPointerVisibility(_this);
 +    }
-+    vdata->has_caret = SDL_FALSE;
++    RISCOS_SetCaretFocus(_this, SDL_FALSE);
 +}
 +
 +void
@@ -700,7 +703,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
      if (!driverdata)
          return;
  
-@@ -63,6 +719,70 @@ RISCOS_DestroyWindow(_THIS, SDL_Window * window)
+@@ -63,6 +722,70 @@ RISCOS_DestroyWindow(_THIS, SDL_Window * window)
      window->driverdata = NULL;
  }
  

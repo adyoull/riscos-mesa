@@ -9,7 +9,7 @@ diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
  
  #define RISCOS_MAX_KEYS_PRESSED 6
  
-@@ -31,8 +32,101 @@ typedef struct SDL_VideoData
+@@ -31,8 +32,104 @@ typedef struct SDL_VideoData
  {
      int last_mouse_buttons;
      Uint8 key_pressed[RISCOS_MAX_KEYS_PRESSED];
@@ -29,6 +29,9 @@ diff --git src/video/riscos/SDL_riscosvideo.h src/video/riscos/SDL_riscosvideo.h
 +    SDL_bool pointer_in;        /* pointer is over our window */
 +    SDL_bool has_caret;         /* we have the input focus */
 +    SDL_bool cursor_hidden;     /* SDL asked for the pointer to be hidden */
++    SDL_bool relative_mouse;    /* 2026: SDL's relative mouse mode (mouse look) is on */
++    int rel_rest_x, rel_rest_y; /* 2026: its movement not yet reported (fractions of
++                                   a window pixel, in screen pixels x window size) */
 +    int buttons_inside;         /* buttons pressed while over our window */
 +    int pending_clicks;         /* Mouse_Click buttons not yet reported (short clicks) */
 +    int pending_click_x, pending_click_y;   /* where the last of them happened (OS units) */

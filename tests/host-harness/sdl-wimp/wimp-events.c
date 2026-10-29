@@ -4,8 +4,9 @@
  * (Message_PreQuit, Message_Quit), the close icon, the icon bar menu, the
  * keys handed to the Wimp, and key presses and auto-repeat read from the
  * keyboard (OS_Byte 121/129, delay and rate from OS_Byte 196), the mouse,
- * and the pointer kept off the screen's bottom over a full window (so the
- * icon bar doesn't come forward over a full screen game).
+ * the pointer kept off the screen's bottom over a full window (so the
+ * icon bar doesn't come forward over a full screen game), the input focus
+ * as SDL's keyboard focus, SDL_WarpMouseInWindow and relative mouse mode.
  *
  * The driver file is compiled in here (#include), so its static functions
  * can be given Wimp_Poll blocks directly. The SWIs it calls are recorded by
@@ -73,6 +74,7 @@ static int calls_to(int swi, _kernel_swi_regs *last, RISCOS_Message *message)
 static int fake_ptr_on, fake_ptr[2], fake_ptr_icon = -1;     /* -1: the work area */
 static int fake_vis_x0 = 100, fake_vis_y1 = 900;            /* the window's visible area */
 static unsigned char fake_box[9];                           /* the last OS_Word 21,1 block */
+static int n_pointer_set;                                   /* OS_Word 21,3 calls */
 
 _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
 {
@@ -112,6 +114,12 @@ _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out
     case OS_Word:
         if (in->r[0] == 21 && *(unsigned char *)(intptr_t)in->r[1] == 1)
             memcpy(fake_box, (void *)(intptr_t)in->r[1], sizeof fake_box);
+        if (in->r[0] == 21 && *(unsigned char *)(intptr_t)in->r[1] == 3) {   /* move the pointer */
+            const unsigned char *b = (const unsigned char *)(intptr_t)in->r[1];
+            fake_ptr[0] = (short)(b[1] | b[2] << 8);
+            fake_ptr[1] = (short)(b[3] | b[4] << 8);
+            n_pointer_set++;
+        }
         break;
     case OS_ReadMonotonicTime:
         out->r[0] = (int)(ticks / 10);
@@ -155,9 +163,14 @@ static SDL_Mouse mouse;
 SDL_Mouse *SDL_GetMouse(void) { return &mouse; }
 SDL_Window *SDL_GetMouseFocus_REAL(void) { return NULL; }
 void SDL_SetMouseFocus(SDL_Window *w) { (void)w; }
-static int motion_x, motion_y;
+static int motion_x, motion_y, rel_dx, rel_dy, n_rel;
 int SDL_SendMouseMotion(SDL_Window *w, SDL_MouseID id, int rel, int x, int y)
-{ motion_x = x; motion_y = y; mouse.x = x; mouse.y = y; return 0; }
+{
+    if (rel) { rel_dx += x; rel_dy += y; n_rel++; return 0; }
+    motion_x = x; motion_y = y; mouse.x = x; mouse.y = y; return 0;
+}
+static SDL_Window *keyboard_focus = (SDL_Window *)1;        /* "never set" */
+void SDL_SetKeyboardFocus(SDL_Window *w) { keyboard_focus = w; }
 int SDL_SendMouseButton(SDL_Window *w, SDL_MouseID id, Uint8 s, Uint8 b) { return 0; }
 int SDL_SendMouseWheel(SDL_Window *w, SDL_MouseID id, float x, float y, SDL_MouseWheelDirection d) { return 0; }
 /* What SDL would make of the key events: SDL marks a press of a key it
@@ -186,6 +199,7 @@ char *SDL_getenv_REAL(const char *n) { return getenv(n); }
 int SDL_atoi_REAL(const char *s) { return atoi(s); }
 void *SDL_memset_REAL(void *d, int c, size_t n) { return memset(d, c, n); }
 void *SDL_memcpy_REAL(void *d, const void *s, size_t n) { return memcpy(d, s, n); }
+int SDL_Error_REAL(SDL_errorcode c) { return -1; }
 int SDL_SendQuit(void) { n_sdl_quit++; return 1; }
 int SDL_SendAppEvent(SDL_EventType t) { if (t == SDL_APP_TERMINATING) n_app_terminating++; return 1; }
 int SDL_SendWindowEvent(SDL_Window *w, Uint8 e, int d1, int d2)
@@ -713,6 +727,129 @@ static void test_pointer_box(void)
     fake_ptr_on = 0;
 }
 
+/* The Wimp's input focus is SDL's keyboard focus: SDL sends FOCUS_GAINED /
+   FOCUS_LOST from it (ClassiCube's pause menu waited for it for ever). */
+static void test_focus(void)
+{
+    RISCOS_PollBlock event;
+    SDL_zero(event);
+    event.caret.window = WINDOW;
+    wimp_event(12, &event);
+    CHECK(keyboard_focus == &window && vdata.has_caret, "Gain_Caret: keyboard focus on our window");
+    wimp_event(11, &event);
+    CHECK(keyboard_focus == NULL && !vdata.has_caret, "Lose_Caret: no keyboard focus");
+    event.caret.window = 0x9999;
+    keyboard_focus = (SDL_Window *)1;
+    wimp_event(12, &event);
+    CHECK(keyboard_focus == (SDL_Window *)1, "another window's caret: left alone");
+    vdata.has_caret = SDL_TRUE;
+}
+
+/* SDL_WarpMouseInWindow puts the pointer where the next poll reads back the
+   same pixel, through a window scale or a stretched render size; relative
+   mode reports movement from the window's middle and puts it back there. */
+static void test_warp_and_relative(void)
+{
+    SDL_WindowData wd;
+    int x, y, ok;
+
+    memset(&wd, 0, sizeof wd);
+    fake_ptr_on = 1;
+    vdata.xeig = vdata.yeig = 1;
+    vdata.has_caret = SDL_TRUE;
+    RISCOS_WarpPointer(&device, &window, 160, 120);
+    CHECK(n_pointer_set == 1 && fake_ptr[0] == 100 + 2 * 160 && fake_ptr[1] == 899 - 2 * 120,
+          "warp to 160,120 in a 1:1 window: OS_Word 21,3 to %d,%d", fake_ptr[0], fake_ptr[1]);
+    mouse.x = mouse.y = -1;
+    RISCOS_PollMouse(&device);
+    CHECK(mouse.x == 160 && mouse.y == 120, "and read back as 160,120 (%d,%d)", mouse.x, mouse.y);
+
+    /* a 2x window scale, and a render size stretched 2 x 4: every pixel
+       goes there and back */
+    vdata.wscale_x = vdata.wscale_y = 2;
+    for (ok = 1, y = 0; y < window.h; y += 7)
+        for (x = 0; x < window.w; x += 5) {
+            RISCOS_WarpPointer(&device, &window, x, y);
+            RISCOS_PollMouse(&device);
+            if (mouse.x != x || mouse.y != y) ok = 0;
+        }
+    CHECK(ok, "2x window: every pixel warped to reads back the same");
+    vdata.wscale_x = vdata.wscale_y = 1;
+    window.driverdata = &wd;
+    wd.render_w = 160; wd.render_h = 60; wd.disp_w = 320; wd.disp_h = 240;
+    window.w = 160; window.h = 60;
+    for (ok = 1, y = 0; y < window.h; y++)
+        for (x = 0; x < window.w; x++) {
+            RISCOS_WarpPointer(&device, &window, x, y);
+            RISCOS_PollMouse(&device);
+            if (mouse.x != x || mouse.y != y) ok = 0;
+        }
+    CHECK(ok, "render size 160x60 over 320x240: every pixel warped to reads back the same");
+
+    /* relative mode, 1:1: 10 pixels right and 5 down, then back to the middle */
+    window.driverdata = NULL;
+    window.w = 320; window.h = 240;
+    vdata.relative_mouse = SDL_TRUE;
+    RISCOS_CentrePointer(&device, &window);
+    {
+        int cx = fake_ptr[0], cy = fake_ptr[1];
+        rel_dx = rel_dy = n_rel = 0;
+        motion_x = -7;
+        fake_ptr[0] += 20; fake_ptr[1] -= 10;
+        RISCOS_PollMouse(&device);
+        CHECK(rel_dx == 10 && rel_dy == 5 && motion_x == -7, "relative: 10 right, 5 down, no absolute motion (%d,%d)",
+              rel_dx, rel_dy);
+        CHECK(fake_ptr[0] == cx && fake_ptr[1] == cy, "and the pointer put back in the middle");
+        n_rel = 0;
+        RISCOS_PollMouse(&device);
+        CHECK(n_rel == 0, "no movement: nothing sent");
+        /* far outside the window between two polls: still ours */
+        fake_ptr[0] = cx + 2000;
+        RISCOS_PollMouse(&device);
+        CHECK(rel_dx == 1010 && vdata.pointer_in, "a big move out of the window: still reported (%d)", rel_dx);
+
+        /* stretched 2x: two 1-pixel moves are one window pixel */
+        window.driverdata = &wd;
+        window.w = 160; window.h = 120;
+        wd.render_w = 160; wd.render_h = 120;
+        RISCOS_CentrePointer(&device, &window);
+        cx = fake_ptr[0];
+        rel_dx = 0;
+        fake_ptr[0] = cx + 2;
+        RISCOS_PollMouse(&device);
+        CHECK(rel_dx == 0, "stretched 2x: 1 screen pixel isn't a window pixel yet (%d)", rel_dx);
+        fake_ptr[0] = cx + 2;
+        RISCOS_PollMouse(&device);
+        CHECK(rel_dx == 1, "the second makes one (%d)", rel_dx);
+
+        /* another task has the input focus: the pointer is left alone */
+        vdata.has_caret = SDL_FALSE;
+        n_rel = 0; n_pointer_set = 0;
+        fake_ptr[0] = cx + 40;
+        RISCOS_PollMouse(&device);
+        CHECK(n_rel == 0 && n_pointer_set == 0, "without the input focus: no relative motion, pointer not moved");
+        vdata.has_caret = SDL_TRUE;
+
+        /* full screen: the same, from the screen's middle */
+        vdata.wimp_window = 0;
+        device.windows = &window;
+        window.driverdata = NULL;
+        window.w = 1920; window.h = 1080;
+        RISCOS_CentrePointer(&device, &window);
+        CHECK(fake_ptr[0] == 1920 && fake_ptr[1] == 2159 - 1080, "full screen: centred at %d,%d", fake_ptr[0], fake_ptr[1]);
+        rel_dx = rel_dy = 0;
+        fake_ptr[0] -= 6; fake_ptr[1] += 8;
+        RISCOS_PollMouse(&device);
+        CHECK(rel_dx == -3 && rel_dy == -4, "full screen: 3 left, 4 up (%d,%d)", rel_dx, rel_dy);
+        vdata.wimp_window = WINDOW;
+        device.windows = NULL;
+    }
+    vdata.relative_mouse = SDL_FALSE;
+    window.driverdata = NULL;
+    window.w = 320; window.h = 240;
+    fake_ptr_on = 0;
+}
+
 static void *run(void *arg)
 {
     (void)arg;
@@ -738,6 +875,8 @@ static void *run(void *arg)
     test_icon_sprite_name();
     test_mouse();
     test_pointer_box();
+    test_focus();
+    test_warp_and_relative();
     return NULL;
 }
 

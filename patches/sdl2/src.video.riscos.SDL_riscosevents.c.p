@@ -252,7 +252,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  }
  
  static const Uint8 mouse_button_map[] = {
-@@ -111,36 +296,290 @@ static const Uint8 mouse_button_map[] = {
+@@ -111,36 +296,425 @@ static const Uint8 mouse_button_map[] = {
      SDL_BUTTON_X2 + 3
  };
  
@@ -353,6 +353,167 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +    riscos_box_raised = 0;
 +}
 +
++/* 2026: where a window's pixels are on the screen, to map the pointer both
++   ways. Pixel (0, 0) starts at OS units (ox, oy), oy being its top row (y
++   counts down from there), and the window->w x window->h pixels cover
++   sw x sh screen pixels (more when a window scale or an EGL render size
++   stretches them). */
++typedef struct {
++    int ox, oy;
++    int sw, sh;
++} RISCOS_PointerMap;
++
++static SDL_bool
++RISCOS_GetPointerMap(_THIS, SDL_Window *window, RISCOS_PointerMap *m)
++{
++    SDL_VideoData *vdata = (SDL_VideoData *)_this->driverdata;
++    SDL_WindowData *wd = window ? (SDL_WindowData *)window->driverdata : NULL;
++    int xeig = vdata->xeig, yeig = vdata->yeig;
++
++    if (!window)
++        return SDL_FALSE;
++    if (RISCOS_IsWindowed(vdata)) {
++        RISCOS_WindowState state;
++        _kernel_swi_regs regs;
++        state.open.window = vdata->wimp_window;
++        regs.r[1] = (int)&state;
++        if (_kernel_swi(Wimp_GetWindowState, &regs, &regs) != NULL)
++            return SDL_FALSE;
++        if (wd && wd->gl_egl) {
++            /* EGL stretches the frame over the visible area, which is
++               smaller than the work area if the window doesn't fit on the
++               screen. (visible.y1 is exclusive: the top row of pixels
++               starts 1 OS unit below it.) */
++            m->ox = state.open.visible.x0;
++            m->oy = state.open.visible.y1 - 1;
++            m->sw = (state.open.visible.x1 - state.open.visible.x0) >> xeig;
++            m->sh = (state.open.visible.y1 - state.open.visible.y0) >> yeig;
++        } else {
++            m->ox = state.open.visible.x0 - state.open.scroll_x;
++            m->oy = state.open.visible.y1 - state.open.scroll_y - 1;
++            m->sw = RISCOS_ShownW(window) * (vdata->wscale_x > 0 ? vdata->wscale_x : 1);
++            m->sh = RISCOS_ShownH(window) * (vdata->wscale_y > 0 ? vdata->wscale_y : 1);
++        }
++    } else {
++        /* full screen: a GL window on the EGL path is stretched over the
++           whole screen; anything else is shown pixel for pixel */
++        SDL_Rect rect;
++        if (SDL_GetDisplayBounds(0, &rect) < 0)
++            return SDL_FALSE;
++        m->ox = 0;
++        m->oy = (rect.h << yeig) - 1;
++        m->sw = (wd && wd->gl_egl) ? rect.w : window->w;
++        m->sh = (wd && wd->gl_egl) ? rect.h : window->h;
++    }
++    if (m->sw < 1) m->sw = 1;
++    if (m->sh < 1) m->sh = 1;
++    return SDL_TRUE;
++}
++
++/* screen OS units -> window pixels (not clipped to the window) */
++static void
++RISCOS_ScreenToWindow(_THIS, SDL_Window *window, const RISCOS_PointerMap *m,
++                      int osx, int osy, int *x, int *y)
++{
++    SDL_VideoData *vdata = (SDL_VideoData *)_this->driverdata;
++    int px = (osx - m->ox) >> vdata->xeig, py = (m->oy - osy) >> vdata->yeig;
++    *x = (m->sw != window->w) ? (int)(((long long)px * window->w) / m->sw) : px;
++    *y = (m->sh != window->h) ? (int)(((long long)py * window->h) / m->sh) : py;
++}
++
++/* window pixels -> screen OS units: the first screen pixel that maps back
++   to x, y */
++static void
++RISCOS_WindowToScreen(_THIS, SDL_Window *window, const RISCOS_PointerMap *m,
++                      int x, int y, int *osx, int *osy)
++{
++    SDL_VideoData *vdata = (SDL_VideoData *)_this->driverdata;
++    int px = (int)(((long long)x * m->sw + window->w - 1) / window->w);
++    int py = (int)(((long long)y * m->sh + window->h - 1) / window->h);
++    *osx = m->ox + (px << vdata->xeig);
++    *osy = m->oy - (py << vdata->yeig);
++}
++
++/* OS_Word 21,3: move the pointer (OS units) */
++static void
++RISCOS_SetPointerPosition(int osx, int osy)
++{
++    unsigned char block[5];
++    _kernel_swi_regs regs;
++    block[0] = 3;
++    block[1] = osx & 0xff; block[2] = (osx >> 8) & 0xff;
++    block[3] = osy & 0xff; block[4] = (osy >> 8) & 0xff;
++    regs.r[0] = 21;
++    regs.r[1] = (int)block;
++    _kernel_swi(OS_Word, &regs, &regs);
++}
++
++/* SDL_WarpMouseInWindow: the pointer to window pixel x, y (and SDL told
++   at once, rather than at the next poll) */
++int
++RISCOS_WarpPointer(_THIS, SDL_Window *window, int x, int y)
++{
++    RISCOS_PointerMap m;
++    int osx, osy;
++    if (!RISCOS_GetPointerMap(_this, window, &m))
++        return SDL_Unsupported();
++    RISCOS_WindowToScreen(_this, window, &m, x, y, &osx, &osy);
++    RISCOS_SetPointerPosition(osx, osy);
++    SDL_SendMouseMotion(window, SDL_GetMouse()->mouseID, 0, x, y);
++    return 0;
++}
++
++void
++RISCOS_CentrePointer(_THIS, SDL_Window *window)
++{
++    RISCOS_PointerMap m;
++    int osx, osy;
++    if (window && RISCOS_GetPointerMap(_this, window, &m)) {
++        RISCOS_WindowToScreen(_this, window, &m, window->w / 2, window->h / 2, &osx, &osy);
++        RISCOS_SetPointerPosition(osx, osy);
++    }
++}
++
++/* 2026: relative mouse mode (mouse look in first person games): the
++   pointer is kept in the middle of the window. Each poll reports how far
++   it has moved from there, in window pixels (fractions carried over to
++   the next poll, so slow movements over a stretched picture aren't lost),
++   and puts it back. Not while another task has the input focus: the
++   pointer is the desktop's then. Returns SDL_TRUE if it took the motion. */
++static SDL_bool
++RISCOS_PollRelativeMotion(_THIS, SDL_Window *window, int osx, int osy)
++{
++    SDL_VideoData *vdata = (SDL_VideoData *)_this->driverdata;
++    RISCOS_PointerMap m;
++    int cx, cy, dx, dy;
++
++    if (!vdata->relative_mouse || !window || (RISCOS_IsWindowed(vdata) && !vdata->has_caret) ||
++        !RISCOS_GetPointerMap(_this, window, &m))
++        return SDL_FALSE;
++    RISCOS_WindowToScreen(_this, window, &m, window->w / 2, window->h / 2, &cx, &cy);
++    /* screen pixels moved (y up on the screen, down in SDL) times the
++       window's size, divided by the screen pixels it covers */
++    vdata->rel_rest_x += ((osx - cx) / (1 << vdata->xeig)) * window->w;
++    vdata->rel_rest_y += ((cy - osy) / (1 << vdata->yeig)) * window->h;
++    dx = vdata->rel_rest_x / m.sw;
++    dy = vdata->rel_rest_y / m.sh;
++    vdata->rel_rest_x -= dx * m.sw;
++    vdata->rel_rest_y -= dy * m.sh;
++    if (dx != 0 || dy != 0)
++        SDL_SendMouseMotion(window, SDL_GetMouse()->mouseID, 1, dx, dy);
++    if (osx != cx || osy != cy)
++        RISCOS_SetPointerPosition(cx, cy);
++    return SDL_TRUE;
++}
++
++void
++RISCOS_SetCaretFocus(_THIS, SDL_bool has)
++{
++    SDL_VideoData *vdata = (SDL_VideoData *)_this->driverdata;
++    vdata->has_caret = has;
++    SDL_SetKeyboardFocus(has ? vdata->wimp_sdl_window : NULL);
++}
++
 +/* 2026: mouse handling for a Wimp window. */
 +static void
 +RISCOS_PollMouseWindowed(_THIS)
@@ -361,19 +522,20 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +    SDL_Mouse *mouse = SDL_GetMouse();
 +    SDL_Window *window = driverdata->wimp_sdl_window;
 +    int xeig = driverdata->xeig, yeig = driverdata->yeig;
-+    RISCOS_WindowState state;
++    RISCOS_PointerMap map;
 +    RISCOS_Pointer ptr;
 +    int i, x, y, buttons;
-+    SDL_bool inside;
++    SDL_bool inside, relative;
 +    _kernel_swi_regs regs;
 +
 +    regs.r[1] = (int)&ptr;
 +    if (_kernel_swi(Wimp_GetPointerInfo, &regs, &regs) != NULL)
 +        return;
-+    state.open.window = driverdata->wimp_window;
-+    regs.r[1] = (int)&state;
-+    if (_kernel_swi(Wimp_GetWindowState, &regs, &regs) != NULL)
++    if (!RISCOS_GetPointerMap(_this, window, &map))
 +        return;
++    /* (in relative mode the pointer is held in the window: see
++       RISCOS_PollRelativeMotion) */
++    relative = RISCOS_PollRelativeMotion(_this, window, ptr.x, ptr.y);
 +
 +    buttons = ptr.buttons & 7;
 +    /* 2026: the work area only (icon -1): over the title bar, scroll bars
@@ -400,6 +562,8 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +    /* Keep reporting while a button pressed inside the window is held (drags). */
 +    if (!inside && driverdata->buttons_inside != 0 && buttons != 0)
 +        inside = SDL_TRUE;
++    if (relative)
++        inside = SDL_TRUE;
 +
 +    /* 2026: over a full window the pointer can't reach the screen's
 +       bottom few pixels (the icon bar would come forward: see
@@ -410,28 +574,9 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +        ptr.y < RISCOS_PointerBoxRaised() + (1 << yeig))
 +        ptr.y = 0;
 +
-+    x = (ptr.x - (state.open.visible.x0 - state.open.scroll_x)) >> xeig;
-+    /* (visible.y1 is exclusive: the top row of pixels starts 1 OS unit
-+       below it, so it's row 0) */
-+    y = ((state.open.visible.y1 - state.open.scroll_y - 1) - ptr.y) >> yeig;
-+    /* screen pixels -> SDL pixels: the window may be scaled (wscale, and a
-+       GL render size stretched over it; see RISCOS_ShownW) */
-+    if (window->driverdata && ((SDL_WindowData *) window->driverdata)->gl_egl) {
-+        /* A GL window on the EGL path: EGL stretches the frame over the
-+           window's visible area, which is smaller than the work area if
-+           the window doesn't fit on the screen. So map across that. */
-+        int vw = (state.open.visible.x1 - state.open.visible.x0) >> xeig;
-+        int vh = (state.open.visible.y1 - state.open.visible.y0) >> yeig;
-+        x = (ptr.x - state.open.visible.x0) >> xeig;
-+        y = (state.open.visible.y1 - 1 - ptr.y) >> yeig;
-+        if (vw > 0 && vw != window->w) x = (int)(((long long)x * window->w) / vw);
-+        if (vh > 0 && vh != window->h) y = (int)(((long long)y * window->h) / vh);
-+    } else {
-+        int ww = RISCOS_ShownW(window) * (driverdata->wscale_x > 0 ? driverdata->wscale_x : 1);
-+        int wh = RISCOS_ShownH(window) * (driverdata->wscale_y > 0 ? driverdata->wscale_y : 1);
-+        if (ww != window->w) x = (int)(((long long)x * window->w) / ww);
-+        if (wh != window->h) y = (int)(((long long)y * window->h) / wh);
-+    }
++    /* screen -> SDL pixels: the window may be scaled (wscale, and a render
++       size stretched over it; see RISCOS_GetPointerMap) */
++    RISCOS_ScreenToWindow(_this, window, &map, ptr.x, ptr.y, &x, &y);
 +    if (x < 0) x = 0;
 +    if (y < 0) y = 0;
 +    if (x >= window->w) x = window->w - 1;
@@ -452,7 +597,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +        return;
 +    }
 +
-+    if (mouse->x != x || mouse->y != y) {
++    if (!relative && (mouse->x != x || mouse->y != y)) {
 +        SDL_SendMouseMotion(window, mouse->mouseID, 0, x, y);
 +    }
 +
@@ -484,46 +629,38 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +       real eigen factors instead of assuming 2 OS units per pixel. */
      SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
      SDL_Mouse *mouse = SDL_GetMouse();
+-    SDL_Rect rect;
 +    SDL_Window *window = _this->windows ? _this->windows : mouse->focus;
-     SDL_Rect rect;
++    RISCOS_PointerMap map;
      _kernel_swi_regs regs;
--    int i, x, y, buttons;
-+    int i, x, y, buttons, xeig = 1, yeig = 1;
+     int i, x, y, buttons;
++    SDL_bool relative;
  
-     if (SDL_GetDisplayBounds(0, &rect) < 0) {
+-    if (SDL_GetDisplayBounds(0, &rect) < 0) {
++    if (!RISCOS_GetPointerMap(_this, window, &map)) {
          return;
      }
  
-+    xeig = driverdata->xeig;
-+    yeig = driverdata->yeig;
-+
      _kernel_swi(OS_Mouse, &regs, &regs);
 -    x = (regs.r[0] >> 1);
 -    y = rect.h - (regs.r[1] >> 1);
-+    x = (regs.r[0] >> xeig);
-+    y = rect.h - 1 - (regs.r[1] >> yeig);
      buttons = regs.r[2];
++    relative = RISCOS_PollRelativeMotion(_this, window, regs.r[0], regs.r[1]);
++    /* screen -> SDL pixels (a GL window is stretched over the whole
++       screen: EGL renders at the window's size) */
++    RISCOS_ScreenToWindow(_this, window, &map, regs.r[0], regs.r[1], &x, &y);
 +    if (x < 0) x = 0;
 +    if (y < 0) y = 0;
-+    if (x >= rect.w) x = rect.w - 1;
-+    if (y >= rect.h) y = rect.h - 1;
-+    {
-+        /* A GL window is stretched over the whole screen (EGL renders at
-+           the window's size): screen pixels -> the window's */
-+        SDL_WindowData *wd = window ? (SDL_WindowData *) window->driverdata : NULL;
-+        if (wd && wd->gl_egl && rect.w > 0 && rect.h > 0 &&
-+            (window->w != rect.w || window->h != rect.h)) {
-+            x = (int)(((long long)x * window->w) / rect.w);
-+            y = (int)(((long long)y * window->h) / rect.h);
-+        }
-+    }
++    if (x >= window->w) x = window->w - 1;
++    if (y >= window->h) y = window->h - 1;
 +
-+    if (window && mouse->focus != window) {
++    if (mouse->focus != window) {
 +        SDL_SetMouseFocus(window);
 +    }
  
-     if (mouse->x != x || mouse->y != y) {
+-    if (mouse->x != x || mouse->y != y) {
 -        SDL_SendMouseMotion(mouse->focus, mouse->mouseID, 0, x, y);
++    if (!relative && (mouse->x != x || mouse->y != y)) {
 +        SDL_SendMouseMotion(window, mouse->mouseID, 0, x, y);
      }
  
@@ -549,7 +686,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  int
  RISCOS_InitEvents(_THIS)
  {
-@@ -150,6 +589,7 @@ RISCOS_InitEvents(_THIS)
+@@ -150,6 +724,7 @@ RISCOS_InitEvents(_THIS)
  
      for (i = 0; i < RISCOS_MAX_KEYS_PRESSED; i++)
          driverdata->key_pressed[i] = 255;
@@ -557,7 +694,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  
      status = (_kernel_osbyte(202, 0, 255) & 0xFF);
      SDL_ToggleModState(KMOD_NUM,    (status & (1 << 2)) == 0);
-@@ -165,10 +605,349 @@ RISCOS_InitEvents(_THIS)
+@@ -165,10 +740,349 @@ RISCOS_InitEvents(_THIS)
      return 0;
  }
  
@@ -678,13 +815,13 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +            }
 +        }
 +        break;
-+    case 11: /* Lose_Caret */
++    case 11: /* Lose_Caret: another window has the input focus */
 +        if (event->caret.window == driverdata->wimp_window)
-+            driverdata->has_caret = SDL_FALSE;
++            RISCOS_SetCaretFocus(_this, SDL_FALSE);
 +        break;
-+    case 12: /* Gain_Caret */
++    case 12: /* Gain_Caret: we have it (FOCUS_GAINED for the program) */
 +        if (event->caret.window == driverdata->wimp_window)
-+            driverdata->has_caret = SDL_TRUE;
++            RISCOS_SetCaretFocus(_this, SDL_TRUE);
 +        break;
 +    case 17: /* User_Message */
 +    case 18: /* User_Message_Recorded */
