@@ -7,7 +7,13 @@
 # (its SDL2 backend, the only one built besides Null), so on RISC OS the
 # sound goes SDL -> the overlay's RISC OS audio driver -> SharedSoundBuffer.
 # Nothing RISC OS-specific is needed below SDL.
-# patches/openal: two small build fixes (see patches/openal/README).
+# patches/openal: two small build fixes, and NEON detection on RISC OS (see
+# patches/openal/README). The NEON mixers (Alc/mixer/mixer_neon.c) are the
+# only file built with -mfpu=neon (OpenAL's CMake does that); everything
+# else stays VFPv3, and they're only used when VFPSupport says the CPU has
+# NEON, so the library still runs on VFP-only machines. RO_NEON_EXACT_ONLY
+# keeps to the NEON mixers that give the same samples as the C ones (see
+# patches/openal/README).
 #
 # Apps link: -lopenal -lSDL2 -lEGL -lOSMesa ... (plus what SDL2 needs, as for SDL apps)
 # OpenAL mixes in SDL's audio thread, so programs need UnixLib 5.0.1 or later
@@ -37,12 +43,12 @@ for b in ALSA OSS SOLARIS SNDIO QSA WINMM DSOUND WASAPI PORTAUDIO PULSEAUDIO \
 done
 cmake .. -DCMAKE_TOOLCHAIN_FILE="$R/build/riscos.cmake" \
   -DCMAKE_INSTALL_PREFIX="$STAGE" -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_C_FLAGS="$RO_CFLAGS -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700" \
+  -DCMAKE_C_FLAGS="$RO_CFLAGS -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700 -DRO_NEON_EXACT_ONLY" \
   -DCMAKE_C_FLAGS_RELEASE="-DNDEBUG" \
   -DLIBTYPE=STATIC -DALSOFT_UTILS=OFF -DALSOFT_NO_CONFIG_UTIL=ON \
   -DALSOFT_EXAMPLES=OFF -DALSOFT_TESTS=OFF -DALSOFT_DLOPEN=OFF \
   -DALSOFT_EMBED_HRTF_DATA=OFF -DALSOFT_HRTF_DEFS=OFF -DALSOFT_AMBDEC_PRESETS=OFF \
-  -DALSOFT_CONFIG=OFF -DALSOFT_INSTALL=ON -DALSOFT_CPUEXT_NEON=OFF \
+  -DALSOFT_CONFIG=OFF -DALSOFT_INSTALL=ON -DALSOFT_CPUEXT_NEON=ON \
   -DALSOFT_BACKEND_SDL2=ON -DALSOFT_REQUIRE_SDL2=ON $BACKENDS_OFF \
   -DSDL2_INCLUDE_DIR="$STAGE/include" -DSDL2_LIBRARY="$STAGE/lib/libSDL2.a"
 # OpenAL builds two table generators (bin2h, bsincgen) for the build

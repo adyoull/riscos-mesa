@@ -1,7 +1,8 @@
 Patches to OpenAL Soft 1.19.1 (applied by build/build-openal.sh, patch -p1)
 
 openal-soft-1.19.1-riscos.patch
-    Two build fixes, neither of which changes what the library does:
+    Two build fixes, neither of which changes what the library does, and
+    NEON detection on RISC OS:
     - Alc/bformatdec.h: N3D2N3DScale, SN3D2N3DScale and FuMa2N3DScale
       declared extern. They were tentative definitions in the header, one
       per file that includes it, which GCC 10 (-fno-common by default)
@@ -12,8 +13,23 @@ openal-soft-1.19.1-riscos.patch
       sched_get_priority_min (and no real-time scheduling). Only the ALSA,
       OSS, sndio, Solaris and WASAPI backends call it, none of which are
       built; the SDL2 backend doesn't.
+    - Alc/helpers.c FillCPUCaps(): on __riscos__ NEON is detected with
+      VFPSupport_Features (MVFR1's Advanced SIMD load/store, integer and
+      single precision fields all 1), not /proc/cpuinfo, which RISC OS
+      doesn't have. The system variable OpenAL$NoNEON (any value) keeps
+      the C mixers. build/build-openal.sh builds the NEON mixers
+      (-DALSOFT_CPUEXT_NEON=ON; only mixer_neon.c gets -mfpu=neon).
+      Asked for by the ClassiCube port (2026-10-29).
+    - Alc/mixvoice.c, Alc/ALu.c: with RO_NEON_EXACT_ONLY (which
+      build/build-openal.sh sets) only the NEON mixers that give the same
+      samples as the C ones bit for bit are used: Mix, MixRow and the
+      linear resampler (OpenAL's default). The bsinc resamplers' NEON
+      version differed in the last bit (float output: up to 2.4e-7; 16-bit
+      output: 86 samples in 192000 off by 1), and the HRTF ones aren't
+      checked, so those stay C. tests/host-harness/openal/neon.sh mixes a
+      fixed scene with both and compares them.
 
-Taken from the Warzone 2100 port (riscos-warzone2100
+The two build fixes are taken from the Warzone 2100 port (riscos-warzone2100
 patches/openal/openal-soft-1.19.1-riscos.diff), with comments added.
 
 They are under OpenAL Soft's licence, the GNU LGPL v2 or later (see

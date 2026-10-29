@@ -1,3 +1,18 @@
+diff -ru a/Alc/ALu.c b/Alc/ALu.c
+--- a/Alc/ALu.c
++++ b/Alc/ALu.c
+@@ -130,9 +130,10 @@
+ }
+ 
+ 
++/* riscos-mesa: see RO_NEON_EXACT_ONLY in mixvoice.c */
+ static inline HrtfDirectMixerFunc SelectHrtfMixer(void)
+ {
+-#ifdef HAVE_NEON
++#if defined(HAVE_NEON) && !defined(RO_NEON_EXACT_ONLY)
+     if((CPUCapFlags&CPU_CAP_NEON))
+         return MixDirectHrtf_Neon;
+ #endif
 diff -ru a/Alc/bformatdec.h b/Alc/bformatdec.h
 --- a/Alc/bformatdec.h
 +++ b/Alc/bformatdec.h
@@ -22,7 +37,41 @@ diff -ru a/Alc/bformatdec.h b/Alc/bformatdec.h
 diff -ru a/Alc/helpers.c b/Alc/helpers.c
 --- a/Alc/helpers.c
 +++ b/Alc/helpers.c
-@@ -1010,7 +1010,10 @@
+@@ -118,6 +118,10 @@
+ #include "vector.h"
+ #include "alstring.h"
+ #include "compat.h"
++#ifdef __riscos__
++#include <kernel.h>
++#include <swis.h>
++#endif
+ #include "threads.h"
+ 
+ 
+@@ -217,7 +221,21 @@
+     caps |= CPU_CAP_SSE;
+ #endif
+ #endif
+-#ifdef HAVE_NEON
++#if defined(HAVE_NEON) && defined(__riscos__)
++    /* RISC OS has no /proc/cpuinfo: VFPSupport_Features (reason 0) gives
++     * MVFR1 in R2, whose Advanced SIMD fields (load/store, integer, single
++     * precision: bits 8-19) are all 1 when the CPU has NEON. No VFPSupport
++     * (or an old one without the SWI): no NEON. The system variable
++     * OpenAL$NoNEON (any value) leaves the C mixers in use. */
++    {
++        _kernel_swi_regs r;
++        r.r[0] = 0;
++        if(getenv("OpenAL$NoNEON") == NULL &&
++           _kernel_swi(VFPSupport_Features, &r, &r) == NULL &&
++           (r.r[2] & 0xFFF00) == 0x11100)
++            caps |= CPU_CAP_NEON;
++    }
++#elif defined(HAVE_NEON)
+     FILE *file = fopen("/proc/cpuinfo", "rt");
+     if(!file)
+         ERR("Failed to open /proc/cpuinfo, cannot check for NEON support\n");
+@@ -1010,7 +1028,10 @@
  #ifdef _WIN32
      if(RTPrioLevel > 0)
          failed = !SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
@@ -34,3 +83,40 @@ diff -ru a/Alc/helpers.c b/Alc/helpers.c
      if(RTPrioLevel > 0)
      {
          struct sched_param param;
+diff -ru a/Alc/mixvoice.c b/Alc/mixvoice.c
+--- a/Alc/mixvoice.c
++++ b/Alc/mixvoice.c
+@@ -85,9 +85,14 @@
+     return MixRow_C;
+ }
+ 
++/* riscos-mesa: RO_NEON_EXACT_ONLY (set by build/build-openal.sh) keeps the
++ * C code where the NEON version doesn't give the same samples bit for bit
++ * (bsinc resampling: last-bit differences from the order of the sums; and
++ * HRTF, not checked): only Mix, MixRow and the linear resampler use NEON,
++ * which tests/host-harness/openal/neon.sh shows are the same as the C. */
+ static inline HrtfMixerFunc SelectHrtfMixer(void)
+ {
+-#ifdef HAVE_NEON
++#if defined(HAVE_NEON) && !defined(RO_NEON_EXACT_ONLY)
+     if((CPUCapFlags&CPU_CAP_NEON))
+         return MixHrtf_Neon;
+ #endif
+@@ -100,7 +105,7 @@
+ 
+ static inline HrtfMixerBlendFunc SelectHrtfBlendMixer(void)
+ {
+-#ifdef HAVE_NEON
++#if defined(HAVE_NEON) && !defined(RO_NEON_EXACT_ONLY)
+     if((CPUCapFlags&CPU_CAP_NEON))
+         return MixHrtfBlend_Neon;
+ #endif
+@@ -135,7 +140,7 @@
+             return Resample_cubic_C;
+         case BSinc12Resampler:
+         case BSinc24Resampler:
+-#ifdef HAVE_NEON
++#if defined(HAVE_NEON) && !defined(RO_NEON_EXACT_ONLY)
+             if((CPUCapFlags&CPU_CAP_NEON))
+                 return Resample_bsinc_Neon;
+ #endif

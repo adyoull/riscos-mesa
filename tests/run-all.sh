@@ -44,6 +44,9 @@
 #                   as it takes a few minutes. With QEMU_ALIGN=<a qemu-arm
 #                   from tests/host-harness/qemu/build-qemu.sh>, unaligned
 #                   accesses fault as they do on RISC OS
+#   openal-neon     OpenAL's NEON mixers against its C ones, sample for
+#                   sample, under qemu-arm (tests/host-harness/openal/neon.sh);
+#                   only with ARM=1
 #   sdl-arm         SDL's ARM SIMD and NEON blitters through SDL's API,
 #                   against its C code, on emulated NEON and SIMD-only
 #                   CPUs (tests/host-harness/sdl-arm); only with ARM=1
@@ -152,9 +155,11 @@ if [ -n "${ARM:-}" ]; then
     # on an emulated Cortex-A8 (VFPv3), the oldest CPU the build supports
     step arm env OUT="$OUT/arm" QEMU_CPU="${QEMU_CPU:-cortex-a8}" "$H/mesa/arm/run-arm.sh"
     step sdl-arm env SDL="$SRC/SDL-release-2.26.0" OUT="$OUT/sdl-arm" "$H/sdl-arm/run.sh"
+    step openal-neon env SRC="$SRC" OUT="$OUT/openal-neon" "$H/openal/neon.sh"
 else
     skip arm "set ARM=1 (needs qemu-user and an ARM Linux cross compiler)"
     skip sdl-arm "set ARM=1"
+    skip openal-neon "set ARM=1"
 fi
 
 if printf '%s\n' "${results[@]}" | grep -q '^FAIL'; then
