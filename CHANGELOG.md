@@ -4,6 +4,49 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## Unreleased
+
+- **SDL: keyboard focus events** (reported by the ClassiCube port). The
+  desktop's input focus (Gain_Caret / Lose_Caret) is now SDL's keyboard
+  focus, so programs get `SDL_WINDOWEVENT_FOCUS_GAINED` and `FOCUS_LOST`
+  and `SDL_GetKeyboardFocus` works; single tasking full screen always
+  has the focus. Before, a program that waited for focus (ClassiCube's
+  pause menu: "Back to game" did nothing) waited for ever.
+- **SDL: `SDL_WarpMouseInWindow` and relative mouse mode** (mouse look in
+  first person games). The warp moves the pointer with `OS_Word 21,3`,
+  through the window scale and any render size, and reads back as the
+  same pixel. In relative mode the pointer is kept in the middle of the
+  window and each event pump reports how far it moved, in window pixels,
+  with fractions carried over (so slow movements over a stretched picture
+  aren't lost); in a desktop window only while it has the input focus.
+  The pointer mapping is now one function (`RISCOS_GetPointerMap`) for
+  both directions. New sdl-wimp harness checks (89).
+- **EGL: overlay buffers keep a list of changed rectangles**, not one box
+  round them. Each overlay buffer is brought up to date with what changed
+  since it was last filled; with changes spread round the picture (a 2D
+  game's dirty cells) the box was nearly the whole picture, so nearly all
+  of it was copied every frame. Now up to 8 rectangles are kept apart
+  (merged when they touch, or the cheapest merge when there are more). In
+  the host test 4 small cells in the corners copy 4 cells' worth instead
+  of the whole picture. Not yet measured on a Pi.
+- **OpenAL: NEON mixers** (asked for by the ClassiCube port). OpenAL
+  Soft's NEON mixing and linear resampling are now built (only that file
+  with NEON; the rest stays VFPv3) and used when VFPSupport says the CPU
+  has NEON; `*Set OpenAL$NoNEON 1` keeps the C mixers. Only the NEON
+  routines that give the same samples as the C ones bit for bit are used
+  (Mix, MixRow and the linear resampler, OpenAL's default); the bsinc
+  resamplers' NEON version differed in the last bit, so they stay C, as
+  does HRTF. New host check `openal-neon` (with ARM=1): a fixed scene
+  mixed through OpenAL's loopback device under an emulated Cortex-A8,
+  NEON against C, sample for sample, in 16-bit and float.
+- **A rendering check for a voxel game's terrain:** `render-alphaoff`
+  draws a wall of small textured, fogged, depth-tested quads with
+  `GL_ALPHA_TEST GL_GREATER 0.5` and without, and requires the same
+  pixels (the alpha-test route and the fused route), on the host and on
+  ARM with and without NEON. It passes, so the 1-5 pixel differences the
+  ClassiCube port saw most likely came from its own change (the atlas
+  split gives other textures and coordinates), not from the two routes.
+
 ## 20.3.5-17: software-drawn SDL games through the hardware overlay
 
 SDL programs that draw in software (2D games such as VCMI, fheroes2 and

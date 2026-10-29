@@ -79,6 +79,21 @@ context from SDL has no window code to change.
 - **Mouse clicks** are never lost, even at a few frames a second: a click
   pressed and released between two event pumps is reported as a press and
   a release where it happened.
+- **Input focus:** the desktop's input focus (the caret) is SDL's keyboard
+  focus, so `SDL_WINDOWEVENT_FOCUS_GAINED` / `FOCUS_LOST` arrive when the
+  user clicks on the game or in another program's window, and
+  `SDL_GetKeyboardFocus` says which. A window has it when it opens and
+  when it's clicked; single tasking full screen always has it. (Before
+  20.3.5-18 the events never came: a game waiting for focus, such as
+  ClassiCube's pause menu, waited for ever.)
+- **Mouse look:** `SDL_WarpMouseInWindow` moves the pointer
+  (`OS_Word 21,3`; window coordinates, through the window scale and any
+  render size), and `SDL_SetRelativeMouseMode(SDL_TRUE)` works: the
+  pointer is hidden and kept in the middle of the window, and
+  `SDL_MOUSEMOTION` gives `xrel`/`yrel` in the window's pixels (small
+  movements over a stretched picture add up rather than being lost). In
+  a desktop window it only holds the pointer while the window has the
+  input focus. From 20.3.5-18.
 - **Sound:** `SDL_OpenAudioDevice` / `SDL_OpenAudio` play through the RISC
   OS audio driver, over SharedSoundBuffer (it mixes with other programs'
   sound and resamples to the hardware rate). SharedSound is part of RISC
@@ -106,7 +121,9 @@ context from SDL has no window code to change.
   UnixLib 5.0.1 or later and load PThreadTicker (see the README). OpenAL's error
   messages go to stderr, which opens a command window in the desktop; set
   `ALSOFT_LOGFILE` to a file in `!Run` to catch them there. `tests/altest.c`
-  is a small complete example.
+  is a small complete example. From 20.3.5-18 it mixes with NEON where the
+  CPU has it (the same samples as the C mixers; `*Set OpenAL$NoNEON 1`
+  keeps the C ones).
 - **MIDI music:** RISC OS has no General MIDI synthesiser of its own.
   [riscos-midisynth](https://github.com/adyoull/riscos-midisynth) plays
   `.mid` files through a SoundFont; its `midisynth_render` output can be
