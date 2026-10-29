@@ -600,6 +600,58 @@ static void px_rect_union(px_rect *acc, const px_rect *r)
     if (r->y1 > acc->y1) acc->y1 = r->y1;
 }
 
+static int px_rect_touch(const px_rect *a, const px_rect *b)   /* overlap or share an edge */
+{
+    return a->x0 <= b->x1 && b->x0 <= a->x1 && a->y0 <= b->y1 && b->y0 <= a->y1;
+}
+
+static long long px_rect_area(const px_rect *r)
+{
+    return (long long) (r->x1 - r->x0) * (r->y1 - r->y0);
+}
+
+/* Add r to the list: merged with a rectangle it touches (and then with any
+   that one now touches), else kept apart; when the list is full, merged
+   into the one that grows least. */
+static void px_rect_list_add(px_rect_list *l, const px_rect *r)
+{
+    int i, j, best = 0;
+    long long best_growth = -1;
+
+    if (px_rect_empty(r))
+        return;
+    for (i = 0; i < l->n && !px_rect_touch(&l->r[i], r); i++)
+        ;
+    if (i == l->n && l->n < PX_RECT_LIST_MAX) {
+        l->r[l->n++] = *r;
+        return;
+    }
+    if (i == l->n) {                    /* full: the cheapest merge */
+        for (j = 0; j < l->n; j++) {
+            px_rect u = l->r[j];
+            long long growth;
+            px_rect_union(&u, r);
+            growth = px_rect_area(&u) - px_rect_area(&l->r[j]);
+            if (best_growth < 0 || growth < best_growth) {
+                best_growth = growth;
+                best = j;
+            }
+        }
+        i = best;
+    }
+    px_rect_union(&l->r[i], r);
+    /* the grown rectangle may now touch others: take them in */
+    for (j = 0; j < l->n; j++) {
+        if (j != i && px_rect_touch(&l->r[i], &l->r[j])) {
+            px_rect_union(&l->r[i], &l->r[j]);
+            l->r[j] = l->r[--l->n];
+            if (i == l->n)
+                i = j;                  /* it was moved into j's place */
+            j = -1;                     /* look again from the start */
+        }
+    }
+}
+
 static int clamp_int(long long v, int lo, int hi)
 {
     return v < lo ? lo : v > hi ? hi : (int) v;
@@ -663,21 +715,16 @@ static int damage_rects(const egl_surface *surf, const EGLint *rects, int n,
     return m;
 }
 
-/* The bounding box of damage_rects()'s rectangles, in surface pixels from
-   the top left. */
-static px_rect damage_bounds(const screen_info *s, const os_rect *dmg, int nd)
+/* damage_rects()'s rectangles in surface pixels from the top left */
+static void damage_pixels(const screen_info *s, const os_rect *dmg, int nd, px_rect *out)
 {
-    px_rect box = { 0, 0, 0, 0 };
     int i;
     for (i = 0; i < nd; i++) {
-        px_rect r;
-        r.x0 = dmg[i].x0 >> s->xeig;
-        r.x1 = dmg[i].x1 >> s->xeig;
-        r.y0 = -(dmg[i].y1 >> s->yeig);     /* y up from the top -> rows down */
-        r.y1 = -(dmg[i].y0 >> s->yeig);
-        px_rect_union(&box, &r);
+        out[i].x0 = dmg[i].x0 >> s->xeig;
+        out[i].x1 = dmg[i].x1 >> s->xeig;
+        out[i].y0 = -(dmg[i].y1 >> s->yeig);    /* y up from the top -> rows down */
+        out[i].y1 = -(dmg[i].y0 >> s->yeig);
     }
-    return box;
 }
 
 /* Does a stretched surface plot only its damage? A render size stretched
@@ -936,10 +983,11 @@ static void present(egl_display *d, egl_surface *surf, const screen_info *s,
     if (nd == 0 && !surf->banks)
         return;                         /* all rectangles empty: nothing changed */
     if (nd < 0) {
-        ovl_note_damage(surf, NULL);
+        ovl_note_damage(surf, NULL, 0);
     } else {
-        px_rect box = damage_bounds(s, dmg, nd);
-        ovl_note_damage(surf, &box);
+        px_rect changed[MAX_DAMAGE];
+        damage_pixels(s, dmg, nd, changed);
+        ovl_note_damage(surf, changed, nd);
     }
     if (is_scaled(surf) && !stretches_damage(surf))
         nd = -1;                        /* a window scale: always all of it */

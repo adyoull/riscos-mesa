@@ -418,9 +418,10 @@ static void ovl_just_shown(egl_surface *surf, const window_state *ws, const scre
 
    Each buffer is filled from the surface when it is next shown, which with
    3 buffers is 3 frames after it was last filled. Only what has changed
-   since then is copied: every frame's damage is added to every buffer's
-   stale rectangle (ovl_note_damage, from present()), and filling buffer b
-   copies its stale rectangle and empties it. Frames plotted while the
+   since then is copied: every frame's damage rectangles are added to every
+   buffer's stale list (ovl_note_damage, from present(); px_rect_list_add
+   keeps changes far apart in separate rectangles), and filling buffer b
+   copies its stale rectangles and empties the list. Frames plotted while the
    overlay is hidden count too, so the buffers are right when it's shown
    again. Anything that invalidates the buffers (a new overlay, a new pixel
    buffer behind the surface) makes all of them stale. */
@@ -429,15 +430,18 @@ static void ovl_all_stale(egl_surface *surf)
 {
     px_rect all = { 0, 0, surf->w, surf->h };
     int b;
-    for (b = 0; b < OVL_MAX_BANKS; b++)
-        surf->ovl_stale[b] = all;
+    for (b = 0; b < OVL_MAX_BANKS; b++) {
+        surf->ovl_stale[b].n = 1;
+        surf->ovl_stale[b].r[0] = all;
+    }
     surf->ovl_src = surf->pixels;
 }
 
-/* This frame changed *changed (all of the surface if NULL). */
-static void ovl_note_damage(egl_surface *surf, const px_rect *changed)
+/* This frame changed the n rectangles changed[] (all of the surface if
+   changed is NULL). */
+static void ovl_note_damage(egl_surface *surf, const px_rect *changed, int n)
 {
-    int b;
+    int b, i;
     if (!surf->ovl_id)
         return;                         /* no buffers: a new overlay starts all stale */
     if (!changed || surf->ovl_src != surf->pixels) {
@@ -445,7 +449,8 @@ static void ovl_note_damage(egl_surface *surf, const px_rect *changed)
         return;
     }
     for (b = 0; b < OVL_MAX_BANKS; b++)
-        px_rect_union(&surf->ovl_stale[b], changed);
+        for (i = 0; i < n; i++)
+            px_rect_list_add(&surf->ovl_stale[b], &changed[i]);
 }
 
 #ifdef EGL_RISCOS_HOST
@@ -460,11 +465,11 @@ static int ovl_copy_frame(egl_surface *surf, int b)
     const int *planes;
     const uint8_t *src;
     uint8_t *dst;
-    px_rect *stale = &surf->ovl_stale[b];
+    px_rect_list *stale = &surf->ovl_stale[b];
     size_t row_bytes;
-    int stride, y;
+    int stride, y, i;
 
-    if (px_rect_empty(stale))
+    if (stale->n == 0)
         return 1;                       /* nothing changed since it was filled */
     r.r[0] = surf->ovl_id;
     r.r[1] = b;
@@ -472,19 +477,22 @@ static int ovl_copy_frame(egl_surface *surf, int b)
         return 0;
     planes = (const int *) r.r[0];          /* plane 0: address, row stride */
     stride = planes[1];
-    dst = (uint8_t *) planes[0] + (size_t) stale->y0 * stride + (size_t) stale->x0 * 4;
-    src = (const uint8_t *) surf->pixels + ((size_t) stale->y0 * surf->stride + stale->x0) * 4;
-    row_bytes = (size_t) (stale->x1 - stale->x0) * 4;
-    for (y = stale->y0; y < stale->y1; y++) {
-        memcpy(dst, src, row_bytes);
-        dst += stride;
-        src += (size_t) surf->stride * 4;
-    }
+    for (i = 0; i < stale->n; i++) {
+        const px_rect *c = &stale->r[i];
+        dst = (uint8_t *) planes[0] + (size_t) c->y0 * stride + (size_t) c->x0 * 4;
+        src = (const uint8_t *) surf->pixels + ((size_t) c->y0 * surf->stride + c->x0) * 4;
+        row_bytes = (size_t) (c->x1 - c->x0) * 4;
+        for (y = c->y0; y < c->y1; y++) {
+            memcpy(dst, src, row_bytes);
+            dst += stride;
+            src += (size_t) surf->stride * 4;
+        }
 #ifdef EGL_RISCOS_HOST
-    egl_host_ovl_bytes += row_bytes * (size_t) (stale->y1 - stale->y0);
+        egl_host_ovl_bytes += row_bytes * (size_t) (c->y1 - c->y0);
 #endif
+    }
     ovl_call(OVL_SWI(UNMAP), surf->ovl_id, b);
-    stale->x0 = stale->y0 = stale->x1 = stale->y1 = 0;
+    stale->n = 0;
     return 1;
 }
 

@@ -165,6 +165,10 @@ enum { SURF_WINDOW, SURF_PBUFFER, SURF_PIXMAP };
 /* A rectangle of a surface's pixels, from its top left; x1/y1 exclusive,
    empty when x0 >= x1 or y0 >= y1 */
 typedef struct { int x0, y0, x1, y1; } px_rect;
+/* A few such rectangles: what has changed, kept apart so that changes far
+   from each other aren't joined into one big box (px_rect_list_add) */
+#define PX_RECT_LIST_MAX 8
+typedef struct { int n; px_rect r[PX_RECT_LIST_MAX]; } px_rect_list;
 
 typedef struct egl_surface {
     EGLint magic;
@@ -211,7 +215,7 @@ typedef struct egl_surface {
     int ovl_placed[4];          /* scroll x/y and size last given to SetPosition/SetScale */
     int ovl_vsync;              /* the vsync counter at the last buffer switch */
     int ovl_run, ovl_swap_cs;   /* swaps in a row (each soon after the last), time of the last */
-    px_rect ovl_stale[OVL_MAX_BANKS]; /* per buffer: what has changed since it was last filled */
+    px_rect_list ovl_stale[OVL_MAX_BANKS]; /* per buffer: what has changed since it was last filled */
     const void *ovl_src;        /* the pixels the buffers were filled from (a new buffer: all stale) */
     /* pbuffer */
     void *mem;
@@ -373,7 +377,7 @@ static int pixmap_info(void *pixmap, int *w, int *h, int *layout, void **pixels)
 /* parts/overlay.c */
 static void ovl_destroy(egl_surface *surf);
 static void ovl_all_stale(egl_surface *surf);
-static void ovl_note_damage(egl_surface *surf, const px_rect *changed);
+static void ovl_note_damage(egl_surface *surf, const px_rect *changed, int n);
 static int ovl_update(egl_display *d, egl_surface *surf, const screen_info *s, int new_frame);
 static void ovl_redraw_rectangle(egl_surface *surf, int *block);
 static void ovl_check_all(egl_display *d);

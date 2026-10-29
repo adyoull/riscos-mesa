@@ -573,6 +573,36 @@ static void *run(void *arg)
             CHECK(egl_host_ovl_bytes - before == 6 * 30 * 20 * 4,
                   "FB overlay: only the changed areas are copied into the buffers");
         }
+        /* Changes far apart stay apart: 4 cells in the corners changed each
+           frame copy 4 cells' worth into each buffer, not the box round
+           them (nearly the whole picture), and every buffer shown is still
+           the whole picture */
+        {
+            static const SDL_Rect corners[4] = { { 0, 0, 10, 10 }, { 90, 0, 10, 10 },
+                                                 { 0, 70, 10, 10 }, { 90, 70, 10, 10 } };
+            int k, c, good = 1, bank;
+            unsigned long before = egl_host_ovl_bytes;
+            for (k = 0; k < 9; k++) {
+                if (k == 3)
+                    before = egl_host_ovl_bytes;    /* the buffers have caught up */
+                for (c = 0; c < 4; c++)
+                    for (y = corners[c].y; y < corners[c].y + 10; y++)
+                        for (x = corners[c].x; x < corners[c].x + 10; x++)
+                            p[y * 100 + x] = 0x00010101u * (unsigned) (k * 16 + c * 4);
+                fake_vsyncs++;
+                RISCOS_FB_Update(&dev, &fw, corners, 4);
+                fake_ovl_info(NULL, NULL, NULL, NULL, &bank, NULL, NULL);
+                for (y = 0; y < 80 && good; y++)
+                    for (x = 0; x < 100 && good; x++)
+                        if ((fake_ovl_pixel(bank, x, y) & 0xFFFFFFu) != (p[y * 100 + x] & 0xFFFFFFu))
+                            good = 0;
+            }
+            printf("  6 updates of 4 cells in the corners: %lu bytes into overlay buffers\n",
+                   egl_host_ovl_bytes - before);
+            CHECK(good && egl_host_ovl_bytes - before == 6 * 4 * 10 * 10 * 4,
+                  "FB overlay: 4 cells far apart are copied as 4 cells (%lu bytes), the picture whole",
+                  egl_host_ovl_bytes - before);
+        }
 
         /* full screen keeps the Wimp window; a desktop window going away
            (a mode change, say) moves the surface at the next update */
