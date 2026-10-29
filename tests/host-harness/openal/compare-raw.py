@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Compare two raw stereo recordings from SDL's disk audio driver.
+"""Compare two raw stereo mixes (almix.c's output, neon.sh).
 
-The disk driver writes in real time, so two runs of the same program start
-and stop at slightly different points: the silence before the first sound
-is left out of both, and the part both recorded is compared. Exit status 0
-when it's the same, sample for sample.
+Silence before the first sound is left out of both, and the part both
+have is compared, so recordings that start or stop at slightly different
+points (SDL's disk audio driver, which writes in real time) can be
+compared too. Exit status 0 when it's the same, sample for sample.
 
 Usage: compare-raw.py A B int16|float32"""
 import struct
