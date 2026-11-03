@@ -3,7 +3,7 @@
 # and riscos-deps-update.yml) in the riscos-crossdev container image, and
 # what you can run there yourself:
 #
-#   docker run --rm -v "$PWD":/src ghcr.io/adyoull/riscos-crossdev:1.8.1 build/ci.sh [VERSION]
+#   docker run --rm -v "$PWD":/src ghcr.io/adyoull/riscos-crossdev:1.9 build/ci.sh [VERSION]
 #
 # From a clean checkout it builds everything (build/build-all.sh), makes
 # the release zips and devkit in dist/ (named VERSION, default "ci"), and

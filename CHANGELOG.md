@@ -56,6 +56,15 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   pass with it (sdl, sdl-wimp, sdl-arm, openal, openal-neon); not yet
   tried on a Pi. Ports that take the overlay (riscos-openttd) must move
   to SDL 2.32.10 with it.
+- **Built with riscos-crossdev 1.9: programs linked with UnixLib
+  5.0.3.5** (was 5.0.3.3). The same compiler; UnixLib 5.0.3.4 and
+  5.0.3.5 add `rename()` of mistyped files, `///` paths, POSIX group and
+  password lookups, sub-second interval timers, pthread scheduling
+  attributes and `strnlen` without `_GNU_SOURCE`. No struct or argument
+  changes, so the libraries work with either; the devkit's PThreadTicker
+  module is unchanged (0.03). Build directories now start afresh when
+  the toolchain changes (before, Mesa's kept the compiler it was set up
+  with).
 
 ## 20.3.5-17: software-drawn SDL games through the hardware overlay
 

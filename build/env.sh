@@ -35,13 +35,25 @@ mkdir -p "$STAGE" "$SRC"
 
 # Build directories remember the FPU they were configured for: autotools and
 # meson don't notice a flags change, so a different RO_FPU starts afresh.
-fresh_build_dir() {   # dir: starts afresh when the FPU or compiler flags change
-  if [ -d "$1" ] && [ "$(cat "$1/.ro-fpu" 2>/dev/null)" != "$RO_FPU $RO_CFLAGS" ]; then
-    echo "$1: built with other compiler flags (or another FPU), starting afresh"
+# What a build directory was configured with: the FPU, the compiler flags
+# and the toolchain (its directory and its libunixlib.a, so a new
+# riscos-crossdev release is noticed even when unpacked in the same place).
+# meson and configure remember the compiler they found, so a build dir
+# kept across a toolchain change would go on using the old one.
+build_dir_key() {
+  local ul
+  ul=$(arm-riscos-gnueabihf-gcc -print-file-name=libunixlib.a)
+  echo "$RO_FPU $RO_CFLAGS $GCCSDK_ENV $(cksum < "$ul" | cut -d' ' -f1)"
+}
+fresh_build_dir() {   # dir: starts afresh when build_dir_key changes
+  local key
+  key=$(build_dir_key)
+  if [ -d "$1" ] && [ "$(cat "$1/.ro-fpu" 2>/dev/null)" != "$key" ]; then
+    echo "$1: built with other compiler flags, FPU or toolchain, starting afresh"
     rm -rf "$1"
   fi
   mkdir -p "$1"
-  echo "$RO_FPU $RO_CFLAGS" > "$1/.ro-fpu"
+  echo "$key" > "$1/.ro-fpu"
 }
 
 # libtool archives (.la) in a relocated toolchain name the directory it

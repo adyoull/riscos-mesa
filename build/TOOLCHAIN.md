@@ -1,7 +1,7 @@
 # Building GCCSDK GCC 10.2.0 (arm-riscos-gnueabihf) from source
 
 riscos-mesa's releases and its GitHub builds use riscos-crossdev's
-toolchain (GCCSDK GCC 10.2 with riscos-unixlib 5.0.3.3), in its container
+toolchain (GCCSDK GCC 10.2 with riscos-unixlib 5.0.3.5; riscos-crossdev 1.9), in its container
 image (`build/ci.sh`; README "Build"). You only need what follows if you
 want a GCCSDK GCC 10 install of your own. It follows GCCSDK's autobuilder recipe
 `autobuilder/develop/gcc/setvars` with two deviations, both marked below.
@@ -35,12 +35,12 @@ On a 1-CPU container this took about 30 minutes after the source was ready.
 The ld-riscos dynamic linker and the native (runs-on-RISC-OS) compiler steps
 of the recipe were skipped; static linking doesn't need them.
 
-## UnixLib 5.0.3.3 (riscos-unixlib)
+## UnixLib 5.0.3.5 (riscos-unixlib)
 
 riscos-mesa's release programs (tests, ports, examples) are linked with
-**UnixLib 5.0.3.3** from github.com/adyoull/riscos-unixlib: GCCSDK's
+**UnixLib 5.0.3.5** from github.com/adyoull/riscos-unixlib: GCCSDK's
 UnixLib with the fixes the ports needed (5.0.1 until 20.3.5-10, 5.0.3.1
-from 20.3.5-11 to 20.3.5-13). riscos-unixlib is an unofficial fork, not made or
+from 20.3.5-11 to 20.3.5-13, 5.0.3.3 from 20.3.5-14 to 20.3.5-17). riscos-unixlib is an unofficial fork, not made or
 supported by the GCCSDK developers. The fixes that matter here:
 
 - the **pthread ticker fix**: the thread switcher's code runs from the
@@ -72,10 +72,15 @@ supported by the GCCSDK developers. The fixes that matter here:
   `fork()` with threads running; `getservent`; a heap gap that capped
   later heap areas; `swprintf`'s `%ls`/`%lc`; exit codes 128-255 reach
   `waitpid`. Still PThreadTicker 0.03; no struct or argument changes.
+- 5.0.3.4 and 5.0.3.5: `rename()` of mistyped files, `///`
+  paths, POSIX group and password lookups, sub-second interval timers,
+  pthread scheduling attributes, `strnlen` and friends without
+  `_GNU_SOURCE`. Still PThreadTicker 0.03 (the same module); no struct
+  or argument changes, so relinking is all a program needs.
 
 riscos-mesa's own libraries (`libOSMesa.a` etc.) don't contain UnixLib, so
 they work with any UnixLib; it's the programs linked with them that need
-5.0.1 or later (5.0.3.3 recommended). Either:
+5.0.1 or later (5.0.3.5 recommended). Either:
 
 - patch the GCCSDK source before building the toolchain
   (`patch -d riscos-gccsdk -p1 < patches/unixlib-riscos.diff` from that

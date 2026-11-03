@@ -123,7 +123,7 @@ one thread: link it with UnixLib 5.0.1 or later
 pthread ticker fix, and load the PThreadTicker module (`riscos/PThrTicker`
 in the devkit) from its `!Run`, or it can crash other tasks when it
 multitasks. (That applies to any threaded program, SDL sound included.)
-Everything riscos-mesa ships is linked with UnixLib 5.0.3.3 (5.0.3.1 from 20.3.5-11 to 20.3.5-13, 5.0.1 from 20.3.5-8 to 20.3.5-10).
+Everything riscos-mesa ships is linked with UnixLib 5.0.3.5 (5.0.3.3 from 20.3.5-14 to 20.3.5-17, 5.0.3.1 from 20.3.5-11 to 20.3.5-13, 5.0.1 from 20.3.5-8 to 20.3.5-10).
 
 ## Download
 
