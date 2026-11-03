@@ -68,8 +68,7 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   time is up. The same was true in every earlier release. Not yet tried
   on a Pi.
 - **SDL uses UnixLib 5.0.3.6's real `sem_timedwait`; programs linked
-  with UnixLib 5.0.3.6** (riscos-crossdev 1.9 with UnixLib 5.0.3.6 put in
-  by hand, until riscos-crossdev has it). UnixLib 5.0.3.6 makes
+  with UnixLib 5.0.3.6** (riscos-crossdev 1.10). UnixLib 5.0.3.6 makes
   semaphores work: `sem_timedwait` exists, and `sem_wait` sleeps instead of
   polling and leaking memory (asked for by riscos-mesa). Built against
   it, SDL's timed semaphore waits and its timer thread sleep until they're
@@ -87,8 +86,8 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     time out after 300 ms, and a post from another thread ends them.
     With SDL's own `SDL_syssem.c` the stub run fails at once.
   Not yet tried on a Pi (UnixLib's own `Sem` test has passed there).
-- **Built with riscos-crossdev 1.9** (UnixLib was 5.0.3.3; now 5.0.3.6,
-  above). The same compiler; UnixLib 5.0.3.4 and
+- **Built with riscos-crossdev 1.10** (was 1.4; UnixLib was 5.0.3.3, now
+  5.0.3.6, above). The same compiler; UnixLib 5.0.3.4 and
   5.0.3.5 add `rename()` of mistyped files, `///` paths, POSIX group and
   password lookups, sub-second interval timers, pthread scheduling
   attributes and `strnlen` without `_GNU_SOURCE`. No struct or argument
