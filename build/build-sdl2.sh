@@ -49,3 +49,9 @@ done
 grep -q "define SDL_VIDEO_RENDER_OGL 1" include/SDL_config.h && { echo "SDL GL renderer enabled - must stay off"; exit 1; }
 libtool_ignore_toolchain_la
 make -j"$(nproc)" && make install
+# UnixLib's sem_timedwait is a stub that always fails (ENOSYS): SDL must use
+# its own timed wait instead, or SDL_SemWaitTimeout fails at once and the
+# SDL_AddTimer thread spins (sdl2-configure.ac.host.p checks for the stub)
+if arm-riscos-gnueabihf-nm "$STAGE/lib/libSDL2.a" 2>/dev/null | grep -q " U sem_timedwait$"; then
+  echo "libSDL2.a calls UnixLib's sem_timedwait stub"; exit 1
+fi

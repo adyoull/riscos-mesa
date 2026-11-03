@@ -1,6 +1,6 @@
 --- configure.ac
 +++ configure.ac
-@@ -4573,6 +4573,13 @@
+@@ -4581,6 +4581,13 @@
              SOURCES="$SOURCES $srcdir/src/misc/riscos/*.c"
              have_misc=yes
          fi

@@ -56,6 +56,17 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   pass with it (sdl, sdl-wimp, sdl-arm, openal, openal-neon); not yet
   tried on a Pi. Ports that take the overlay (riscos-openttd) must move
   to SDL 2.32.10 with it.
+- **SDL: timed semaphore waits and `SDL_AddTimer` timers work without
+  spinning.** UnixLib's `sem_timedwait` is only a stub that always fails
+  (ENOSYS), but SDL's configure found it at link time and used it, so
+  `SDL_SemWaitTimeout` returned an error at once instead of waiting. SDL's
+  timer thread waits that way between timers, so a program with an
+  `SDL_AddTimer` timer had a thread that never slept, taking time from
+  the others (its timers still fired). Configure now sees the stub (as
+  `__stub_sem_timedwait` says, the same test autoconf's `AC_CHECK_FUNC`
+  makes), and SDL uses its own wait: try, then `SDL_Delay(1)`, until the
+  time is up. The same was true in every earlier release. The build now
+  fails if libSDL2.a calls the stub. Not yet tried on a Pi.
 - **Built with riscos-crossdev 1.9: programs linked with UnixLib
   5.0.3.5** (was 5.0.3.3). The same compiler; UnixLib 5.0.3.4 and
   5.0.3.5 add `rename()` of mistyped files, `///` paths, POSIX group and
