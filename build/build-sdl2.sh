@@ -49,9 +49,27 @@ done
 grep -q "define SDL_VIDEO_RENDER_OGL 1" include/SDL_config.h && { echo "SDL GL renderer enabled - must stay off"; exit 1; }
 libtool_ignore_toolchain_la
 make -j"$(nproc)" && make install
-# UnixLib's sem_timedwait is a stub that always fails (ENOSYS): SDL must use
-# its own timed wait instead, or SDL_SemWaitTimeout fails at once and the
-# SDL_AddTimer thread spins (sdl2-configure.ac.host.p checks for the stub)
-if arm-riscos-gnueabihf-nm "$STAGE/lib/libSDL2.a" 2>/dev/null | grep -q " U sem_timedwait$"; then
-  echo "libSDL2.a calls UnixLib's sem_timedwait stub"; exit 1
+# sem_timedwait: UnixLib before 5.0.3.6 has it only as a stub that always
+# fails (ENOSYS), marked __stub_sem_timedwait in unixlib/stubs.h. With that
+# UnixLib SDL must use its own timed wait (sdl2-configure.ac.host.p sees the
+# marker), or SDL_SemWaitTimeout fails at once and the SDL_AddTimer thread
+# spins. From 5.0.3.6 it's real, and SDL should use it: no polling.
+# (each reads the whole output before grep: with pipefail, grep -q stopping
+# early would make the command on the left fail)
+sdl_uses_sem_timedwait() {
+  local syms
+  syms=$(arm-riscos-gnueabihf-nm "$STAGE/lib/libSDL2.a" 2>/dev/null)
+  grep -q " U sem_timedwait$" <<< "$syms"
+}
+unixlib_sem_timedwait_is_stub() {
+  local out
+  out=$(printf '#include <semaphore.h>\n#ifdef __stub_sem_timedwait\nstub\n#endif\n' |
+        arm-riscos-gnueabihf-gcc -E -P -)
+  grep -q '^stub$' <<< "$out"
+}
+if unixlib_sem_timedwait_is_stub; then
+  sdl_uses_sem_timedwait && { echo "libSDL2.a calls UnixLib's sem_timedwait stub"; exit 1; }
+  echo "note: this UnixLib's sem_timedwait is a stub; SDL uses its polling wait (UnixLib 5.0.3.6 or later has the real one)"
+else
+  sdl_uses_sem_timedwait || { echo "UnixLib has sem_timedwait but libSDL2.a doesn't use it"; exit 1; }
 fi

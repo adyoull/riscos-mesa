@@ -65,10 +65,30 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   the others (its timers still fired). Configure now sees the stub (as
   `__stub_sem_timedwait` says, the same test autoconf's `AC_CHECK_FUNC`
   makes), and SDL uses its own wait: try, then `SDL_Delay(1)`, until the
-  time is up. The same was true in every earlier release. The build now
-  fails if libSDL2.a calls the stub. Not yet tried on a Pi.
-- **Built with riscos-crossdev 1.9: programs linked with UnixLib
-  5.0.3.5** (was 5.0.3.3). The same compiler; UnixLib 5.0.3.4 and
+  time is up. The same was true in every earlier release. Not yet tried
+  on a Pi.
+- **SDL uses UnixLib 5.0.3.6's real `sem_timedwait`; programs linked
+  with UnixLib 5.0.3.6** (riscos-crossdev 1.9 with UnixLib 5.0.3.6 put in
+  by hand, until riscos-crossdev has it). UnixLib 5.0.3.6 makes
+  semaphores work: `sem_timedwait` exists, and `sem_wait` sleeps instead of
+  polling and leaking memory (asked for by riscos-mesa). Built against
+  it, SDL's timed semaphore waits and its timer thread sleep until they're
+  needed, without the 1 ms polling of the change above.
+  - An SDL built that way, linked into a program with an older UnixLib,
+    would get the stub again, so the overlay's `SDL_syssem.c` falls back to
+    the polling wait when `sem_timedwait` fails with ENOSYS: the devkit's
+    SDL works with any UnixLib.
+  - `build-sdl2.sh` checks SDL against the UnixLib it was built with: it
+    must use a real `sem_timedwait` and must not use the stub. The check
+    added in the change above never fired (with `pipefail`, `grep -q`
+    stopping early made the `nm` before it fail).
+  - New host check `sdl-sem`: SDL_SemWaitTimeout with the C library's
+    `sem_timedwait` and with one that fails as the stub did; 300 ms waits
+    time out after 300 ms, and a post from another thread ends them.
+    With SDL's own `SDL_syssem.c` the stub run fails at once.
+  Not yet tried on a Pi (UnixLib's own `Sem` test has passed there).
+- **Built with riscos-crossdev 1.9** (UnixLib was 5.0.3.3; now 5.0.3.6,
+  above). The same compiler; UnixLib 5.0.3.4 and
   5.0.3.5 add `rename()` of mistyped files, `///` paths, POSIX group and
   password lookups, sub-second interval timers, pthread scheduling
   attributes and `strnlen` without `_GNU_SOURCE`. No struct or argument

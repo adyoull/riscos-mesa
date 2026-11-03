@@ -473,7 +473,7 @@ so at that moment it wasn't there, and the other program crashed.
 Two things put that right:
 
 1. **Link with UnixLib 5.0.1 or later** (github.com/adyoull/riscos-unixlib;
-   5.0.3.5 is the newest, and is what riscos-mesa's own programs use.
+   5.0.3.6 is the newest, and is what riscos-mesa's own programs use.
    From 5.0.3.1 it also makes threads run in programs that poll the Wimp
    often, as SDL programs do).
    It keeps the ticker's code where it's always in memory. Build your

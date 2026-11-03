@@ -1,8 +1,11 @@
 # Building GCCSDK GCC 10.2.0 (arm-riscos-gnueabihf) from source
 
 riscos-mesa's releases and its GitHub builds use riscos-crossdev's
-toolchain (GCCSDK GCC 10.2 with riscos-unixlib 5.0.3.5; riscos-crossdev 1.9), in its container
-image (`build/ci.sh`; README "Build"). You only need what follows if you
+toolchain (GCCSDK GCC 10.2 with riscos-unixlib; riscos-crossdev 1.9), in its container
+image (`build/ci.sh`; README "Build"). riscos-crossdev 1.9 has UnixLib
+5.0.3.5; releases from 20.3.5-18 are built with UnixLib 5.0.3.6 put into
+it by hand (below) until a riscos-crossdev release has it. GitHub's builds
+use the image as it is, so their SDL uses its polling wait (see 5.0.3.6). You only need what follows if you
 want a GCCSDK GCC 10 install of your own. It follows GCCSDK's autobuilder recipe
 `autobuilder/develop/gcc/setvars` with two deviations, both marked below.
 
@@ -35,10 +38,10 @@ On a 1-CPU container this took about 30 minutes after the source was ready.
 The ld-riscos dynamic linker and the native (runs-on-RISC-OS) compiler steps
 of the recipe were skipped; static linking doesn't need them.
 
-## UnixLib 5.0.3.5 (riscos-unixlib)
+## UnixLib 5.0.3.6 (riscos-unixlib)
 
 riscos-mesa's release programs (tests, ports, examples) are linked with
-**UnixLib 5.0.3.5** from github.com/adyoull/riscos-unixlib: GCCSDK's
+**UnixLib 5.0.3.6** from github.com/adyoull/riscos-unixlib: GCCSDK's
 UnixLib with the fixes the ports needed (5.0.1 until 20.3.5-10, 5.0.3.1
 from 20.3.5-11 to 20.3.5-13, 5.0.3.3 from 20.3.5-14 to 20.3.5-17). riscos-unixlib is an unofficial fork, not made or
 supported by the GCCSDK developers. The fixes that matter here:
@@ -77,10 +80,21 @@ supported by the GCCSDK developers. The fixes that matter here:
   pthread scheduling attributes, `strnlen` and friends without
   `_GNU_SOURCE`. Still PThreadTicker 0.03 (the same module); no struct
   or argument changes, so relinking is all a program needs.
+- 5.0.3.6: **semaphores**: `sem_timedwait` works (it was a stub that
+  always failed with ENOSYS), `sem_wait` sleeps instead of polling (and no
+  longer leaks memory on every call), `sem_post` works in a signal
+  handler; `<semaphore.h>` declares `sem_timedwait` and `unixlib/stubs.h`
+  no longer marks it. SDL's configure looks at that marker
+  (`sdl2-configure.ac.host.p`): with an older UnixLib's headers SDL uses
+  its own polling wait, with 5.0.3.6's it uses `sem_timedwait`, and
+  `build/build-sdl2.sh` checks it did. An SDL built with 5.0.3.6 still
+  works in programs linked with an older UnixLib: when `sem_timedwait`
+  says ENOSYS it polls (the overlay's `SDL_syssem.c`). Only `sem.o`
+  changed; PThreadTicker is still 0.03.
 
 riscos-mesa's own libraries (`libOSMesa.a` etc.) don't contain UnixLib, so
 they work with any UnixLib; it's the programs linked with them that need
-5.0.1 or later (5.0.3.5 recommended). Either:
+5.0.1 or later (5.0.3.6 recommended). Either:
 
 - patch the GCCSDK source before building the toolchain
   (`patch -d riscos-gccsdk -p1 < patches/unixlib-riscos.diff` from that
@@ -89,7 +103,7 @@ they work with any UnixLib; it's the programs linked with them that need
   `libunixlib.a` over the one `arm-riscos-gnueabihf-gcc
   -print-file-name=libunixlib.a` names (keep the old one), and the
   repository's `libunixlib/include/sched.h`, `unistd.h`, `sys/stat.h`,
-  `sys/mman.h` and `limits.h` into the `include/` directory next to that `lib/` (check
+  `sys/mman.h`, `limits.h`, `semaphore.h` and `unixlib/stubs.h` into the `include/` directory next to that `lib/` (check
   the release's `SHA256SUMS` first); or run `make sources install`
   in that repository, which does the same from source.
 

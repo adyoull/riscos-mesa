@@ -33,6 +33,23 @@ as 32-bit addresses.
     SDL=<patched SDL-release-$SDL_V> tests/host-harness/sdl-wimp/run.sh
 
 
+## `sdl-sem/`: SDL's timed semaphore wait, with and without sem_timedwait
+
+UnixLib before 5.0.3.6 has `sem_timedwait` only as a stub that fails with
+ENOSYS. The devkit's SDL may be built with a newer UnixLib (so it calls
+`sem_timedwait`) and linked into a program with an older one, so the
+overlay's `SDL_syssem.c` falls back to SDL's polling wait when it sees
+ENOSYS. `sdl-sem/run.sh` builds a host SDL (threads and timers only),
+compiles the overlay's `SDL_syssem.c` again with `__riscos__` defined, and
+links `semtest.c` with `-Wl,--wrap=sem_timedwait`, so SDL's calls go to
+the test: once to the C library's real one, once answering as the stub.
+Either way a 300 ms wait on an empty semaphore times out after 300 ms, not
+at once, and a post at 100 ms from another thread ends it. (With SDL's own
+`SDL_syssem.c` the stub run returns -1 at once: the bug.)
+
+    SDL=<patched SDL-release-$SDL_V> tests/host-harness/sdl-sem/run.sh
+
+
 ## `sdl-arm/`: SDL's ARM SIMD and NEON blitters
 
 `sdl-arm/run.sh` builds the patched SDL tree for ARM Linux with the same
