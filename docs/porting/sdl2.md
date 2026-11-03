@@ -1,6 +1,6 @@
 # Porting SDL 2 programs that use OpenGL or OpenGL ES
 
-**Worked port:** SDL 2.26's own GL test programs (and `loopwave`, for
+**Worked port:** SDL 2's own GL test programs (and `loopwave`, for
 sound), built from their unchanged source by `build/build-ports.sh` into
 `stage/ports/sdl2-tests`:
 

@@ -65,6 +65,7 @@
 # change to patches/mesa, re-apply the patches to $M and rebuild it first.
 set -uo pipefail
 R=$(cd "$(dirname "$0")/.." && pwd)
+SDL_V=$(sed -n 's/^SDL_V=//p' "$R/build/env.sh")   # the SDL 2 version the devkit builds
 H=$R/tests/host-harness
 : "${SRC:=$R/src}" "${STAGE:=$R/stage}" "${OUT:=/tmp/riscos-mesa-tests}"
 # What tests/host-setup.sh made, unless told otherwise
@@ -109,7 +110,7 @@ egl_harness() {
 }
 
 sdl_harness() {
-    local S=$SRC/SDL-release-2.26.0
+    local S=$SRC/SDL-release-$SDL_V
     [ -f "$S/src/video/riscos/SDL_riscosopengl.c" ] || { echo "no patched SDL in $S (run build/build-sdl2.sh)"; return 1; }
     cd "$H" || return 1
     local SF="-no-pie -O1 -w -std=gnu99 -DEGL_RISCOS_HOST -DSDL_VIDEO_DRIVER_RISCOS=1 -DSDL_VIDEO_OPENGL=1 \
@@ -141,7 +142,7 @@ else
 fi
 step egl egl_harness
 step sdl sdl_harness
-step sdl-wimp env SDL="$SRC/SDL-release-2.26.0" OUT="$OUT/sdl-wimp" "$H/sdl-wimp/run.sh"
+step sdl-wimp env SDL="$SRC/SDL-release-$SDL_V" OUT="$OUT/sdl-wimp" "$H/sdl-wimp/run.sh"
 step openal env SRC="$SRC" OUT="$OUT/openal" "$H/openal/run.sh"
 if [ -n "${GLU:-}" ]; then step glut glut_harness; else skip glut "set GLU=<host libGLU.a>"; fi
 if [ -n "${GLU:-}" ]; then
@@ -154,7 +155,7 @@ step ovl env OUT="$OUT/ovl" "$H/ovl/run.sh"
 if [ -n "${ARM:-}" ]; then
     # on an emulated Cortex-A8 (VFPv3), the oldest CPU the build supports
     step arm env OUT="$OUT/arm" QEMU_CPU="${QEMU_CPU:-cortex-a8}" "$H/mesa/arm/run-arm.sh"
-    step sdl-arm env SDL="$SRC/SDL-release-2.26.0" OUT="$OUT/sdl-arm" "$H/sdl-arm/run.sh"
+    step sdl-arm env SDL="$SRC/SDL-release-$SDL_V" OUT="$OUT/sdl-arm" "$H/sdl-arm/run.sh"
     step openal-neon env SRC="$SRC" OUT="$OUT/openal-neon" "$H/openal/neon.sh"
 else
     skip arm "set ARM=1 (needs qemu-user and an ARM Linux cross compiler)"

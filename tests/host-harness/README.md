@@ -30,7 +30,7 @@ burst. Like the GL harness it runs on a
 stack below 2 GB and is built -no-pie, as the driver passes blocks to SWIs
 as 32-bit addresses.
 
-    SDL=<patched SDL-release-2.26.0> tests/host-harness/sdl-wimp/run.sh
+    SDL=<patched SDL-release-$SDL_V> tests/host-harness/sdl-wimp/run.sh
 
 
 ## `sdl-arm/`: SDL's ARM SIMD and NEON blitters
@@ -49,13 +49,13 @@ of routine are the same as on RISC OS; only SDL's CPU check differs.
 Needs `qemu-arm` and `arm-linux-gnueabihf-gcc`; run by `tests/run-all.sh`
 with `ARM=1`.
 
-    SDL=<patched SDL-release-2.26.0> tests/host-harness/sdl-arm/run.sh
+    SDL=<patched SDL-release-$SDL_V> tests/host-harness/sdl-arm/run.sh
 
 
 ## `openal/`: OpenAL Soft through SDL's sound
 
 `openal/run.sh` builds the devkit's OpenAL Soft 1.19.1 (with
-`patches/openal`, the same options as `build/build-openal.sh`) and SDL 2.26
+`patches/openal`, the same options as `build/build-openal.sh`) and SDL 2
 (audio only) for the host, then runs `tests/altest.c` with SDL's `disk`
 audio driver, which writes the mixed sound to a file (OpenAL is told to mix
 16-bit stereo at 22050 Hz through an `ALSOFT_CONF` file).

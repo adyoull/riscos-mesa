@@ -1,7 +1,7 @@
 #!/bin/bash
 # Host test of the devkit's OpenAL Soft: the same 1.19.1 source with
 # patches/openal, built the same way as build/build-openal.sh (SDL2 backend
-# only), on Linux against SDL 2.26 from the same tree the RISC OS build
+# only), on Linux against SDL 2 from the same tree the RISC OS build
 # uses. tests/altest.c plays its three tones through SDL's "disk" audio
 # driver, which writes the sound to a file; check-tones.py then checks the
 # recording: each tone at its frequency, in the middle, left and right.
@@ -16,17 +16,18 @@
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 R=$(cd "$HERE/../../.." && pwd)
+SDL_V=$(sed -n 's/^SDL_V=//p' "$R/build/env.sh")   # the SDL 2 version the devkit builds
 : "${SRC:=$R/src}" "${OUT:=/tmp/riscos-mesa-openal}"
 V=1.19.1
-S=$SRC/SDL-release-2.26.0
+S=$SRC/SDL-release-$SDL_V
 TGZ=$SRC/openal-soft-$V.tar.gz
 PATCH=$R/patches/openal/openal-soft-$V-riscos.patch
 [ -f "$S/configure" ] || { echo "no SDL tree in $S (run build/build-sdl2.sh)"; exit 1; }
 [ -f "$TGZ" ] || { echo "no $TGZ (run build/build-openal.sh)"; exit 1; }
-P=$OUT/host
+P=$OUT/host-sdl$SDL_V      # (a new SDL version builds afresh)
 mkdir -p "$OUT"
 
-# Host SDL 2.26: audio only (disk and dummy drivers), static
+# Host SDL 2: audio only (disk and dummy drivers), static
 if [ ! -f "$P/lib/libSDL2.a" ]; then
     rm -rf "$OUT/sdl-build"; mkdir -p "$OUT/sdl-build"
     (cd "$OUT/sdl-build" && "$S/configure" --prefix="$P" --disable-shared --enable-static \

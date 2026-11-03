@@ -1,7 +1,7 @@
 diff --git src/timer/unix/SDL_systimer.c src/timer/unix/SDL_systimer.c
 --- src/timer/unix/SDL_systimer.c
 +++ src/timer/unix/SDL_systimer.c
-@@ -183,6 +183,14 @@ SDL_GetPerformanceFrequency(void)
+@@ -178,6 +178,14 @@ Uint64 SDL_GetPerformanceFrequency(void)
      return 1000000;
  }
  
@@ -13,10 +13,10 @@ diff --git src/timer/unix/SDL_systimer.c src/timer/unix/SDL_systimer.c
 +int (*SDL_RISCOS_DelayHook)(Uint32 ms) = NULL;
 +#endif
 +
- void
- SDL_Delay(Uint32 ms)
+ void SDL_Delay(Uint32 ms)
  {
-@@ -203,6 +211,12 @@ SDL_Delay(Uint32 ms)
+     int was_error;
+@@ -197,6 +205,12 @@ void SDL_Delay(Uint32 ms)
      }
  #endif
  
@@ -27,5 +27,5 @@ diff --git src/timer/unix/SDL_systimer.c src/timer/unix/SDL_systimer.c
 +#endif
 +
      /* Set the timeout interval */
- #if HAVE_NANOSLEEP
+ #ifdef HAVE_NANOSLEEP
      elapsed.tv_sec = ms / 1000;

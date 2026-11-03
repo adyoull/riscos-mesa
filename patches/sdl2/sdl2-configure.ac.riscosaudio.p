@@ -1,8 +1,6 @@
-diff --git configure.ac configure.ac
-index cc30f9a..b442454 100644
 --- configure.ac
 +++ configure.ac
-@@ -4560,6 +4560,13 @@ dnl BeOS support removed after SDL 2.0.1. Haiku still works.  --ryan.
+@@ -4573,6 +4573,13 @@
              SOURCES="$SOURCES $srcdir/src/misc/riscos/*.c"
              have_misc=yes
          fi

@@ -10,7 +10,7 @@ for arg in "$@"; do
   case $arg in
     --prefix|--exec-prefix) out="$out $prefix" ;;
     --prefix=*|--exec-prefix=*) ;;       # ignored: the devkit knows where it is
-    --version) out="$out 2.26.0" ;;
+    --version) out="$out 2.32.10" ;;
     --cflags) out="$out -I$prefix/include/SDL2 -I$prefix/include -D_REENTRANT" ;;
     --libs|--static-libs) out="$out -L$prefix/lib -lSDL2 -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm" ;;
     *) echo "$usage" >&2; exit 1 ;;

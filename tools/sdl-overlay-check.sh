@@ -1,5 +1,5 @@
 #!/bin/bash
-# Compares patches/sdl2 with another project's copy of the same SDL 2.26
+# Compares patches/sdl2 with another project's copy of the same SDL 2
 # RISC OS overlay (riscos-openttd keeps one too), so the two can't drift
 # apart unnoticed. Read-only: it never changes either copy.
 #

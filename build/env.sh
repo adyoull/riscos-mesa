@@ -66,9 +66,9 @@ libtool_ignore_toolchain_la() {   # [path to the generated libtool script]
 MESA_V=20.3.5
 MESA_URL=https://codeload.github.com/chaotic-cx/mesa-mirror/tar.gz/refs/tags/mesa-$MESA_V
 MESA_SHA256=adabbe0161cd8db4f1935fca9e07b7ef86219951a2ac830586de149c1753b828
-SDL_V=2.26.0
+SDL_V=2.32.10
 SDL_URL=https://codeload.github.com/libsdl-org/SDL/tar.gz/refs/tags/release-$SDL_V
-SDL_SHA256=f38367892a6f243e8b4010e9e3d9714dc848e11b1a3f69c4af514dc6e7aca7f0
+SDL_SHA256=03f9d7c191a837525c9cda6406af2f2e48be02b5e7eb03d949cc9f1e9ca41c8b
 ZLIB_V=1.3.1
 ZLIB_URL=https://codeload.github.com/madler/zlib/tar.gz/refs/tags/v$ZLIB_V
 ZLIB_SHA256=17e88863f3600672ab49182f217281b6fc4d3c762bde361935e436a95214d05c

@@ -95,7 +95,7 @@ program.
 
 ## One SDL overlay, kept here
 
-`patches/sdl2` is the one copy of SDL 2.26's RISC OS driver changes. The
+`patches/sdl2` is the one copy of SDL 2's RISC OS driver changes. The
 riscos-openttd port uses the same files (`tools/sdl-overlay-export.sh`,
 `tools/sdl-overlay-check.sh`), built without GL, which must leave no GL
 code in its build. Every change is made here, and then riscos-openttd

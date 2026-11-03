@@ -1,4 +1,4 @@
-# SDL 2.26.0 RISC OS overlay (authoritative copy)
+# SDL 2.32.10 RISC OS overlay (authoritative copy)
 
 **This directory is the master copy of the overlay.** riscos-openttd (and
 any other project) uses a copy of it made with
@@ -178,7 +178,7 @@ It contains:
   (after Wimp_SetMode), and `"0"` gives the single tasking kind for both,
   as before. `sdl-wimp` checks the click and the mode change.
 - ARM SIMD and NEON blitters (2026-09-30, suggested by the Freeciv port):
-  SDL 2.26 has ARM assembly for per-pixel alpha blits (32 bpp onto 32 bpp,
+  SDL 2 has ARM assembly for per-pixel alpha blits (32 bpp onto 32 bpp,
   and onto RGB565), filling rectangles and two pixel format conversions
   (from pixman, MIT licence, see LICENCES.txt), but its configure only
   turns them on for Linux. `sdl2-configure.ac.simd.p` turns them on for
@@ -236,7 +236,7 @@ The older `sdl2-riscos-framebuffer.p` from the buildkit is superseded by
 ## Changing the overlay
 
 1. Edit the C files in the SDL tree that `build/build-sdl2.sh` makes
-   (`src/SDL-release-2.26.0`), never the `.p` files themselves.
+   (`src/SDL-release-$SDL_V`, from `build/env.sh`), never the `.p` files themselves.
 2. Rebuild (`build/build-sdl2.sh`) and run the host tests
    (`tests/run-all.sh`: the `sdl` and `sdl-wimp` steps).
 3. Run `tools/sdl-overlay-regen.sh`. It rewrites each `.p` from the tree

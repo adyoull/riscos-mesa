@@ -1,4 +1,4 @@
-/* armblit.c: checks SDL 2.26's ARM SIMD and NEON blitters through SDL's
+/* armblit.c: checks SDL 2's ARM SIMD and NEON blitters through SDL's
  * own API, on an emulated ARM CPU (qemu-arm), against SDL's C code.
  *
  * SDL is built for ARM Linux from the patched tree (patches/sdl2), with

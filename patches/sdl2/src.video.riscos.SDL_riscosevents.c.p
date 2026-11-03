@@ -1,8 +1,20 @@
 diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents.c
 --- src/video/riscos/SDL_riscosevents.c
 +++ src/video/riscos/SDL_riscosevents.c
-@@ -23,15 +23,112 @@
- #if SDL_VIDEO_DRIVER_RISCOS
+@@ -1,6 +1,6 @@
+ /*
+   Simple DirectMedia Layer
+-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
++  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
+ 
+   This software is provided 'as-is', without any express or implied
+   warranty.  In no event will the authors be held liable for any damages
+@@ -20,19 +20,117 @@
+ */
+ #include "../../SDL_internal.h"
+ 
+-#ifdef SDL_VIDEO_DRIVER_RISCOS
++#if SDL_VIDEO_DRIVER_RISCOS
  
  #include "../../events/SDL_events_c.h"
 +#include "../../events/SDL_windowevents_c.h"
@@ -22,6 +34,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +#include <time.h>
  #include <swis.h>
  
+-static SDL_Scancode SDL_RISCOS_translate_keycode(int keycode)
 +/* 2026: quitting from the desktop.
 +
 +   Message_PreQuit (8) is sent to a task that the user quits from the Task
@@ -111,13 +124,16 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +    }
 +}
 +
- static SDL_Scancode
- SDL_RISCOS_translate_keycode(int keycode)
++static SDL_Scancode
++SDL_RISCOS_translate_keycode(int keycode)
  {
-@@ -50,6 +147,44 @@ SDL_RISCOS_translate_keycode(int keycode)
+     SDL_Scancode scancode = SDL_SCANCODE_UNKNOWN;
+ 
+@@ -49,23 +147,84 @@ static SDL_Scancode SDL_RISCOS_translate_keycode(int keycode)
      return scancode;
  }
  
+-void RISCOS_PollKeyboard(_THIS)
 +/* 2026: text input.  Key up/down events come from scanning the keyboard,
 +   but typed characters come from the keyboard buffer (full screen) or the
 +   Wimp's Key_Pressed events (windowed).  RISC OS characters are Latin-1. */
@@ -156,10 +172,10 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +    }
 +}
 +
- void
- RISCOS_PollKeyboard(_THIS)
++void
++RISCOS_PollKeyboard(_THIS)
  {
-@@ -57,17 +192,39 @@ RISCOS_PollKeyboard(_THIS)
+     SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
      Uint8 key = 2;
      int i;
  
@@ -200,7 +216,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
      while (key < 0xff) {
          key = _kernel_osbyte(121, key + 1, 0) & 0xff;
          switch (key) {
-@@ -84,20 +241,48 @@ RISCOS_PollKeyboard(_THIS)
+@@ -82,20 +241,48 @@ void RISCOS_PollKeyboard(_THIS)
              break;
  
          default:
@@ -252,10 +268,11 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  }
  
  static const Uint8 mouse_button_map[] = {
-@@ -111,36 +296,425 @@ static const Uint8 mouse_button_map[] = {
+@@ -109,49 +296,440 @@ static const Uint8 mouse_button_map[] = {
      SDL_BUTTON_X2 + 3
  };
  
+-void RISCOS_PollMouse(_THIS)
 +/* 2026: the icon bar's "bring to front automatically" option (Configure,
 +   Windows) brings it forward when the pointer reaches the bottom of the
 +   screen. Over a full window (full screen that multitasks) that flashed
@@ -311,8 +328,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +    }
 +}
 +
- void
--RISCOS_PollMouse(_THIS)
++void
 +RISCOS_KeepPointerOffBottom(_THIS, SDL_bool keep)
 +{
 +    static SDL_bool at_exit;
@@ -517,9 +533,10 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +/* 2026: mouse handling for a Wimp window. */
 +static void
 +RISCOS_PollMouseWindowed(_THIS)
-+{
-+    SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
-+    SDL_Mouse *mouse = SDL_GetMouse();
+ {
+     SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
+     SDL_Mouse *mouse = SDL_GetMouse();
+-    SDL_Rect rect;
 +    SDL_Window *window = driverdata->wimp_sdl_window;
 +    int xeig = driverdata->xeig, yeig = driverdata->yeig;
 +    RISCOS_PointerMap map;
@@ -622,14 +639,13 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +
 +static void
 +RISCOS_PollMouseFullscreen(_THIS)
- {
++{
 +    /* 2026: always report against our (full screen) window rather than
 +       mouse->focus, so that once the pointer has touched a screen edge and
 +       SDL has dropped the focus, it gets it back; convert OS units with the
 +       real eigen factors instead of assuming 2 OS units per pixel. */
-     SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
-     SDL_Mouse *mouse = SDL_GetMouse();
--    SDL_Rect rect;
++    SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
++    SDL_Mouse *mouse = SDL_GetMouse();
 +    SDL_Window *window = _this->windows ? _this->windows : mouse->focus;
 +    RISCOS_PointerMap map;
      _kernel_swi_regs regs;
@@ -673,9 +689,11 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
      }
  }
  
+-int RISCOS_InitEvents(_THIS)
 +void
 +RISCOS_PollMouse(_THIS)
-+{
+ {
+-    SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
 +    if (RISCOS_IsWindowed((SDL_VideoData *)_this->driverdata)) {
 +        RISCOS_PollMouseWindowed(_this);
 +    } else {
@@ -683,21 +701,34 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +    }
 +}
 +
- int
- RISCOS_InitEvents(_THIS)
- {
-@@ -150,6 +724,7 @@ RISCOS_InitEvents(_THIS)
++int
++RISCOS_InitEvents(_THIS)
++{
++    SDL_VideoData *driverdata = (SDL_VideoData *) _this->driverdata;
+     _kernel_swi_regs regs;
+     int i, status;
  
-     for (i = 0; i < RISCOS_MAX_KEYS_PRESSED; i++)
+-    for (i = 0; i < RISCOS_MAX_KEYS_PRESSED; i++) {
++    for (i = 0; i < RISCOS_MAX_KEYS_PRESSED; i++)
          driverdata->key_pressed[i] = 255;
+-    }
 +    driverdata->repeat_key = 255;
  
      status = (_kernel_osbyte(202, 0, 255) & 0xFF);
-     SDL_ToggleModState(KMOD_NUM,    (status & (1 << 2)) == 0);
-@@ -165,10 +740,349 @@ RISCOS_InitEvents(_THIS)
+-    SDL_ToggleModState(KMOD_NUM, (status & (1 << 2)) ? SDL_FALSE : SDL_TRUE);
+-    SDL_ToggleModState(KMOD_CAPS, (status & (1 << 4)) ? SDL_FALSE : SDL_TRUE);
+-    SDL_ToggleModState(KMOD_SCROLL, (status & (1 << 1)) ? SDL_TRUE : SDL_FALSE);
++    SDL_ToggleModState(KMOD_NUM,    (status & (1 << 2)) == 0);
++    SDL_ToggleModState(KMOD_CAPS,   (status & (1 << 4)) == 0);
++    SDL_ToggleModState(KMOD_SCROLL, (status & (1 << 1)) != 0);
+ 
+     _kernel_swi(OS_Mouse, &regs, &regs);
+     driverdata->last_mouse_buttons = regs.r[2];
+@@ -162,13 +740,354 @@ int RISCOS_InitEvents(_THIS)
      return 0;
  }
  
+-void RISCOS_PumpEvents(_THIS)
 +/* Icon bar menu: just "Quit". A Wimp menu block (header + one item). It
 +   stays static: the Wimp reads it for as long as the menu is open. */
 +static int riscos_iconbar_menu[7 + 6] = {
@@ -928,7 +959,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +   screen (single tasking by design) or not in the desktop. */
 +SDL_bool
 +RISCOS_WimpDelay(_THIS, Uint32 ms)
-+{
+ {
 +    SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
 +    Uint32 cs = (ms + 5) / 10;
 +
@@ -1022,9 +1053,9 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +        *driverdata->wakeup_pollword = 1;
 +}
 +
- void
- RISCOS_PumpEvents(_THIS)
- {
++void
++RISCOS_PumpEvents(_THIS)
++{
 +    /* Message_Quit: the program has taken SDL_APP_TERMINATING and SDL_QUIT
 +       and carried on instead of quitting, but the task must go. */
 +    if (riscos_quit.quit_received &&
@@ -1044,3 +1075,9 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
      RISCOS_PollKeyboard(_this);
  }
  
+-void RISCOS_QuitEvents(_THIS)
++void
++RISCOS_QuitEvents(_THIS)
+ {
+     /* Re-enable escape. */
+     _kernel_osbyte(229, 0, 0);

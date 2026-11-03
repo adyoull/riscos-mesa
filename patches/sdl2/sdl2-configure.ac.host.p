@@ -1,6 +1,6 @@
 --- configure.ac
 +++ configure.ac
-@@ -3747,7 +3747,7 @@
+@@ -3756,7 +3756,7 @@
  
  dnl Set up the configuration based on the host platform!
  case "$host" in
@@ -9,7 +9,7 @@
          case "$host" in
              *-*-android*)
                  # Android
-@@ -4540,7 +4540,7 @@
+@@ -4553,7 +4553,7 @@
              have_locale=yes
          fi
          ;;

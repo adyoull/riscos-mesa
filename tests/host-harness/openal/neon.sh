@@ -3,7 +3,7 @@
 #
 # The devkit builds OpenAL with the NEON mixers (Alc/mixer/mixer_neon.c),
 # used when the CPU has NEON. This builds the same source (with
-# patches/openal) and SDL 2.26's audio for ARM Linux, VFPv3 with only the
+# patches/openal) and SDL 2's audio for ARM Linux, VFPv3 with only the
 # mixer file NEON as in build/build-openal.sh, and mixes
 # almix.c's scene (three looping tones at 11, 22 and 44 kHz, panned, with a
 # gain change) through OpenAL's loopback device, so there's no timing in it,
@@ -22,19 +22,20 @@
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 R=$(cd "$HERE/../../.." && pwd)
+SDL_V=$(sed -n 's/^SDL_V=//p' "$R/build/env.sh")   # the SDL 2 version the devkit builds
 : "${SRC:=$R/src}" "${OUT:=/tmp/riscos-mesa-openal-neon}" "${QEMU_CPU:=cortex-a8}"
 V=1.19.1
-S=$SRC/SDL-release-2.26.0
+S=$SRC/SDL-release-$SDL_V
 TGZ=$SRC/openal-soft-$V.tar.gz
 PATCH=$R/patches/openal/openal-soft-$V-riscos.patch
 CC=arm-linux-gnueabihf-gcc
 FLAGS="-O2 -mfpu=vfpv3 -mfloat-abi=hard -DRO_NEON_EXACT_ONLY"   # as build/build-openal.sh
 [ -f "$S/configure" ] || { echo "no SDL tree in $S (run build/build-sdl2.sh)"; exit 1; }
 [ -f "$TGZ" ] || { echo "no $TGZ (run build/build-openal.sh)"; exit 1; }
-P=$OUT/arm
+P=$OUT/arm-sdl$SDL_V       # (a new SDL version builds afresh)
 mkdir -p "$OUT"
 
-# SDL 2.26 for ARM Linux: audio only (disk driver), static
+# SDL 2 for ARM Linux: audio only (disk driver), static
 if [ ! -f "$P/lib/libSDL2.a" ]; then
     rm -rf "$OUT/sdl-build"; mkdir -p "$OUT/sdl-build"
     (cd "$OUT/sdl-build" && CC=$CC CFLAGS="$FLAGS" "$S/configure" --host=arm-linux-gnueabihf \

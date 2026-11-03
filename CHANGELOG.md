@@ -46,6 +46,16 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   ARM with and without NEON. It passes, so the 1-5 pixel differences the
   ClassiCube port saw most likely came from its own change (the atlas
   split gives other textures and coordinates), not from the two routes.
+- **SDL 2.32.10** (was 2.26.0), the last SDL 2 release: two years of
+  upstream fixes and the functions added since 2.26 (such as 2.28's
+  `SDL_HasWindowSurface` and `SDL_DestroyWindowSurface`), which newer
+  ports call. The RISC OS overlay (`patches/sdl2`) is moved
+  onto it unchanged in what it does; SDL's own RISC OS driver changes
+  since 2.26 are taken in (the message box entry in the driver table),
+  except that it doesn't make windows full screen only. All host checks
+  pass with it (sdl, sdl-wimp, sdl-arm, openal, openal-neon); not yet
+  tried on a Pi. Ports that take the overlay (riscos-openttd) must move
+  to SDL 2.32.10 with it.
 
 ## 20.3.5-17: software-drawn SDL games through the hardware overlay
 

@@ -1,12 +1,12 @@
 #!/bin/bash
-# Keeps patches/sdl2/*.p (the SDL 2.26 RISC OS overlay) and a working SDL
+# Keeps patches/sdl2/*.p (the SDL 2 RISC OS overlay) and a working SDL
 # tree in step.
 #
 #   tools/sdl-overlay-regen.sh           write each .p from the working tree
 #   tools/sdl-overlay-regen.sh --check   only check: does pristine SDL plus
 #                                        the .p files give the working tree?
 #
-# The working tree is src/SDL-release-2.26.0 (as build/build-sdl2.sh leaves
+# The working tree is src/SDL-release-$SDL_V (as build/build-sdl2.sh leaves
 # it), or SDL_TREE=<dir>. Pristine SDL comes from the pinned tarball
 # (build/env.sh), downloaded into $SRC the first time.
 #

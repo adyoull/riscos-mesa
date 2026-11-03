@@ -35,7 +35,7 @@ The same applies to programs linked with OpenAL Soft (libopenal, section
     GL/glext.h) - Khronos (MIT-style). eglplatform.h contains a RISC OS
     section added by riscos-mesa.
  5. GLU 9.0.1 (libGLU) - SGI Free Software License B 2.0
- 6. SDL 2.26.0 (libSDL2) - zlib licence. The RISC OS video driver files are
+ 6. SDL 2.32.10 (libSDL2) - zlib licence. The RISC OS video driver files are
     altered from the original SDL sources (riscos-mesa / riscos-openttd).
     Its ARM SIMD and NEON blitters, switched on from 20.3.5-10, are from
     pixman: Nokia's parts under the MIT licence and a similar permissive
@@ -203,7 +203,7 @@ Silicon Graphics, Inc.
 
 6. SDL
 
-Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
+Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
   
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages
@@ -1118,7 +1118,7 @@ https://www.gnu.org/licenses/gcc-exception-3.1.html
 
 12. SDL's ARM blitters (pixman)
 
-SDL 2.26's src/video/arm files, linked into libSDL2 from riscos-mesa
+SDL 2's src/video/arm files, linked into libSDL2 from riscos-mesa
 20.3.5-10. The parts by RISC OS Open Ltd and the Raspberry Pi Foundation
 (pixman-arm-simd-asm.S, pixman-arm-simd-asm.h, and additions to
 pixman-arm-neon-asm.S) are under the zlib licence, as the rest of SDL

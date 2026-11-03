@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copies the SDL 2.26 RISC OS overlay (patches/sdl2, the authoritative
+# Copies the SDL 2 RISC OS overlay (patches/sdl2, the authoritative
 # copy) into another project's overlay directory, e.g. riscos-openttd's.
 #
 #   tools/sdl-overlay-export.sh DEST_DIR
@@ -15,6 +15,7 @@
 set -euo pipefail
 R=$(cd "$(dirname "$0")/.." && pwd)
 A=$R/patches/sdl2
+SDL_V=$(sed -n 's/^SDL_V=//p' "$R/build/env.sh")   # the SDL 2 version the overlay is for
 D=${1:?usage: tools/sdl-overlay-export.sh DEST_DIR}
 [ -d "$D" ] || { echo "$D: not a directory" >&2; exit 2; }
 
@@ -34,7 +35,7 @@ n=0
 for f in "$A"/*.p; do cp "$f" "$D/"; n=$((n + 1)); done
 cp "$A/README.md" "$D/README-overlay.md"
 cat > "$D/SOURCE" <<EOF
-SDL 2.26.0 RISC OS overlay, copied from riscos-mesa patches/sdl2
+SDL $SDL_V RISC OS overlay, copied from riscos-mesa patches/sdl2
 (the authoritative copy) at commit $rev$dirty on $(date -u +%Y-%m-%d).
 Don't edit these files here: change them in riscos-mesa and copy them
 again with riscos-mesa/tools/sdl-overlay-export.sh.

@@ -3,7 +3,7 @@
 # guides in docs/porting/:
 #   ports/mesa-demos  mesa-demos 9.0.0 EGL demos, unchanged, over our eglut
 #                     back end (eglut_riscos.c)     -> $STAGE/ports/mesa-demos
-#   ports/sdl2-tests  SDL 2.26's testgl2/testgles/testgles2 and loopwave (sound),
+#   ports/sdl2-tests  SDL 2's testgl2/testgles/testgles2 and loopwave (sound),
 #                     unchanged
 #                                                    -> $STAGE/ports/sdl2-tests
 #   ports/esbook      the OpenGL ES 2.0 Programming Guide samples over our
@@ -41,8 +41,8 @@ while read -r app src; do
 done < "$D/apps.txt"
 cp "$D/riscos/ReadMe,fff" "$OUT/mesa-demos/"
 
-# --- SDL 2.26 test programs, built as SDL's test/configure would ---
-T="$SRC/SDL-release-2.26.0/test"
+# --- SDL 2 test programs, built as SDL's test/configure would ---
+T="$SRC/SDL-release-$SDL_V/test"
 mkdir -p "$OUT/sdl2-tests"
 for spec in "TestGL2 testgl2 HAVE_OPENGL" "TestGLES testgles HAVE_OPENGLES" "TestGLES2 testgles2 HAVE_OPENGLES2" \
             "LoopWave loopwave HAVE_AUDIO"; do
@@ -52,7 +52,7 @@ for spec in "TestGL2 testgl2 HAVE_OPENGL" "TestGLES testgles HAVE_OPENGLES" "Tes
       "$P/sdl2-tests/riscos_output.c" -o "$OUT/sdl2-tests/!$1/!RunImage,e1f" \
       -L"$STAGE/lib" -lSDL2_test -lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm
   $STRIP "$OUT/sdl2-tests/!$1/!RunImage,e1f"
-  cp "$SRC/SDL-release-2.26.0/LICENSE.txt" "$OUT/sdl2-tests/!$1/Licence,fff"
+  cp "$SRC/SDL-release-$SDL_V/LICENSE.txt" "$OUT/sdl2-tests/!$1/Licence,fff"
 done
 cp "$T/sample.wav" "$OUT/sdl2-tests/!LoopWave/sample.wav,fb1"
 # loopwave plays from SDL's audio thread: its !Run loads UnixLib's

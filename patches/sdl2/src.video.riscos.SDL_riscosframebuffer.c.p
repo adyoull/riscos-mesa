@@ -1,7 +1,22 @@
 diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosframebuffer.c
 --- src/video/riscos/SDL_riscosframebuffer.c
 +++ src/video/riscos/SDL_riscosframebuffer.c
-@@ -26,6 +26,7 @@
+@@ -1,6 +1,6 @@
+ /*
+   Simple DirectMedia Layer
+-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
++  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
+ 
+   This software is provided 'as-is', without any express or implied
+   warranty.  In no event will the authors be held liable for any damages
+@@ -20,32 +20,41 @@
+ */
+ #include "../../SDL_internal.h"
+ 
+-#ifdef SDL_VIDEO_DRIVER_RISCOS
++#if SDL_VIDEO_DRIVER_RISCOS
+ 
+ #include "../SDL_sysvideo.h"
  #include "SDL_riscosframebuffer_c.h"
  #include "SDL_riscosvideo.h"
  #include "SDL_riscoswindow.h"
@@ -9,15 +24,26 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
  
  #include <kernel.h>
  #include <swis.h>
-@@ -40,9 +41,20 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
+ 
+-int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window *window, Uint32 *format, void **pixels, int *pitch)
++int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format, void ** pixels, int *pitch)
+ {
+-    SDL_WindowData *driverdata = (SDL_WindowData *)window->driverdata;
++    SDL_WindowData *driverdata = (SDL_WindowData *) window->driverdata;
+     const char *sprite_name = "display";
+     unsigned int sprite_mode;
+     _kernel_oserror *error;
+     _kernel_swi_regs regs;
      SDL_DisplayMode mode;
      int size;
+-    int w, h;
  
+-    SDL_GetWindowSizeInPixels(window, &w, &h);
 +    /* 2026: an OpenGL window's sprite belongs to the GL context. */
 +    if (driverdata->gl_active) {
 +        return SDL_SetError("Window uses OpenGL; it has no framebuffer surface");
 +    }
-+
+ 
      /* Free the old framebuffer surface */
      RISCOS_DestroyWindowFramebuffer(_this, window);
  
@@ -30,7 +56,7 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
      /* Create a new one */
      SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(window), &mode);
      if ((SDL_ISPIXELFORMAT_PACKED(mode.format) || SDL_ISPIXELFORMAT_ARRAY(mode.format))) {
-@@ -53,6 +65,26 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
+@@ -56,31 +65,51 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window *window, Uint32 *format, vo
          sprite_mode = (1 | (90 << 1) | (90 << 14) | (6 << 27));
      }
  
@@ -55,13 +81,46 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 +    }
 +
      /* Calculate pitch */
-     *pitch = (((window->w * SDL_BYTESPERPIXEL(*format)) + 3) & ~3);
+-    *pitch = (((w * SDL_BYTESPERPIXEL(*format)) + 3) & ~3);
++    *pitch = (((window->w * SDL_BYTESPERPIXEL(*format)) + 3) & ~3);
  
-@@ -88,32 +120,183 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format,
+     /* Allocate the sprite area */
+-    size = sizeof(sprite_area) + sizeof(sprite_header) + ((*pitch) * h);
++    size = sizeof(sprite_area) + sizeof(sprite_header) + ((*pitch) * window->h);
+     driverdata->fb_area = SDL_malloc(size);
+     if (!driverdata->fb_area) {
+         return SDL_OutOfMemory();
+     }
+ 
+-    driverdata->fb_area->size = size;
++    driverdata->fb_area->size  = size;
+     driverdata->fb_area->count = 0;
+     driverdata->fb_area->start = 16;
+-    driverdata->fb_area->end = 16;
++    driverdata->fb_area->end   = 16;
+ 
+     /* Create the actual image */
+-    regs.r[0] = 256 + 15;
++    regs.r[0] = 256+15;
+     regs.r[1] = (int)driverdata->fb_area;
+     regs.r[2] = (int)sprite_name;
+     regs.r[3] = 0;
+-    regs.r[4] = w;
+-    regs.r[5] = h;
++    regs.r[4] = window->w;
++    regs.r[5] = window->h;
+     regs.r[6] = sprite_mode;
+     error = _kernel_swi(OS_SpriteOp, &regs, &regs);
+-    if (error) {
++    if (error != NULL) {
+         SDL_free(driverdata->fb_area);
+         return SDL_SetError("Unable to create sprite: %s (%i)", error->errmess, error->errnum);
+     }
+@@ -91,31 +120,182 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window *window, Uint32 *format, vo
      return 0;
  }
  
--int RISCOS_UpdateWindowFramebuffer(_THIS, SDL_Window * window, const SDL_Rect * rects, int numrects)
+-int RISCOS_UpdateWindowFramebuffer(_THIS, SDL_Window *window, const SDL_Rect *rects, int numrects)
 +static void RISCOS_vdu_word(int v)
 +{
 +    _kernel_oswrch(v & 0xff);
@@ -91,7 +150,8 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 +void
 +RISCOS_WimpPlotWindow(_THIS, SDL_Window *window, RISCOS_Redraw *redraw, int more)
  {
-     SDL_WindowData *driverdata = (SDL_WindowData *) window->driverdata;
+-    SDL_WindowData *driverdata = (SDL_WindowData *)window->driverdata;
++    SDL_WindowData *driverdata = (SDL_WindowData *) window->driverdata;
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +    int xeig = vdata->xeig, yeig = vdata->yeig;
 +    int sx = vdata->wscale_x > 0 ? vdata->wscale_x : 1;
@@ -100,7 +160,7 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
      _kernel_swi_regs regs;
 -    _kernel_oserror *error;
  
--    regs.r[0] = 512+52;
+-    regs.r[0] = 512 + 52;
 -    regs.r[1] = (int)driverdata->fb_area;
 -    regs.r[2] = (int)driverdata->fb_sprite;
 -    regs.r[3] = 0; /* window->x << 1; */
@@ -109,6 +169,8 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 -    regs.r[6] = 0;
 -    regs.r[7] = 0;
 -    error = _kernel_swi(OS_SpriteOp, &regs, &regs);
+-    if (error) {
+-        return SDL_SetError("OS_SpriteOp 52 failed: %s (%i)", error->errmess, error->errnum);
 +    while (more) {
 +        if (driverdata && driverdata->fb_sprite) {
 +            int ox = redraw->box.x0 - redraw->scroll_x;   /* work area origin on screen */
@@ -212,16 +274,17 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 +    if (numrects > 0) {
 +        _kernel_oswrch(26); /* restore default graphics window */
 +    }
-     if (error != NULL) {
--        return SDL_SetError("OS_SpriteOp 52 failed: %s (%i)", error->errmess, error->errnum);
++    if (error != NULL) {
 +        return SDL_SetError("OS_SpriteOp 34 failed: %s (%i)", error->errmess, error->errnum);
      }
  
      return 0;
  }
  
+-void RISCOS_DestroyWindowFramebuffer(_THIS, SDL_Window *window)
 +int RISCOS_UpdateWindowFramebuffer(_THIS, SDL_Window * window, const SDL_Rect * rects, int numrects)
-+{
+ {
+-    SDL_WindowData *driverdata = (SDL_WindowData *)window->driverdata;
 +    SDL_WindowData *driverdata = (SDL_WindowData *) window->driverdata;
 +
 +#if SDL_VIDEO_OPENGL_OSMESA
@@ -239,17 +302,16 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 +    return RISCOS_FullscreenUpdateFramebuffer(_this, window, rects, numrects);
 +}
 +
- void RISCOS_DestroyWindowFramebuffer(_THIS, SDL_Window * window)
- {
-     SDL_WindowData *driverdata = (SDL_WindowData *) window->driverdata;
- 
++void RISCOS_DestroyWindowFramebuffer(_THIS, SDL_Window * window)
++{
++    SDL_WindowData *driverdata = (SDL_WindowData *) window->driverdata;
++
 +    if (driverdata->gl_active)
 +        return;             /* 2026: the GL sprite is freed by the GL code */
 +    driverdata->fb_direct = 0;
 +#if SDL_VIDEO_OPENGL_OSMESA
 +    RISCOS_FB_Destroy(window);
 +#endif
-+
+ 
      if (driverdata->fb_area) {
          SDL_free(driverdata->fb_area);
-         driverdata->fb_area = NULL;

@@ -1,5 +1,5 @@
 #!/bin/bash
-# SDL 2.26.0 + the RISC OS overlay (patches/sdl2/*.p, the authoritative
+# SDL 2 ($SDL_V in env.sh) + the RISC OS overlay (patches/sdl2/*.p, the authoritative
 # copy; riscos-openttd takes its copy from here with
 # tools/sdl-overlay-export.sh). The same .p files drop into the GCCSDK
 # autobuilder libsdl2 recipe. We build WITH --enable-video-riscos-osmesa

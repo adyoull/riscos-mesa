@@ -1,7 +1,7 @@
 diff --git src/video/SDL_video.c src/video/SDL_video.c
 --- src/video/SDL_video.c
 +++ src/video/SDL_video.c
-@@ -24,6 +24,10 @@
+@@ -25,6 +25,10 @@
  
  #include "SDL.h"
  #include "SDL_video.h"
@@ -12,7 +12,7 @@ diff --git src/video/SDL_video.c src/video/SDL_video.c
  #include "SDL_sysvideo.h"
  #include "SDL_blit.h"
  #include "SDL_pixels_c.h"
-@@ -1481,6 +1485,15 @@ SDL_UpdateFullscreenMode(SDL_Window * window, SDL_bool fullscreen)
+@@ -1521,6 +1525,15 @@ static int SDL_UpdateFullscreenMode(SDL_Window *window, SDL_bool fullscreen)
                  if (_this->SetWindowFullscreen) {
                      _this->SetWindowFullscreen(_this, other, display, SDL_TRUE);
                  }

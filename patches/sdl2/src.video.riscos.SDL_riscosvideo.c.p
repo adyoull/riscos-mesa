@@ -1,15 +1,33 @@
 diff --git src/video/riscos/SDL_riscosvideo.c src/video/riscos/SDL_riscosvideo.c
 --- src/video/riscos/SDL_riscosvideo.c
 +++ src/video/riscos/SDL_riscosvideo.c
-@@ -34,9 +34,23 @@
+@@ -1,6 +1,6 @@
+ /*
+   Simple DirectMedia Layer
+-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
++  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
+ 
+   This software is provided 'as-is', without any express or implied
+   warranty.  In no event will the authors be held liable for any damages
+@@ -20,7 +20,7 @@
+ */
+ #include "../../SDL_internal.h"
+ 
+-#ifdef SDL_VIDEO_DRIVER_RISCOS
++#if SDL_VIDEO_DRIVER_RISCOS
+ 
+ #include "SDL_video.h"
+ #include "SDL_mouse.h"
+@@ -34,37 +34,53 @@
  #include "SDL_riscosmouse.h"
  #include "SDL_riscosmodes.h"
  #include "SDL_riscoswindow.h"
 +#include "SDL_riscosopengl.h"
-+
+ #include "SDL_riscosmessagebox.h"
+ 
 +#include <kernel.h>
 +#include <swis.h>
- 
++
  #define RISCOSVID_DRIVER_NAME "riscos"
  
 +/* 2026: cooperative SDL_Delay (see SDL_systimer.c and RISCOS_WimpDelay) */
@@ -25,7 +43,42 @@ diff --git src/video/riscos/SDL_riscosvideo.c src/video/riscos/SDL_riscosvideo.c
  /* Initialization/Query functions */
  static int RISCOS_VideoInit(_THIS);
  static void RISCOS_VideoQuit(_THIS);
-@@ -77,18 +91,38 @@ RISCOS_CreateDevice(void)
+ 
+ /* RISC OS driver bootstrap functions */
+ 
+-static void RISCOS_DeleteDevice(SDL_VideoDevice *device)
++static void
++RISCOS_DeleteDevice(SDL_VideoDevice * device)
+ {
+     SDL_free(device->driverdata);
+     SDL_free(device);
+ }
+ 
+-static SDL_VideoDevice *RISCOS_CreateDevice(void)
++static SDL_VideoDevice *
++RISCOS_CreateDevice(void)
+ {
+     SDL_VideoDevice *device;
+     SDL_VideoData *phdata;
+ 
+     /* Initialize all variables that we clean on shutdown */
+-    device = (SDL_VideoDevice *)SDL_calloc(1, sizeof(SDL_VideoDevice));
++    device = (SDL_VideoDevice *) SDL_calloc(1, sizeof(SDL_VideoDevice));
+     if (!device) {
+         SDL_OutOfMemory();
+-        return 0;
++        return (0);
+     }
+ 
+     /* Initialize internal data */
+-    phdata = (SDL_VideoData *)SDL_calloc(1, sizeof(SDL_VideoData));
+-    if (!phdata) {
++    phdata = (SDL_VideoData *) SDL_calloc(1, sizeof(SDL_VideoData));
++    if (phdata == NULL) {
+         SDL_OutOfMemory();
+         SDL_free(device);
+         return NULL;
+@@ -76,33 +92,53 @@ static SDL_VideoDevice *RISCOS_CreateDevice(void)
      device->VideoInit = RISCOS_VideoInit;
      device->VideoQuit = RISCOS_VideoQuit;
      device->PumpEvents = RISCOS_PumpEvents;
@@ -48,6 +101,7 @@ diff --git src/video/riscos/SDL_riscosvideo.c src/video/riscos/SDL_riscosvideo.c
      device->UpdateWindowFramebuffer = RISCOS_UpdateWindowFramebuffer;
      device->DestroyWindowFramebuffer = RISCOS_DestroyWindowFramebuffer;
  
+-    device->free = RISCOS_DeleteDevice;
 +#if SDL_VIDEO_OPENGL_OSMESA
 +    /* 2026: software OpenGL via Mesa OSMesa */
 +    device->GL_LoadLibrary = RISCOS_GL_LoadLibrary;
@@ -60,11 +114,29 @@ diff --git src/video/riscos/SDL_riscosvideo.c src/video/riscos/SDL_riscosvideo.c
 +    device->GL_SwapWindow = RISCOS_GL_SwapWindow;
 +    device->GL_DeleteContext = RISCOS_GL_DeleteContext;
 +#endif
-+
-     device->free = RISCOS_DeleteDevice;
+ 
+-    /* TODO: Support windowed mode */
+-    device->quirk_flags = VIDEO_DEVICE_QUIRK_FULLSCREEN_ONLY;
++    device->free = RISCOS_DeleteDevice;
  
      return device;
-@@ -113,6 +147,34 @@ RISCOS_VideoInit(_THIS)
+ }
+ 
++/* (no VIDEO_DEVICE_QUIRK_FULLSCREEN_ONLY, which SDL 2.32's own driver
++   sets: this one has desktop windows) */
+ VideoBootStrap RISCOS_bootstrap = {
+     RISCOSVID_DRIVER_NAME, "SDL RISC OS video driver",
+     RISCOS_CreateDevice,
+     RISCOS_ShowMessageBox
+ };
+ 
+-static int RISCOS_VideoInit(_THIS)
++static int
++RISCOS_VideoInit(_THIS)
+ {
+     if (RISCOS_InitEvents(_this) < 0) {
+         return -1;
+@@ -115,14 +151,52 @@ static int RISCOS_VideoInit(_THIS)
      if (RISCOS_InitModes(_this) < 0) {
          return -1;
      }
@@ -99,9 +171,11 @@ diff --git src/video/riscos/SDL_riscosvideo.c src/video/riscos/SDL_riscosvideo.c
  
      /* We're done! */
      return 0;
-@@ -121,7 +183,16 @@ RISCOS_VideoInit(_THIS)
- static void
- RISCOS_VideoQuit(_THIS)
+ }
+ 
+-static void RISCOS_VideoQuit(_THIS)
++static void
++RISCOS_VideoQuit(_THIS)
  {
 +    SDL_RISCOS_DelayHook = NULL;
      RISCOS_QuitEvents(_this);

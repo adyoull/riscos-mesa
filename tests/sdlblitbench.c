@@ -1,4 +1,4 @@
-/* sdlblitbench: how fast SDL 2.26 draws 2D graphics in software, for
+/* sdlblitbench: how fast SDL 2 draws 2D graphics in software, for
  * comparing builds (such as SDL with and without its ARM SIMD and NEON
  * blitters). No window: everything is drawn into a 1024x768 surface in
  * the RISC OS window surface's format (XBGR8888), as a 2D game's frame

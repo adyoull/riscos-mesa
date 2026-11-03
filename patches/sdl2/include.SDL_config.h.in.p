@@ -1,7 +1,7 @@
 diff --git include/SDL_config.h.in include/SDL_config.h.in
 --- include/SDL_config.h.in
 +++ include/SDL_config.h.in
-@@ -283,6 +283,7 @@
+@@ -286,6 +286,7 @@
  #undef SDL_AUDIO_DRIVER_ARTS_DYNAMIC
  #undef SDL_AUDIO_DRIVER_COREAUDIO
  #undef SDL_AUDIO_DRIVER_DISK

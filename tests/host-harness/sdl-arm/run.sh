@@ -10,8 +10,8 @@
 #                                      fallback
 # Code is built for VFPv3-D16 so that it runs on both.
 #
-#   SDL=<patched SDL 2.26 tree, as build/build-sdl2.sh leaves it>
-#   tests/host-harness/sdl-arm/run.sh     (default SDL: src/SDL-release-2.26.0)
+#   SDL=<patched SDL 2 tree, as build/build-sdl2.sh leaves it>
+#   tests/host-harness/sdl-arm/run.sh     (default SDL: src/SDL-release-<SDL_V>)
 #
 # Needs qemu-user (qemu-arm) and an ARM Linux cross compiler
 # (arm-linux-gnueabihf-gcc; Debian/Ubuntu: gcc-arm-linux-gnueabihf).
@@ -20,7 +20,8 @@
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 R=$(cd "$HERE/../../.." && pwd)
-: "${SDL:=$R/src/SDL-release-2.26.0}" "${OUT:=/tmp/sdl-arm}"
+SDL_V=$(sed -n 's/^SDL_V=//p' "$R/build/env.sh")   # the SDL 2 version the devkit builds
+: "${SDL:=$R/src/SDL-release-$SDL_V}" "${OUT:=/tmp/sdl-arm}"
 CC=arm-linux-gnueabihf-gcc
 FLAGS="-O2 -marm -mfpu=vfpv3-d16 -mfloat-abi=hard"
 command -v qemu-arm >/dev/null || { echo "needs qemu-arm"; exit 1; }
