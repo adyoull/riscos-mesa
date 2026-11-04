@@ -1,8 +1,8 @@
 Patches to OpenAL Soft 1.19.1 (applied by build/build-openal.sh, patch -p1)
 
 openal-soft-1.19.1-riscos.patch
-    Two build fixes, neither of which changes what the library does, and
-    NEON detection on RISC OS:
+    Two build fixes, neither of which changes what the library does, NEON
+    detection on RISC OS, and a RISC OS way to set the period size:
     - Alc/bformatdec.h: N3D2N3DScale, SN3D2N3DScale and FuMa2N3DScale
       declared extern. They were tentative definitions in the header, one
       per file that includes it, which GCC 10 (-fno-common by default)
@@ -28,6 +28,11 @@ openal-soft-1.19.1-riscos.patch
       output: 86 samples in 192000 off by 1), and the HRTF ones aren't
       checked, so those stay C. tests/host-harness/openal/neon.sh mixes a
       fixed scene with both and compares them.
+    - Alc/ALc.c: on __riscos__ the system variable OpenAL$PeriodSize sets
+      period_size (samples mixed at a time; with the SDL2 backend, also
+      SDL's buffer size), so a program's !Run can set it without an
+      alsoft.conf. It wins over the config file. How much sound is kept
+      queued is set by SDL (SDL_RISCOS_AUDIO_QUEUE_MS), not here.
 
 The two build fixes are taken from the Warzone 2100 port (riscos-warzone2100
 patches/openal/openal-soft-1.19.1-riscos.diff), with comments added.

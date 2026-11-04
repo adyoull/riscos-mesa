@@ -1,3 +1,28 @@
+diff -ru a/Alc/ALc.c b/Alc/ALc.c
+--- a/Alc/ALc.c
++++ b/Alc/ALc.c
+@@ -4135,6 +4135,21 @@
+     device->NumUpdates = clampu(device->NumUpdates, 2, 16);
+ 
+     ConfigValueUInt(deviceName, NULL, "period_size", &device->UpdateSize);
++#ifdef __riscos__
++    /* riscos-mesa: the system variable OpenAL$PeriodSize sets period_size
++       (samples mixed at a time; on RISC OS also SDL's buffer size), so a
++       program's !Run can set it without an alsoft.conf. It wins over the
++       config file, as environment settings do. How much sound is kept
++       queued is SDL's business: SDL_RISCOS_AUDIO_QUEUE_MS. */
++    {
++        const char *str = getenv("OpenAL$PeriodSize");
++        if(str && *str)
++        {
++            unsigned long n = strtoul(str, NULL, 10);
++            if(n > 0) device->UpdateSize = (ALuint)n;
++        }
++    }
++#endif
+     device->UpdateSize = clampu(device->UpdateSize, 64, 8192);
+     if((CPUCapFlags&(CPU_CAP_SSE|CPU_CAP_NEON)) != 0)
+         device->UpdateSize = (device->UpdateSize+3)&~3;
 diff -ru a/Alc/ALu.c b/Alc/ALu.c
 --- a/Alc/ALu.c
 +++ b/Alc/ALu.c

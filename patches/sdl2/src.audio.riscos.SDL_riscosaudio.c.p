@@ -2,7 +2,7 @@ diff --git src/audio/riscos/SDL_riscosaudio.c src/audio/riscos/SDL_riscosaudio.c
 new file mode 100644
 --- /dev/null
 +++ src/audio/riscos/SDL_riscosaudio.c
-@@ -0,0 +1,265 @@
+@@ -0,0 +1,295 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -45,6 +45,7 @@ new file mode 100644
 +
 +#if SDL_AUDIO_DRIVER_RISCOS
 +
++#include "SDL_hints.h"
 +#include "SDL_timer.h"
 +#include "SDL_audio.h"
 +#include "../SDL_audio_c.h"
@@ -83,6 +84,43 @@ new file mode 100644
 +    if (_kernel_swi(XStreamManager_BufferStats, &regs, &regs) != NULL)
 +        return -1;
 +    return regs.r[0] - regs.r[1];     /* added - played */
++}
++
++/* The queue length asked for with SDL_RISCOS_AUDIO_QUEUE_MS, clamped to
++   a sensible range; the default if it isn't set or isn't a number. */
++static Uint32
++RISCOS_QueueMs(void)
++{
++    const char *hint = SDL_GetHint(SDL_HINT_RISCOS_AUDIO_QUEUE_MS);
++    long ms;
++
++    if (hint == NULL || *hint == 0)
++        return RISCOS_AUDIO_QUEUE_MS_DEFAULT;
++    ms = SDL_strtol(hint, NULL, 10);
++    if (ms <= 0)
++        return RISCOS_AUDIO_QUEUE_MS_DEFAULT;
++    if (ms < RISCOS_AUDIO_QUEUE_MS_MIN)
++        ms = RISCOS_AUDIO_QUEUE_MS_MIN;
++    if (ms > RISCOS_AUDIO_QUEUE_MS_MAX)
++        ms = RISCOS_AUDIO_QUEUE_MS_MAX;
++    return (Uint32)ms;
++}
++
++/* Bytes to keep queued: the time asked for, but never less than three
++   buffers (SDL mixes a whole buffer at a time, so with fewer the queue
++   would run down to nothing between mixes). The buffer size and the
++   queue are separate: small buffers with a long queue respond as quickly
++   to new sounds once they're mixed, and still ride out stalls. */
++static Uint32
++RISCOS_QueueTarget(const SDL_AudioSpec *spec, Uint32 mixlen)
++{
++    /* 16-bit stereo: 4 bytes a sample frame. At most 2000 ms x 96 kHz x 4
++       = 768 MB before the division, so no overflow. */
++    Uint32 target = RISCOS_QueueMs() * (Uint32)spec->freq * 4 / 1000;
++
++    if (target < mixlen * 3)
++        target = mixlen * 3;
++    return target;
 +}
 +
 +static void
@@ -145,15 +183,7 @@ new file mode 100644
 +    if (h->delay_ms < 1) {
 +        h->delay_ms = 1;
 +    }
-+    /* Keep about three buffers (at least 60 ms) queued: enough to ride out
-+       the desktop being busy for a moment, without noticeable lag. */
-+    h->target = h->mixlen * 3;
-+    {
-+        Uint32 min = (Uint32)this->spec.freq * 4 * 60 / 1000;
-+        if (h->target < min) {
-+            h->target = min;
-+        }
-+    }
++    h->target = RISCOS_QueueTarget(&this->spec, h->mixlen);
 +
 +    regs.r[0] = 2;                      /* R2 holds the usual block size */
 +    regs.r[1] = (int)((name && *name) ? name : "SDL");

@@ -114,6 +114,19 @@ context from SDL has no window code to change.
   Without them SDL falls back to its `dsp` driver (DigitalRenderer).
   `SDL_AUDIODRIVER=riscos` or `dsp` forces one. `!LoopWave`
   (SDL's loopwave test) is the worked example.
+- **How much sound is queued:** the RISC OS audio driver keeps 150 ms of
+  sound queued (never less than three of the program's SDL buffers), so a
+  moment when the program's threads don't run (a long plot, a busy desktop)
+  doesn't make the sound break up. If yours still does, queue more: set
+  `SDL_RISCOS_AUDIO_QUEUE_MS` (20-2000) in `!Run`, for example
+  `Set SDL_RISCOS_AUDIO_QUEUE_MS 300`, or as an SDL hint. More means sound
+  effects start that much later. The buffer size the program asks SDL for
+  (SDL_mixer's chunk size, `samples`) is separate: before 20.3.5-19 a
+  bigger buffer was the only way to queue more, so ports that raised it to
+  4096 can go back to a smaller one and set the queue instead, for quicker
+  sound effects. The driver never sleeps the program's main thread: if the
+  sound breaks up only while the game is busy, its main loop may need to
+  yield (`SDL_Delay` or `sched_yield`) so SDL's sound thread gets a turn.
 - **OpenAL:** programs that use OpenAL (games with 3D sound) link the
   devkit's `libopenal.a` (OpenAL Soft 1.19.1): `-lopenal -lSDL2 -lEGL -lOSMesa
   -lstdc++ -lz -lm`. It plays through SDL's sound, so the modules above
@@ -123,7 +136,10 @@ context from SDL has no window code to change.
   `ALSOFT_LOGFILE` to a file in `!Run` to catch them there. `tests/altest.c`
   is a small complete example. From 20.3.5-18 it mixes with NEON where the
   CPU has it (the same samples as the C mixers; `*Set OpenAL$NoNEON 1`
-  keeps the C ones).
+  keeps the C ones). OpenAL mixes 1024 samples at a time; from
+  20.3.5-19 `Set OpenAL$PeriodSize 2048` in `!Run` changes that (OpenAL's
+  `period_size`, without an `alsoft.conf`). How much is queued is SDL's
+  `SDL_RISCOS_AUDIO_QUEUE_MS`, above.
 - **MIDI music:** RISC OS has no General MIDI synthesiser of its own.
   [riscos-midisynth](https://github.com/adyoull/riscos-midisynth) plays
   `.mid` files through a SoundFont; its `midisynth_render` output can be

@@ -2,7 +2,7 @@ diff --git src/audio/riscos/SDL_riscosaudio.h src/audio/riscos/SDL_riscosaudio.h
 new file mode 100644
 --- /dev/null
 +++ src/audio/riscos/SDL_riscosaudio.h
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,53 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -29,6 +29,15 @@ new file mode 100644
 +#define SDL_riscosaudio_h_
 +
 +#include "../SDL_sysaudio.h"
++
++/* 2026: how much sound to keep queued, in milliseconds (a hint, or a
++   system variable of the same name). More rides out longer moments when
++   the program's threads don't get to run (a long plot, a slow desktop),
++   at the cost of sound effects starting that much later. */
++#define SDL_HINT_RISCOS_AUDIO_QUEUE_MS "SDL_RISCOS_AUDIO_QUEUE_MS"
++#define RISCOS_AUDIO_QUEUE_MS_DEFAULT  150
++#define RISCOS_AUDIO_QUEUE_MS_MIN      20
++#define RISCOS_AUDIO_QUEUE_MS_MAX      2000
 +
 +/* Hidden "this" pointer for the audio functions */
 +#define _THIS   SDL_AudioDevice *this

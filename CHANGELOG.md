@@ -4,6 +4,26 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## Unreleased
+
+- **SDL: how much sound is queued is a setting, and more by default.**
+  The RISC OS audio driver kept three SDL buffers (at least 60 ms) queued
+  in StreamManager, so with a game's usual 1024-sample buffers about 70 ms:
+  any moment longer than that when the game's threads didn't run (a long
+  plot, a busy desktop) made the sound break up. Ports worked round it by
+  asking SDL for 4096-sample buffers (OpenTTD, fheroes2, Freeciv; Warzone
+  2100 through OpenAL's `period_size`), which queues about 280 ms but also
+  delays every sound effect that much. Now the queue is set on its own:
+  `SDL_RISCOS_AUDIO_QUEUE_MS` (a hint or a system variable, 20-2000 ms),
+  default 150 ms, never less than three buffers (so 4096-sample buffers
+  still give about 280 ms). New host check `sdl-audio`: the queue against
+  a fake SharedSoundBuffer playing in real time, including stalls shorter
+  and longer than the queue. Not yet tried on a Pi.
+- **OpenAL: `OpenAL$PeriodSize`.** The system variable sets OpenAL's
+  `period_size` (samples mixed at a time, and so SDL's buffer size), so a
+  program's `!Run` can set it without shipping an `alsoft.conf` and a
+  config directory for it to be found in.
+
 ## 20.3.5-18: SDL 2.32, semaphores that work, mouse look
 
 SDL is now 2.32.10, the last SDL 2 release, and the devkit is built with

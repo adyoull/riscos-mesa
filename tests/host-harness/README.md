@@ -50,6 +50,20 @@ at once, and a post at 100 ms from another thread ends it. (With SDL's own
     SDL=<patched SDL-release-$SDL_V> tests/host-harness/sdl-sem/run.sh
 
 
+## `sdl-audio/`: how much sound the RISC OS audio driver keeps queued
+
+`sdl-audio/run.sh` compiles `SDL_riscosaudio.c` into `audio-queue.c`, with
+a fake SharedSoundBuffer / StreamManager that plays the queued sound in
+real time on a fake clock (only `SDL_Delay` moves it on). It checks the
+queue length: 150 ms by default, `SDL_RISCOS_AUDIO_QUEUE_MS` as asked
+(20-2000 ms), never less than three SDL buffers (so OpenTTD's 4096-sample
+buffers still keep about 280 ms). Then it runs the audio thread's loop:
+the queue stays at the target and never runs dry, a stall shorter than
+the queue is ridden out, and a longer one isn't.
+
+    SDL=<patched SDL-release-$SDL_V> tests/host-harness/sdl-audio/run.sh
+
+
 ## `sdl-arm/`: SDL's ARM SIMD and NEON blitters
 
 `sdl-arm/run.sh` builds the patched SDL tree for ARM Linux with the same

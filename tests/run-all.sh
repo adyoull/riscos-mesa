@@ -27,6 +27,9 @@
 #                   and with one that fails as UnixLib's stub did before
 #                   5.0.3.6 (tests/host-harness/sdl-sem; the first run
 #                   builds a host SDL)
+#   sdl-audio       the RISC OS audio driver's queue (SDL_RISCOS_AUDIO_QUEUE_MS)
+#                   against a fake SharedSoundBuffer that plays in real time
+#                   (tests/host-harness/sdl-audio)
 #   openal          OpenAL Soft (patches/openal) built for the host against
 #                   the same SDL, playing tests/altest.c's tones through
 #                   SDL's disk audio driver; the recording is checked
@@ -148,6 +151,7 @@ step egl egl_harness
 step sdl sdl_harness
 step sdl-wimp env SDL="$SRC/SDL-release-$SDL_V" OUT="$OUT/sdl-wimp" "$H/sdl-wimp/run.sh"
 step sdl-sem env SDL="$SRC/SDL-release-$SDL_V" OUT="$OUT/sdl-sem" "$H/sdl-sem/run.sh"
+step sdl-audio env SDL="$SRC/SDL-release-$SDL_V" OUT="$OUT/sdl-audio" "$H/sdl-audio/run.sh"
 step openal env SRC="$SRC" OUT="$OUT/openal" "$H/openal/run.sh"
 if [ -n "${GLU:-}" ]; then step glut glut_harness; else skip glut "set GLU=<host libGLU.a>"; fi
 if [ -n "${GLU:-}" ]; then
