@@ -1,16 +1,25 @@
 diff -ru a/Alc/ALc.c b/Alc/ALc.c
 --- a/Alc/ALc.c
 +++ b/Alc/ALc.c
-@@ -4135,6 +4135,21 @@
+@@ -4134,7 +4134,30 @@
+     ConfigValueUInt(deviceName, NULL, "periods", &device->NumUpdates);
      device->NumUpdates = clampu(device->NumUpdates, 2, 16);
  
++#ifdef __riscos__
++    /* riscos-mesa: mix 2048 samples at a time by default (46 ms at 44.1
++       kHz; OpenAL's own default is 1024). SDL's RISC OS driver keeps at
++       least three buffers queued, so this gives about 140-150 ms queued:
++       enough to ride out a busy moment without delaying sound effects by
++       a quarter of a second as 4096 did. */
++    device->UpdateSize = 2048;
++#endif
      ConfigValueUInt(deviceName, NULL, "period_size", &device->UpdateSize);
 +#ifdef __riscos__
-+    /* riscos-mesa: the system variable OpenAL$PeriodSize sets period_size
-+       (samples mixed at a time; on RISC OS also SDL's buffer size), so a
-+       program's !Run can set it without an alsoft.conf. It wins over the
-+       config file, as environment settings do. How much sound is kept
-+       queued is SDL's business: SDL_RISCOS_AUDIO_QUEUE_MS. */
++    /* The system variable OpenAL$PeriodSize sets period_size (samples
++       mixed at a time; on RISC OS also SDL's buffer size), so a program's
++       !Run can set it without an alsoft.conf. It wins over the config
++       file, as environment settings do. How much sound is kept queued is
++       SDL's business: SDL_RISCOS_AUDIO_QUEUE_MS. */
 +    {
 +        const char *str = getenv("OpenAL$PeriodSize");
 +        if(str && *str)
@@ -145,3 +154,4 @@ diff -ru a/Alc/mixvoice.c b/Alc/mixvoice.c
              if((CPUCapFlags&CPU_CAP_NEON))
                  return Resample_bsinc_Neon;
  #endif
+Only in a: build

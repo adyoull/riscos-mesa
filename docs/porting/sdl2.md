@@ -136,8 +136,11 @@ context from SDL has no window code to change.
   `ALSOFT_LOGFILE` to a file in `!Run` to catch them there. `tests/altest.c`
   is a small complete example. From 20.3.5-18 it mixes with NEON where the
   CPU has it (the same samples as the C mixers; `*Set OpenAL$NoNEON 1`
-  keeps the C ones). OpenAL mixes 1024 samples at a time; from
-  20.3.5-19 `Set OpenAL$PeriodSize 2048` in `!Run` changes that (OpenAL's
+  keeps the C ones). From 20.3.5-19 OpenAL mixes 2048 samples at a time
+  on RISC OS (46 ms at 44.1 kHz; it was OpenAL's own 1024), which with the
+  queue above keeps about 150 ms queued: no need for 4096, which delays
+  every sound effect by about a quarter of a second.
+  `Set OpenAL$PeriodSize <samples>` in `!Run` changes it (OpenAL's
   `period_size`, without an `alsoft.conf`). How much is queued is SDL's
   `SDL_RISCOS_AUDIO_QUEUE_MS`, above.
 - **MIDI music:** RISC OS has no General MIDI synthesiser of its own.

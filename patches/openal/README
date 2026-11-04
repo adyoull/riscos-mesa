@@ -28,7 +28,10 @@ openal-soft-1.19.1-riscos.patch
       output: 86 samples in 192000 off by 1), and the HRTF ones aren't
       checked, so those stay C. tests/host-harness/openal/neon.sh mixes a
       fixed scene with both and compares them.
-    - Alc/ALc.c: on __riscos__ the system variable OpenAL$PeriodSize sets
+    - Alc/ALc.c: on __riscos__ period_size defaults to 2048 (OpenAL's is
+      1024): with SDL's RISC OS driver keeping three buffers queued that is
+      about 140-150 ms, enough for busy moments without the quarter-second
+      delay of 4096. The system variable OpenAL$PeriodSize sets
       period_size (samples mixed at a time; with the SDL2 backend, also
       SDL's buffer size), so a program's !Run can set it without an
       alsoft.conf. It wins over the config file. How much sound is kept

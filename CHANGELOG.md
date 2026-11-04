@@ -19,10 +19,12 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   still give about 280 ms). New host check `sdl-audio`: the queue against
   a fake SharedSoundBuffer playing in real time, including stalls shorter
   and longer than the queue. Not yet tried on a Pi.
-- **OpenAL: `OpenAL$PeriodSize`.** The system variable sets OpenAL's
-  `period_size` (samples mixed at a time, and so SDL's buffer size), so a
-  program's `!Run` can set it without shipping an `alsoft.conf` and a
-  config directory for it to be found in.
+- **OpenAL mixes 2048 samples at a time on RISC OS** (was 1024): about
+  150 ms queued with the SDL change above, without the quarter-second
+  delay of the 4096 some ports had set. The system variable
+  `OpenAL$PeriodSize` changes it (OpenAL's `period_size`), so a program's
+  `!Run` can set it without shipping an `alsoft.conf` and a config
+  directory for it to be found in.
 
 ## 20.3.5-18: SDL 2.32, semaphores that work, mouse look
 
