@@ -4,14 +4,34 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## Unreleased
+## 20.3.5-18: SDL 2.32, semaphores that work, mouse look
 
+SDL is now 2.32.10, the last SDL 2 release, and the devkit is built with
+riscos-crossdev 1.10 (UnixLib 5.0.3.6). SDL programs get keyboard focus
+events, pointer warping and relative mouse mode (mouse look in first
+person games). Semaphores work: SDL's timed waits and timer thread, and
+OpenAL's background thread, sleep instead of spinning, which leaves more
+time for the game. OpenAL mixes with NEON, and software-drawn SDL games
+through the overlay copy only what changed. Rendering is the same as
+20.3.5-17. Programs need relinking with the new devkit, and with
+riscos-crossdev 1.10, to get all of it. Tested as test build 18e on a
+Raspberry Pi 4 with RISC OS 5.31, and separately on RISC OS on Linux.
+
+- **SDL 2.32.10** (was 2.26.0): two years of upstream fixes and the
+  functions added since 2.26 (such as 2.28's `SDL_HasWindowSurface` and
+  `SDL_DestroyWindowSurface`), which newer ports call. The RISC OS overlay
+  (`patches/sdl2`) does the same as before; SDL's own RISC OS driver
+  changes since 2.26 are taken in (the message box entry in the driver
+  table), except that it doesn't make windows full screen only. Ports
+  that take the overlay (riscos-openttd) must move to SDL 2.32.10 with it.
 - **SDL: keyboard focus events** (reported by the ClassiCube port). The
   desktop's input focus (Gain_Caret / Lose_Caret) is now SDL's keyboard
   focus, so programs get `SDL_WINDOWEVENT_FOCUS_GAINED` and `FOCUS_LOST`
   and `SDL_GetKeyboardFocus` works; single tasking full screen always
   has the focus. Before, a program that waited for focus (ClassiCube's
-  pause menu: "Back to game" did nothing) waited for ever.
+  pause menu: "Back to game" did nothing) waited for ever. Programs that
+  act on focus (pausing, releasing keys or the mouse) now do so when
+  another window is clicked.
 - **SDL: `SDL_WarpMouseInWindow` and relative mouse mode** (mouse look in
   first person games). The warp moves the pointer with `OS_Word 21,3`,
   through the window scale and any render size, and reads back as the
@@ -21,14 +41,23 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   aren't lost); in a desktop window only while it has the input focus.
   The pointer mapping is now one function (`RISCOS_GetPointerMap`) for
   both directions. New sdl-wimp harness checks (89).
-- **EGL: overlay buffers keep a list of changed rectangles**, not one box
-  round them. Each overlay buffer is brought up to date with what changed
-  since it was last filled; with changes spread round the picture (a 2D
-  game's dirty cells) the box was nearly the whole picture, so nearly all
-  of it was copied every frame. Now up to 8 rectangles are kept apart
-  (merged when they touch, or the cheapest merge when there are more). In
-  the host test 4 small cells in the corners copy 4 cells' worth instead
-  of the whole picture. Not yet measured on a Pi.
+- **Semaphores work** (UnixLib 5.0.3.6, asked for by riscos-mesa). Before,
+  UnixLib's `sem_timedwait` was a stub that always failed, and `sem_wait`
+  never slept (and leaked memory on every call). So:
+  - SDL's `SDL_SemWaitTimeout` returned an error at once, and SDL's timer
+    thread (`SDL_AddTimer`) never slept; now they wait properly.
+  - SDL's `SDL_SemWait`, and OpenAL's background thread (one per
+    context, waiting for the whole program), yielded in a loop; now they
+    sleep. Every OpenAL program had that thread.
+  - An SDL built with UnixLib 5.0.3.6 linked into a program with an
+    older UnixLib would meet the stub again, so `SDL_syssem.c` falls back
+    to a 1 ms polling wait when `sem_timedwait` fails with ENOSYS: the
+    devkit's SDL works with any UnixLib, and best with 5.0.3.6.
+  - SDL's configure treats a stub `sem_timedwait` as missing (the
+    `__stub_sem_timedwait` test autoconf's `AC_CHECK_FUNC` makes), and
+    `build-sdl2.sh` checks that SDL uses the real one when UnixLib has it.
+  - New host check `sdl-sem`: `SDL_SemWaitTimeout` with the C library's
+    `sem_timedwait` and with one that fails as the stub did.
 - **OpenAL: NEON mixers** (asked for by the ClassiCube port). OpenAL
   Soft's NEON mixing and linear resampling are now built (only that file
   with NEON; the rest stays VFPv3) and used when VFPSupport says the CPU
@@ -39,62 +68,27 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   does HRTF. New host check `openal-neon` (with ARM=1): a fixed scene
   mixed through OpenAL's loopback device under an emulated Cortex-A8,
   NEON against C, sample for sample, in 16-bit and float.
+- **EGL: overlay buffers keep a list of changed rectangles**, not one box
+  round them. Each overlay buffer is brought up to date with what changed
+  since it was last filled; with changes spread round the picture (a 2D
+  game's dirty cells) the box was nearly the whole picture, so nearly all
+  of it was copied every frame. Now up to 8 rectangles are kept apart
+  (merged when they touch, or the cheapest merge when there are more). In
+  the host test 4 small cells in the corners copy 4 cells' worth instead
+  of the whole picture. Not measured on a Pi.
+- **Built with riscos-crossdev 1.10** (was 1.4): the same compiler, with
+  UnixLib 5.0.3.6 (was 5.0.3.3). Besides the semaphores, UnixLib 5.0.3.4
+  and 5.0.3.5 add `rename()` of mistyped files, `///` paths, POSIX group
+  and password lookups, sub-second interval timers, pthread scheduling
+  attributes and `strnlen` without `_GNU_SOURCE`. No struct or argument
+  changes, so the libraries work with any UnixLib from 5.0.1; the
+  PThreadTicker module is unchanged (0.03). Build directories now start
+  afresh when the toolchain changes.
 - **A rendering check for a voxel game's terrain:** `render-alphaoff`
   draws a wall of small textured, fogged, depth-tested quads with
   `GL_ALPHA_TEST GL_GREATER 0.5` and without, and requires the same
   pixels (the alpha-test route and the fused route), on the host and on
-  ARM with and without NEON. It passes, so the 1-5 pixel differences the
-  ClassiCube port saw most likely came from its own change (the atlas
-  split gives other textures and coordinates), not from the two routes.
-- **SDL 2.32.10** (was 2.26.0), the last SDL 2 release: two years of
-  upstream fixes and the functions added since 2.26 (such as 2.28's
-  `SDL_HasWindowSurface` and `SDL_DestroyWindowSurface`), which newer
-  ports call. The RISC OS overlay (`patches/sdl2`) is moved
-  onto it unchanged in what it does; SDL's own RISC OS driver changes
-  since 2.26 are taken in (the message box entry in the driver table),
-  except that it doesn't make windows full screen only. All host checks
-  pass with it (sdl, sdl-wimp, sdl-arm, openal, openal-neon); not yet
-  tried on a Pi. Ports that take the overlay (riscos-openttd) must move
-  to SDL 2.32.10 with it.
-- **SDL: timed semaphore waits and `SDL_AddTimer` timers work without
-  spinning.** UnixLib's `sem_timedwait` is only a stub that always fails
-  (ENOSYS), but SDL's configure found it at link time and used it, so
-  `SDL_SemWaitTimeout` returned an error at once instead of waiting. SDL's
-  timer thread waits that way between timers, so a program with an
-  `SDL_AddTimer` timer had a thread that never slept, taking time from
-  the others (its timers still fired). Configure now sees the stub (as
-  `__stub_sem_timedwait` says, the same test autoconf's `AC_CHECK_FUNC`
-  makes), and SDL uses its own wait: try, then `SDL_Delay(1)`, until the
-  time is up. The same was true in every earlier release. Not yet tried
-  on a Pi.
-- **SDL uses UnixLib 5.0.3.6's real `sem_timedwait`; programs linked
-  with UnixLib 5.0.3.6** (riscos-crossdev 1.10). UnixLib 5.0.3.6 makes
-  semaphores work: `sem_timedwait` exists, and `sem_wait` sleeps instead of
-  polling and leaking memory (asked for by riscos-mesa). Built against
-  it, SDL's timed semaphore waits and its timer thread sleep until they're
-  needed, without the 1 ms polling of the change above.
-  - An SDL built that way, linked into a program with an older UnixLib,
-    would get the stub again, so the overlay's `SDL_syssem.c` falls back to
-    the polling wait when `sem_timedwait` fails with ENOSYS: the devkit's
-    SDL works with any UnixLib.
-  - `build-sdl2.sh` checks SDL against the UnixLib it was built with: it
-    must use a real `sem_timedwait` and must not use the stub. The check
-    added in the change above never fired (with `pipefail`, `grep -q`
-    stopping early made the `nm` before it fail).
-  - New host check `sdl-sem`: SDL_SemWaitTimeout with the C library's
-    `sem_timedwait` and with one that fails as the stub did; 300 ms waits
-    time out after 300 ms, and a post from another thread ends them.
-    With SDL's own `SDL_syssem.c` the stub run fails at once.
-  Not yet tried on a Pi (UnixLib's own `Sem` test has passed there).
-- **Built with riscos-crossdev 1.10** (was 1.4; UnixLib was 5.0.3.3, now
-  5.0.3.6, above). The same compiler; UnixLib 5.0.3.4 and
-  5.0.3.5 add `rename()` of mistyped files, `///` paths, POSIX group and
-  password lookups, sub-second interval timers, pthread scheduling
-  attributes and `strnlen` without `_GNU_SOURCE`. No struct or argument
-  changes, so the libraries work with either; the devkit's PThreadTicker
-  module is unchanged (0.03). Build directories now start afresh when
-  the toolchain changes (before, Mesa's kept the compiler it was set up
-  with).
+  ARM with and without NEON.
 
 ## 20.3.5-17: software-drawn SDL games through the hardware overlay
 

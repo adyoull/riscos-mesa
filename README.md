@@ -39,8 +39,12 @@ option: the game draws at its own size and the Pi's display scales it, in
 a window or full screen, sending only what changed each frame (under half
 a millisecond a frame on a Pi 4). It also stops the icon bar flashing over
 full screen SDL and GLUT games, and `*Show EGL$OverlayStatus` says how a
-program's picture is being shown. Not tried on a Pi yet: the overlay
-across mode changes, and GLUT's game mode at the requested size.
+program's picture is being shown. 20.3.5-18 moves to SDL 2.32.10 and
+UnixLib 5.0.3.6: SDL programs get focus events, pointer warping and
+relative mouse mode (mouse look), and SDL's and OpenAL's threads sleep
+while they wait instead of spinning; OpenAL mixes with NEON. Not tried on
+a Pi yet: the overlay across mode changes, and GLUT's game mode at the
+requested size.
 
 ## Three ways in
 
