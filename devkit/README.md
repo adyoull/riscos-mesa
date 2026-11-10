@@ -65,8 +65,10 @@ GLUT can do EGL's job for you; see
 | `include/` | The header files (`GL/gl.h`, `EGL/egl.h`, `SDL2/SDL.h`, `AL/al.h`...) |
 | `lib/` | The libraries, ready to link into your programs |
 | `lib/pkgconfig/` | Files that tell `pkg-config` how to use each library |
+| `lib/shared/` | The same libraries as shared libraries, for *mixed* programs (a test; see `docs/porting/mixed.md`). Most programs don't need them |
 | `bin/sdl2-config` | Tells SDL programs' build scripts how to use SDL |
 | `bin/mkrozip.py` | Makes zip files that keep RISC OS filetypes |
+| `riscos/!MesaLibs` | The shared libraries as RISC OS files, for users of mixed programs to put in `!Boot.Resources` (a test) |
 | `riscos/PThrTicker` | The PThreadTicker module, for programs with threads (see [Programs with threads](#threads)); copy it into your application |
 | `LICENCES.txt` | The licences of everything here. Ship it with your programs |
 | `VERSION` | Which release this is |
@@ -82,6 +84,13 @@ The libraries:
 | `libglut.a` | freeglut 3.8: the classic GLUT toolkit | `-lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libopenal.a` | OpenAL Soft: positioned 3D sound (it plays through SDL) | `-lopenal -lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libbcm_host.a` and friends | Lets existing Raspberry Pi (Pi 1-3) OpenGL ES programs run unchanged. For porting only: new programs should use EGL directly | see the porting guides |
+
+All of these are linked into your program (static libraries), which is the
+simplest way and what this guide uses throughout. With riscos-crossdev 1.11
+or later there is a second way, still a test: a *mixed* program has UnixLib
+linked in but loads OpenGL, EGL, SDL and OpenAL from `!MesaLibs`, sharing
+one copy between every program that uses them, and is much smaller.
+`docs/porting/mixed.md` explains it.
 
 ---
 

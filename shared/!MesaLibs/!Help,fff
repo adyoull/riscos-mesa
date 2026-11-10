@@ -1,0 +1,28 @@
+!MesaLibs - riscos-mesa's shared libraries
+==========================================
+
+Programs built as "mixed" programs with the riscos-mesa devkit (UnixLib
+linked into the program, the other libraries shared) load OpenGL (OSMesa),
+EGL, GLU, GLUT, SDL 2 and OpenAL from here, through !SharedLibs. Programs
+that use them share one copy of each library in memory.
+
+Install: copy !MesaLibs into !Boot.Resources (open !Boot, then Resources).
+Programs that need it boot it when they start; it only sets MesaLibs$Path.
+
+Also needed:
+- !SharedLibs with ld-riscos/so/2 (GCCSDK 8 or later; Iris includes one),
+  also in !Boot.Resources;
+- SharedUnixLibrary 1.16 or later, and ARMEABISupport.
+
+The libraries (in lib):
+  libOSMesa/so/8    OpenGL 2.1 and OpenGL ES 1.1/2.0 (Mesa 20.3.5)
+  libEGL/so/1       EGL for RISC OS
+  libGLU/so/1       GLU 9.0.1
+  libglut/so/3      freeglut 3.8.0
+  libSDL2-2.0/so/0  SDL 2.32.10
+  libopenal/so/1    OpenAL Soft 1.19.1
+
+Programs that link the devkit's static libraries (as before) don't need
+this. https://github.com/adyoull/riscos-mesa - licences in LICENCES.txt
+there: Mesa (MIT), GLU (SGI B 2.0), freeglut (MIT/X), SDL (zlib), OpenAL
+Soft (LGPL 2 or later: being a shared library, it can be replaced).

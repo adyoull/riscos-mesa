@@ -33,7 +33,7 @@ elif [ "$(cat SDL-release-$SDL_V/.overlay-sum 2>/dev/null)" != "$(overlay_sum)" 
   fi
 fi
 [ -n "${SOURCES_ONLY:-}" ] && exit 0      # tests/host-setup.sh: the patched source is all it needs
-fresh_build_dir SDL-release-$SDL_V/build-ro && cd SDL-release-$SDL_V/build-ro
+fresh_build_dir SDL-release-$SDL_V/build-ro$RO_SUFFIX && cd SDL-release-$SDL_V/build-ro$RO_SUFFIX
 # -I egl/include: SDL's GL windows are EGL window surfaces (programs then
 # link -lEGL too: -lSDL2 -lGLU -lEGL -lOSMesa ...)
 CFLAGS="$RO_CFLAGS -I$HERE/egl/include -I$STAGE/include" LDFLAGS="-L$STAGE/lib" \

@@ -10,7 +10,7 @@ cd "$SRC"
 cd glu-9.0.1
 [ -x configure ] || NOCONFIGURE=1 ./autogen.sh
 [ -n "${SOURCES_ONLY:-}" ] && exit 0      # tests/host-setup.sh: the patched source is all it needs
-fresh_build_dir build-ro && cd build-ro
+fresh_build_dir build-ro$RO_SUFFIX && cd build-ro$RO_SUFFIX
 # -L/-l (not a path to the .a) so libtool doesn't copy OSMesa into libGLU.a
 OSMESA_CFLAGS="-I$STAGE/include" OSMESA_LIBS="-L$STAGE/lib -lOSMesa -lstdc++ -lz -lm" \
 CFLAGS="$RO_CFLAGS" CXXFLAGS="$RO_CFLAGS" \

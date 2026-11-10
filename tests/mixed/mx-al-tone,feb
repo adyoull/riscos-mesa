@@ -1,0 +1,23 @@
+| riscos-mesa test, linked "mixed": OpenAL: three tones (middle, left, right) through OpenAL and SDL's sound, results in altone.
+| UnixLib is linked into the program; OpenGL, EGL, SDL and OpenAL come from
+| !MesaLibs (this directory's copy, if none is booted) through !SharedLibs.
+Set MesaMixed$Dir <Obey$Dir>
+RMEnsure SharedUnixLibrary 1.16 Error This test needs SharedUnixLibrary 1.16 or later
+If "<SharedLibs$Dir>" = "" Then IfThere Boot:Resources.!SharedLibs.!Boot Then Run Boot:Resources.!SharedLibs.!Boot
+If "<SharedLibs$Dir>" = "" Then Error This test needs !SharedLibs (with ld-riscos/so/2) in !Boot.Resources
+Unset MesaMixed$SO2
+IfThere SharedLibs:lib.ld-riscos-eabihf/so Then Set MesaMixed$SO2 1
+If "<MesaMixed$SO2>" = "" Then Error The !SharedLibs booted has no ld-riscos/so/2: a newer one is needed (GCCSDK 8 or later, as in Iris)
+If "<MesaLibs$Dir>" = "" Then Run <MesaMixed$Dir>.!MesaLibs.!Boot
+| SOManager finds the program's libraries through <program>$LD$Env
+Set altest$LD$Env "LD_LIBRARY_PATH=/MesaLibs:"
+Dir <MesaMixed$Dir>
+| OpenAL mixes in SDL's audio thread: PThreadTicker keeps the thread
+| switcher safe in the desktop. Sound: SharedSoundBuffer and StreamManager
+| (ssb.zip, Andrew Sellors' RDPClient page), else DigitalRenderer.
+RMEnsure PThreadTicker 0.01 RMLoad PThrTicker
+RMEnsure SharedSound 1.07 IfThere System:Modules.SSound Then RMLoad System:Modules.SSound
+RMEnsure StreamManager 0.03 IfThere System:Modules.StreamMan Then RMLoad System:Modules.StreamMan
+RMEnsure SharedSoundBuffer 0.07 IfThere System:Modules.SSBuffer Then RMLoad System:Modules.SSBuffer
+RMEnsure SharedSoundBuffer 0.07 RMEnsure DigitalRenderer 0.51 IfThere System:Modules.DRenderer Then RMLoad System:Modules.DRenderer
+Run altest -o altone

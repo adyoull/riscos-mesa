@@ -27,13 +27,15 @@ cd "$SRC"
 # The GitHub tag archive; Ubuntu's orig tarball is the same file.
 fetch_verified "$OPENAL_URL" "$OPENAL_SHA256" openal-soft-$V.tar.gz \
   || fetch_verified "$OPENAL_URL2" "$OPENAL_SHA256" openal-soft-$V.tar.gz
-rm -rf openal-soft-$V
-mkdir openal-soft-$V
-tar xzf openal-soft-$V.tar.gz -C openal-soft-$V --strip-components=1
-patch -s -p1 -d openal-soft-$V < "$R/patches/openal/openal-soft-$V-riscos.patch"
+# (the RO_PIC build has its own tree, openal-soft-$V-pic)
+T=openal-soft-$V$RO_SUFFIX
+rm -rf $T
+mkdir $T
+tar xzf openal-soft-$V.tar.gz -C $T --strip-components=1
+patch -s -p1 -d $T < "$R/patches/openal/openal-soft-$V-riscos.patch"
 [ -n "${SOURCES_ONLY:-}" ] && exit 0      # tests/host-setup.sh: the patched source is all it needs
 
-mkdir -p openal-soft-$V/build-ro && cd openal-soft-$V/build-ro
+mkdir -p $T/build-ro && cd $T/build-ro
 # -D_POSIX_C_SOURCE/_XOPEN_SOURCE: OpenAL builds with -std=c11, and UnixLib
 # only declares nanosleep() (and others) when asked for POSIX.
 BACKENDS_OFF=""

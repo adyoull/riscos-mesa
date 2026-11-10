@@ -1,0 +1,6 @@
+| !MesaLibs: riscos-mesa's shared libraries (OSMesa, EGL, GLU, GLUT, SDL 2
+| and OpenAL) for "mixed" programs, which have UnixLib linked in and load
+| these with !SharedLibs. Keep one copy, in !Boot.Resources: every program
+| using it then shares one copy of each library in memory.
+Set MesaLibs$Dir <Obey$Dir>
+Set MesaLibs$Path <MesaLibs$Dir>.lib.

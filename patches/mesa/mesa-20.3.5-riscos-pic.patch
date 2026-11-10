@@ -1,0 +1,47 @@
+diff --git a/src/mesa/meson.build b/src/mesa/meson.build
+--- a/src/mesa/meson.build
++++ b/src/mesa/meson.build
+@@ -443,7 +443,6 @@
+   'swrast/s_texfilter.h',
+   'swrast/s_texrender.c',
+   'swrast/s_texture.c',
+-  'swrast/s_triangle.c',
+   'swrast/s_triangle.h',
+   'swrast/s_tritemp.h',
+   'swrast/swrast.h',
+@@ -735,6 +734,27 @@
+   build_by_default : false,
+ )
+ 
++# riscos-mesa: swrast/s_triangle.c is built on its own, so that the
++# position-independent build (for the shared library, b_staticpic) can turn
++# off GCC's global common subexpression pass for it: with -fPIC, GCC 10 for
++# RISC OS stops with an internal error ("insn does not satisfy its
++# constraints") in its NEON texture code otherwise. A pragma can't do it:
++# optimize() in that file stops the NEON intrinsics being inlined. The
++# static build compiles it exactly as before, into libmesa_classic.
++_s_triangle_args = []
++if host_machine.system() == 'riscos' and get_option('b_staticpic')
++  _s_triangle_args = ['-fno-gcse']
++endif
++libmesa_s_triangle = static_library(
++  'mesa_s_triangle',
++  files('swrast/s_triangle.c'),
++  c_args : [c_msvc_compat_args, _s_triangle_args],
++  gnu_symbol_visibility : 'hidden',
++  include_directories : [inc_include, inc_src, inc_mapi, inc_mesa, inc_gallium, inc_gallium_aux, inc_libmesa_asm, include_directories('main')],
++  dependencies : idep_nir_headers,
++  build_by_default : false,
++)
++
+ libmesa_classic = static_library(
+   'mesa_classic',
+   files_libmesa_classic,
+@@ -743,6 +763,7 @@
+   gnu_symbol_visibility : 'hidden',
+   include_directories : [inc_include, inc_src, inc_mapi, inc_mesa, inc_gallium, inc_gallium_aux, inc_libmesa_asm, include_directories('main')],
+   link_with : [libmesa_common, libglsl, libmesa_sse41],
++  link_whole : [libmesa_s_triangle],
+   dependencies : idep_nir_headers,
+   build_by_default : false,
+ )

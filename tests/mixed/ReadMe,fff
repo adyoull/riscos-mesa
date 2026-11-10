@@ -1,0 +1,42 @@
+riscos-mesa: "mixed" test programs
+==================================
+
+These are some of the test programs linked the new way riscos-crossdev 1.11
+allows: UnixLib (and libstdc++) are linked into each program as usual, but
+OpenGL (OSMesa), EGL, GLU, SDL 2 and OpenAL are shared libraries in
+!MesaLibs, which !SharedLibs loads when the program starts. Programs using
+the same !MesaLibs share one copy of each library in memory, and each
+program is much smaller (glbench: about 9 MB linked statically, about
+0.2 MB mixed).
+
+This is a test. The ordinary (static) test programs, in the tests
+directory, are unchanged and need none of this.
+
+What it needs:
+- !SharedLibs with ld-riscos/so/2 (GCCSDK 8 or later; Iris includes one),
+  in !Boot.Resources. riscos.info's SharedLibs 4.0 has only ld-riscos/so/1
+  and won't run these. On RISC OS on Linux, NativeSupport 0.33 or later.
+- SharedUnixLibrary 1.16 or later, and ARMEABISupport.
+- !MesaLibs: there is a copy here, which the Obey files use if no
+  !MesaLibs has been booted. For other programs, copy it to
+  !Boot.Resources.
+
+The Obey files (double-click):
+  mx-glbench          glbench 640 480 5, results in ResultBench
+  mx-glbench-game     its racing-game-like scene, results in ResultGame
+  mx-egl-window       egltest in a window, results in eglwindow
+  mx-gles-window      OpenGL ES 1.1 and 2.0 in a window, gles-window
+  mx-sdl              sdlgltest: SDL with OpenGL, 640x480
+  mx-sdl-fb-overlay   sdlfbtest through the overlay, results in SDLFBovl
+  mx-glu              glutest (GLU), results in ResultGLU
+  mx-al-tone          OpenAL's three tones, results in altone
+
+What to compare, with the static programs run the same way:
+- speed: glbench's times (the shared library is position-independent
+  code, which was about 2% slower when tried in October);
+- the pictures and sound: the same;
+- memory: with two or three of them running at once, the free memory
+  (Task Manager), against the same static programs.
+
+If a program stops at once, a message from !SharedLibs or the program
+says which library or module was missing.

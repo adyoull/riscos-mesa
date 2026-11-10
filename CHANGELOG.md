@@ -9,6 +9,32 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 - **Built with riscos-crossdev 1.11: UnixLib 5.0.3.7**, PThreadTicker
   0.04 (its "in use" error has its own number; the devkit and tests ship
   it). No struct or argument changes.
+- **Shared libraries for mixed programs (test).** With riscos-crossdev
+  1.11, a program can have UnixLib linked in and load the devkit's
+  libraries as shared libraries through !SharedLibs, sharing one copy of
+  each between programs. The devkit now has them too: `lib/shared`
+  (`libOSMesa.so.8`, `libEGL.so.1`, `libGLU.so.1`, `libglut.so.3`,
+  `libSDL2-2.0.so.0`, `libopenal.so.1`) and `riscos/!MesaLibs`, the pack
+  users put in `!Boot.Resources` (also a download of its own). The static
+  libraries are unchanged and still what everything is built with.
+  - `build/build-shared.sh` (or `SHARED=1 build/build-all.sh`) builds every
+    library again, position-independent (`RO_PIC=1`: `stage-pic`,
+    `build-ro-pic`), and links each into a `.so` with no UnixLib,
+    libstdc++ or libgcc of its own. riscos-crossdev's `check-shared-lib.sh`
+    passes on each.
+  - New Mesa patch `riscos-pic`: `swrast/s_triangle.c` is built on its own
+    so the position-independent build can give it `-fno-gcse` (GCC 10 stops
+    with an internal error otherwise). The static library's code is the
+    same.
+  - New `riscos-mesa-tests-mixed` zip: glbench, egltest, glestest,
+    sdlgltest, sdlfbtest, glutest and altest linked mixed, with Obey files
+    and a copy of !MesaLibs, to compare with the static ones. They pass
+    riscos-crossdev's `check-all.sh` and `check-mixed-package.sh`.
+    glbench is 0.5 MB mixed against 8.7 MB static.
+  - `docs/porting/mixed.md`: how to link and package a mixed program.
+  - Not yet tried on RISC OS: nothing here has run on a Pi or RISC OS on
+    Linux yet.
+
 - **SDL: how much sound is queued is a setting, and more by default.**
   The RISC OS audio driver kept three SDL buffers (at least 60 ms) queued
   in StreamManager, so with a game's usual 1024-sample buffers about 70 ms:

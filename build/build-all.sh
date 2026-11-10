@@ -11,6 +11,9 @@
 # end of its log. Steps can still be run on their own (see README.md), e.g.
 # after changing only egl/, build-egl.sh and the programs after it.
 # SKIP_ZLIB=1 leaves out zlib when the GCCSDK environment already has it.
+# SHARED=1 also makes the shared libraries for mixed programs, !MesaLibs
+# and the mixed test programs (build-shared.sh: every library built again,
+# position-independent; needs riscos-crossdev 1.11 or later).
 set -euo pipefail
 B=$(cd "$(dirname "$0")" && pwd)
 source "$B/env.sh"
@@ -18,6 +21,7 @@ mkdir -p "$STAGE/logs"
 
 STEPS="zlib mesa glu sdl2 openal egl freeglut tests hello-pi ports"
 [ -n "${SKIP_ZLIB:-}" ] && STEPS=${STEPS#zlib }
+[ -n "${SHARED:-}" ] && STEPS="$STEPS shared"
 
 for s in $STEPS; do
     printf "%-10s " "$s"

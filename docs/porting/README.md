@@ -20,6 +20,10 @@ application is put together, which these guides take as read.
 | SDL 2 programs using OpenGL or OpenGL ES | SDL does it; no window code to change | [sdl2.md](sdl2.md) | SDL's testgl2, testgles, testgles2 |
 | Raspberry Pi 1–3 Khronos programs (`bcm_host`, DispmanX) | the DispmanX compatibility library (a desktop window by default, or full screen) | [hello_pi.md](hello_pi.md) | `ports/hello_pi`: hello_triangle, hello_triangle2, hello_teapot |
 
+Any of these can also be linked as a *mixed* program (a test from
+20.3.5-19): UnixLib linked in, and the devkit's libraries loaded from
+!MesaLibs and shared between programs. See [mixed.md](mixed.md).
+
 New RISC OS programs should use riscos-mesa's native EGL directly: a Wimp
 window handle, `EGL_RISCOS_SCREEN_WINDOW` (-1) for the whole screen, or a
 sprite. See [../EGL-GUIDE.md](../EGL-GUIDE.md). The helpers in these guides

@@ -3,7 +3,18 @@
 # ($RISCOS_TOOLCHAIN, set in its container image) is used when GCCSDK_ENV
 # isn't set, else ~/gccsdk/env.
 : "${GCCSDK_ENV:=${RISCOS_TOOLCHAIN:-$HOME/gccsdk/env}}"
-: "${STAGE:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/stage}"   # install prefix for our libs
+# RO_PIC=1: the position-independent build that build/build-shared.sh
+# makes the shared libraries (.so) from. It has its own install prefix
+# (stage-pic) and build directories (build-ro-pic), so the ordinary static
+# build is left as it is. RO_SUFFIX is "-pic" then, "" otherwise.
+if [ -n "${RO_PIC:-}" ]; then
+  RO_SUFFIX=-pic
+  : "${STAGE:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/stage-pic}"
+else
+  RO_SUFFIX=
+  : "${STAGE:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/stage}"   # install prefix for our libs
+fi
+export RO_SUFFIX
 : "${SRC:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/src}"      # downloaded sources
 export GCCSDK_ENV STAGE SRC
 export PATH="$GCCSDK_ENV/bin:$PATH"
@@ -28,6 +39,9 @@ export RO_FPU
 # directories (build/package.sh checks).
 RO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 export RO_CFLAGS="-O3 -mtune=cortex-a72 -mfpu=$RO_FPU -mfloat-abi=hard -fstack-clash-protection -ffile-prefix-map=$RO_ROOT=riscos-mesa"
+# Shared library code must be position-independent: every program that
+# shares it has it at its own address.
+[ -n "${RO_PIC:-}" ] && RO_CFLAGS="$RO_CFLAGS -fPIC"
 # Let meson/configure find our libs (zlib etc.) and nothing from the build host.
 export PKG_CONFIG_LIBDIR="$STAGE/lib/pkgconfig:$STAGE/share/pkgconfig"
 export PKG_CONFIG_SYSROOT_DIR=

@@ -548,6 +548,17 @@ mesa-20.3.5-riscos-zfirst.patch
     stepping past skipped fragments, or the deferred Z write fails them;
     forcing the depth test first for every span changes nothing.
 
+mesa-20.3.5-riscos-pic.patch
+    src/mesa/meson.build: swrast/s_triangle.c is built as its own static
+    library (folded into libmesa_classic with link_whole), so that the
+    position-independent build behind the shared libOSMesa
+    (build/build-shared.sh, meson's b_staticpic) can compile it with
+    -fno-gcse: with -fPIC, GCC 10 for RISC OS stops with an internal error
+    ("insn does not satisfy its constraints", in postreload) in its NEON
+    texture code otherwise. A pragma or function attribute in the file
+    doesn't work: optimize() there stops the NEON intrinsics inlining. The
+    static build compiles the file exactly as before.
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean

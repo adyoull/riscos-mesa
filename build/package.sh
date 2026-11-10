@@ -17,8 +17,10 @@ mkdir -p "$HERE/dist"
 # from __FILE__ or debug information): RO_CFLAGS maps them to
 # "riscos-mesa" (-ffile-prefix-map), and this checks every program and
 # library before packaging.
-# (stage/elf: the unstripped test programs build/ci.sh checks, never packaged)
-leaks=$(find "$STAGE" -path "$STAGE/elf" -prune -o -type f \( -name '*,e1f' -o -name '*,ff8' -o -name '*.a' \) -print0 |
+# (stage/elf, stage/elf-mixed: the unstripped test programs the checks run
+# on; stage/shared/obj: build-shared.sh's working objects. Never packaged.)
+leaks=$(find "$STAGE" \( -path "$STAGE/elf" -o -path "$STAGE/elf-mixed" -o -path "$STAGE/shared/obj" \) -prune -o \
+          -type f \( -name '*,e1f' -o -name '*,ff8' -o -name '*.a' -o -name '*.so.*' \) -print0 |
         xargs -0 grep -l -a -i -E "$HOME/|/home/|/root/|claude" 2>/dev/null || true)
 if [ -n "$leaks" ]; then
   echo "build paths in these files (rebuild them with the current RO_CFLAGS):" >&2
@@ -55,6 +57,23 @@ if [ -d "$STAGE/ports" ]; then
   ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-ports-$V.zip" riscos-mesa-ports )
   rm -rf "$TMP"
 fi
+# Mixed programs (build-shared.sh), if made: the test programs linked
+# against !MesaLibs, and !MesaLibs on its own for users
+# -> dist/riscos-mesa-tests-mixed-VERSION.zip, dist/riscos-mesa-MesaLibs-VERSION.zip
+if [ -d "$STAGE/tests-mixed" ]; then
+  TMP=$(mktemp -d)
+  cp -r "$STAGE/tests-mixed" "$TMP/riscos-mesa-tests-mixed"
+  cp "$HERE/LICENCES.txt" "$TMP/riscos-mesa-tests-mixed/Licences,fff"
+  rm -f "$HERE/dist/riscos-mesa-tests-mixed-$V.zip"
+  ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-tests-mixed-$V.zip" riscos-mesa-tests-mixed )
+  rm -rf "$TMP"
+  TMP=$(mktemp -d)
+  cp -r "$STAGE/shared/!MesaLibs" "$TMP/"
+  cp "$HERE/LICENCES.txt" "$TMP/!MesaLibs/Licences,fff"
+  rm -f "$HERE/dist/riscos-mesa-MesaLibs-$V.zip"
+  ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-MesaLibs-$V.zip" '!MesaLibs' )
+  rm -rf "$TMP"
+fi
 # freeglut's demos over our freeglut (build-ports.sh), in a zip of their own:
 # -> dist/riscos-mesa-glut-VERSION.zip
 if [ -d "$STAGE/ports/freeglut" ]; then
@@ -79,6 +98,14 @@ cp "$HERE/devkit/pkgconfig/"*.pc "$K/lib/pkgconfig/"
 cp "$HERE/devkit/bin/sdl2-config" "$HERE/tools/mkrozip.py" "$K/bin/"   # one mkrozip, in tools/
 cp -r "$HERE/devkit/examples" "$K/examples"
 cp -r "$HERE/devkit/riscos" "$K/riscos"              # PThreadTicker (UnixLib 5.0.1)
+# The shared libraries for mixed programs (build/build-shared.sh), if they
+# were made: lib/shared (libX.so.N, and libX.so links to link with) and the
+# !MesaLibs pack users install
+if [ -d "$STAGE/shared/lib" ]; then
+  mkdir -p "$K/lib/shared"
+  cp -P "$STAGE/shared/lib/"* "$K/lib/shared/"
+  cp -r "$STAGE/shared/!MesaLibs" "$K/riscos/"
+fi
 mkdir -p "$K/docs/porting"
 cp "$HERE/docs/EGL-GUIDE.md" "$K/docs/"
 cp "$HERE/docs/porting/"*.md "$K/docs/porting/"
