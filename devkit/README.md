@@ -473,7 +473,7 @@ so at that moment it wasn't there, and the other program crashed.
 Two things put that right:
 
 1. **Link with UnixLib 5.0.1 or later** (github.com/adyoull/riscos-unixlib;
-   5.0.3.6 is the newest, and is what riscos-mesa's own programs use.
+   5.0.3.7 is the newest, and is what riscos-mesa's own programs use.
    From 5.0.3.1 it also makes threads run in programs that poll the Wimp
    often, as SDL programs do).
    It keeps the ticker's code where it's always in memory. Build your
@@ -487,8 +487,8 @@ Two things put that right:
    RMEnsure PThreadTicker 0.01 RMLoad <MyGame$Dir>.PThrTicker
    ```
 
-   The module is in this devkit's `riscos/` folder (version 0.03, which
-   programs linked with UnixLib 5.0.3.1 or later use; BSD licence, with its ReadMe
+   The module is in this devkit's `riscos/` folder (version 0.04; programs
+   linked with UnixLib 5.0.3.1 or later use 0.03 or 0.04; BSD licence, with its ReadMe
    and Licence). The line asks for 0.01 on purpose: if an older copy is
    already loaded and in use it can't be replaced, and the program then
    runs its own copy of the code, which also works. A module is always

@@ -1,7 +1,7 @@
 # Building GCCSDK GCC 10.2.0 (arm-riscos-gnueabihf) from source
 
 riscos-mesa's releases and its GitHub builds use riscos-crossdev's
-toolchain (GCCSDK GCC 10.2 with riscos-unixlib 5.0.3.6; riscos-crossdev 1.10), in its container
+toolchain (GCCSDK GCC 10.2 with riscos-unixlib 5.0.3.7; riscos-crossdev 1.11), in its container
 image (`build/ci.sh`; README "Build"). You only need what follows if you
 want a GCCSDK GCC 10 install of your own. It follows GCCSDK's autobuilder recipe
 `autobuilder/develop/gcc/setvars` with two deviations, both marked below.
@@ -35,10 +35,10 @@ On a 1-CPU container this took about 30 minutes after the source was ready.
 The ld-riscos dynamic linker and the native (runs-on-RISC-OS) compiler steps
 of the recipe were skipped; static linking doesn't need them.
 
-## UnixLib 5.0.3.6 (riscos-unixlib)
+## UnixLib 5.0.3.7 (riscos-unixlib)
 
 riscos-mesa's release programs (tests, ports, examples) are linked with
-**UnixLib 5.0.3.6** from github.com/adyoull/riscos-unixlib: GCCSDK's
+**UnixLib 5.0.3.7** from github.com/adyoull/riscos-unixlib: GCCSDK's
 UnixLib with the fixes the ports needed (5.0.1 until 20.3.5-10, 5.0.3.1
 from 20.3.5-11 to 20.3.5-13, 5.0.3.3 from 20.3.5-14 to 20.3.5-17). riscos-unixlib is an unofficial fork, not made or
 supported by the GCCSDK developers. The fixes that matter here:
@@ -88,10 +88,15 @@ supported by the GCCSDK developers. The fixes that matter here:
   works in programs linked with an older UnixLib: when `sem_timedwait`
   says ENOSYS it polls (the overlay's `SDL_syssem.c`). Only `sem.o`
   changed; PThreadTicker is still 0.03.
+- 5.0.3.7: mixed programs (UnixLib linked in, other libraries shared and
+  loaded by !SharedLibs: riscos-crossdev 1.11, docs/porting/mixed.md);
+  `shm_open` file descriptors work with ARMEABISupport 1.08. PThreadTicker
+  0.04: its "in use" error has its own number (&823900); nothing else
+  changes. No struct or argument changes.
 
 riscos-mesa's own libraries (`libOSMesa.a` etc.) don't contain UnixLib, so
 they work with any UnixLib; it's the programs linked with them that need
-5.0.1 or later (5.0.3.6 recommended). Either:
+5.0.1 or later (5.0.3.7 recommended). Either:
 
 - patch the GCCSDK source before building the toolchain
   (`patch -d riscos-gccsdk -p1 < patches/unixlib-riscos.diff` from that

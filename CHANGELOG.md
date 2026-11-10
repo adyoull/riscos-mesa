@@ -6,6 +6,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## Unreleased
 
+- **Built with riscos-crossdev 1.11: UnixLib 5.0.3.7**, PThreadTicker
+  0.04 (its "in use" error has its own number; the devkit and tests ship
+  it). No struct or argument changes.
 - **SDL: how much sound is queued is a setting, and more by default.**
   The RISC OS audio driver kept three SDL buffers (at least 60 ms) queued
   in StreamManager, so with a game's usual 1024-sample buffers about 70 ms:
