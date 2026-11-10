@@ -134,5 +134,5 @@ library a second time, position-independent, into `stage-pic/`, then links
 each into a `.so` with `-shared -nodefaultlibs` (no UnixLib, libstdc++ or
 libgcc of its own; the start files are kept, as Mesa's C++ needs
 `__dso_handle`) and `-lgcc`. One Mesa source file, `swrast/s_triangle.c`,
-is compiled with `-fno-gcse` in that build, to get round a GCC 10 internal
-error with `-fPIC` (patches/mesa/README, riscos-pic).
+is compiled with `-fno-gcse-lm` in that build, to get round a GCC 10
+internal error with `-fPIC` (patches/mesa/README, riscos-pic).

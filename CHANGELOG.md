@@ -26,8 +26,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     libstdc++ or libgcc of its own. riscos-crossdev's `check-shared-lib.sh`
     passes on each.
   - New Mesa patch `riscos-pic`: `swrast/s_triangle.c` is built on its own
-    so the position-independent build can give it `-fno-gcse` (GCC 10 stops
-    with an internal error otherwise). The static library's code is the
+    so the position-independent build can give it `-fno-gcse-lm` (GCC 10
+    stops with an internal error otherwise). 19c/19d used `-fno-gcse`,
+    which made glbench's tris scene 29% slower than static on a Pi 4. The static library's code is the
     same.
   - New `riscos-mesa-tests-mixed` zip: glbench, egltest, glestest,
     sdlgltest, sdlfbtest, glutest and altest linked mixed, with Obey files

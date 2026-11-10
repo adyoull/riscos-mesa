@@ -553,9 +553,14 @@ mesa-20.3.5-riscos-pic.patch
     library (folded into libmesa_classic with link_whole), so that the
     position-independent build behind the shared libOSMesa
     (build/build-shared.sh, meson's b_staticpic) can compile it with
-    -fno-gcse: with -fPIC, GCC 10 for RISC OS stops with an internal error
-    ("insn does not satisfy its constraints", in postreload) in its NEON
-    texture code otherwise. A pragma or function attribute in the file
+    -fno-gcse-lm: with -fPIC, GCC 10 for RISC OS stops with an internal
+    error ("insn does not satisfy its constraints", in postreload) in its
+    NEON texture code otherwise. -fno-gcse-lm turns off only the load
+    motion part of the global common subexpression pass; turning off the
+    whole pass (-fno-gcse, test build 19c/19d) also works, but tris in
+    glbench was 29% slower on a Pi 4 than static, against 2-9% for the
+    other scenes. Of the narrower switches, only -fno-gcse-lm avoids the
+    error. A pragma or function attribute in the file
     doesn't work: optimize() there stops the NEON intrinsics inlining. The
     static build compiles the file exactly as before.
 
