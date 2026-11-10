@@ -4,3 +4,8 @@
 | using it then shares one copy of each library in memory.
 Set MesaLibs$Dir <Obey$Dir>
 Set MesaLibs$Path <MesaLibs$Dir>.lib.
+| Lift RISC OS 5's 128 MB clamp on dynamic areas given a maximum size, as
+| !GTKLibs does, before any program creates SOManager's library area (it
+| can't grow past the size it's created with): OS_DynamicArea 8,0,-1,0.
+| The setting is system-wide; R1 and R3 are left as they are.
+/<MesaLibs$Dir>.DAClamp

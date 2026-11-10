@@ -17,6 +17,14 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   `libSDL2-2.0.so.0`, `libopenal.so.1`) and `riscos/!MesaLibs`, the pack
   users put in `!Boot.Resources` (also a download of its own). The static
   libraries are unchanged and still what everything is built with.
+- **!MesaLibs lifts RISC OS 5's 128 MB dynamic area clamp** (19f), as
+  !GTKLibs does: its `!Boot` and `!Run` run `DAClamp`, a 36-byte Utility
+  calling OS_DynamicArea 8,0,-1,0. !SharedLibs puts every shared library in
+  one dynamic area, sized when the first program loads one; with the clamp,
+  Iris and a GTK program together didn't fit.
+- **docs/porting/mixed.md: two library directories are separated with a
+  semicolon** (`/GTKLibs:;/MesaLibs:`); the colon form it gave before
+  doesn't work.
 - **Mixed test programs: their Obey files set the WimpSlot** (19d).
   Started from the Filer, they stopped with "Wimpslot not big enough to
   run ELF program".

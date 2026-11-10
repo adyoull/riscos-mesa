@@ -96,6 +96,13 @@ for f in "$LIB"/*.so.*; do
   cp "$f" "$PACK/lib/$(basename "$f"),e1f"
 done
 cp "$R/shared/!MesaLibs/"* "$PACK/"
+# DAClamp, a 36-byte Utility that !Boot and !Run run: OS_DynamicArea
+# 8,0,-1,0 lifts the 128 MB clamp on dynamic areas given a maximum size
+# (SOManager's), leaving the other two clamps; errors are ignored. The same
+# code as !GTKLibs' (riscos-gtk build/build-gtklibs.sh).
+#   MOV r0,#8; MOV r1,#0; MVN r2,#0; MOV r3,#0; SWI XOS_DynamicArea
+#   MOV r0,#0; MSR CPSR_f,r0; MOV pc,lr; DCD 0
+python3 -c 'import struct,sys; sys.stdout.buffer.write(struct.pack("<9I",0xE3A00008,0xE3A01000,0xE3E02000,0xE3A03000,0xEF020066,0xE3A00000,0xE128F000,0xE1A0F00E,0))' > "$PACK/DAClamp,ffc"
 echo "pack: $PACK"
 
 # ---- 3. test programs, linked mixed ----

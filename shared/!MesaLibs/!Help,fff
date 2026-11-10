@@ -7,7 +7,11 @@ EGL, GLU, GLUT, SDL 2 and OpenAL from here, through !SharedLibs. Programs
 that use them share one copy of each library in memory.
 
 Install: copy !MesaLibs into !Boot.Resources (open !Boot, then Resources).
-Programs that need it boot it when they start; it only sets MesaLibs$Path.
+Programs that need it boot it when they start. It sets MesaLibs$Path and
+runs DAClamp, which lifts RISC OS 5's 128 MB limit on dynamic areas given a
+maximum size (OS_DynamicArea 8,0,-1,0, as !GTKLibs does). !SharedLibs puts
+every shared library in one such area, sized when the first program loads
+one, so the limit has to go before then: keep !MesaLibs in !Boot.Resources.
 
 Also needed:
 - !SharedLibs with ld-riscos/so/2 (GCCSDK 8 or later; Iris includes one),

@@ -102,9 +102,20 @@ Run <MyGame$Dir>.mygame %*0
 The `WimpSlot` line is needed: without it, a program started from the
 Filer stops with "Wimpslot not big enough to run ELF program".
 
-A program with libraries of its own puts its own directory first:
-`"LD_LIBRARY_PATH=/MyGameLibs:/MesaLibs:"`. Threaded programs (SDL sound,
-OpenAL) still ship and load PThreadTicker, as static ones do.
+A program with libraries of its own, or one that also uses !GTKLibs, lists
+the directories with a **semicolon** between them, its own first:
+`"LD_LIBRARY_PATH=/MyGameLibs:;/MesaLibs:"` or
+`"LD_LIBRARY_PATH=/GTKLibs:;/MesaLibs:"`. A colon alone between them
+(`/MyGameLibs:/MesaLibs:`) doesn't work: the program stops with "can't
+load library". (Tested on RISC OS on Linux, SOManager 3.04, with libEGL in
+one directory and libOSMesa in another: each loaded, and SOManager listed
+each under its own directory's name, so other programs using the same
+!MesaLibs still share it.) A path variable naming both directories would
+also be found, but its libraries would be registered under that variable's
+name and not shared with other programs.
+
+Threaded programs (SDL sound, OpenAL) still ship and load PThreadTicker,
+as static ones do.
 
 **Ship !MesaLibs for users to install, but don't put a copy of the
 libraries inside each app:** SOManager shares a library between programs
