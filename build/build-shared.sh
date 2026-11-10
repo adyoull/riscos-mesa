@@ -87,11 +87,13 @@ else
   echo "note: RCD_DIR not set: riscos-crossdev's check-shared-lib.sh not run" >&2
 fi
 
-# The pack: the libraries under their SONAMEs (lib.libOSMesa/so/8 on RISC
-# OS), stripped of everything a program doesn't need to link to them
+# Strip them of everything a program doesn't need to link to them or run
+# with them (the symbol table names the build machine's directories). The
+# pack has them under their SONAMEs (lib.libOSMesa/so/8 on RISC OS).
 mkdir -p "$PACK/lib"
 for f in "$LIB"/*.so.*; do
-  $STRIP --strip-unneeded -o "$PACK/lib/$(basename "$f"),e1f" "$f"
+  $STRIP --strip-unneeded "$f"
+  cp "$f" "$PACK/lib/$(basename "$f"),e1f"
 done
 cp "$R/shared/!MesaLibs/"* "$PACK/"
 echo "pack: $PACK"
