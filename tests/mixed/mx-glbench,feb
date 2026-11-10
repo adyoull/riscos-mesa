@@ -12,4 +12,6 @@ If "<MesaLibs$Dir>" = "" Then Run <MesaMixed$Dir>.!MesaLibs.!Boot
 | SOManager finds the program's libraries through <program>$LD$Env
 Set glbench$LD$Env "LD_LIBRARY_PATH=/MesaLibs:"
 Dir <MesaMixed$Dir>
+| ELF programs need the slot set before they start: the loader maps them into it
+WimpSlot -min 16000K -max 16000K
 Run glbench 640 480 5 -o ResultBench

@@ -17,6 +17,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   `libSDL2-2.0.so.0`, `libopenal.so.1`) and `riscos/!MesaLibs`, the pack
   users put in `!Boot.Resources` (also a download of its own). The static
   libraries are unchanged and still what everything is built with.
+- **Mixed test programs: their Obey files set the WimpSlot** (19d).
+  Started from the Filer, they stopped with "Wimpslot not big enough to
+  run ELF program".
   - `build/build-shared.sh` (or `SHARED=1 build/build-all.sh`) builds every
     library again, position-independent (`RO_PIC=1`: `stage-pic`,
     `build-ro-pic`), and links each into a `.so` with no UnixLib,

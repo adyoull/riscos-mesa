@@ -7,7 +7,7 @@ OpenGL (OSMesa), EGL, GLU, SDL 2 and OpenAL are shared libraries in
 !MesaLibs, which !SharedLibs loads when the program starts. Programs using
 the same !MesaLibs share one copy of each library in memory, and each
 program is much smaller (glbench: about 9 MB linked statically, about
-0.2 MB mixed).
+0.5 MB mixed).
 
 This is a test. The ordinary (static) test programs, in the tests
 directory, are unchanged and need none of this.

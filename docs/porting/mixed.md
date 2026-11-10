@@ -95,8 +95,12 @@ IfThere SharedLibs:lib.ld-riscos-eabihf/so Then Set MyGame$SO2 1
 If "<MyGame$SO2>" = "" Then Error MyGame needs a !SharedLibs with ld-riscos/so/2 (GCCSDK 8 or later, as in Iris) in !Boot.Resources
 If "<MesaLibs$Dir>" = "" Then Error MyGame needs !MesaLibs in !Boot.Resources
 Set mygame$LD$Env "LD_LIBRARY_PATH=/MesaLibs:"
+WimpSlot -min 16000K -max 16000K
 Run <MyGame$Dir>.mygame %*0
 ```
+
+The `WimpSlot` line is needed: without it, a program started from the
+Filer stops with "Wimpslot not big enough to run ELF program".
 
 A program with libraries of its own puts its own directory first:
 `"LD_LIBRARY_PATH=/MyGameLibs:/MesaLibs:"`. Threaded programs (SDL sound,
