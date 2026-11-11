@@ -1,3 +1,5 @@
 | riscos-mesa SDL test: key presses and auto-repeat. Tap and hold keys; the title counts them. Escape quits. Events are logged to KeyLog.
 Dir <Obey$Dir>
+| ELF programs need the slot set before they start, whatever the Next slot is
+WimpSlot -min 16000K
 Run sdlkeys -o KeyLog

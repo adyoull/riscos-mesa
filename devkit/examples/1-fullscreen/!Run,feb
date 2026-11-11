@@ -12,4 +12,8 @@ RMEnsure SharedUnixLibrary 1.16 Error !GLFull needs SharedUnixLibrary 1.16 or la
 RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
 RMEnsure ARMEABISupport 0.00 Error !GLFull needs ARMEABISupport (from PackMan)
 | Start the program. Always "Run" it by its full path.
+| An ELF program needs its slot set before it starts: without this it
+| stops with "Wimpslot not big enough to run ELF program" unless the
+| Task Manager's Next slot happens to be big enough.
+WimpSlot -min 16000K
 Run <GLFull$Dir>.!RunImage

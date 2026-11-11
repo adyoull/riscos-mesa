@@ -3,4 +3,6 @@
 | this directory.
 Dir <Obey$Dir>
 RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
+| ELF programs need the slot set before they start, whatever the Next slot is
+WimpSlot -min 16000K
 Run ovltest vet

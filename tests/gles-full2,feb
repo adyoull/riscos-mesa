@@ -1,4 +1,6 @@
 | riscos-mesa OpenGL ES test on the native RISC OS EGL types: double-click to run.
 | Results are saved in this directory.
 Dir <Obey$Dir>
+| ELF programs need the slot set before they start, whatever the Next slot is
+WimpSlot -min 16000K
 Run glestest -f -2 -o gles-full2

@@ -1,3 +1,5 @@
 | riscos-mesa EGL test: double-click to run. Results are also saved in this directory.
 Dir <Obey$Dir>
+| ELF programs need the slot set before they start, whatever the Next slot is
+WimpSlot -min 16000K
 Run egltest -f -p -b 3 -o egltear-banks

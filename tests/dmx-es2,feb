@@ -3,5 +3,7 @@
 | multitask), then the desktop is redrawn. Results are saved in this directory.
 Dir <Obey$Dir>
 Set DispmanX$Display full
+| ELF programs need the slot set before they start, whatever the Next slot is
+WimpSlot -min 16000K
 Run dmxtest -2 -o dmx-es2
 Unset DispmanX$Display

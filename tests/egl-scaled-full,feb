@@ -1,3 +1,5 @@
 | riscos-mesa EGL test: full screen, rendered at 640x360 and scaled to the screen by the sprite plot.
 Dir <Obey$Dir>
+| ELF programs need the slot set before they start, whatever the Next slot is
+WimpSlot -min 16000K
 Run egltest -f -S 640x360 -t 10 -o eglscaledfull

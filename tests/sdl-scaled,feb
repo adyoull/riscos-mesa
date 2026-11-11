@@ -2,4 +2,6 @@
 | Click in it: F/D full screen, Space vsync. The title shows fps, render/present and the mouse position.
 RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
 Dir <Obey$Dir>
+| ELF programs need the slot set before they start, whatever the Next slot is
+WimpSlot -min 16000K
 Run sdlgltest 1024 768 -S 640x480 -V

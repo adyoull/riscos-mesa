@@ -14,4 +14,6 @@ RMEnsure SharedSound 1.07 IfThere System:Modules.SSound Then RMLoad System:Modul
 RMEnsure StreamManager 0.03 IfThere System:Modules.StreamMan Then RMLoad System:Modules.StreamMan
 RMEnsure SharedSoundBuffer 0.07 IfThere System:Modules.SSBuffer Then RMLoad System:Modules.SSBuffer
 RMEnsure SharedSoundBuffer 0.07 RMEnsure DigitalRenderer 0.51 IfThere System:Modules.DRenderer Then RMLoad System:Modules.DRenderer
+| ELF programs need the slot set before they start, whatever the Next slot is
+WimpSlot -min 16000K
 Run altest -o altone

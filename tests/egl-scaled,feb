@@ -2,4 +2,6 @@
 | Resize the window: it stays 320x240, stretched. Click in it: S window size/320x240, H overlay off/on.
 RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
 Dir <Obey$Dir>
+| ELF programs need the slot set before they start, whatever the Next slot is
+WimpSlot -min 16000K
 Run egltest -w -V -S 320x240 -o eglscaled

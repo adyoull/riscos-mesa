@@ -1,4 +1,6 @@
 | riscos-mesa EGL test: full screen, the program doing other work while a swap
 | would wait for the vsync (eglSwapWouldWaitRISCOS). Compare with egl-full.
 Dir <Obey$Dir>
+| ELF programs need the slot set before they start, whatever the Next slot is
+WimpSlot -min 16000K
 Run egltest -f -k -o eglfullk

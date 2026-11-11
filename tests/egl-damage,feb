@@ -2,4 +2,6 @@
 | Damage demo: only the middle of the window is redrawn after the first frame, so
 | its background changes colour while the edges keep the first colour.
 Dir <Obey$Dir>
+| ELF programs need the slot set before they start, whatever the Next slot is
+WimpSlot -min 16000K
 Run egltest -w -D -o egldamage

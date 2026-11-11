@@ -1,3 +1,5 @@
 | riscos-mesa SDL test: a 1024x768 window rendering at 640x480, stretched by the sprite plot (no overlay).
 Dir <Obey$Dir>
+| ELF programs need the slot set before they start, whatever the Next slot is
+WimpSlot -min 16000K
 Run sdlgltest 1024 768 -S 640x480 -N

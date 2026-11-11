@@ -9,4 +9,5 @@ RMEnsure SharedUnixLibrary 1.16 RMLoad System:Modules.SharedULib
 RMEnsure SharedUnixLibrary 1.16 Error !ES2Gears needs SharedUnixLibrary 1.16 or later
 RMEnsure ARMEABISupport 0.00 RMLoad System:Modules.ARMEABISupport
 RMEnsure ARMEABISupport 0.00 Error !ES2Gears needs ARMEABISupport
+WimpSlot -min 16000K
 Run <ES2Gears$Dir>.!RunImage

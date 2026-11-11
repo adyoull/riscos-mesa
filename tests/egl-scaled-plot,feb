@@ -1,3 +1,5 @@
 | riscos-mesa EGL test: the same as egl-scaled, but scaled by the sprite plot (no overlay).
 Dir <Obey$Dir>
+| ELF programs need the slot set before they start, whatever the Next slot is
+WimpSlot -min 16000K
 Run egltest -w -n -S 320x240 -o eglscaledplot

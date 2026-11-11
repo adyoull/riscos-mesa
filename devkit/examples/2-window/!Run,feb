@@ -16,4 +16,8 @@ RMEnsure ARMEABISupport 0.00 Error !GLWindow needs ARMEABISupport (from PackMan)
 | program runs without it, and then its frames are always plotted.
 RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
 | Start the program. Always "Run" it by its full path.
+| An ELF program needs its slot set before it starts: without this it
+| stops with "Wimpslot not big enough to run ELF program" unless the
+| Task Manager's Next slot happens to be big enough.
+WimpSlot -min 16000K
 Run <GLWindow$Dir>.!RunImage

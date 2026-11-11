@@ -29,4 +29,8 @@ RMEnsure StreamManager 0.03 IfThere System:Modules.StreamMan Then RMLoad System:
 RMEnsure SharedSoundBuffer 0.07 IfThere System:Modules.SSBuffer Then RMLoad System:Modules.SSBuffer
 RMEnsure SharedSoundBuffer 0.07 RMEnsure DigitalRenderer 0.51 IfThere System:Modules.DRenderer Then RMLoad System:Modules.DRenderer
 | Start the program. Always "Run" it by its full path.
+| An ELF program needs its slot set before it starts: without this it
+| stops with "Wimpslot not big enough to run ELF program" unless the
+| Task Manager's Next slot happens to be big enough.
+WimpSlot -min 16000K
 Run <Tune$Dir>.!RunImage

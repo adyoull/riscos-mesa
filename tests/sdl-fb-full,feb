@@ -2,4 +2,6 @@
 | F: back to a window and full screen again. Results in SDLFBfull.
 RMEnsure VideoOverlay 0.00 IfThere System:Modules.VideoOverlay Then RMLoad System:Modules.VideoOverlay
 Dir <Obey$Dir>
+| ELF programs need the slot set before they start, whatever the Next slot is
+WimpSlot -min 16000K
 Run sdlfbtest 1024 768 -S 640x360 -V -f -t 30 -o SDLFBfull

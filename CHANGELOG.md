@@ -25,6 +25,12 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 - **docs/porting/mixed.md: two library directories are separated with a
   semicolon** (`/GTKLibs:;/MesaLibs:`); the colon form it gave before
   doesn't work.
+- **Every test Obey file and every application's `!Run` sets the WimpSlot**
+  (19h): the tests, the devkit examples, and the hello_pi, freeglut,
+  mesa-demos and SDL ports. All are ELF programs, which stop with
+  "Wimpslot not big enough to run ELF program" when started with a Next
+  slot smaller than they need. A Pi with a large Next slot didn't show it;
+  RISC OS on Linux's image, with a smaller one, did.
 - **egltest: the EGLImage checks draw into a pbuffer of the image's size**
   (19g). They drew the 96x96 sprite into the 128x64 pbuffer, so its top 32
   rows were clipped and "textured quad shows the sprite" and "sprite
