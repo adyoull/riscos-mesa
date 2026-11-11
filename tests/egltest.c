@@ -332,6 +332,12 @@ static int run_checks(void)
         CHECK(target && strstr((const char *) glGetString(GL_EXTENSIONS), "GL_OES_EGL_image"),
               "GL_OES_EGL_image");
         if (img != EGL_NO_IMAGE_KHR && target) {
+            /* draw into a pbuffer the sprite's size: the 128x64 one would
+               clip the top 32 rows of the 96x96 quad (and read back
+               outside the surface) */
+            EGLint ia[] = { EGL_WIDTH, 96, EGL_HEIGHT, 96, EGL_NONE };
+            EGLSurface ipb = eglCreatePbufferSurface(dpy, cfg, ia);
+            CHECK(ipb != EGL_NO_SURFACE && eglMakeCurrent(dpy, ipb, ipb, ctx), "pbuffer 96x96 for the image");
             glGenTextures(1, &tex);
             glBindTexture(GL_TEXTURE_2D, tex);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -367,6 +373,8 @@ static int run_checks(void)
                 if (bad) say("  (%d pixels differ)\n", bad);
             }
             glDeleteTextures(1, &tex);
+            eglMakeCurrent(dpy, pb, pb, ctx);
+            if (ipb != EGL_NO_SURFACE) eglDestroySurface(dpy, ipb);
             CHECK(eglDestroyImageKHR(dpy, img), "destroy image");
         }
     }
