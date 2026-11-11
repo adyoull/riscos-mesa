@@ -17,8 +17,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   `libSDL2-2.0.so.0`, `libopenal.so.1`) and `riscos/!MesaLibs`, the pack
   users put in `!Boot.Resources` (also a download of its own). The static
   libraries are unchanged and still what everything is built with.
-- **!MesaLibs has an icon** (19i): a mesa, the flat-topped hill, with a
-  red, green and blue shaded triangle rising behind it. Drawn by
+- **!MesaLibs has an icon** (19j): three meshing gears, red, green and
+  blue, after the gears demo that has come with Mesa since its early days
+  (19i had a mesa and a shaded triangle). Drawn by
   `tools/mkmesalibsicon.py` in the same style as !GTKLibs' icon (with
   riscos-gtk's `riscosdraw.py` and `png2sprite.py`); !Sprites and
   !Sprites11, loaded by `!Boot` and `!Run`.
