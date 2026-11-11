@@ -17,6 +17,11 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   `libSDL2-2.0.so.0`, `libopenal.so.1`) and `riscos/!MesaLibs`, the pack
   users put in `!Boot.Resources` (also a download of its own). The static
   libraries are unchanged and still what everything is built with.
+- **!MesaLibs has an icon** (19i): a mesa, the flat-topped hill, with a
+  red, green and blue shaded triangle rising behind it. Drawn by
+  `tools/mkmesalibsicon.py` in the same style as !GTKLibs' icon (with
+  riscos-gtk's `riscosdraw.py` and `png2sprite.py`); !Sprites and
+  !Sprites11, loaded by `!Boot` and `!Run`.
 - **!MesaLibs lifts RISC OS 5's 128 MB dynamic area clamp** (19f), as
   !GTKLibs does: its `!Boot` and `!Run` run `DAClamp`, a 36-byte Utility
   calling OS_DynamicArea 8,0,-1,0. !SharedLibs puts every shared library in

@@ -147,3 +147,6 @@ libgcc of its own; the start files are kept, as Mesa's C++ needs
 `__dso_handle`) and `-lgcc`. One Mesa source file, `swrast/s_triangle.c`,
 is compiled with `-fno-gcse-lm` in that build, to get round a GCC 10
 internal error with `-fPIC` (patches/mesa/README, riscos-pic).
+!MesaLibs' icon is drawn by `tools/mkmesalibsicon.py` (an original
+drawing: a mesa with an OpenGL-shaded triangle rising behind it), which
+needs Python's Pillow.

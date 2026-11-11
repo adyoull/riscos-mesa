@@ -96,6 +96,8 @@ for f in "$LIB"/*.so.*; do
   cp "$f" "$PACK/lib/$(basename "$f"),e1f"
 done
 cp "$R/shared/!MesaLibs/"* "$PACK/"
+# The icon (tools/mkmesalibsicon.py): !Sprites and !Sprites11
+python3 "$R/tools/mkmesalibsicon.py" "$PACK"
 # DAClamp, a 36-byte Utility that !Boot and !Run run: OS_DynamicArea
 # 8,0,-1,0 lifts the 128 MB clamp on dynamic areas given a maximum size
 # (SOManager's), leaving the other two clamps; errors are ignored. The same
