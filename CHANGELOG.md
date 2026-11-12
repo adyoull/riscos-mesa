@@ -51,6 +51,17 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     and with `SDL_RISCOS_GL_EGL` 0 "Mesa OffScreen". There RISC3D is
     Linux's Mesa in software with frames read back (about 55 fps against
     OSMesa's 340 at 320x240), so it says nothing about speed on a GPU.
+- **Older mixed programs work with the new !MesaLibs, RISC3D too.** A
+  mixed program exports only the UnixLib functions the libraries it was
+  linked against needed. RISC3D's client in libEGL used six that 19's
+  libraries didn't (strcspn, _swix, clock, sin, cos, sqrtf), so a program
+  linked against 19 (ClassiCube 0.1-test13) quit without a word the
+  moment EGL gave it a RISC3D context. libEGL now has its own copies
+  (egl/r3d_compat.c: SWIs, VFP's square root, sinf/cosf), and
+  build-shared.sh fails if any library needs a name from outside
+  !MesaLibs that the same library didn't need in 20.3.5-19 (lists in
+  build/mixed-imports/). Checked in QEMU's RISC OS on Linux: test13 with
+  RISC3D now starts; a mixed SDL GL test still reports "2.1 RISC3D".
 - **Built with riscos-crossdev 1.11: UnixLib 5.0.3.7**, PThreadTicker
   0.04 (its "in use" error has its own number; the devkit and tests ship
   it). No struct or argument changes.

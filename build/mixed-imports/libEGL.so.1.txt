@@ -1,0 +1,52 @@
+# libEGL.so.1 in riscos-mesa 20.3.5-19j: every name it takes from outside itself.
+# build-shared.sh: a library may not need more from UnixLib than this and
+# the lists of the libraries it needed then (programs linked with it export those).
+#needed: libOSMesa.so.8 
+OSMesaBufferStorage
+OSMesaCreateBuffer
+OSMesaCreateContextAttribs
+OSMesaDestroyBuffer
+OSMesaDestroyContext
+OSMesaGetProcAddress
+OSMesaMakeCurrent
+OSMesaMakeCurrentBuffers
+OSMesaSetImageLookup
+_ITM_deregisterTMCloneTable
+_ITM_registerTMCloneTable
+__GOTT_INDEX__
+__cxa_finalize
+__deregister_frame_info
+__register_frame_info
+__riscos_dispmanx_placement
+__riscos_dispmanx_swapped
+__riscos_dispmanx_window
+_kernel_osbyte
+_kernel_oswrch
+_kernel_swi
+_kernel_swi_c
+atexit
+calloc
+free
+glFinish
+glFlush
+glScissor
+glViewport
+malloc
+memcpy
+pthread_getspecific
+pthread_key_create
+pthread_mutex_init
+pthread_mutex_lock
+pthread_mutex_unlock
+pthread_mutexattr_destroy
+pthread_mutexattr_init
+pthread_mutexattr_settype
+pthread_once
+pthread_setspecific
+qsort
+raise
+strcasecmp
+strcmp
+strcpy
+strlen
+vsnprintf

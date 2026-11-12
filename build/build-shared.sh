@@ -87,6 +87,36 @@ else
   echo "note: RCD_DIR not set: riscos-crossdev's check-shared-lib.sh not run" >&2
 fi
 
+# No library may need more from UnixLib (or anything else outside
+# !MesaLibs) than the same library in 20.3.5-19 did (build/mixed-imports/):
+# a mixed program exports only the UnixLib functions the libraries it was
+# linked against needed, so a new one would stop older programs as soon as
+# they called it. New names are fine when another library here defines them.
+READELF=${CC%gcc}readelf
+MI=$R/build/mixed-imports
+defined=$(for f in "$LIB"/*.so.*; do $READELF --dyn-syms -W "$f" | awk '$7!="UND" && $8!="" {print $8}'; done | sed 's/@.*//' | sort -u)
+# a library's list and those of the libraries it needed in 20.3.5-19
+# (#needed: lines), and theirs: a program linked with it exports all those
+allowed() {
+  local todo="$1" done="" l
+  while [ -n "$todo" ]; do
+    set -- $todo; l=$1; shift; todo="$*"
+    case " $done " in *" $l "*) continue ;; esac
+    done="$done $l"
+    [ -f "$MI/$l.txt" ] || continue
+    grep -v '^#' "$MI/$l.txt"
+    todo="$todo $(sed -n 's/^#needed://p' "$MI/$l.txt")"
+  done | sort -u
+}
+for f in "$LIB"/*.so.*; do
+  n=$(basename "$f")
+  [ -f "$MI/$n.txt" ] || { echo "no build/mixed-imports/$n.txt: a new library needs a list there"; exit 1; }
+  new=$($READELF --dyn-syms -W "$f" | awk '$7=="UND" && $8!="" {print $8}' | sed 's/@.*//' | sort -u |
+        comm -23 - <(allowed "$n") | comm -23 - <(echo "$defined"))
+  [ -z "$new" ] || { echo "$(basename "$f") needs names 20.3.5-19's didn't (older mixed programs lack them):" $new; exit 1; }
+done
+echo "imports: no library needs more from UnixLib than in 20.3.5-19"
+
 # Strip them of everything a program doesn't need to link to them or run
 # with them (the symbol table names the build machine's directories). The
 # pack has them under their SONAMEs (lib.libOSMesa/so/8 on RISC OS).
