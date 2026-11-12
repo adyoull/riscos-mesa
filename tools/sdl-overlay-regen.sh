@@ -103,7 +103,7 @@ done
 # .p files: a changed file no .p covers (after a .p was removed, say)
 # would otherwise be built without anyone knowing. Generated and build
 # files are left out.
-extra=$(diff -rq "$PRISTINE" "$T" -x .git -x build -x build-ro -x autom4te.cache \
+extra=$(diff -rq "$PRISTINE" "$T" -x .git -x build -x build-ro -x build-ro-pic -x autom4te.cache \
             -x .overlay-sum -x configure -x 'configure~' 2>&1 || true)
 if [ -n "$extra" ]; then
     echo "$extra" | sed 's/^/not covered by the .p files: /'

@@ -207,9 +207,14 @@ second drawing at full size, 134 drawing at 640x480, and 214 drawing at
   letting other programs run meanwhile.)
 - These windows have no accumulation buffers.
 - `"SDL_RISCOS_GL_OVERLAY"` = `"0"` refuses an overlay even when the user
-  has `EGL$Overlay` set to `on`. `"SDL_RISCOS_GL_EGL"` = `"1"` shows the
-  window through riscos-mesa's EGL (as the two options do) with neither
-  option, which is only useful for testing.
+  has `EGL$Overlay` set to `on`.
+- **RISC3D:** where EGL gives contexts to RISC3D (a hardware path; RISC
+  OS on Linux first, `EGL_VERSION` mentions RISC3D), SDL's GL windows use
+  riscos-mesa's EGL by default, so GL games are drawn by RISC3D after a
+  relink, with no code change. Elsewhere the default is unchanged.
+  `"SDL_RISCOS_GL_EGL"` = `"0"` keeps the old path (OSMesa drawing into a
+  sprite) even with RISC3D; `"1"` uses EGL everywhere, which without
+  RISC3D is only useful for testing.
 - Tried on a Pi 4 so far: the figures above and the mouse. Other windows
   and menus over the game, full screen and screen mode changes have only
   been tested on a PC against a stand-in for the Pi's display.

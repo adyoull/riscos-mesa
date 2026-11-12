@@ -63,6 +63,8 @@ void *SDL_SetWindowData(SDL_Window *w, const char *name, void *v) {
 void *SDL_memcpy_REAL(void *d, const void *s, size_t n) { return memcpy(d, s, n); }
 #undef SDL_memset
 void *SDL_memset_REAL(void *d, int c, size_t n) { return memset(d, c, n); }
+#undef SDL_strstr
+char *SDL_strstr_REAL(const char *h, const char *n) { return strstr(h, n); }
 const char *SDL_GetHint(const char *name) {
     if (!strcmp(name, SDL_HINT_RISCOS_FB_RENDER_SIZE)) return hint_fbsize;
     if (!strcmp(name, SDL_HINT_RISCOS_FB_OVERLAY)) return hint_fbovl;
@@ -172,6 +174,33 @@ static void *run(void *arg)
     }
     RISCOS_GL_DestroyWindowBuffer(&win);
     CHECK(!wd->gl_active && !wd->fb_area, "sprite freed");
+
+    /* ---- RISC3D has a driver: the EGL path by default (it is the only
+       one that reaches it); SDL_RISCOS_GL_EGL "0" keeps the sprite path ---- */
+    {
+        extern int fake_r3d_on;
+        const char *rn;
+        fake_r3d_on = 1;
+        ctx = RISCOS_GL_CreateContext(&dev, &win); current_ctx = ctx;
+        rn = ctx ? (const char *) glGetString(GL_RENDERER) : NULL;
+        CHECK(ctx && wd->egl_surface && wd->egl_handle == 0x6000 && rn && !strcmp(rn, "fake RISC3D"),
+              "RISC3D there, no hints: the EGL path, drawn by RISC3D (%s)", rn ? rn : errbuf);
+        RISCOS_GL_DeleteContext(&dev, ctx); current_ctx = NULL;
+        RISCOS_GL_DestroyWindowBuffer(&win);
+        hint_egl = "0";
+        ctx = RISCOS_GL_CreateContext(&dev, &win); current_ctx = ctx;
+        rn = ctx ? (const char *) glGetString(GL_RENDERER) : NULL;
+        CHECK(ctx && wd->fb_sprite && !wd->egl_surface && rn && strstr(rn, "OffScreen"),
+              "SDL_RISCOS_GL_EGL 0: the sprite path, OSMesa (%s)", rn ? rn : errbuf);
+        RISCOS_GL_DeleteContext(&dev, ctx); current_ctx = NULL;
+        RISCOS_GL_DestroyWindowBuffer(&win);
+        hint_egl = NULL;
+        fake_r3d_on = 0;
+        ctx = RISCOS_GL_CreateContext(&dev, &win); current_ctx = ctx;
+        CHECK(ctx && wd->fb_sprite && !wd->egl_surface, "no RISC3D: the sprite path again");
+        RISCOS_GL_DeleteContext(&dev, ctx); current_ctx = NULL;
+        RISCOS_GL_DestroyWindowBuffer(&win);
+    }
 
     /* ---- SDL_RISCOS_GL_EGL=1: the EGL path, no render size ---- */
     hint_egl = "1";

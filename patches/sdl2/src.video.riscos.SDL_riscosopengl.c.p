@@ -2,7 +2,7 @@ diff --git src/video/riscos/SDL_riscosopengl.c src/video/riscos/SDL_riscosopengl
 new file mode 100644
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.c
-@@ -0,0 +1,1070 @@
+@@ -0,0 +1,1093 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -49,7 +49,11 @@ new file mode 100644
 + *        SDL_riscoswindow.c);
 + *      SDL_RISCOS_GL_OVERLAY "1": a hardware overlay (EGL_RISCOS_overlay),
 + *        with EGL's fallbacks to the sprite plot;
-+ *      SDL_RISCOS_GL_EGL "1": the EGL path on its own.
++ *      SDL_RISCOS_GL_EGL "1": the EGL path on its own ("0": never, unless
++ *        a render size or the overlay asks for it).
++ *    It is also the default where riscos-mesa's EGL gives GL contexts to
++ *    RISC3D, a hardware path (RISCOS_GL_RISC3D): the sprite path is OSMesa
++ *    drawing in software, so only the EGL path reaches the hardware.
 + *    Redraws go to eglRedrawWindowRISCOS. A swap never blocks the desktop
 + *    for a vsync: when EGL would wait (overlay) the frame is held and shown
 + *    from the event loop (RISCOS_GL_Idle) once one has passed, unless a
@@ -928,15 +932,34 @@ new file mode 100644
 +
 +/* ---- which path, and the entry points ---- */
 +
++/* Does riscos-mesa's EGL give GL contexts to RISC3D, a hardware path (on
++   RISC OS on Linux: Linux's graphics driver)? Only the EGL path reaches
++   it, so then the EGL path is the default. EGL lists EGL_RISCOS_renderer
++   and says "RISC3D" in EGL_VERSION when a driver is there and
++   RISC3D$Disable isn't set. */
++static SDL_bool
++RISCOS_GL_RISC3D(void)
++{
++    const char *e, *v;
++    if (RISCOS_GL_Display() < 0)
++        return SDL_FALSE;
++    e = eglQueryString(gl_dpy, EGL_EXTENSIONS);
++    v = eglQueryString(gl_dpy, EGL_VERSION);
++    return (e && v && SDL_strstr(e, "EGL_RISCOS_renderer") && SDL_strstr(v, "RISC3D")) ? SDL_TRUE : SDL_FALSE;
++}
++
 +static SDL_bool
 +RISCOS_GL_WantEGL(SDL_Window *window)
 +{
 +    const SDL_WindowData *d = (const SDL_WindowData *) window->driverdata;
++    const char *egl = SDL_GetHint(SDL_HINT_RISCOS_GL_EGL);
 +    if (d && d->render_w)
 +        return SDL_TRUE;
 +    if (SDL_GetStringBoolean(SDL_GetHint(SDL_HINT_RISCOS_GL_OVERLAY), SDL_FALSE))
 +        return SDL_TRUE;
-+    return SDL_GetStringBoolean(SDL_GetHint(SDL_HINT_RISCOS_GL_EGL), SDL_FALSE);
++    if (egl && *egl)
++        return SDL_GetStringBoolean(egl, SDL_FALSE);    /* "0" keeps the sprite path */
++    return RISCOS_GL_RISC3D();
 +}
 +
 +SDL_GLContext

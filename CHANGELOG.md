@@ -42,6 +42,15 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     "sprite changed" fails as expected). `RISC3D$Disable` gives OSMesa.
     No display planes there, so windows were read back. Not yet run on a
     Pi's GPU.
+  - **SDL 2 GL games get RISC3D too:** where EGL gives contexts to
+    RISC3D, SDL's GL windows go through EGL by default (before, only with
+    a render size or overlay), so they need only relinking. The hint (or
+    variable) `SDL_RISCOS_GL_EGL` `0` keeps OSMesa's sprite path. Checked
+    in the host harness against the fake RISC3D, and in QEMU's RISC OS on
+    Linux: sdlgltest (static and mixed, no hints) reports "2.1 RISC3D",
+    and with `SDL_RISCOS_GL_EGL` 0 "Mesa OffScreen". There RISC3D is
+    Linux's Mesa in software with frames read back (about 55 fps against
+    OSMesa's 340 at 320x240), so it says nothing about speed on a GPU.
 - **Built with riscos-crossdev 1.11: UnixLib 5.0.3.7**, PThreadTicker
   0.04 (its "in use" error has its own number; the devkit and tests ship
   it). No struct or argument changes.
