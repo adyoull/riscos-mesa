@@ -181,6 +181,7 @@ static EGLBoolean ok(void)
 #include "parts/screen.c"
 #include "parts/buffers.c"
 #include "parts/overlay.c"
+#include "parts/risc3d.c"
 #include "parts/validation.c"
 #include "parts/configs.c"
 #include "parts/current.c"

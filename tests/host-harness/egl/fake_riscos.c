@@ -653,3 +653,73 @@ void fake_reset_clip(void)
 {
     full_clip();
 }
+
+#ifndef FAKE_NO_R3D     /* r3d_e2e.c links RISC3D's real client instead */
+/* ------------------------------------------------------------------ */
+/* RISC3D, faked (egl/parts/risc3d.c): off unless fake_r3d_on is set.  */
+/* A context remembers its API, surface size and clear colour; its    */
+/* "frame" is the clear colour, given out by r3d_swap as &BBGGRR.      */
+
+#include "r3d.h"
+/* GL's types and the two names used, without GL/gl.h (not every harness
+   that builds this file has Mesa's headers) */
+#define FR_RENDERER 0x1F01
+#define FR_VERSION  0x1F02
+
+int fake_r3d_on, fake_r3d_fail, fake_r3d_live, fake_r3d_finishes, fake_r3d_swaps,
+    fake_r3d_overlapped, fake_r3d_tex_w, fake_r3d_tex_h;
+unsigned int fake_r3d_tex_first;
+struct r3d_context { int gl; unsigned int clear, prev; int w, h; };
+static struct r3d_context *fr_cur;
+
+int r3d_available(void) { return fake_r3d_on && !getenv("RISC3D$Disable"); }
+static struct r3d_context *fr_new(int gl)
+{
+    struct r3d_context *c;
+    if (fake_r3d_fail) return NULL;
+    c = (struct r3d_context *) calloc(1, sizeof *c);
+    c->gl = gl;
+    fake_r3d_live++;
+    return c;
+}
+struct r3d_context *r3d_create(void) { return fr_new(0); }
+struct r3d_context *r3d_create_gl(void) { return fr_new(1); }
+void r3d_make_current(struct r3d_context *c) { fr_cur = c; }
+void r3d_destroy(struct r3d_context *c) { if (fr_cur == c) fr_cur = NULL; free(c); fake_r3d_live--; }
+void r3d_surface(int w, int h) { if (fr_cur) { fr_cur->w = w; fr_cur->h = h; } }
+static int fr_frame(void *pixels, size_t bytes, unsigned int v)
+{
+    size_t i;
+    if (!fr_cur || bytes != (size_t) fr_cur->w * fr_cur->h * 4) return -1;
+    for (i = 0; i < bytes / 4; i++) ((unsigned int *) pixels)[i] = v;
+    return (int) bytes;
+}
+int r3d_swap(void *pixels, size_t bytes) { fake_r3d_swaps++; return fr_frame(pixels, bytes, fr_cur ? fr_cur->clear : 0); }
+int r3d_swap_overlapped(void *pixels, size_t bytes)
+{   /* the frame before (the first time, this one) */
+    unsigned int v;
+    if (!fr_cur) return -1;
+    fake_r3d_overlapped++;
+    v = fake_r3d_overlapped == 1 ? fr_cur->clear : fr_cur->prev;
+    fr_cur->prev = fr_cur->clear;
+    return fr_frame(pixels, bytes, v);
+}
+void r3d_flush(void) {}
+const char *r3d_error(void) { return fake_r3d_fail ? "fake RISC3D: no context" : NULL; }
+
+static unsigned char fr_byte(float f) { return f <= 0 ? 0 : f >= 1 ? 255 : (unsigned char) (f * 255.0f + 0.5f); }
+static void fr_ClearColor(float r, float g, float b, float a)
+{ (void) a; if (fr_cur) fr_cur->clear = fr_byte(r) | fr_byte(g) << 8 | (unsigned int) fr_byte(b) << 16; }
+static void fr_Clear(unsigned int m) { (void) m; }
+static void fr_Finish(void) { fake_r3d_finishes++; }
+static const unsigned char *fr_GetString(unsigned int n)
+{ return (const unsigned char *) (n == FR_RENDERER ? "fake RISC3D" : n == FR_VERSION ? (fr_cur && !fr_cur->gl ? "OpenGL ES 2.0 fake" : "2.1 fake") : ""); }
+static void fr_PixelStorei(unsigned int p, int v) { (void) p; (void) v; }
+static void fr_TexImage2D(unsigned int t, int l, int i, int w, int h, int b, unsigned int f, unsigned int ty, const void *p)
+{ (void) t; (void) l; (void) i; (void) b; (void) f; (void) ty; fake_r3d_tex_w = w; fake_r3d_tex_h = h; fake_r3d_tex_first = p ? *(const unsigned int *) p : 0; }
+#define FR(n) { "gl" #n, (void (*)(void)) fr_##n }
+const struct r3d_gl_function r3d_gl_functions[] = {
+    FR(ClearColor), FR(Clear), FR(Finish), FR(GetString), FR(PixelStorei), FR(TexImage2D),
+    { NULL, NULL }
+};
+#endif /* FAKE_NO_R3D */

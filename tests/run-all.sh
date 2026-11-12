@@ -42,6 +42,10 @@
 #                   fake RISC OS: what reaches the screen, and the tune
 #                   (tests/host-harness/examples; needs GLU, after glut
 #                   and openal)
+#   risc3d          libEGL with RISC3D's real client library and Linux
+#                   helper (tests/host-harness/egl/r3d_e2e.sh): a GL scene
+#                   drawn through RISC3D by the build machine's Mesa must
+#                   match OSMesa's. Needs R3D_SRC=<RISC3D source tree>.
 #   ovl             tests/ovltest.c (the Pi VideoOverlay tests) with scripted
 #                   keys on the fake RISC OS and a fake VideoOverlay module
 #                   (tests/host-harness/ovl)
@@ -155,12 +159,17 @@ step sdl-audio env SDL="$SRC/SDL-release-$SDL_V" OUT="$OUT/sdl-audio" "$H/sdl-au
 step openal env SRC="$SRC" OUT="$OUT/openal" "$H/openal/run.sh"
 if [ -n "${GLU:-}" ]; then step glut glut_harness; else skip glut "set GLU=<host libGLU.a>"; fi
 if [ -n "${GLU:-}" ]; then
-    step examples env OUT="$OUT/examples" GLUT="$OUT/glut/gl/libglut.a" AL="$OUT/openal/host" \
+    step examples env OUT="$OUT/examples" GLUT="$OUT/glut/gl/libglut.a" AL="$OUT/openal/host-sdl$SDL_V" \
         "$H/examples/run.sh"
 else
     skip examples "set GLU=<host libGLU.a>"
 fi
 step ovl env OUT="$OUT/ovl" "$H/ovl/run.sh"
+if [ -n "${R3D_SRC:-}" ]; then
+    step risc3d env OUT="$OUT/risc3d" R3D_SRC="$R3D_SRC" "$H/egl/r3d_e2e.sh"
+else
+    skip risc3d "set R3D_SRC=<RISC3D source tree>"
+fi
 if [ -n "${ARM:-}" ]; then
     # on an emulated Cortex-A8 (VFPv3), the oldest CPU the build supports
     step arm env OUT="$OUT/arm" QEMU_CPU="${QEMU_CPU:-cortex-a8}" "$H/mesa/arm/run-arm.sh"

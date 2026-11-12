@@ -40,6 +40,7 @@ which it `#include`s in this order:
 | `parts/screen.c` | Screen mode and window state, plotting a frame (window, full screen, damage rectangles, DispmanX) |
 | `parts/buffers.c` | Surface buffers, screen banks, pixmap sprites |
 | `parts/overlay.c` | Window surfaces shown through a VideoOverlay overlay: creating it, copying frames in, hiding it under other windows, fallbacks |
+| `parts/risc3d.c` | Contexts drawn by RISC3D, a hardware path, instead of OSMesa (below) |
 | `parts/validation.c` | Looking up and checking display, config, surface and context handles |
 | `parts/configs.c` | Building the configs, and matching and sorting them for `eglChooseConfig` |
 | `parts/current.c` | Binding contexts to surfaces: OSMesa buffers, the current context per thread and API, releasing |
@@ -56,6 +57,45 @@ add its prototype to `egl_internal.h`. Add a new part to the list in
 Every public function starts with `ENTER()`, which takes the library's
 lock and releases it when the function returns (GCC's cleanup attribute).
 The `fail()` and `ok()` helpers set the calling thread's error.
+
+## RISC3D: a hardware path behind the same EGL
+
+Where the RISC3D module has a driver registered (on RISC OS on Linux, its
+Linux3D driver, which has Linux's graphics driver draw), `eglCreateContext`
+gives OpenGL contexts (up to 2.1, compatibility profile) and OpenGL ES 2
+contexts to RISC3D instead of OSMesa. Programs don't change: they call EGL
+and GL as before. Anywhere else, or with `RISC3D$Disable` set, or if RISC3D
+can't make the context, OSMesa draws exactly as before.
+
+- **How the calls get there.** The `gl*` entry points are glapi's stubs,
+  calling through the current dispatch table. For a RISC3D context that
+  table is built once from the client library's list of functions
+  (`r3d_gl_functions`, by name: `OSMesaMakeDispatchRISCOS`, Mesa patch
+  `riscos-dispatch`) and set when the context becomes current, so a call
+  costs no more than with OSMesa.
+- **Frames.** `eglSwapBuffers` takes the finished frame with `r3d_swap` into
+  the window surface's pixels (converting to the surface's colour order and
+  row length), then shows it as before: plot, overlay or screen bank.
+  `EGL$Overlapped` set to 1 when a context is made uses
+  `r3d_swap_overlapped` instead: no wait for the GPU, a frame of latency.
+- **Pbuffers and pixmaps.** `glFinish` (and `eglWaitClient`/`eglWaitGL`,
+  which call it) copies the frame into a pbuffer or pixmap being drawn, so
+  its pixels are there as they are with OSMesa; so does `eglCopyBuffers`.
+- **EGLImage.** `glEGLImageTargetTexture2DOES` on a RISC3D context copies
+  the sprite into the texture at the call: RISC3D can't draw from RISC OS
+  memory, so a later change to the sprite needs the call again. A program
+  that relies on the texture following the sprite should set
+  `RISC3D$Disable`.
+- **Not given to RISC3D:** OpenGL ES 1 and 3, OpenGL 3 and core profiles,
+  and contexts that share objects. Sharing with a RISC3D context is
+  `EGL_BAD_MATCH`; sharing with an OSMesa context gives an OSMesa one.
+- **One thread draws:** RISC3D's current context is global.
+
+The client library is in `risc3d/` (RISC3D 0.1, MIT), built into libEGL by
+`build/build-egl.sh`. The host harness checks the wiring against a fake
+RISC3D (`test_risc3d`), and `tests/host-harness/egl/r3d_e2e.sh` runs it
+end to end with RISC3D's real client and Linux helper, drawn by the build
+machine's Mesa (run-all's `risc3d` step, given `R3D_SRC=`).
 
 ## Testing
 

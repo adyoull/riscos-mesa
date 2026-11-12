@@ -542,6 +542,152 @@ static void test_image(void)
     free(spr8 - 4);
 }
 
+/* RISC3D (egl/parts/risc3d.c), against the fake in fake_riscos.c: which
+   contexts go to it, the dispatch switch, swap and glFinish copy-back,
+   EGLImage as a copy, and OSMesa contexts unaffected around it. */
+extern int fake_r3d_on, fake_r3d_fail, fake_r3d_live, fake_r3d_finishes, fake_r3d_swaps,
+    fake_r3d_overlapped, fake_r3d_tex_w, fake_r3d_tex_h;
+extern unsigned int fake_r3d_tex_first;
+static void test_risc3d(void)
+{
+    EGLConfig wcfg = choose(EGL_RISCOS_VISUAL_TBGR, 16, EGL_WINDOW_BIT);
+    EGLConfig wtrgb = choose(EGL_RISCOS_VISUAL_TRGB, 16, EGL_WINDOW_BIT);
+    EGLConfig pcfg = choose(EGL_RISCOS_VISUAL_TBGR, 0, EGL_PIXMAP_BIT);
+    EGLint es1[] = { EGL_CONTEXT_CLIENT_VERSION, 1, EGL_NONE };
+    EGLint es2[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
+    EGLint gl30[] = { EGL_CONTEXT_MAJOR_VERSION_KHR, 3, EGL_CONTEXT_MINOR_VERSION_KHR, 0, EGL_NONE };
+    EGLContext r, r2, o, e1, e2, gl3;
+    EGLSurface ws, ws2, ps;
+    int *spr = make_sprite(16, 8, 0);
+    unsigned int *pix = (unsigned int *) ((char *) spr + 44);
+    const char *s;
+    int before = fake_r3d_live;
+
+    eglBindAPI(EGL_OPENGL_API);
+    /* Off: everything OSMesa, as before */
+    o = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, NULL);
+    CHECK(o != EGL_NO_CONTEXT && fake_r3d_live == before, "no driver: OSMesa context");
+
+    fake_r3d_on = 1;
+    r = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, NULL);
+    CHECK(r != EGL_NO_CONTEXT && fake_r3d_live == before + 1, "driver: GL context is RISC3D's");
+    CHECK(eglCreateContext(dpy, wcfg, r, NULL) == EGL_NO_CONTEXT && eglGetError() == EGL_BAD_MATCH,
+          "sharing with a RISC3D context refused");
+    r2 = eglCreateContext(dpy, wcfg, o, NULL);
+    CHECK(r2 != EGL_NO_CONTEXT && fake_r3d_live == before + 1, "sharing with OSMesa: OSMesa");
+    gl3 = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, gl30);
+    CHECK(gl3 == EGL_NO_CONTEXT && fake_r3d_live == before + 1, "GL 3.0 asked for: not RISC3D (refused as before)");
+    setenv("RISC3D$Disable", "1", 1);
+    e1 = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, NULL);
+    CHECK(e1 != EGL_NO_CONTEXT && fake_r3d_live == before + 1, "RISC3D$Disable: OSMesa");
+    unsetenv("RISC3D$Disable");
+    eglDestroyContext(dpy, e1);
+    fake_r3d_fail = 1;
+    e1 = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, NULL);
+    CHECK(e1 != EGL_NO_CONTEXT && fake_r3d_live == before + 1, "RISC3D can't make one: OSMesa");
+    fake_r3d_fail = 0;
+    eglDestroyContext(dpy, e1);
+    eglBindAPI(EGL_OPENGL_ES_API);
+    e1 = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, es1);
+    CHECK(e1 != EGL_NO_CONTEXT && fake_r3d_live == before + 1, "GLES 1: OSMesa");
+    e2 = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, es2);
+    CHECK(e2 != EGL_NO_CONTEXT && fake_r3d_live == before + 2, "GLES 2: RISC3D");
+    eglBindAPI(EGL_OPENGL_API);
+
+    /* A window, drawn by RISC3D: the gl calls reach it through the table */
+    fake_open_window(0x3000, 200, 300, 400, 460, 0, 0);       /* 100x80 at (100, 250) */
+    ws = eglCreateWindowSurface(dpy, wcfg, 0x3000, NULL);
+    CHECK(ws != EGL_NO_SURFACE && eglMakeCurrent(dpy, ws, ws, r), "RISC3D context current");
+    s = (const char *) glGetString(GL_RENDERER);
+    CHECK(s && !strcmp(s, "fake RISC3D"), "gl calls go to RISC3D (%s)", s ? s : "null");
+    clear(0, 0, 1);
+    CHECK(eglSwapBuffers(dpy, ws) && fake_r3d_swaps == 1, "swap takes the frame");
+    CHECK(box_is(100, 250, 100, 80, BLUE_TBGR), "RISC3D's frame on screen");
+
+    /* Back to OSMesa: its own table again, drawing as before */
+    CHECK(eglMakeCurrent(dpy, ws, ws, o), "OSMesa context current on the same window");
+    s = (const char *) glGetString(GL_RENDERER);
+    CHECK(s && strstr(s, "OffScreen"), "OSMesa's table back (%s)", s ? s : "null");
+    clear(1, 0, 0);
+    eglSwapBuffers(dpy, ws);
+    CHECK(box_is(100, 250, 100, 80, RED_TBGR) && fake_r3d_swaps == 1, "OSMesa's frame, RISC3D untouched");
+
+    /* The other colour order */
+    fake_open_window(0x3001, 200, 300, 400, 460, 0, 0);
+    ws2 = eglCreateWindowSurface(dpy, wtrgb, 0x3001, NULL);
+    r2 = eglCreateContext(dpy, wtrgb, EGL_NO_CONTEXT, NULL);
+    CHECK(eglMakeCurrent(dpy, ws2, ws2, r2), "RISC3D on a TRGB window");
+    clear(1, 0, 0);
+    eglSwapBuffers(dpy, ws2);
+    /* the TRGB sprite is converted to this (TBGR) screen on plot: red only
+       if EGL swapped RISC3D's &BBGGRR into &RRGGBB (else it shows blue) */
+    CHECK(box_is(100, 250, 100, 80, RED_TBGR), "TRGB window: red, colours swapped right");
+
+    /* A pixmap: glFinish brings the sprite up to date */
+    ps = eglCreatePixmapSurface(dpy, pcfg, spr, NULL);
+    {
+        EGLContext rp = eglCreateContext(dpy, pcfg, EGL_NO_CONTEXT, NULL);
+        CHECK(eglMakeCurrent(dpy, ps, ps, rp), "RISC3D on a pixmap");
+        clear(0, 1, 0);
+        fake_r3d_finishes = 0;
+        glFinish();
+        CHECK(fake_r3d_finishes == 1 && (pix[0] & 0xFFFFFF) == 0x00FF00 && (pix[16 * 8 - 1] & 0xFFFFFF) == 0x00FF00,
+              "glFinish: the frame in the sprite (%08x)", pix[0]);
+        pix[0] = 0;
+        CHECK(eglWaitClient() && (pix[0] & 0xFFFFFF) == 0x00FF00, "eglWaitClient too");
+
+        /* EGLImage on a RISC3D context: a copy, at the call */
+        {
+            typedef void (*Target_t)(GLenum, void *);
+            Target_t target = (Target_t) eglGetProcAddress("glEGLImageTargetTexture2DOES");
+            int *ispr = make_sprite(5, 3, 0);
+            EGLImageKHR img;
+            ((unsigned int *) ((char *) ispr + 44))[0] = 0x00123456;
+            img = eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR, ispr, NULL);
+            CHECK(img != EGL_NO_IMAGE_KHR && target, "image and its target function");
+            if (target)
+                target(GL_TEXTURE_2D, img);
+            CHECK(fake_r3d_tex_w == 5 && fake_r3d_tex_h == 3 && (fake_r3d_tex_first & 0xFFFFFF) == 0x123456,
+                  "EGLImage copied into a RISC3D texture (%dx%d %08x)", fake_r3d_tex_w, fake_r3d_tex_h, fake_r3d_tex_first);
+            eglDestroyImageKHR(dpy, img);
+            free(ispr - 4);           /* make_sprite: the area is 4 words before */
+        }
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroyContext(dpy, rp);
+    }
+
+    /* Overlapped swaps (EGL$Overlapped): the frame before comes back */
+    setenv("EGL$Overlapped", "1", 1);
+    {
+        EGLContext ro = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, NULL);
+        unsetenv("EGL$Overlapped");
+        CHECK(eglMakeCurrent(dpy, ws, ws, ro), "overlapped context current");
+        clear(0, 0, 1); eglSwapBuffers(dpy, ws);
+        clear(1, 0, 0); eglSwapBuffers(dpy, ws);
+        CHECK(fake_r3d_overlapped == 2 && box_is(100, 250, 100, 80, BLUE_TBGR),
+              "overlapped: the second swap shows the first frame");
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroyContext(dpy, ro);
+    }
+
+    /* Released: with no context current, gl calls go nowhere (not still
+       to RISC3D) */
+    CHECK(eglMakeCurrent(dpy, ws, ws, r), "RISC3D current again");
+    CHECK(eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT), "release");
+    CHECK(glGetString(GL_RENDERER) == NULL, "no context: gl calls do nothing");
+    eglDestroyContext(dpy, r);
+    eglDestroyContext(dpy, r2);
+    eglDestroyContext(dpy, e2);
+    CHECK(fake_r3d_live == before, "RISC3D contexts destroyed (%d left)", fake_r3d_live - before);
+    eglDestroyContext(dpy, e1);
+    eglDestroyContext(dpy, o);
+    eglDestroySurface(dpy, ws);
+    eglDestroySurface(dpy, ws2);
+    eglDestroySurface(dpy, ps);
+    fake_r3d_on = 0;
+    free(spr - 4);
+}
+
 static void test_window(void)
 {
     EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 16, EGL_WINDOW_BIT);
@@ -1858,6 +2004,7 @@ static void *run(void *arg)
     test_eig0();
     test_window_scale();
     test_eig_change_selector();
+    test_risc3d();
     test_trgb_screen();
     test_overlay(dpy);          /* last: hooks in the fake VideoOverlay */
     return NULL;

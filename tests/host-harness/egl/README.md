@@ -35,6 +35,14 @@ heap in one arena, and the tests run on a thread whose stack is at 1.5 GB.
 
 Expected: `N checks, 0 failures: ALL PASS` (over 400 checks).
 
+`fake_riscos.c` also fakes RISC3D's client library (off unless a test
+turns it on), for `test_risc3d`. Built with `-DFAKE_NO_R3D` it leaves that
+out, so that `r3d_e2e.c` can link RISC3D's real client instead:
+`r3d_e2e.sh` (with `R3D_SRC=` a RISC3D source tree at the pinned tag)
+builds RISC3D's Linux helper and the client against RISC3D's host stand-in
+for the SWIs, runs a GL scene through EGL and RISC3D on this machine's Mesa,
+and compares it with OSMesa's picture.
+
 ## Running a port (docs/porting)
 
 `portrun.c` runs a whole ported program on the fake RISC OS:

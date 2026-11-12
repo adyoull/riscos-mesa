@@ -82,7 +82,10 @@ static void unlink_context(egl_display *d, egl_context *ctx)
             *p = ctx->next;
             break;
         }
-    OSMesaDestroyContext(ctx->om);
+    if (ctx->r3d)
+        r3d_destroy(ctx->r3d);
+    else
+        OSMesaDestroyContext(ctx->om);
     ctx->magic = 0;
     free(ctx);
 }

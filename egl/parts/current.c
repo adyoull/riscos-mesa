@@ -73,11 +73,22 @@ static int activate(egl_thread *t, egl_context *c)
 {
     OSMesaBuffer draw, read;
 
+    /* a RISC3D context stops drawing (parts/risc3d.c) */
+    if (t->active && t->active->r3d && t->active != c) {
+        r3dw_deactivate();
+        t->active = NULL;
+    }
     if (!c) {
         if (t->active)
             OSMesaMakeCurrent(NULL, NULL, 0, 0, 0);
         t->active = NULL;
         return 1;
+    }
+    if (c->r3d) {
+        if (t->active && !t->active->r3d)
+            OSMesaMakeCurrent(NULL, NULL, 0, 0, 0);
+        t->active = c;
+        return r3dw_activate(c);
     }
     draw = c->draw ? surface_buffer(c->draw) : standin_buffer(c->cfg->layout);
     read = c->read ? surface_buffer(c->read) : standin_buffer(c->cfg->layout);

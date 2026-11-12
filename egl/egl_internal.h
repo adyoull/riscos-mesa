@@ -235,10 +235,22 @@ typedef struct egl_surface {
     struct egl_surface *next;
 } egl_surface;
 
+/* What eglCreateContext was asked for (EGL_KHR_create_context) */
+typedef struct context_request {
+    EGLint major, minor, flags, profile;
+    int explicit_version, explicit_profile;
+    int release_flush;          /* EGL_KHR_context_flush_control */
+    int es;                     /* OpenGL ES version: 1 or 2 (0 = desktop GL) */
+} context_request;
+
+struct r3d_context;
+
 typedef struct egl_context {
     EGLint magic;
     const egl_config *cfg;
-    OSMesaContext om;
+    OSMesaContext om;           /* NULL for a RISC3D context */
+    struct r3d_context *r3d;    /* a RISC3D context (parts/risc3d.c), or NULL */
+    int r3d_overlapped;         /* its window swaps overlapped (EGL$Overlapped) */
     EGLenum api;                /* EGL_OPENGL_API or EGL_OPENGL_ES_API */
     int es;                     /* OpenGL ES version: 1 or 2 (0 = desktop GL) */
     int release_flush;          /* EGL_KHR_context_flush_control */
@@ -288,7 +300,7 @@ typedef struct egl_thread {
     EGLint error;               /* eglGetError */
     EGLenum api;                /* eglBindAPI */
     egl_context *ctx[2];        /* current context for OpenGL [0] and OpenGL ES [1] */
-    egl_context *active;        /* the one OSMesa renders with (see current.c) */
+    egl_context *active;        /* the one drawing: OSMesa's or RISC3D's (see current.c) */
     EGLLabelKHR label;          /* EGL_KHR_debug: eglLabelObjectKHR(THREAD) */
 } egl_thread;
 #define API_SLOT(api) ((api) == EGL_OPENGL_API ? 0 : 1)

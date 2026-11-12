@@ -564,6 +564,17 @@ mesa-20.3.5-riscos-pic.patch
     doesn't work: optimize() there stops the NEON intrinsics inlining. The
     static build compiles the file exactly as before.
 
+mesa-20.3.5-riscos-dispatch.patch
+    include/GL/osmesa.h, src/mesa/drivers/osmesa/osmesa.c: two functions
+    for the EGL library's RISC3D contexts (egl/parts/risc3d.c), drawn by
+    another renderer behind the same gl* entry points.
+    OSMesaMakeDispatchRISCOS(list, n) builds a glapi dispatch table from a
+    list of GL function names and functions (by glapi's own offsets, so
+    the list needn't know Mesa's table layout; anything not listed does
+    nothing). OSMesaSetDispatchRISCOS(table) makes it the current table,
+    as OSMesaMakeCurrent does OSMesa's. In the shared libOSMesa glapi's own
+    functions are hidden, which is why libEGL needs these.
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean

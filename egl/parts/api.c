@@ -736,13 +736,6 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapInterval(EGLDisplay dpy, EGLint interval)
     return ok();
 }
 
-/* What eglCreateContext was asked for (EGL_KHR_create_context) */
-typedef struct context_request {
-    EGLint major, minor, flags, profile;
-    int explicit_version, explicit_profile;
-    int release_flush;          /* EGL_KHR_context_flush_control */
-    int es;                     /* OpenGL ES version: 1 or 2 (0 = desktop GL) */
-} context_request;
 
 /* Read and check eglCreateContext's attributes for the bound API. Returns
    0 (with the error set) if they can't be met. */
@@ -848,6 +841,10 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
         fail(EGL_BAD_MATCH);            /* can't share between GL and GLES */
         return EGL_NO_CONTEXT;
     }
+    if (share && share->r3d) {
+        fail(EGL_BAD_MATCH);            /* RISC3D contexts share nothing */
+        return EGL_NO_CONTEXT;
+    }
     if (!read_context_attribs(attrib_list, api, &q))
         return EGL_NO_CONTEXT;
     osmesa_context_attribs(c, &q, attribs);
@@ -857,8 +854,13 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
         fail(EGL_BAD_ALLOC);
         return EGL_NO_CONTEXT;
     }
-    ctx->om = OSMesaCreateContextAttribs(attribs, share ? share->om : NULL);
-    if (!ctx->om) {
+    /* RISC3D (a hardware path) where it has a driver; OSMesa otherwise */
+    ctx->r3d = r3dw_create(api, &q, share);
+    if (ctx->r3d)
+        ctx->r3d_overlapped = r3dw_want_overlapped();
+    else
+        ctx->om = OSMesaCreateContextAttribs(attribs, share ? share->om : NULL);
+    if (!ctx->om && !ctx->r3d) {
         free(ctx);
         fail(EGL_BAD_MATCH);            /* e.g. GL 3.x asked for: this is 2.1 / ES 2.0 */
         return EGL_NO_CONTEXT;
@@ -1048,8 +1050,15 @@ static EGLBoolean swap(EGLDisplay dpy, EGLSurface surface, const EGLint *rects, 
         n = s->n_damage;
     }
 
-    if (is_current && thr()->active)
+    if (is_current && thr()->active && thr()->active->r3d) {
+        /* RISC3D: the finished frame into the surface's pixels */
+        egl_context *c = thr()->active;
+        int big = (size_t) s->w * s->h * 4 > 16u * 1024 * 1024;
+        if (r3dw_frame_into(s, c->r3d_overlapped && !big) < 0)
+            return fail(EGL_BAD_SURFACE);
+    } else if (is_current && thr()->active) {
         glFinish();
+    }
     read_screen(&scr);
     present(d, s, &scr, n > 0 ? rects : NULL, n);
     s->swaps++;
@@ -1109,7 +1118,11 @@ EGLAPI EGLBoolean EGLAPIENTRY eglCopyBuffers(EGLDisplay dpy, EGLSurface surface,
         return EGL_FALSE;
     if (!pixmap_info(target, &w, &h, &layout, &px))
         return fail(EGL_BAD_NATIVE_PIXMAP);
-    if (thr()->active)
+    if (thr()->active && thr()->active->r3d && thr()->active->draw == s) {
+        if (!thr()->active->r3d_overlapped)
+            r3dw_frame_into(s, 0);      /* a window too: its latest frame */
+    }
+    else if (thr()->active)
         glFinish();
     cw = w < s->w ? w : s->w;
     ch = h < s->h ? h : s->h;

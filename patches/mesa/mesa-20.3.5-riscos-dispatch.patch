@@ -1,0 +1,90 @@
+--- a/include/GL/osmesa.h
++++ b/include/GL/osmesa.h
+@@ -336,6 +336,31 @@
+ 
+ 
+ /*
++ * riscos-mesa: another renderer behind the same GL entry points, for
++ * contexts that EGL gives to RISC3D (a hardware path) instead of OSMesa.
++ *
++ * OSMesaMakeDispatchRISCOS makes a dispatch table from a list of GL
++ * function names and functions (n entries, or up to a null name if n is
++ * negative); names glapi doesn't know are ignored, and anything not in the
++ * list does nothing. OSMesaSetDispatchRISCOS makes a table the calling
++ * thread's current one (NULL: none) once no OSMesa context is current:
++ * every gl* call then goes to the list's functions, at no extra cost.
++ * OSMesaMakeCurrent sets OSMesa's own table again.
++ */
++typedef struct OSMesaDispatchEntry
++{
++   const char *name;
++   void (*fn)(void);
++} OSMesaDispatchEntry;
++
++GLAPI void * GLAPIENTRY
++OSMesaMakeDispatchRISCOS(const OSMesaDispatchEntry *list, int n);
++
++GLAPI void GLAPIENTRY
++OSMesaSetDispatchRISCOS(void *table);
++
++
++/*
+  * riscos-mesa: buffers owned by the caller, for EGL surfaces.
+  *
+  * An OSMesaBuffer is a drawable of its own: its colour buffer is memory
+--- a/src/mesa/drivers/osmesa/osmesa.c
++++ b/src/mesa/drivers/osmesa/osmesa.c
+@@ -49,6 +49,7 @@
+ #include "main/teximage.h"
+ #include "main/version.h"
+ #include "main/vtxfmt.h"
++#include "glapi/glapi.h"
+ #include "swrast/swrast.h"
+ #include "swrast_setup/swrast_setup.h"
+ #include "swrast/s_context.h"
+@@ -1693,6 +1694,8 @@
+    { "OSMesaColorClamp", (OSMESAproc) OSMesaColorClamp },
+    { "OSMesaPostprocess", (OSMESAproc) OSMesaPostprocess },
+    { "OSMesaSetImageLookup", (OSMESAproc) OSMesaSetImageLookup },
++   { "OSMesaMakeDispatchRISCOS", (OSMESAproc) OSMesaMakeDispatchRISCOS },
++   { "OSMesaSetDispatchRISCOS", (OSMESAproc) OSMesaSetDispatchRISCOS },
+    { "OSMesaCreateBuffer", (OSMESAproc) OSMesaCreateBuffer },
+    { "OSMesaDestroyBuffer", (OSMESAproc) OSMesaDestroyBuffer },
+    { "OSMesaBufferStorage", (OSMESAproc) OSMesaBufferStorage },
+@@ -1737,6 +1740,36 @@
+ }
+ 
+ 
++/**
++ * riscos-mesa: a dispatch table for another renderer (GL/osmesa.h). The
++ * table is glapi's own layout, so the entry points (glapi's stubs) use it
++ * as they use OSMesa's: one table per thread, set here.
++ */
++GLAPI void * GLAPIENTRY
++OSMesaMakeDispatchRISCOS(const OSMesaDispatchEntry *list, int n)
++{
++   const unsigned size = _glapi_get_dispatch_table_size();
++   struct _glapi_table *table = _glapi_new_nop_table(size);
++   _glapi_proc *entry = (_glapi_proc *) table;
++   int i;
++
++   if (!table)
++      return NULL;
++   for (i = 0; n < 0 ? list[i].name != NULL : i < n; i++) {
++      const int offset = _glapi_get_proc_offset(list[i].name);
++      if (offset >= 0 && (unsigned) offset < size && list[i].fn)
++         entry[offset] = (_glapi_proc) list[i].fn;
++   }
++   return table;
++}
++
++GLAPI void GLAPIENTRY
++OSMesaSetDispatchRISCOS(void *table)
++{
++   _glapi_set_dispatch((struct _glapi_table *) table);
++}
++
++
+ GLAPI void GLAPIENTRY
+ OSMesaPostprocess(OSMesaContext osmesa, const char *filter,
+                   unsigned enable_value)

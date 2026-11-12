@@ -6,6 +6,23 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## Unreleased
 
+- **RISC3D: a hardware path behind EGL** (after 20.3.5-19). Where the
+  RISC3D module has a driver (on RISC OS on Linux, Linux's graphics driver
+  through Linux3D), OpenGL (up to 2.1) and OpenGL ES 2 contexts are drawn
+  by it instead of OSMesa; programs don't change. Without a driver, or
+  with `RISC3D$Disable` set, OSMesa draws as before.
+  - New Mesa patch `riscos-dispatch`: `OSMesaMakeDispatchRISCOS` and
+    `OSMesaSetDispatchRISCOS`, so EGL can point the gl* entry points at
+    RISC3D's functions (built by name, no cost per call).
+  - libEGL contains RISC3D's client library 0.1 (`risc3d/`, MIT): about
+    300 KB more in a program that links EGL.
+  - eglSwapBuffers takes each frame from RISC3D into the surface;
+    glFinish fills pbuffers and pixmaps; `EGL$Overlapped` 1 overlaps
+    frames; EGLImage textures are copied on RISC3D contexts.
+  - Host checks: the harness against a fake RISC3D (535 checks, three
+    mutations caught), and `r3d_e2e` end to end with RISC3D's own client
+    and Linux helper (the picture through RISC3D matches OSMesa's).
+    Not yet run on RISC OS.
 - **Built with riscos-crossdev 1.11: UnixLib 5.0.3.7**, PThreadTicker
   0.04 (its "in use" error has its own number; the devkit and tests ship
   it). No struct or argument changes.
