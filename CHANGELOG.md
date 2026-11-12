@@ -21,8 +21,15 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     frames; EGLImage textures are copied on RISC3D contexts.
   - Host checks: the harness against a fake RISC3D (535 checks, three
     mutations caught), and `r3d_e2e` end to end with RISC3D's own client
-    and Linux helper (the picture through RISC3D matches OSMesa's).
-    Not yet run on RISC OS.
+    and Linux helper (the picture through RISC3D matches OSMesa's,
+    overlapped swaps too).
+  - Run on RISC OS on Linux under QEMU (ROM 5.31-24, RISC3D test kit 11's
+    modules, Linux's Mesa in software): egltest and glestest (OpenGL ES 2)
+    in windows, the mixed egltest through !MesaLibs, and egltest's checks
+    (41 of 43: the EGLImage texture is a copy, so "sprite changed" fails
+    as expected, and a GLES 2 context reports the desktop version string
+    RISC3D gives it). `RISC3D$Disable` gives OSMesa. Not yet run on a Pi's
+    GPU.
 - **Built with riscos-crossdev 1.11: UnixLib 5.0.3.7**, PThreadTicker
   0.04 (its "in use" error has its own number; the devkit and tests ship
   it). No struct or argument changes.

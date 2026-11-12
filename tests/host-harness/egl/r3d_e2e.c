@@ -185,6 +185,21 @@ static void *run(void *arg)
         }
     }
 
+    /* Overlapped swaps (EGL$Overlapped): each swap shows the frame before */
+    setenv("EGL$Overlapped", "1", 1);
+    ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+    unsetenv("EGL$Overlapped");
+    CHECK(ctx != EGL_NO_CONTEXT && eglMakeCurrent(dpy, ws, ws, ctx), "overlapped context current");
+    glClearColor(1, 0, 0, 1); glClear(GL_COLOR_BUFFER_BIT); eglSwapBuffers(dpy, ws);
+    glClearColor(0, 1, 0, 1); glClear(GL_COLOR_BUFFER_BIT); eglSwapBuffers(dpy, ws);
+    CHECK((fake_screen_pixel(150, 290) & 0xFFFFFF) == 0x0000FF,
+          "overlapped: the second swap shows the first frame (%06x)", fake_screen_pixel(150, 290) & 0xFFFFFF);
+    glClearColor(0, 0, 1, 1); glClear(GL_COLOR_BUFFER_BIT); eglSwapBuffers(dpy, ws);
+    CHECK((fake_screen_pixel(150, 290) & 0xFFFFFF) == 0x00FF00,
+          "overlapped: the third shows the second (%06x)", fake_screen_pixel(150, 290) & 0xFFFFFF);
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroyContext(dpy, ctx);
+
     /* A pixmap: glFinish brings the sprite up to date */
     {
         int *area = malloc(16 + 44 + 16 * 8 * 4), *spr = area + 4;
