@@ -544,6 +544,10 @@ static void plot_loop(egl_display *d, int handle, egl_surface *only, int *block,
                 ovl_redraw_rectangle(surf, block);  /* the overlay shows it */
                 continue;
             }
+            if (surf->r3d_ovl == R3O_ON) {
+                r3dw_paint_key(surf, block);        /* RISC3D's plane shows it */
+                continue;
+            }
             pieces[0] = clip;
             n = 1;
             for (f = d->surfaces; f; f = f->next) {

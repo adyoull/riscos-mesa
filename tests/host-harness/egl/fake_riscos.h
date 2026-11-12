@@ -21,6 +21,8 @@ typedef struct {
 extern fake_screen_t fake_screen;
 extern fake_window_t fake_windows[FAKE_MAX_WINDOWS];
 extern int fake_vsyncs, fake_update_calls, fake_redraw_calls, fake_plots;
+extern unsigned int fake_gcol;          /* ColourTrans_SetGCOL's colour, &BBGGRR */
+extern int fake_gcols, fake_fills;      /* ColourTrans_SetGCOL calls, OS_Plot rectangle fills */
 /* A clock with a HAL counter (OS_Hardware), for the vsync timing: off
    (-1, OS_Hardware fails) unless a test sets it. Then vsyncs come every
    fake_vsync_us, at multiples of it; OS_Byte 19 moves the clock to the

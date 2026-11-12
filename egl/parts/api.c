@@ -86,7 +86,7 @@ EGLAPI const char *EGLAPIENTRY eglQueryString(EGLDisplay dpy, EGLint name)
     ok();
     switch (name) {
     case EGL_VENDOR:      return EGL_RISCOS_VENDOR;
-    case EGL_VERSION:     return EGL_RISCOS_VERSION;
+    case EGL_VERSION:     return r3dw_version();   /* says if RISC3D draws too */
     case EGL_EXTENSIONS:  return EGL_RISCOS_EXTENSIONS;
     case EGL_CLIENT_APIS: return "OpenGL OpenGL_ES";
     }
@@ -747,6 +747,7 @@ static int read_context_attribs(const EGLint *attrib_list, EGLenum api, context_
     q->explicit_version = q->explicit_profile = 0;
     q->release_flush = 1;
     q->es = 0;
+    q->software = 0;
     for (i = 0; attrib_list && attrib_list[i] != EGL_NONE; i += 2) {
         EGLint a = attrib_list[i], v = attrib_list[i + 1];
         switch (a) {
@@ -767,6 +768,11 @@ static int read_context_attribs(const EGLint *attrib_list, EGLenum api, context_
                 v != EGL_CONTEXT_RELEASE_BEHAVIOR_NONE_KHR)
                 return fail(EGL_BAD_ATTRIBUTE);
             q->release_flush = (v == EGL_CONTEXT_RELEASE_BEHAVIOR_FLUSH_KHR);
+            break;
+        case EGL_CONTEXT_SOFTWARE_RISCOS:   /* EGL_RISCOS_renderer */
+            if (v != EGL_TRUE && v != EGL_FALSE)
+                return fail(EGL_BAD_ATTRIBUTE);
+            q->software = (v == EGL_TRUE);
             break;
         default:
             return fail(EGL_BAD_ATTRIBUTE);
@@ -1007,6 +1013,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglQueryContext(EGLDisplay dpy, EGLContext context
     case EGL_CONFIG_ID:              *value = c->cfg->id; break;
     case EGL_CONTEXT_CLIENT_TYPE:    *value = c->api; break;
     case EGL_CONTEXT_CLIENT_VERSION: *value = c->es; break;   /* ES only; 0 for GL */
+    case EGL_CONTEXT_SOFTWARE_RISCOS: *value = c->r3d ? EGL_FALSE : EGL_TRUE; break;
     case EGL_RENDER_BUFFER:
         if (!c->thread || !c->draw)
             *value = EGL_NONE;
@@ -1050,17 +1057,25 @@ static EGLBoolean swap(EGLDisplay dpy, EGLSurface surface, const EGLint *rects, 
         n = s->n_damage;
     }
 
+    read_screen(&scr);
     if (is_current && thr()->active && thr()->active->r3d) {
-        /* RISC3D: the finished frame into the surface's pixels */
+        /* RISC3D: the frame onto a display plane (zero copy), or read back
+           into the surface's pixels and shown as usual */
         egl_context *c = thr()->active;
         int big = (size_t) s->w * s->h * 4 > 16u * 1024 * 1024;
-        if (r3dw_frame_into(s, c->r3d_overlapped && !big) < 0)
-            return fail(EGL_BAD_SURFACE);
-    } else if (is_current && thr()->active) {
-        glFinish();
+        int plane = r3dw_overlay_frame(d, c, s, &scr);
+        if (plane <= 0) {
+            if (r3dw_frame_into(s, c->r3d_overlapped && !big) < 0)
+                return fail(EGL_BAD_SURFACE);
+            if (plane < 0)
+                n = 0;                  /* was on the plane: show all of it */
+            present(d, s, &scr, n > 0 ? rects : NULL, n);
+        }
+    } else {
+        if (is_current && thr()->active)
+            glFinish();
+        present(d, s, &scr, n > 0 ? rects : NULL, n);
     }
-    read_screen(&scr);
-    present(d, s, &scr, n > 0 ? rects : NULL, n);
     s->swaps++;
     s->age_queried = 0;
     s->n_damage = -1;
@@ -1119,7 +1134,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglCopyBuffers(EGLDisplay dpy, EGLSurface surface,
     if (!pixmap_info(target, &w, &h, &layout, &px))
         return fail(EGL_BAD_NATIVE_PIXMAP);
     if (thr()->active && thr()->active->r3d && thr()->active->draw == s) {
-        if (!thr()->active->r3d_overlapped)
+        if (!thr()->active->r3d_overlapped && s->r3d_ovl != R3O_ON)
             r3dw_frame_into(s, 0);      /* a window too: its latest frame */
     }
     else if (thr()->active)

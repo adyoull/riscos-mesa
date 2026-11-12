@@ -600,6 +600,9 @@ static void test_risc3d(void)
     CHECK(ws != EGL_NO_SURFACE && eglMakeCurrent(dpy, ws, ws, r), "RISC3D context current");
     s = (const char *) glGetString(GL_RENDERER);
     CHECK(s && !strcmp(s, "fake RISC3D"), "gl calls go to RISC3D (%s)", s ? s : "null");
+    s = (const char *) glGetString(GL_EXTENSIONS);
+    CHECK(s && !strcmp(s, "GL_ARB_multitexture GL_EXT_bgra GL_OES_EGL_image"),
+          "GL_EXTENSIONS: RISC3D's, plus GL_OES_EGL_image (EGL's) (%s)", s ? s : "null");
     clear(0, 0, 1);
     CHECK(eglSwapBuffers(dpy, ws) && fake_r3d_swaps == 1, "swap takes the frame");
     CHECK(box_is(100, 250, 100, 80, BLUE_TBGR), "RISC3D's frame on screen");
@@ -686,6 +689,130 @@ static void test_risc3d(void)
     eglDestroySurface(dpy, ps);
     fake_r3d_on = 0;
     free(spr - 4);
+}
+
+/* RISC3D's display plane (zero-copy window surfaces), the software
+   attribute and EGL_VERSION, against the fake */
+extern int fake_r3d_plane, fake_r3d_plane_stop, fake_r3d_places, fake_r3d_plane_frames, fake_r3d_place[4];
+#define KEY 0x080008u
+static void test_risc3d_plane(void)
+{
+    EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 16, EGL_WINDOW_BIT);
+    EGLint sw[] = { EGL_CONTEXT_SOFTWARE_RISCOS, EGL_TRUE, EGL_NONE };
+    EGLint bad[] = { EGL_CONTEXT_SOFTWARE_RISCOS, 7, EGL_NONE };
+    EGLint off[] = { EGL_OVERLAY_RISCOS, EGL_FALSE, EGL_NONE };
+    EGLContext r, o;
+    EGLSurface ws, ws2;
+    EGLint v;
+    int block[64], swaps, places;
+    const char *ver;
+
+    eglBindAPI(EGL_OPENGL_API);
+    fake_r3d_on = 1;
+    ver = eglQueryString(dpy, EGL_VERSION);
+    CHECK(ver && strstr(ver, "RISC3D"), "EGL_VERSION says RISC3D draws (%s)", ver ? ver : "null");
+    CHECK(strstr(eglQueryString(dpy, EGL_EXTENSIONS), "EGL_RISCOS_renderer") != NULL, "EGL_RISCOS_renderer listed");
+    o = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, sw);
+    CHECK(o != EGL_NO_CONTEXT && eglQueryContext(dpy, o, EGL_CONTEXT_SOFTWARE_RISCOS, &v) && v == EGL_TRUE,
+          "EGL_CONTEXT_SOFTWARE_RISCOS: OSMesa, and it says so");
+    CHECK(eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, bad) == EGL_NO_CONTEXT && eglGetError() == EGL_BAD_ATTRIBUTE,
+          "EGL_CONTEXT_SOFTWARE_RISCOS other than true/false refused");
+    r = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+    CHECK(eglQueryContext(dpy, r, EGL_CONTEXT_SOFTWARE_RISCOS, &v) && v == EGL_FALSE, "RISC3D context says so");
+
+    /* No plane from the renderer: read back, as before */
+    fake_open_window(0x3100, 200, 300, 400, 460, 0, 0);        /* 100x80 at (100, 250) */
+    ws = eglCreateWindowSurface(dpy, cfg, 0x3100, NULL);
+    eglMakeCurrent(dpy, ws, ws, r);
+    swaps = fake_r3d_swaps; places = fake_r3d_places;
+    clear(0, 0, 1);
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_places == places + 1 && fake_r3d_swaps == swaps + 1 && box_is(100, 250, 100, 80, BLUE_TBGR),
+          "no plane: asked once, then read back and plotted");
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_places == places + 1, "a refusal isn't asked again in the same place");
+
+    /* The plane */
+    fake_r3d_plane = 1;
+    fake_open_window(0x3100, 202, 300, 402, 460, 0, 0);        /* moved 1 pixel: asks again */
+    swaps = fake_r3d_swaps;
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_plane_frames == 1 && fake_r3d_swaps == swaps, "on the plane: no read back");
+    CHECK(fake_r3d_place[0] == 101 && fake_r3d_place[1] == 250 && fake_r3d_place[2] == 100 && fake_r3d_place[3] == 80,
+          "placed at the visible area in pixels (%d,%d %dx%d)", fake_r3d_place[0], fake_r3d_place[1],
+          fake_r3d_place[2], fake_r3d_place[3]);
+    CHECK(box_is(101, 250, 100, 80, KEY), "visible area painted in the key colour");
+    places = fake_r3d_places;
+    clear(1, 0, 0);
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_plane_frames == 2 && fake_r3d_places == places, "next frame: not placed again");
+    CHECK(box_is(101, 250, 100, 80, KEY), "nothing plotted over the key");
+
+    /* A redraw paints the key, not the (stale) sprite */
+    memset(fake_screen.mem, 0, fake_screen.w * fake_screen.h * 4);
+    block[0] = 0x3100;
+    CHECK(eglRedrawWindowRISCOS(dpy, block) && box_is(101, 250, 100, 80, KEY), "redraw paints the key");
+
+    /* Moved: placed again */
+    fake_open_window(0x3100, 240, 300, 440, 460, 0, 0);
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_places == places + 1 && fake_r3d_place[0] == 120, "moved: placed again (x %d)", fake_r3d_place[0]);
+
+    /* The plane stops: read back, the whole window plotted */
+    fake_r3d_plane_stop = 1;
+    swaps = fake_r3d_swaps;
+    clear(0, 1, 0);
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_swaps == swaps + 1 && box_is(120, 250, 100, 80, 0x00FF00u), "plane stopped: read back and plotted");
+    CHECK(fake_r3d_place[2] == 0, "and hidden there");
+
+    /* Swap interval 0: unpaced, so read back */
+    fake_open_window(0x3100, 200, 300, 400, 460, 0, 0);
+    eglSwapBuffers(dpy, ws);                                    /* back on the plane */
+    CHECK(box_is(100, 250, 100, 80, KEY), "on the plane again");
+    eglSwapInterval(dpy, 0);
+    swaps = fake_r3d_swaps;
+    clear(0, 0, 1);
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_swaps == swaps + 1 && fake_r3d_place[2] == 0 && box_is(100, 250, 100, 80, BLUE_TBGR),
+          "swap interval 0: off the plane, read back");
+    eglSwapInterval(dpy, 1);
+
+    /* EGL$Overlay off, and a program that refused overlays */
+    setenv("EGL$Overlay", "off", 1);
+    swaps = fake_r3d_swaps;
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_swaps == swaps + 1, "EGL$Overlay off: read back");
+    unsetenv("EGL$Overlay");
+    fake_open_window(0x3101, 200, 300, 400, 460, 0, 0);
+    ws2 = eglCreateWindowSurface(dpy, cfg, 0x3101, off);
+    eglMakeCurrent(dpy, ws2, ws2, r);
+    swaps = fake_r3d_swaps;
+    eglSwapBuffers(dpy, ws2);
+    CHECK(fake_r3d_swaps == swaps + 1, "EGL_OVERLAY_RISCOS false: read back");
+
+    /* Not in a 16 million colour mode */
+    eglMakeCurrent(dpy, ws, ws, r);
+    fake_set_screen(640, 480, 0, 4);
+    swaps = fake_r3d_swaps;
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_swaps == swaps + 1, "16 bit mode: read back");
+    fake_set_screen(640, 480, 0, 5);
+    fake_reset_clip();
+
+    /* Destroying the surface hides it on the plane */
+    eglSwapBuffers(dpy, ws);
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_place[2] > 0, "on the plane before destroying");
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, ws);
+    CHECK(fake_r3d_place[2] == 0, "destroyed: hidden on the plane");
+
+    eglDestroySurface(dpy, ws2);
+    eglDestroyContext(dpy, r);
+    eglDestroyContext(dpy, o);
+    fake_r3d_plane = 0;
+    fake_r3d_on = 0;
 }
 
 static void test_window(void)
@@ -2005,6 +2132,7 @@ static void *run(void *arg)
     test_window_scale();
     test_eig_change_selector();
     test_risc3d();
+    test_risc3d_plane();
     test_trgb_screen();
     test_overlay(dpy);          /* last: hooks in the fake VideoOverlay */
     return NULL;

@@ -137,6 +137,8 @@ static void *run(void *arg)
     CHECK(ctx != EGL_NO_CONTEXT && eglMakeCurrent(dpy, ws, ws, ctx), "context current");
     r = (const char *) glGetString(GL_RENDERER);
     CHECK(r && strstr(r, "RISC3D"), "drawn by RISC3D: %s", r ? r : "(none)");
+    r = (const char *) glGetString(GL_VERSION);
+    CHECK(r && !strncmp(r, "2.1 RISC3D", 10), "GL_VERSION what the stream carries: %s", r ? r : "(none)");
     scene();
     CHECK(eglSwapBuffers(dpy, ws), "swap");
     grab(a);

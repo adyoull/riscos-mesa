@@ -68,6 +68,7 @@ static void unlink_surface(egl_display *d, egl_surface *surf)
             break;
         }
     ovl_destroy(surf);
+    r3dw_surface_gone(surf);
     free_buffers(surf);
     OSMesaDestroyBuffer(surf->buf);
     surf->magic = 0;
@@ -82,8 +83,10 @@ static void unlink_context(egl_display *d, egl_context *ctx)
             *p = ctx->next;
             break;
         }
-    if (ctx->r3d)
+    if (ctx->r3d) {
+        r3dw_context_gone(d, ctx->r3d);
         r3d_destroy(ctx->r3d);
+    }
     else
         OSMesaDestroyContext(ctx->om);
     ctx->magic = 0;

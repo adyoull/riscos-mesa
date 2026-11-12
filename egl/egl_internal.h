@@ -50,7 +50,7 @@
     "EGL_KHR_image_pixmap EGL_KHR_lock_surface EGL_KHR_lock_surface2 " \
     "EGL_KHR_lock_surface3 EGL_KHR_partial_update EGL_KHR_reusable_sync " \
     "EGL_KHR_surfaceless_context EGL_KHR_swap_buffers_with_damage EGL_KHR_wait_sync " \
-    "EGL_RISCOS_overlay EGL_RISCOS_wimp_window"
+    "EGL_RISCOS_overlay EGL_RISCOS_renderer EGL_RISCOS_wimp_window"
 /* Client extensions: eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS) */
 #define EGL_RISCOS_CLIENT_EXTENSIONS \
     "EGL_EXT_client_extensions EGL_EXT_platform_base " \
@@ -170,6 +170,8 @@ typedef struct { int x0, y0, x1, y1; } px_rect;
 #define PX_RECT_LIST_MAX 8
 typedef struct { int n; px_rect r[PX_RECT_LIST_MAX]; } px_rect_list;
 
+struct r3d_context;            /* RISC3D (parts/risc3d.c) */
+
 typedef struct egl_surface {
     EGLint magic;
     int kind;
@@ -217,6 +219,11 @@ typedef struct egl_surface {
     int ovl_run, ovl_swap_cs;   /* swaps in a row (each soon after the last), time of the last */
     px_rect_list ovl_stale[OVL_MAX_BANKS]; /* per buffer: what has changed since it was last filled */
     const void *ovl_src;        /* the pixels the buffers were filled from (a new buffer: all stale) */
+    /* RISC3D's display plane (parts/risc3d.c) */
+    int r3d_ovl;                /* R3O_OFF, R3O_ON, R3O_FAILED */
+    struct r3d_context *r3d_ovl_ctx;    /* the context whose plane shows it */
+    unsigned int r3d_key;       /* the colour to paint (&BBGGRR) */
+    int r3d_place[5];           /* x, y, w, h (pixels) placed or refused at; screen width */
     /* pbuffer */
     void *mem;
     /* buffer age (EGL_EXT_buffer_age), partial update, locking */
@@ -241,9 +248,8 @@ typedef struct context_request {
     int explicit_version, explicit_profile;
     int release_flush;          /* EGL_KHR_context_flush_control */
     int es;                     /* OpenGL ES version: 1 or 2 (0 = desktop GL) */
+    int software;               /* EGL_CONTEXT_SOFTWARE_RISCOS: OSMesa even with RISC3D */
 } context_request;
-
-struct r3d_context;
 
 typedef struct egl_context {
     EGLint magic;
@@ -393,6 +399,14 @@ static void ovl_note_damage(egl_surface *surf, const px_rect *changed, int n);
 static int ovl_update(egl_display *d, egl_surface *surf, const screen_info *s, int new_frame);
 static void ovl_redraw_rectangle(egl_surface *surf, int *block);
 static void ovl_check_all(egl_display *d);
+
+/* parts/risc3d.c (egl_surface.r3d_ovl: zero-copy window surfaces) */
+#define R3O_OFF     0           /* frames read back and plotted */
+#define R3O_ON      1           /* frames on a display plane, under the key colour */
+#define R3O_FAILED  2           /* the plane said no: not until the place or mode changes */
+static void r3dw_paint_key(const egl_surface *s, const int *block);
+static void r3dw_surface_gone(egl_surface *s);
+static void r3dw_context_gone(egl_display *d, struct r3d_context *r);
 
 /* parts/validation.c */
 static egl_display *get_display(EGLDisplay dpy, int need_init);

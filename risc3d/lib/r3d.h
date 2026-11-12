@@ -54,6 +54,24 @@ int r3d_swap (void *pixels, size_t bytes);
    one before (no wait for the GPU; a frame of latency). Not to be mixed
    with r3d_swap in one context. */
 int r3d_swap_overlapped (void *pixels, size_t bytes);
+/* Zero-copy frames, where the renderer can put them on a display plane
+   (RISC OS on Linux: rol-fb's overlays). The picture is under the
+   desktop and shows only where the desktop's pixels are the key colour
+   (&080008 in a 16 million colour mode): the program paints its window's
+   work area in that colour, and windows over it clip the picture for
+   nothing. r3d_overlay places it: x, y, width, height in RISC OS pixels
+   from the top left of the screen (the window's visible area; the frame
+   is scaled to fit); width 0 hides it. Call it when the window opens,
+   moves or changes size, and with width 0 when it closes or is hidden.
+   Returns 1 (frames go to the screen: key set to the colour to paint), 0
+   (they can't: stay with r3d_swap), -1 (no context).
+   r3d_swap_overlay then ends each frame (the program waits for the frame
+   before to be on the screen: the display's rate). Returns 0, or -1: the
+   overlay has stopped (a mode change, say): go back to r3d_swap and
+   repaint the window; r3d_overlay may be tried again. Don't mix with
+   r3d_swap_overlapped's frames except after such a fall back. */
+int r3d_overlay (int x, int y, int width, int height, unsigned *key);
+int r3d_swap_overlay (void);
 /* lets the renderer see everything so far (nothing comes back) */
 void r3d_flush (void);
 /* for measuring: the renderer's time since the last call (ns working,

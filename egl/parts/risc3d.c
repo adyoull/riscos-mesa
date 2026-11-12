@@ -23,10 +23,14 @@
  * - glEGLImageTargetTexture2DOES on a RISC3D context copies the sprite into
  *   the texture at the call (RISC3D can't draw from RISC OS memory): later
  *   changes to the sprite need the call again. A program that relies on
- *   the texture following the sprite (zero copy) should set RISC3D$Disable.
+ *   the texture following the sprite (zero copy) asks for an OSMesa
+ *   context with EGL_CONTEXT_SOFTWARE_RISCOS.
  * - Not given to RISC3D: OpenGL ES 1 and 3, OpenGL 3 and core profiles,
  *   and contexts sharing objects with another context (each RISC3D context
  *   is its own; sharing with a RISC3D context is EGL_BAD_MATCH).
+ * - Zero-copy window surfaces: where RISC3D can put frames on a display
+ *   plane, a window surface's frames go there (below), not read back.
+ * - EGL_CONTEXT_SOFTWARE_RISCOS (EGL_RISCOS_renderer) asks for OSMesa.
  * - One thread draws: RISC3D's current context is global.
  *
  * Copyright (c) 2026 Andrew Youll. MIT licence.
@@ -38,6 +42,7 @@
 static GLboolean image_lookup(void *image, OSMesaImage *desc);
 
 static void *r3dw_table;                /* the dispatch table, made once */
+static struct r3d_context *r3dw_current;        /* RISC3D's current context (r3dw_activate) */
 static void (*r3dw_glFinish)(void);
 static void (*r3dw_glTexImage2D)(GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum,
                                  const void *);
@@ -151,12 +156,43 @@ static void APIENTRY r3dw_image_target(GLenum target, void *image)
     }
 }
 
+/* glGetString on a RISC3D context: RISC3D's answer, but GL_EXTENSIONS
+   always lists GL_OES_EGL_image, whose function EGL gives
+   (r3dw_image_target) whatever the renderer has */
+static const GLubyte *(*r3dw_glGetString)(GLenum);
+static const GLubyte *APIENTRY r3dw_get_string(GLenum name)
+{
+    static const GLubyte *from;
+    static char *with;
+    const GLubyte *e = r3dw_glGetString ? r3dw_glGetString(name) : NULL;
+    const char *p;
+    size_t n;
+
+    if (name != GL_EXTENSIONS || !e)
+        return e;
+    for (p = (const char *) e; (p = strstr(p, "GL_OES_EGL_image")) != NULL; p += 16)
+        if ((p == (const char *) e || p[-1] == ' ') && (p[16] == ' ' || p[16] == 0))
+            return e;                   /* listed already */
+    if (e != from || !with) {
+        n = strlen((const char *) e);
+        free(with);
+        with = (char *) malloc(n + 18);
+        if (!with)
+            return e;
+        memcpy(with, e, n);
+        strcpy(with + n, n && e[n - 1] != ' ' ? " GL_OES_EGL_image" : "GL_OES_EGL_image");
+        from = e;
+    }
+    return (const GLubyte *) with;
+}
+
 /* RISC3D's functions, with EGL's own in front where they differ */
 static void *r3dw_dispatch(void)
 {
     static const OSMesaDispatchEntry own[] = {
         { "glFinish", (void (*)(void)) r3dw_finish },
         { "glEGLImageTargetTexture2DOES", (void (*)(void)) r3dw_image_target },
+        { "glGetString", (void (*)(void)) r3dw_get_string },
     };
     OSMesaDispatchEntry *list;
     int n, i;
@@ -167,9 +203,10 @@ static void *r3dw_dispatch(void)
     r3dw_glTexImage2D = (void (*)(GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum,
                                   const void *)) r3dw_find("glTexImage2D");
     r3dw_glPixelStorei = (void (*)(GLenum, GLint)) r3dw_find("glPixelStorei");
+    r3dw_glGetString = (const GLubyte *(*)(GLenum)) r3dw_find("glGetString");
     for (n = 0; r3d_gl_functions[n].name; n++)
         ;
-    list = (OSMesaDispatchEntry *) malloc((n + 2) * sizeof *list);
+    list = (OSMesaDispatchEntry *) malloc((n + sizeof own / sizeof own[0]) * sizeof *list);
     if (!list)
         return NULL;
     /* later entries win: RISC3D's first, then EGL's */
@@ -177,9 +214,9 @@ static void *r3dw_dispatch(void)
         list[i].name = r3d_gl_functions[i].name;
         list[i].fn = r3d_gl_functions[i].fn;
     }
-    list[n] = own[0];
-    list[n + 1] = own[1];
-    r3dw_table = OSMesaMakeDispatchRISCOS(list, n + 2);
+    for (i = 0; i < (int) (sizeof own / sizeof own[0]); i++)
+        list[n + i] = own[i];
+    r3dw_table = OSMesaMakeDispatchRISCOS(list, n + (int) (sizeof own / sizeof own[0]));
     free(list);
     return r3dw_table;
 }
@@ -189,7 +226,7 @@ static struct r3d_context *r3dw_create(EGLenum api, const context_request *q, co
 {
     struct r3d_context *r = NULL;
 
-    if (share || !r3d_available())
+    if (share || q->software || !r3d_available())
         return NULL;
     if (api == EGL_OPENGL_ES_API) {
         if (q->es == 2)
@@ -208,11 +245,27 @@ static struct r3d_context *r3dw_create(EGLenum api, const context_request *q, co
     return r;
 }
 
-/* EGL$Overlapped, read when a context is made */
+/* EGL$Overlapped, read when a context is made: 1 for overlapped swaps.
+   With OS_ReadVarVal, not getenv (see ovl_user_setting). */
 static int r3dw_want_overlapped(void)
 {
-    const char *v = getenv("EGL$Overlapped");
-    return v && v[0] == '1';
+    char v[4];
+    _kernel_swi_regs r;
+    r.r[0] = (int) "EGL$Overlapped";
+    r.r[1] = (int) v;
+    r.r[2] = (int) sizeof v - 1;
+    r.r[3] = 0;
+    r.r[4] = 3;
+    if (_kernel_swi(OS_ReadVarVal, &r, &r) != NULL || r.r[2] < 0 || r.r[2] >= (int) sizeof v)
+        return 0;
+    v[r.r[2]] = 0;
+    return strcmp(v, "1") == 0;
+}
+
+/* EGL_VERSION: says when RISC3D draws OpenGL and GLES 2 contexts here */
+static const char *r3dw_version(void)
+{
+    return r3d_available() ? "1.4 riscos-mesa (OSMesa; RISC3D for GL 2.1 and GLES 2)" : EGL_RISCOS_VERSION;
 }
 
 /* make c (a RISC3D context) the one drawing, after OSMesa's is released */
@@ -220,6 +273,7 @@ static int r3dw_activate(egl_context *c)
 {
     egl_surface *s = c->draw;
     r3d_make_current(c->r3d);
+    r3dw_current = c->r3d;
     OSMesaSetDispatchRISCOS(r3dw_table);
     r3d_surface(s ? s->w : 1, s ? s->h : 1);
     return 1;
@@ -229,5 +283,167 @@ static int r3dw_activate(egl_context *c)
 static void r3dw_deactivate(void)
 {
     r3d_make_current(NULL);
+    r3dw_current = NULL;
     OSMesaSetDispatchRISCOS(NULL);
+}
+
+/* ------------------------------------------------------------------ */
+/* Zero-copy window surfaces (RISC3D 0.2: r3d_overlay)                 */
+/*                                                                     */
+/* Where the renderer can put a context's frames on a display plane   */
+/* (RISC OS on Linux: rol-fb's overlays), a visible-area window       */
+/* surface's frames go there instead of being read back and plotted.  */
+/* The picture is under the desktop and shows where the desktop's     */
+/* pixels are the key colour, so EGL paints the window's visible area */
+/* in it (and repaints it in redraws), and anything over the window   */
+/* clips the picture with nothing more to do. Only in a 16 million    */
+/* colour mode (the key must be exact); not with a swap interval of 0 */
+/* (the plane is paced by the display), EGL$Overlapped, a program     */
+/* that set EGL_OVERLAY_RISCOS to EGL_FALSE, or EGL$Overlay off.      */
+
+
+#ifndef ColourTrans_SetGCOL
+#define ColourTrans_SetGCOL 0x40743
+#endif
+#ifndef OS_Plot
+#define OS_Plot 0x45
+#endif
+
+
+static int r3dw_overlay_wanted(const egl_context *c, const egl_surface *s, const screen_info *scr)
+{
+    return s->kind == SURF_WINDOW && s->handle > 0 && !s->fixed && !s->dmx &&
+           scr->log2bpp == 5 && s->swap_interval != 0 && !c->r3d_overlapped &&
+           s->ovl_want != 0 && ovl_user_setting() >= 0;
+}
+
+/* Paint one rectangle of a redraw or update loop (block as Wimp gives it)
+   in the surface's key colour: its visible area, clipped by the Wimp */
+static void r3dw_paint_key(const egl_surface *s, const int *block)
+{
+    _kernel_swi_regs r;
+    r.r[0] = (int) (s->r3d_key << 8);           /* &BBGGRR00 */
+    r.r[3] = 0;
+    r.r[4] = 0;
+    _kernel_swi(ColourTrans_SetGCOL, &r, &r);
+    r.r[0] = 4;                                 /* move */
+    r.r[1] = block[1];
+    r.r[2] = block[2];
+    _kernel_swi(OS_Plot, &r, &r);
+    r.r[0] = 96 + 5;                            /* rectangle fill, absolute */
+    r.r[1] = block[3] - 1;
+    r.r[2] = block[4] - 1;
+    _kernel_swi(OS_Plot, &r, &r);
+}
+
+/* Paint the whole visible area of the surface's window in the key */
+static void r3dw_paint_window(egl_surface *s, const window_state *ws)
+{
+    _kernel_swi_regs r;
+    int block[11];
+    block[0] = s->handle;
+    block[1] = ws->scroll_x;                    /* work area coordinates */
+    block[2] = ws->scroll_y - (ws->y1 - ws->y0);
+    block[3] = ws->scroll_x + (ws->x1 - ws->x0);
+    block[4] = ws->scroll_y;
+    r.r[1] = (int) block;
+    if (_kernel_swi(Wimp_UpdateWindow, &r, &r) != NULL)
+        return;
+    while (r.r[0]) {
+        r3dw_paint_key(s, block);
+        r.r[1] = (int) block;
+        if (_kernel_swi(Wimp_GetRectangle, &r, &r) != NULL)
+            break;
+    }
+}
+
+/* Stop showing a surface on the plane: hide it there (as the context that
+   placed it) and repaint the window from the surface's own pixels */
+static void r3dw_overlay_off(egl_surface *s, int failed)
+{
+    unsigned key;
+    if (s->r3d_ovl == R3O_ON && s->r3d_ovl_ctx) {
+        if (s->r3d_ovl_ctx != r3dw_current)
+            r3d_make_current(s->r3d_ovl_ctx);
+        r3d_overlay(0, 0, 0, 0, &key);
+        if (s->r3d_ovl_ctx != r3dw_current)
+            r3d_make_current(r3dw_current);
+    }
+    s->r3d_ovl = failed ? R3O_FAILED : R3O_OFF;
+    s->r3d_ovl_ctx = NULL;
+}
+
+/* eglSwapBuffers of a window surface on a RISC3D context: put the frame on
+   the display plane. 1: done (nothing to plot); 0: not this way (read the
+   frame back and plot it as usual); -1: as 0, and the whole window must be
+   replotted (it showed the plane until now). */
+static int r3dw_overlay_frame(egl_display *d, egl_context *c, egl_surface *s, const screen_info *scr)
+{
+    window_state ws;
+    unsigned key;
+    int x, y, w, h, was = s->r3d_ovl == R3O_ON;
+    egl_surface *o;
+
+    if (!r3dw_overlay_wanted(c, s, scr) || !get_window_state(s->handle, &ws) ||
+        !(ws.flags & (1 << 16))) {
+        if (was) {
+            r3dw_overlay_off(s, 0);
+            return -1;
+        }
+        s->r3d_ovl = R3O_OFF;
+        return 0;
+    }
+    x = ws.x0 >> scr->xeig;
+    y = ((scr->height << scr->yeig) - ws.y1) >> scr->yeig;
+    w = (ws.x1 - ws.x0) >> scr->xeig;
+    h = (ws.y1 - ws.y0) >> scr->yeig;
+    if (s->r3d_ovl == R3O_FAILED && x == s->r3d_place[0] && y == s->r3d_place[1] &&
+        w == s->r3d_place[2] && h == s->r3d_place[3] && scr->width == s->r3d_place[4])
+        return 0;                       /* said no here before */
+    if (!was || s->r3d_ovl_ctx != c->r3d || x != s->r3d_place[0] || y != s->r3d_place[1] ||
+        w != s->r3d_place[2] || h != s->r3d_place[3]) {
+        s->r3d_place[0] = x; s->r3d_place[1] = y; s->r3d_place[2] = w; s->r3d_place[3] = h;
+        s->r3d_place[4] = scr->width;
+        if (w <= 0 || h <= 0 || r3d_overlay(x, y, w, h, &key) != 1) {
+            if (was)
+                r3dw_overlay_off(s, 1);
+            s->r3d_ovl = R3O_FAILED;
+            return was ? -1 : 0;
+        }
+        /* one plane per context: a surface it showed before goes back to
+           being plotted (its pixels are a frame old: repaint it all) */
+        for (o = d->surfaces; o; o = o->next)
+            if (o != s && o->r3d_ovl == R3O_ON && o->r3d_ovl_ctx == c->r3d) {
+                o->r3d_ovl = R3O_OFF;
+                o->r3d_ovl_ctx = NULL;
+                if (o->kind == SURF_WINDOW)
+                    present(d, o, scr, NULL, 0);
+            }
+        s->r3d_ovl = R3O_ON;
+        s->r3d_ovl_ctx = c->r3d;
+        s->r3d_key = key;
+        r3dw_paint_window(s, &ws);
+    }
+    if (r3d_swap_overlay() < 0) {
+        r3dw_overlay_off(s, 1);         /* stopped (a mode change, say) */
+        return -1;
+    }
+    return 1;
+}
+
+/* eglDestroySurface / eglDestroyContext: nothing left on the plane */
+static void r3dw_surface_gone(egl_surface *s)
+{
+    if (s->r3d_ovl == R3O_ON)
+        r3dw_overlay_off(s, 0);
+}
+
+static void r3dw_context_gone(egl_display *d, struct r3d_context *r)
+{
+    egl_surface *s;
+    for (s = d->surfaces; s; s = s->next)
+        if (s->r3d_ovl_ctx == r) {
+            s->r3d_ovl = R3O_OFF;       /* r3d_destroy takes the plane away */
+            s->r3d_ovl_ctx = NULL;
+        }
 }

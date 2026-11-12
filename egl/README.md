@@ -81,17 +81,33 @@ can't make the context, OSMesa draws exactly as before.
 - **Pbuffers and pixmaps.** `glFinish` (and `eglWaitClient`/`eglWaitGL`,
   which call it) copies the frame into a pbuffer or pixmap being drawn, so
   its pixels are there as they are with OSMesa; so does `eglCopyBuffers`.
+- **Zero copy for windows.** Where RISC3D can put a context's frames on a
+  display plane (RISC OS on Linux with rol-fb's overlays: `r3d_overlay`),
+  a visible-area window surface's frames go there and nothing is read
+  back. The picture is under the desktop and shows where the desktop is the
+  key colour, so EGL paints the window's visible area in it (and repaints
+  it in redraws), and windows and menus over it clip it with nothing more
+  to do. Only in a 16 million colour mode, with a swap interval above 0
+  (the plane is paced by the display), without `EGL$Overlapped`, unless
+  the program set `EGL_OVERLAY_RISCOS` to `EGL_FALSE` or `EGL$Overlay` is
+  off. If the plane stops (a mode change), frames are read back again and
+  the window replotted.
 - **EGLImage.** `glEGLImageTargetTexture2DOES` on a RISC3D context copies
   the sprite into the texture at the call: RISC3D can't draw from RISC OS
   memory, so a later change to the sprite needs the call again. A program
-  that relies on the texture following the sprite should set
-  `RISC3D$Disable`.
+  that relies on the texture following the sprite asks for an OSMesa
+  context with `EGL_CONTEXT_SOFTWARE_RISCOS` (`EGL_RISCOS_renderer`);
+  `eglQueryContext` with the same name says which renderer a context got.
+- **Strings.** RISC3D answers `GL_VERSION` with what its stream carries
+  ("2.1 RISC3D (...)", "OpenGL ES 2.0 RISC3D (...)") and trims
+  `GL_EXTENSIONS`; EGL adds `GL_OES_EGL_image`, whose function it gives.
+  `EGL_VERSION` says when RISC3D draws.
 - **Not given to RISC3D:** OpenGL ES 1 and 3, OpenGL 3 and core profiles,
   and contexts that share objects. Sharing with a RISC3D context is
   `EGL_BAD_MATCH`; sharing with an OSMesa context gives an OSMesa one.
 - **One thread draws:** RISC3D's current context is global.
 
-The client library is in `risc3d/` (RISC3D 0.1, MIT), built into libEGL by
+The client library is in `risc3d/` (RISC3D 0.2, MIT), built into libEGL by
 `build/build-egl.sh`. The host harness checks the wiring against a fake
 RISC3D (`test_risc3d`), and `tests/host-harness/egl/r3d_e2e.sh` runs it
 end to end with RISC3D's real client and Linux helper, drawn by the build

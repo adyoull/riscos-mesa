@@ -34,7 +34,9 @@ struct r3d_area
 					   goes to the socket at once) */
   volatile uint32_t frame_done;		/* overlapped frames: the last one read
 					   back into its half of the reply area */
-  uint32_t pad[5];
+  volatile uint32_t overlay_error;	/* zero-copy frames stopped (an error
+					   number): read them back again */
+  uint32_t pad[4];
 };
 
 /* what the program sends down the context's socket (through RISC3D_Sync) */

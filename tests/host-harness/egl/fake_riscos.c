@@ -50,6 +50,8 @@ static int wimp_created[64], wimp_num_created;     /* windows in creation order 
 
 static _kernel_oserror err = { 1, "fake error" };
 static int clip[4];                  /* graphics window, OS units x0,y0,x1,y1 (excl.) */
+unsigned int fake_gcol;              /* ColourTrans_SetGCOL's colour, &BBGGRR */
+int fake_gcols, fake_fills;          /* ColourTrans_SetGCOL calls, OS_Plot rectangle fills */
 
 /* A 32bpp mode selector like OS_ScreenMode 1 would return. */
 static int screen_selector[16];
@@ -494,6 +496,36 @@ static _kernel_oserror *swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
         r.r[2] = (int) strlen(v);
         break;
     }
+    case 0x40743:   /* ColourTrans_SetGCOL: r0 = &BBGGRR00, the graphics foreground */
+        fake_gcol = (unsigned int) r.r[0] >> 8;
+        fake_gcols++;
+        break;
+    case 0x45: {    /* OS_Plot: 4 move, 101 rectangle fill (absolute, OS units, inclusive) */
+        static int last_x, last_y;
+        if (r.r[0] == 4) { last_x = r.r[1]; last_y = r.r[2]; break; }
+        if (r.r[0] == 96 + 5) {
+            int x0 = last_x < r.r[1] ? last_x : r.r[1], x1 = last_x < r.r[1] ? r.r[1] : last_x;
+            int y0 = last_y < r.r[2] ? last_y : r.r[2], y1 = last_y < r.r[2] ? r.r[2] : last_y;
+            unsigned int p = fake_gcol;
+            int x, y;
+            if (fake_screen.flags & 0x4000)
+                p = (p & 0xFF00FF00u) | ((p >> 16) & 0xFF) | ((p & 0xFF) << 16);
+            fake_fills++;
+            for (y = y0 >> fake_screen.yeig; y <= y1 >> fake_screen.yeig; y++) {
+                int oy = y << fake_screen.yeig;
+                if (y < 0 || y >= fake_screen.h || oy < clip[1] || oy >= clip[3]) continue;
+                for (x = x0 >> fake_screen.xeig; x <= x1 >> fake_screen.xeig; x++) {
+                    int ox = x << fake_screen.xeig;
+                    if (x < 0 || x >= fake_screen.w || ox < clip[0] || ox >= clip[2]) continue;
+                    fake_screen.mem[(size_t) (fake_screen.h - 1 - y) * (fake_screen.line_length / 4) + x] = p;
+                }
+            }
+            last_x = r.r[1]; last_y = r.r[2];
+            break;
+        }
+        e = error("OS_Plot code not faked");
+        break;
+    }
     case 0x24:      /* OS_SetVarVal (r4 = 4, literal string): into the host's environment */
         if (r.r[4] != 4 || r.r[2] < 0) { e = error("SetVarVal type not faked"); break; }
         {
@@ -665,6 +697,7 @@ void fake_reset_clip(void)
    that builds this file has Mesa's headers) */
 #define FR_RENDERER 0x1F01
 #define FR_VERSION  0x1F02
+#define FR_EXTENSIONS 0x1F03
 
 int fake_r3d_on, fake_r3d_fail, fake_r3d_live, fake_r3d_finishes, fake_r3d_swaps,
     fake_r3d_overlapped, fake_r3d_tex_w, fake_r3d_tex_h;
@@ -705,6 +738,26 @@ int r3d_swap_overlapped(void *pixels, size_t bytes)
     return fr_frame(pixels, bytes, v);
 }
 void r3d_flush(void) {}
+/* the display plane (RISC3D 0.2): off unless fake_r3d_plane is set;
+   fake_r3d_plane_stop makes the next r3d_swap_overlay fail */
+int fake_r3d_plane, fake_r3d_plane_stop, fake_r3d_places, fake_r3d_plane_frames, fake_r3d_place[4];
+int r3d_overlay(int x, int y, int w, int h, unsigned *key)
+{
+    if (!fr_cur) return -1;
+    fake_r3d_places++;
+    fake_r3d_place[0] = x; fake_r3d_place[1] = y; fake_r3d_place[2] = w; fake_r3d_place[3] = h;
+    if (w == 0) return 1;
+    if (!fake_r3d_plane) return 0;
+    *key = 0x080008;
+    return 1;
+}
+int r3d_swap_overlay(void)
+{
+    if (!fr_cur) return -1;
+    if (fake_r3d_plane_stop) { fake_r3d_plane_stop = 0; return -1; }
+    fake_r3d_plane_frames++;
+    return 0;
+}
 const char *r3d_error(void) { return fake_r3d_fail ? "fake RISC3D: no context" : NULL; }
 
 static unsigned char fr_byte(float f) { return f <= 0 ? 0 : f >= 1 ? 255 : (unsigned char) (f * 255.0f + 0.5f); }
@@ -713,7 +766,7 @@ static void fr_ClearColor(float r, float g, float b, float a)
 static void fr_Clear(unsigned int m) { (void) m; }
 static void fr_Finish(void) { fake_r3d_finishes++; }
 static const unsigned char *fr_GetString(unsigned int n)
-{ return (const unsigned char *) (n == FR_RENDERER ? "fake RISC3D" : n == FR_VERSION ? (fr_cur && !fr_cur->gl ? "OpenGL ES 2.0 fake" : "2.1 fake") : ""); }
+{ return (const unsigned char *) (n == FR_EXTENSIONS ? "GL_ARB_multitexture GL_EXT_bgra" : n == FR_RENDERER ? "fake RISC3D" : n == FR_VERSION ? (fr_cur && !fr_cur->gl ? "OpenGL ES 2.0 fake" : "2.1 fake") : ""); }
 static void fr_PixelStorei(unsigned int p, int v) { (void) p; (void) v; }
 static void fr_TexImage2D(unsigned int t, int l, int i, int w, int h, int b, unsigned int f, unsigned int ty, const void *p)
 { (void) t; (void) l; (void) i; (void) b; (void) f; (void) ty; fake_r3d_tex_w = w; fake_r3d_tex_h = h; fake_r3d_tex_first = p ? *(const unsigned int *) p : 0; }

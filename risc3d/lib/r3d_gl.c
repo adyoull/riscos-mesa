@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <swis.h>
 #include <kernel.h>
 #include "r3d_gl.h"
@@ -154,6 +155,8 @@ struct r3d_context
   /* overlapped frames: the surface's size, the last frame sent */
   int surface_w, surface_h;
   uint32_t frame;
+  int overlay;				/* frames go to the screen (r3d_overlay) */
+  int after_overlay;			/* the last frame sent was one of those */
 
   /* immediate mode being collected (r3d_imm) */
   int imm_on;
@@ -364,11 +367,14 @@ int
 r3d_available (void)
 {
   const char *drv = 0;
+  unsigned flags = 0;
   if (getenv ("RISC3D$Disable"))
     return 0;
-  if (_swix (RISC3D_Info, _OUT (3), &drv))
+  if (_swix (RISC3D_Info, _OUT (3) | _OUT (4), &drv, &flags))
     return 0;
-  return drv != 0;
+  /* a DRM device (V3DRender) takes no command stream: Mesa's own driver
+     for it is used instead (RISC3D_Info r5, r6) */
+  return drv != 0 && !(flags & 1);
 }
 
 /* --- kept state: matrices ------------------------------------------------
@@ -1496,6 +1502,69 @@ glShaderBinary (GLsizei count, const GLuint *shaders, GLenum binaryFormat, const
   (void) count; (void) shaders; (void) binaryFormat; (void) binary; (void) length;
 }
 
+#include "r3d_exts.h"
+
+static int
+ext_cmp (const void *k, const void *e)
+{
+  return strcmp ((const char *) k, *(const char *const *) e);
+}
+
+/* What the context is, not what Linux made: the stream carries OpenGL 2.1
+   (compatibility) or GLES 2.0, whatever version the renderer's context
+   has, so a program that saw 4.6 would call functions that aren't here.
+   The renderer's own version is kept in brackets (its "Mesa x.y.z" part
+   where it has one). GL_EXTENSIONS: only those whose functions the stream
+   carries. */
+static char *
+own_string (int slot, const char *linux_s)
+{
+  size_t n = strlen (linux_s);
+  char *s;
+  if (slot == 2)
+    {
+      const char *m = strstr (linux_s, "Mesa ");
+      const char *v = m ? m : linux_s;
+      if (!m && !strncmp (v, "OpenGL ES ", 10))
+	v += 10;
+      s = malloc (strlen (v) + 32);
+      if (s)
+	sprintf (s, "%s RISC3D (%s)", cur->desktop ? "2.1" : "OpenGL ES 2.0", v);
+      return s;
+    }
+  if (slot == 3)
+    return strdup (cur->desktop ? "1.20" : "OpenGL ES GLSL ES 1.00");
+  /* slot 4 */
+  const char *const *list = cur->desktop ? r3d_exts_gl : r3d_exts_gles2;
+  size_t count = cur->desktop ? sizeof r3d_exts_gl / sizeof *r3d_exts_gl
+			      : sizeof r3d_exts_gles2 / sizeof *r3d_exts_gles2;
+  s = malloc (n + 1);
+  if (!s)
+    return 0;
+  char *o = s, word[128];
+  for (const char *p = linux_s; *p;)
+    {
+      while (*p == ' ')
+	p++;
+      size_t l = strcspn (p, " ");
+      if (l && l < sizeof word)
+	{
+	  memcpy (word, p, l);
+	  word[l] = 0;
+	  if (bsearch (word, list, count, sizeof *list, ext_cmp))
+	    {
+	      if (o != s)
+		*o++ = ' ';
+	      memcpy (o, word, l);
+	      o += l;
+	    }
+	}
+      p += l;
+    }
+  *o = 0;
+  return s;
+}
+
 const GLubyte *
 glGetString (GLenum name)
 {
@@ -1514,6 +1583,14 @@ glGetString (GLenum name)
     return 0;
   memcpy (s, reply_area (), (size_t) n);
   s[n] = 0;
+  if (slot >= 2 && slot <= 4)
+    {
+      char *own = own_string (slot, s);
+      free (s);
+      if (!own)
+	return 0;
+      s = own;
+    }
   if (cur->strings[slot] && !strcmp (cur->strings[slot], s))
     {
       free (s);
@@ -2773,6 +2850,38 @@ r3d_imm (int kind, int unit, int n, const GLfloat *val)
 
 /* --- contexts ----------------------------------------------------------- */
 
+/* the contexts open, closed when the program ends however it ends (a
+   program that isn't a Wimp task, run from an Obey file or the command
+   line, isn't seen ending by RISC3D: its contexts would stay open, each
+   with a Linux process and 36 MB mapped) */
+#define MAX_OPEN 16
+static struct r3d_context *open_ctx[MAX_OPEN];
+static int atexit_set;
+
+static void
+close_all (void)
+{
+  for (int i = 0; i < MAX_OPEN; i++)
+    if (open_ctx[i])
+      {
+	_swix (RISC3D_Close, _IN (0), open_ctx[i]->handle);
+	open_ctx[i] = 0;
+      }
+}
+
+static void
+remember (struct r3d_context *c, int on)
+{
+  for (int i = 0; i < MAX_OPEN; i++)
+    if (on ? !open_ctx[i] : open_ctx[i] == c)
+      {
+	open_ctx[i] = on ? c : 0;
+	break;
+      }
+  if (on && !atexit_set)
+    atexit_set = atexit (close_all) == 0;
+}
+
 static void
 free_context (struct r3d_context *c)
 {
@@ -2864,6 +2973,7 @@ create (int desktop)
       free_context (c);
       return 0;
     }
+  remember (c, 1);
   return c;
 }
 
@@ -2889,6 +2999,7 @@ r3d_destroy (struct r3d_context *c)
       publish ();
       cur = &none;
     }
+  remember (c, 0);
   _swix (RISC3D_Close, _IN (0), c->handle);
   free_context (c);
 }
@@ -2965,7 +3076,9 @@ r3d_swap_overlapped (void *pixels, size_t bytes)
     return -1;
   a[0] = n;
   publish ();
-  uint32_t want = n > 1 ? n - 1 : n;
+  /* (after zero-copy frames, the one before was never read back) */
+  uint32_t want = n > 1 && !cur->after_overlay ? n - 1 : n;
+  cur->after_overlay = 0;
   /* (usually there already: the renderer read it back during this frame) */
   for (unsigned i = 0; (int32_t) (__atomic_load_n (&cur->area->frame_done, __ATOMIC_ACQUIRE) - want) < 0; i++)
     if (i > 200000)
@@ -2980,6 +3093,63 @@ r3d_swap_overlapped (void *pixels, size_t bytes)
   if (pixels)
     memcpy (pixels, (const char *) cur->area + cur->area->reply_offset + (want & 1) * half, size);
   return (int) size;
+}
+
+/* Zero-copy frames: see r3d.h */
+int
+r3d_overlay (int x, int y, int width, int height, unsigned *key)
+{
+  if (!cur || cur->handle < 0)
+    return -1;
+  uint32_t *a = r3d_put (OP_OVERLAY, 4);
+  if (!a)
+    return -1;
+  a[0] = (uint32_t) x;
+  a[1] = (uint32_t) y;
+  a[2] = (uint32_t) (width > 0 ? width : 0);
+  a[3] = (uint32_t) (height > 0 ? height : 0);
+  int32_t r[3] = { 0, 0, 0 };
+  /* (a renderer older than this answers nothing: no overlay) */
+  if (r3d_sync (r, sizeof r) < (int) sizeof r || r[0] != 1)
+    {
+      cur->overlay = 0;
+      return 0;
+    }
+  cur->overlay = 1;
+  if (key)
+    *key = (unsigned) r[1];
+  return 1;
+}
+
+int
+r3d_swap_overlay (void)
+{
+  if (!cur || cur->handle < 0 || !cur->overlay)
+    return -1;
+  uint32_t n = ++cur->frame;
+  uint32_t *a = r3d_put (OP_PRESENT_OVERLAY, 1);
+  if (!a)
+    return -1;
+  a[0] = n;
+  publish ();
+  uint32_t want = n > 1 ? n - 1 : n;
+  /* the frame before is shown at the display's next frame, up to 20 ms
+     away; waiting for it with r3d_sync would wait for this one as well */
+  clock_t t0 = clock ();
+  for (unsigned i = 0; (int32_t) (__atomic_load_n (&cur->area->frame_done, __ATOMIC_ACQUIRE) - want) < 0; i++)
+    if (!(i & 1023) && clock () - t0 > CLOCKS_PER_SEC / 5)
+      {
+	if (r3d_sync (0, 0) < 0)
+	  return -1;
+	break;
+      }
+  cur->after_overlay = 1;
+  if (__atomic_load_n (&cur->area->overlay_error, __ATOMIC_ACQUIRE))
+    {
+      cur->overlay = 0;
+      return -1;
+    }
+  return 0;
 }
 
 int

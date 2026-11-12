@@ -14,22 +14,34 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   - New Mesa patch `riscos-dispatch`: `OSMesaMakeDispatchRISCOS` and
     `OSMesaSetDispatchRISCOS`, so EGL can point the gl* entry points at
     RISC3D's functions (built by name, no cost per call).
-  - libEGL contains RISC3D's client library 0.1 (`risc3d/`, MIT): about
+  - libEGL contains RISC3D's client library 0.2 (`risc3d/`, MIT): about
     300 KB more in a program that links EGL.
   - eglSwapBuffers takes each frame from RISC3D into the surface;
     glFinish fills pbuffers and pixmaps; `EGL$Overlapped` 1 overlaps
     frames; EGLImage textures are copied on RISC3D contexts.
-  - Host checks: the harness against a fake RISC3D (535 checks, three
+  - **Zero-copy windows (RISC3D 0.2):** where RISC3D can put frames on a
+    display plane (rol-fb's overlays), a window surface's frames go
+    there, under the desktop's key colour, which EGL paints in the
+    window: nothing read back, paced by the display. RISC3D measured
+    59 fps (60 Hz display) on a Pi 4 against 196 unpaced with read-back.
+    `EGL$Overlay` off, `EGL_OVERLAY_RISCOS` false or a swap interval of 0
+    keep read-back.
+  - **New extension `EGL_RISCOS_renderer`:** `EGL_CONTEXT_SOFTWARE_RISCOS`
+    asks for an OSMesa context (for EGLImage textures that follow their
+    sprite, as riscos-ffmpeg's ffegl needs), and `eglQueryContext` says
+    which a context got. `EGL_VERSION` says when RISC3D draws, and
+    `GL_EXTENSIONS` on a RISC3D context lists `GL_OES_EGL_image`.
+  - Host checks: the harness against a fake RISC3D (559 checks, seven
     mutations caught), and `r3d_e2e` end to end with RISC3D's own client
     and Linux helper (the picture through RISC3D matches OSMesa's,
     overlapped swaps too).
-  - Run on RISC OS on Linux under QEMU (ROM 5.31-24, RISC3D test kit 11's
+  - Run on RISC OS on Linux under QEMU (ROM 5.31-24, RISC3D test kit 12's
     modules, Linux's Mesa in software): egltest and glestest (OpenGL ES 2)
     in windows, the mixed egltest through !MesaLibs, and egltest's checks
-    (41 of 43: the EGLImage texture is a copy, so "sprite changed" fails
-    as expected, and a GLES 2 context reports the desktop version string
-    RISC3D gives it). `RISC3D$Disable` gives OSMesa. Not yet run on a Pi's
-    GPU.
+    (42 of 43 with RISC3D 0.2: the EGLImage texture is a copy, so
+    "sprite changed" fails as expected). `RISC3D$Disable` gives OSMesa.
+    No display planes there, so windows were read back. Not yet run on a
+    Pi's GPU.
 - **Built with riscos-crossdev 1.11: UnixLib 5.0.3.7**, PThreadTicker
   0.04 (its "in use" error has its own number; the devkit and tests ship
   it). No struct or argument changes.

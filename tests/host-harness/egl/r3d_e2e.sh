@@ -20,7 +20,7 @@ cd "$OUT" || exit 1
 
 # the stream's generated code, which must be the same as riscos-mesa's copy
 python3 -I "$R3D_SRC/proto/gen.py" "$OUT/gen" > /dev/null || exit 1
-for f in client_gen.c r3d_gl.h r3d_ops.h; do
+for f in client_gen.c r3d_gl.h r3d_ops.h r3d_exts.h; do
     cmp -s "$OUT/gen/$f" "$R/risc3d/gen/$f" || { echo "risc3d/gen/$f differs from R3D_SRC's: not the pinned version?"; exit 1; }
 done
 gcc -O2 -w -I"$R3D_SRC/include" -I"$R3D_SRC/lib" -I"$OUT/gen" -I"$R3D_SRC/proto" \

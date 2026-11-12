@@ -214,6 +214,22 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS (EGLDisplay dpy, EGLSurface
 #define EGL_PLATFORM_RISCOS             0x3FF5
 #endif /* EGL_RISCOS_platform_wimp */
 
+/*
+ * EGL_RISCOS_renderer
+ *   Where the RISC3D module has a driver (a hardware path; on RISC OS on
+ *   Linux, Linux's graphics driver), OpenGL 2.1 and OpenGL ES 2.0 contexts
+ *   are drawn by it instead of by OSMesa in software.
+ *   EGL_CONTEXT_SOFTWARE_RISCOS = EGL_TRUE in eglCreateContext's
+ *   attributes asks for OSMesa all the same: for a program that needs
+ *   what only OSMesa gives, such as an EGLImage texture that follows its
+ *   sprite (RISC3D textures are copies). eglQueryContext with it says
+ *   which a context got: EGL_TRUE OSMesa, EGL_FALSE RISC3D.
+ */
+#ifndef EGL_RISCOS_renderer
+#define EGL_RISCOS_renderer 1
+#define EGL_CONTEXT_SOFTWARE_RISCOS     0x3FFA
+#endif /* EGL_RISCOS_renderer */
+
 #ifdef __cplusplus
 }
 #endif
