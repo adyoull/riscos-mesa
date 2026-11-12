@@ -12,58 +12,56 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 - **Shared libraries for mixed programs (test).** With riscos-crossdev
   1.11, a program can have UnixLib linked in and load the devkit's
   libraries as shared libraries through !SharedLibs, sharing one copy of
-  each between programs. The devkit now has them too: `lib/shared`
-  (`libOSMesa.so.8`, `libEGL.so.1`, `libGLU.so.1`, `libglut.so.3`,
-  `libSDL2-2.0.so.0`, `libopenal.so.1`) and `riscos/!MesaLibs`, the pack
-  users put in `!Boot.Resources` (also a download of its own). The static
-  libraries are unchanged and still what everything is built with.
-- **!MesaLibs has an icon** (19j): three meshing gears, red, green and
-  blue, after the gears demo that has come with Mesa since its early days
-  (19i had a mesa and a shaded triangle). Drawn by
-  `tools/mkmesalibsicon.py` in the same style as !GTKLibs' icon (with
-  riscos-gtk's `riscosdraw.py` and `png2sprite.py`); !Sprites and
-  !Sprites11, loaded by `!Boot` and `!Run`.
-- **!MesaLibs lifts RISC OS 5's 128 MB dynamic area clamp** (19f), as
-  !GTKLibs does: its `!Boot` and `!Run` run `DAClamp`, a 36-byte Utility
-  calling OS_DynamicArea 8,0,-1,0. !SharedLibs puts every shared library in
-  one dynamic area, sized when the first program loads one; with the clamp,
-  Iris and a GTK program together didn't fit.
-- **docs/porting/mixed.md: two library directories are separated with a
-  semicolon** (`/GTKLibs:;/MesaLibs:`); the colon form it gave before
-  doesn't work.
-- **Every test Obey file and every application's `!Run` sets the WimpSlot**
-  (19h): the tests, the devkit examples, and the hello_pi, freeglut,
-  mesa-demos and SDL ports. All are ELF programs, which stop with
-  "Wimpslot not big enough to run ELF program" when started with a Next
-  slot smaller than they need. A Pi with a large Next slot didn't show it;
-  RISC OS on Linux's image, with a smaller one, did.
-- **egltest: the EGLImage checks draw into a pbuffer of the image's size**
-  (19g). They drew the 96x96 sprite into the 128x64 pbuffer, so its top 32
-  rows were clipped and "textured quad shows the sprite" and "sprite
-  changed" failed with 3072 pixels differing, on a Pi 4 as well. The
-  EGLImage code itself was right: both pass now (43 checks).
-- **Mixed test programs: their Obey files set the WimpSlot** (19d).
-  Started from the Filer, they stopped with "Wimpslot not big enough to
-  run ELF program".
+  each between programs. The static libraries are unchanged and still
+  what everything is built with.
+  - The devkit has them in `lib/shared`: `libOSMesa.so.8`, `libEGL.so.1`,
+    `libGLU.so.1`, `libglut.so.3`, `libSDL2-2.0.so.0` and
+    `libopenal.so.1`.
+  - **!MesaLibs** is the same libraries as a pack users put in
+    `!Boot.Resources`. It's in the devkit (`riscos/!MesaLibs`) and a
+    download of its own.
+    - Its icon is three meshing gears, red, green and blue, after the
+      gears demo that has come with Mesa since its early days. It's drawn
+      by `tools/mkmesalibsicon.py`, in the same style as !GTKLibs' icon.
+    - Its `!Boot` and `!Run` lift RISC OS 5's 128 MB clamp on dynamic
+      areas, as !GTKLibs does: they run `DAClamp`, a 36-byte Utility
+      calling OS_DynamicArea 8,0,-1,0. !SharedLibs puts every shared
+      library in one dynamic area, sized when the first program loads one;
+      with the clamp, Iris and a GTK program together didn't fit.
+  - `docs/porting/mixed.md` explains how to link and package a mixed
+    program. Its `!Run` sets the WimpSlot, and two library directories are
+    separated with a semicolon (`"LD_LIBRARY_PATH=/GTKLibs:;/MesaLibs:"`);
+    a colon alone doesn't work.
   - `build/build-shared.sh` (or `SHARED=1 build/build-all.sh`) builds every
     library again, position-independent (`RO_PIC=1`: `stage-pic`,
     `build-ro-pic`), and links each into a `.so` with no UnixLib,
-    libstdc++ or libgcc of its own. riscos-crossdev's `check-shared-lib.sh`
-    passes on each.
+    libstdc++ or libgcc of its own. riscos-crossdev's
+    `check-shared-lib.sh` passes on each.
   - New Mesa patch `riscos-pic`: `swrast/s_triangle.c` is built on its own
-    so the position-independent build can give it `-fno-gcse-lm` (GCC 10
-    stops with an internal error otherwise). 19c/19d used `-fno-gcse`,
-    which made glbench's tris scene 29% slower than static on a Pi 4. The static library's code is the
-    same.
+    so that the position-independent build can give it `-fno-gcse-lm`
+    (GCC 10 stops with an internal error otherwise). `-fno-gcse`, tried
+    first, made glbench's tris scene 29% slower than static on a Pi 4.
+    The static library's code is the same.
   - New `riscos-mesa-tests-mixed` zip: glbench, egltest, glestest,
     sdlgltest, sdlfbtest, glutest and altest linked mixed, with Obey files
     and a copy of !MesaLibs, to compare with the static ones. They pass
     riscos-crossdev's `check-all.sh` and `check-mixed-package.sh`.
     glbench is 0.5 MB mixed against 8.7 MB static.
-  - `docs/porting/mixed.md`: how to link and package a mixed program.
-  - Not yet tried on RISC OS: nothing here has run on a Pi or RISC OS on
-    Linux yet.
-
+  - Tried on RISC OS on Linux (ROM 5.31-24, NativeSupport 0.45): all the
+    mixed tests, ClassiCube built mixed, two programs sharing one copy
+    of the libraries, and !MesaLibs booting from `!Boot.Resources` with
+    the clamp lifted.
+- **Every test Obey file and every application's `!Run` sets the
+  WimpSlot**: the tests, the devkit examples, and the hello_pi, freeglut,
+  mesa-demos and SDL ports. All are ELF programs, which stop with
+  "Wimpslot not big enough to run ELF program" when started with a Next
+  slot smaller than they need. A Pi with a large Next slot didn't show it;
+  RISC OS on Linux's image, with a smaller one, did.
+- **egltest: the EGLImage checks draw into a pbuffer of the image's
+  size.** They drew the 96x96 sprite into the 128x64 pbuffer, so its top
+  32 rows were clipped and "textured quad shows the sprite" and "sprite
+  changed" failed with 3072 pixels differing, on a Pi 4 as well. The
+  EGLImage code itself was right: both pass now (43 checks).
 - **SDL: how much sound is queued is a setting, and more by default.**
   The RISC OS audio driver kept three SDL buffers (at least 60 ms) queued
   in StreamManager, so with a game's usual 1024-sample buffers about 70 ms:
