@@ -75,7 +75,12 @@ or if RISC3D can't make the context, OSMesa draws exactly as before.
   and SDL's GL windows all ask it: `RISCOS_MESA_SOFTWARE` or
   `RISCOS_MESA_RISC3D` (`RISCOS_MESA_V3D` is kept for a GPU driven from
   the program itself, later). OpenGL 3 and OpenGL ES 3 stay with OSMesa,
-  which refuses them as before. It is in libOSMesa (`osmesa/pick.c`), with
+  which refuses them as before. Where RISC3D's driver itself draws in
+  software (`RISC3D_Info` r4 bit 1: Linux's Mesa with no GPU driver, as
+  under QEMU; riscos-risc3d 0.7-1 and later report it), only GL 3 and
+  GLES 3 go to RISC3D: our own renderer is much faster than a software
+  one whose frames are read back. `RISC3D$Force` set sends everything to
+  RISC3D anyway (for testing). It is in libOSMesa (`osmesa/pick.c`), with
   RISC3D's client library, because OSMesa follows it too:
 - **Programs that use OSMesa directly** (`OSMesaCreateContext` and
   `OSMesaMakeCurrent` on their own buffer) draw through RISC3D as well,

@@ -51,6 +51,17 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     and with `SDL_RISCOS_GL_EGL` 0 "Mesa OffScreen". There RISC3D is
     Linux's Mesa in software with frames read back (about 55 fps against
     OSMesa's 340 at 320x240), so it says nothing about speed on a GPU.
+- **No RISC3D where its driver draws in software.** Where RISC3D_Info
+  says the driver draws in software (r4 bit 1: Linux's Mesa with no GPU
+  driver, as under QEMU; from riscos-risc3d 0.7-1), OpenGL up to 2.1 and
+  OpenGL ES 1.1 and 2.0 stay in riscos-mesa's own renderer, which is much
+  faster there than a software renderer whose frames are read back (QEMU:
+  osmesatest's cube 1000 fps against 22). GL 3 and GLES 3, which only
+  RISC3D gives, still go to it. `RISC3D$Force` set sends everything to
+  RISC3D anyway. On a Pi with its GPU nothing changes. Checked: host
+  harness (575 EGL checks) and QEMU with riscos-risc3d 0.7-1 (`*RISC3D`:
+  "drawing in software"; osmesatest and egltest in software, 43 of 43;
+  RISC3D$Force: "3.1 RISC3D").
 - **Programs that use OSMesa directly draw through RISC3D too** (the
   owner: apps should use RISC3D automatically where it's available).
   OSMesaCreateContext gets a RISC3D context beside the software one when

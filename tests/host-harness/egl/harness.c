@@ -657,6 +657,28 @@ static void test_risc3d(void)
     setenv("RISC3D$Disable", "1", 1);
     CHECK(riscos_mesa_pick_renderer(EGL_OPENGL_ES_API, 2, 0) == RISCOS_MESA_SOFTWARE, "pick_renderer: RISC3D$Disable");
     unsetenv("RISC3D$Disable");
+    /* RISC3D's driver drawing in software (RISC3D_Info bit 1): only GL 3 and
+       GLES 3, which OSMesa can't give, go to it; RISC3D$Force: everything */
+    {
+        extern int fake_r3d_flags;
+        EGLContext sc;
+        int live = fake_r3d_live;
+        fake_r3d_flags = 2;
+        CHECK(riscos_mesa_pick_renderer(EGL_OPENGL_API, 0, 0) == RISCOS_MESA_SOFTWARE &&
+              riscos_mesa_pick_renderer(EGL_OPENGL_API, 2, 1) == RISCOS_MESA_SOFTWARE &&
+              riscos_mesa_pick_renderer(EGL_OPENGL_ES_API, 1, 1) == RISCOS_MESA_SOFTWARE &&
+              riscos_mesa_pick_renderer(EGL_OPENGL_ES_API, 2, 0) == RISCOS_MESA_SOFTWARE &&
+              riscos_mesa_pick_renderer(EGL_OPENGL_API, 3, 1) == RISCOS_MESA_RISC3D &&
+              riscos_mesa_pick_renderer(EGL_OPENGL_ES_API, 3, 0) == RISCOS_MESA_RISC3D,
+              "software driver: GL 2.1 and GLES 1/2 in our renderer, GL 3 and GLES 3 still RISC3D");
+        sc = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, NULL);
+        CHECK(sc != EGL_NO_CONTEXT && fake_r3d_live == live, "software driver: a GL context is OSMesa's");
+        eglDestroyContext(dpy, sc);
+        setenv("RISC3D$Force", "1", 1);
+        CHECK(riscos_mesa_pick_renderer(EGL_OPENGL_API, 0, 0) == RISCOS_MESA_RISC3D, "software driver, RISC3D$Force: RISC3D");
+        unsetenv("RISC3D$Force");
+        fake_r3d_flags = 0;
+    }
     /* the rest as before: an OSMesa GLES 1 context beside the RISC3D ones */
     eglBindAPI(EGL_OPENGL_ES_API);
     fake_r3d_no_es1 = 1;

@@ -534,6 +534,15 @@ static _kernel_oserror *swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
             setenv((const char *) (long) r.r[0], v, 1);
         }
         break;
+#ifndef FAKE_NO_R3D
+    case 0xC3D00: { /* RISC3D_Info: r3 the driver, r4 its flags (bit 1: draws in software) */
+        extern int fake_r3d_on, fake_r3d_flags;
+        if (!fake_r3d_on) { e = error("SWI not known"); break; }
+        r.r[3] = (int) (long) "fake";
+        r.r[4] = fake_r3d_flags;
+        break;
+    }
+#endif
     case 0x42:      /* OS_ReadMonotonicTime: centiseconds */
         r.r[0] = fake_time_us >= 0 ? (int) (fake_time_us / 10000) : fake_wimp_polls * 2;
         break;
@@ -699,6 +708,7 @@ void fake_reset_clip(void)
 #define FR_VERSION  0x1F02
 #define FR_EXTENSIONS 0x1F03
 
+int fake_r3d_flags;     /* RISC3D_Info r4: 2 = the driver draws in software */
 int fake_r3d_on, fake_r3d_fail, fake_r3d_live, fake_r3d_finishes, fake_r3d_swaps,
     fake_r3d_overlapped, fake_r3d_tex_w, fake_r3d_tex_h;
 unsigned int fake_r3d_tex_first;
