@@ -12,3 +12,5 @@ handoffs/
 *handoff*.md
 # build/ci.sh's meson and Mako
 .ci-tools/
+# Python bytecode from running tools/
+__pycache__/
