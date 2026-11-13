@@ -583,6 +583,17 @@ mesa-20.3.5-riscos-es1-vao.patch
     "unsupported function called" (GL_INVALID_OPERATION). Found by RISC3D's
     estest; the implementations are the same for both APIs.
 
+mesa-20.3.5-riscos-osmesa-risc3d.patch
+    include/GL/osmesa.h, src/mesa/drivers/osmesa/osmesa.c and a new
+    osmesa_riscos.h: OSMesa contexts drawn by RISC3D where
+    riscos_mesa_pick_renderer says so. osmesa.c calls hooks in riscos-mesa's
+    osmesa/risc3d_route.c (in libOSMesa on RISC OS; weak on the build
+    machine, so its libOSMesa draws in software unless a test defines
+    them): a RISC3D context made beside the software one, MakeCurrent on a
+    buffer RISC3D can draw into, GetCurrentContext, PixelStore,
+    GetIntegerv's size, GetColorBuffer and GetDepthBuffer. New attribute
+    OSMESA_SOFTWARE_RISCOS keeps a context in software (EGL's own).
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean

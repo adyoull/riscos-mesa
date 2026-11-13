@@ -59,7 +59,7 @@ The same applies to programs linked with OpenAL Soft (libopenal, section
     v2 or (at your option) any later version. riscos-mesa's small patch to
     it (patches/openal) is under the same terms. Source:
     https://github.com/kcat/openal-soft (tag openal-soft-1.19.1).
-13. RISC3D client library 0.7 (in libEGL: risc3d/, contexts drawn by a
+13. RISC3D client library 0.7 (in libOSMesa: risc3d/, contexts drawn by a
     hardware path where the RISC3D module has a driver) - MIT (below).
     Source: RISC3D's repository at tag v0.7.
 
@@ -1181,8 +1181,9 @@ pixman-arm-asm.h:
 
 13. RISC3D client library
 
-risc3d/ (lib/r3d.h, lib/r3d_gl.c, gen/, proto/r3d_shared.h), built into
-libEGL from riscos-mesa 20.3.5-20.
+risc3d/ (lib/r3d.h, lib/r3d_gl.c, lib/r3d_dsa.c, gen/, proto/r3d_shared.h),
+built into libOSMesa (libEGL in earlier test builds) from riscos-mesa
+20.3.5-20.
 
 MIT License
 

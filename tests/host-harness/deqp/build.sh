@@ -48,8 +48,9 @@ mkdir -p "$OUT/egl"
 F="-no-pie -fno-pie -O1 -g -w -std=gnu99 -DEGL_RISCOS_HOST -I$E/fake -I$E -I$R/dispmanx -I$R/dispmanx/include -I$R/egl/include -I$M/include"
 gcc $F -c "$R/egl/egl_riscos.c" -o "$OUT/egl/egl_riscos.o"
 gcc $F -c "$E/fake_riscos.c" -o "$OUT/egl/fake_riscos.o"
+gcc $F -c "$R/osmesa/pick.c" -o "$OUT/egl/pick.o"
 rm -f "$OUT/egl/libegl_riscos_fake.a"
-ar rcs "$OUT/egl/libegl_riscos_fake.a" "$OUT/egl/egl_riscos.o" "$OUT/egl/fake_riscos.o"
+ar rcs "$OUT/egl/libegl_riscos_fake.a" "$OUT/egl/egl_riscos.o" "$OUT/egl/pick.o" "$OUT/egl/fake_riscos.o"
 
 cmake -S "$CTS" -B "$OUT/build" -DDEQP_TARGET=riscos -DCMAKE_BUILD_TYPE=Release \
     -DSELECTED_BUILD_TARGETS=deqp-egl \

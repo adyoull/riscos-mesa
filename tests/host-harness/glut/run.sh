@@ -36,11 +36,12 @@ lib gl "" "fg_font fg_menu"
 lib gles "-DFREEGLUT_GLES -I${STAGE:-$R/stage}/include" "riscos/fg_gles_riscos"
 gcc -no-pie -O1 -w -std=gnu99 -D__riscos__ -I$H/fake -I$R/egl/include -I$M/include -I$R/dispmanx \
     -c $R/egl/egl_riscos.c -o $OUT/egl_riscos.o
+gcc -no-pie -O1 -w -std=gnu99 -I$H/fake -I$R/egl/include -I$M/include -c $R/osmesa/pick.c -o $OUT/pick.o
 gcc -no-pie -O1 -w -I$H -I$H/fake -c $H/fake_riscos.c -o $OUT/fake_riscos.o
 gcc -no-pie -O1 -w -I$H -I$H/fake -c $H/portrun.c -o $OUT/portrun.o
 demo() {  # name sources...
   local n=$1; shift
-  gcc -no-pie -O1 -w -std=gnu99 -D__riscos__ -Dmain=app_main $INC "$@" $OUT/egl_riscos.o \
+  gcc -no-pie -O1 -w -std=gnu99 -D__riscos__ -Dmain=app_main $INC "$@" $OUT/egl_riscos.o $OUT/pick.o \
       $OUT/fake_riscos.o $OUT/portrun.o $OUT/gl/libglut.a -o $OUT/$n -L$O -lOSMesa $GLU -lstdc++ \
       -lpthread -lm -Wl,-rpath,$O
 }
@@ -108,7 +109,7 @@ FRAMES=500 KEYS=n PPM=dt.ppm ./glutpaths drawtimer </dev/null >dt.txt 2>&1 || tr
 expect dt.txt "drawtimer: 20 timer calls" "single-buffered window drawn from a timer runs"
 expect dt.txt "plots \(1[5-9]\|2[0-9]\)," "  ... and each frame it draws is shown"
 gcc -no-pie -O1 -w -std=gnu99 -D__riscos__ -DFREEGLUT_GLES -Dmain=app_main -I${STAGE:-$R/stage}/include $INC \
-    $R/tests/host-harness/glut/es2tri.c $OUT/egl_riscos.o $OUT/fake_riscos.o $OUT/portrun.o \
+    $R/tests/host-harness/glut/es2tri.c $OUT/egl_riscos.o $OUT/pick.o $OUT/fake_riscos.o $OUT/portrun.o \
     $OUT/gles/libglut.a -o $OUT/es2tri -L$O -lOSMesa -lpthread -lm -Wl,-rpath,$O
 FRAMES=3 KEYS=n PPM=es2tri.ppm ./es2tri </dev/null >es2tri.txt 2>&1 || true
 expect es2tri.txt "OpenGL ES 2.0" "OpenGL ES 2.0 build (libfreeglut-gles)"

@@ -396,13 +396,26 @@ static int run_checks(void)
         EGLContext es;
         const char *v;
         CHECK(eglBindAPI(EGL_OPENGL_ES_API), "bind OpenGL ES");
-        CHECK(eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, e3) == EGL_NO_CONTEXT &&
-              eglGetError() == EGL_BAD_MATCH, "ES 3.0 refused");
+        {
+            /* ES 3.0: only where RISC3D gives it (the config says so) */
+            EGLint rt = 0;
+            EGLContext c3;
+            eglGetConfigAttrib(dpy, cfg, EGL_RENDERABLE_TYPE, &rt);
+            c3 = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, e3);
+            if (rt & 0x40) {            /* EGL_OPENGL_ES3_BIT */
+                CHECK(c3 != EGL_NO_CONTEXT, "ES 3.0 context (RISC3D)");
+            } else {
+                CHECK(c3 == EGL_NO_CONTEXT && eglGetError() == EGL_BAD_MATCH, "ES 3.0 refused");
+            }
+            if (c3 != EGL_NO_CONTEXT)
+                eglDestroyContext(dpy, c3);
+        }
         es = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, e2);
         CHECK(es != EGL_NO_CONTEXT && eglMakeCurrent(dpy, pb, pb, es), "ES 2.0 context");
         v = (const char *) glGetString(GL_VERSION);
         say("ES: %s, GLSL %s\n", v ? v : "(null)", (const char *) glGetString(0x8B8C));
-        CHECK(v && !strncmp(v, "OpenGL ES 2.0", 13), "ES 2.0 version string");
+        /* 2.0, or 3.x where RISC3D gives more (as Mesa's own EGL does) */
+        CHECK(v && (!strncmp(v, "OpenGL ES 2.0", 13) || !strncmp(v, "OpenGL ES 3.", 12)), "ES 2.0 version string");
         eglMakeCurrent(dpy, pb, pb, ctx);
         eglDestroyContext(dpy, es);
         es = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);

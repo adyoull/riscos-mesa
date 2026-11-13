@@ -213,8 +213,9 @@ second drawing at full size, 134 drawing at 640x480, and 214 drawing at
   riscos-mesa's EGL by default, so GL games are drawn by RISC3D after a
   relink, with no code change. Elsewhere the default is unchanged.
   `"SDL_RISCOS_GL_EGL"` = `"0"` keeps the old path (OSMesa drawing into a
-  sprite) even with RISC3D; `"1"` uses EGL everywhere, which without
-  RISC3D is only useful for testing.
+  sprite), though OSMesa itself now draws through RISC3D where it can
+  (`LIBGL_ALWAYS_SOFTWARE` set keeps it in software); `"1"` uses EGL
+  everywhere, which without RISC3D is only useful for testing.
 - Tried on a Pi 4 so far: the figures above and the mouse. Other windows
   and menus over the game, full screen and screen mode changes have only
   been tested on a PC against a stand-in for the Pi's display.

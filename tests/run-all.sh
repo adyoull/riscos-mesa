@@ -115,7 +115,7 @@ egl_harness() {
     gcc $F -D__riscos__ -c harness_es.c -o "$OUT/harness_es.o" &&
     gcc $F -D__riscos__ -c "$X/bcm_host.c" -o "$OUT/bcm_host.o" &&
     gcc -no-pie -O1 -w -std=gnu99 -I"$H/ovl/fake" -I. -Ifake -c "$H/ovl/fake_ovl.c" -o "$OUT/fake_ovl.o" &&
-    gcc $F harness.c harness_ovl.c fake_riscos.c "$OUT/fake_ovl.o" "$R/egl/egl_riscos.c" "$OUT/harness_es.o" "$OUT/bcm_host.o" \
+    gcc $F harness.c harness_ovl.c fake_riscos.c "$OUT/fake_ovl.o" "$R/egl/egl_riscos.c" "$R/osmesa/pick.c" "$OUT/harness_es.o" "$OUT/bcm_host.o" \
         -o "$OUT/egl-harness" -L"$O" -lOSMesa -lpthread -Wl,-rpath,"$O" &&
     "$OUT/egl-harness" | tee "$OUT/egl.out" | tail -1 && grep -q "ALL PASS" "$OUT/egl.out"
 }
@@ -133,8 +133,9 @@ sdl_harness() {
     gcc $SF -c "$S/src/video/SDL_rect.c" -o "$OUT/sdl-rect.o" &&
     gcc $EF -c "$R/egl/egl_riscos.c" -o "$OUT/sdl-egl.o" &&
     gcc $EF -c egl/fake_riscos.c -o "$OUT/sdl-fake.o" &&
+    gcc $EF -c "$R/osmesa/pick.c" -o "$OUT/sdl-pick.o" &&
     gcc -no-pie -O1 -w -std=gnu99 -Iovl/fake -Iegl -Iegl/fake -c ovl/fake_ovl.c -o "$OUT/sdl-fake-ovl.o" &&
-    gcc -no-pie "$OUT/sdl-harness.o" "$OUT/sdl-gl.o" "$OUT/sdl-rect.o" "$OUT/sdl-egl.o" "$OUT/sdl-fake.o" "$OUT/sdl-fake-ovl.o" \
+    gcc -no-pie "$OUT/sdl-harness.o" "$OUT/sdl-gl.o" "$OUT/sdl-rect.o" "$OUT/sdl-egl.o" "$OUT/sdl-fake.o" "$OUT/sdl-pick.o" "$OUT/sdl-fake-ovl.o" \
         -o "$OUT/sdl-harness" -L"$O" -lOSMesa -lstdc++ -lz -lm -lpthread -Wl,-rpath,"$O" &&
     "$OUT/sdl-harness" | tee "$OUT/sdl.out" | tail -1 && grep -q "ALL CHECKS PASSED" "$OUT/sdl.out"
 }

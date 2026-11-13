@@ -1,0 +1,202 @@
+riscos-mesa: OSMesa contexts drawn by RISC3D, a hardware path.
+
+Where riscos_mesa_pick_renderer says RISC3D, an OSMesa context also gets a
+RISC3D context for the same API, and OSMesaMakeCurrent on a buffer RISC3D
+can draw into (8 bits a component, OSMesa's colour formats) draws through
+it, the frame copied into the program's buffer at glFinish, glFlush,
+another MakeCurrent and OSMesaGetColorBuffer. Everything else draws in
+software as before. The work is in riscos-mesa's osmesa/risc3d_route.c;
+this patch adds the hooks osmesa.c calls (osmesa_riscos.h: strong on RISC
+OS, where libOSMesa contains them; weak elsewhere, so the build machine's
+libOSMesa draws in software unless a test defines them) and
+OSMESA_SOFTWARE_RISCOS, with which EGL keeps its own contexts in software.
+
+--- a/include/GL/osmesa.h	2026-11-13 09:56:19.034962456 +0000
++++ b/include/GL/osmesa.h	2026-11-13 09:56:19.027407447 +0000
+@@ -110,6 +110,9 @@
+    (common profile) and ES 2.0 are what classic swrast supports. */
+ #define OSMESA_ES1_PROFILE           0x1001
+ #define OSMESA_ES2_PROFILE           0x1002
++/* riscos-mesa: OSMesaCreateContextAttribs: a non-zero value always draws
++   in software, never through RISC3D (EGL's own contexts use it) */
++#define OSMESA_SOFTWARE_RISCOS       0x7F00
+ 
+ 
+ typedef struct osmesa_context *OSMesaContext;
+--- a/src/mesa/drivers/osmesa/osmesa.c	2026-11-13 09:56:19.035201938 +0000
++++ b/src/mesa/drivers/osmesa/osmesa.c	2026-11-13 09:56:19.029727705 +0000
+@@ -62,6 +62,7 @@
+ #include "drivers/common/driverfuncs.h"
+ #include "drivers/common/meta.h"
+ #include "vbo/vbo.h"
++#include "osmesa_riscos.h"
+ #include "util/u_math.h"
+ #include "util/u_memory.h"
+ 
+@@ -992,7 +993,7 @@
+    GLint depthBits = 0, stencilBits = 0, accumBits = 0;
+    int profile = OSMESA_COMPAT_PROFILE, version_major = 1, version_minor = 0;
+    gl_api api_profile = API_OPENGL_COMPAT;
+-   int i;
++   int i, software = 0;
+ 
+    for (i = 0; attribList[i]; i += 2) {
+       switch (attribList[i]) {
+@@ -1050,6 +1051,9 @@
+          if (version_minor < 0)
+             return NULL;
+          break;
++      case OSMESA_SOFTWARE_RISCOS:    /* riscos-mesa: never RISC3D */
++         software = attribList[i+1] != 0;
++         break;
+       case 0:
+          /* end of list */
+          break;
+@@ -1247,6 +1251,10 @@
+          _mesa_initialize_vbo_vtxfmt(ctx);
+       }
+    }
++   /* riscos-mesa: RISC3D draws it too where it can (osmesa_riscos.h);
++      not when sharing objects with another context (RISC3D can't) */
++   if (osmesa && !software && !sharelist && OSMESA_R3D_HAVE(osmesa_r3d_create))
++      osmesa_r3d_create(osmesa, profile, version_major, version_minor, format, accumBits);
+    return osmesa;
+ }
+ 
+@@ -1260,6 +1268,8 @@
+ OSMesaDestroyContext( OSMesaContext osmesa )
+ {
+    if (osmesa) {
++      if (OSMESA_R3D_HAVE(osmesa_r3d_destroy))
++         osmesa_r3d_destroy(osmesa);
+       if (osmesa->srb)
+          _mesa_reference_renderbuffer((struct gl_renderbuffer **) &osmesa->srb, NULL);
+ 
+@@ -1312,6 +1322,18 @@
+ OSMesaMakeCurrent( OSMesaContext osmesa, void *buffer, GLenum type,
+                    GLsizei width, GLsizei height )
+ {
++   /* riscos-mesa: through RISC3D where the context has a RISC3D one and
++      the buffer suits it (osmesa_riscos.h); else RISC3D lets go */
++   if (OSMESA_R3D_HAVE(osmesa_r3d_make_current) && osmesa && buffer &&
++       width >= 1 && height >= 1 &&
++       osmesa_r3d_make_current(osmesa, buffer, type, width, height, osmesa->format,
++                               osmesa->userRowLength, osmesa->yup)) {
++      osmesa->DataType = type;
++      return GL_TRUE;
++   }
++   if (OSMESA_R3D_HAVE(osmesa_r3d_make_current) && (!osmesa || !buffer))
++      osmesa_r3d_make_current(NULL, NULL, 0, 0, 0, 0, 0, 0);
++
+    if (!osmesa && !buffer) {
+       return _mesa_make_current(NULL, NULL, NULL);
+    }
+@@ -1504,6 +1526,8 @@
+    if (!osmesa || !draw || !read || !draw->rb->Base.Buffer ||
+        !read->rb->Base.Buffer)
+       return GL_FALSE;
++   if (OSMESA_R3D_HAVE(osmesa_r3d_make_current))   /* riscos-mesa: RISC3D lets go */
++      osmesa_r3d_make_current(NULL, NULL, 0, 0, 0, 0, 0, 0);
+    if (draw->rb->Format != osmesa->format || read->rb->Format != osmesa->format)
+       return GL_FALSE;
+ 
+@@ -1528,6 +1552,8 @@
+ OSMesaGetCurrentContext( void )
+ {
+    struct gl_context *ctx = _mesa_get_current_context();
++   if (OSMESA_R3D_HAVE(osmesa_r3d_current) && osmesa_r3d_current())
++      return osmesa_r3d_current();          /* riscos-mesa: drawing through RISC3D */
+    if (ctx)
+       return (OSMesaContext) ctx;
+    else
+@@ -1558,6 +1584,10 @@
+          return;
+    }
+ 
++   if (OSMESA_R3D_HAVE(osmesa_r3d_current) && osmesa_r3d_current() == osmesa) {
++      osmesa_r3d_retarget(osmesa, osmesa->userRowLength, osmesa->yup);  /* riscos-mesa */
++      return;
++   }
+    compute_row_addresses( osmesa );
+ }
+ 
+@@ -1566,7 +1596,14 @@
+ OSMesaGetIntegerv( GLint pname, GLint *value )
+ {
+    OSMesaContext osmesa = OSMesaGetCurrentContext();
++   int w, h;
+ 
++   /* riscos-mesa: the size of the buffer RISC3D draws into */
++   if ((pname == OSMESA_WIDTH || pname == OSMESA_HEIGHT) &&
++       OSMESA_R3D_HAVE(osmesa_r3d_size) && osmesa_r3d_size(osmesa, &w, &h)) {
++      *value = pname == OSMESA_WIDTH ? w : h;
++      return;
++   }
+    switch (pname) {
+       case OSMESA_WIDTH:
+          if (osmesa->gl_buffer)
+@@ -1620,6 +1657,9 @@
+ {
+    struct swrast_renderbuffer *srb = NULL;
+ 
++   if (OSMESA_R3D_HAVE(osmesa_r3d_depth_buffer) &&
++       osmesa_r3d_depth_buffer(c, width, height, bytesPerValue, buffer))
++      return GL_TRUE;                       /* riscos-mesa: read from RISC3D */
+    if (c->gl_buffer)
+       srb = swrast_renderbuffer(c->gl_buffer->
+                                 Attachment[BUFFER_DEPTH].Renderbuffer);
+@@ -1656,6 +1696,11 @@
+ OSMesaGetColorBuffer( OSMesaContext osmesa, GLint *width,
+                       GLint *height, GLint *format, void **buffer )
+ {
++   if (OSMESA_R3D_HAVE(osmesa_r3d_color_buffer) &&
++       osmesa_r3d_color_buffer(osmesa, width, height, buffer)) {
++      *format = osmesa->format;             /* riscos-mesa: RISC3D's frame copied in */
++      return GL_TRUE;
++   }
+    if (osmesa->srb && osmesa->srb->Buffer) {
+       *width = osmesa->srb->Base.Width;
+       *height = osmesa->srb->Base.Height;
+--- a/src/mesa/drivers/osmesa/osmesa_riscos.h	1970-01-01 01:00:00.000000000 +0100
++++ b/src/mesa/drivers/osmesa/osmesa_riscos.h	2026-11-13 09:56:19.029920422 +0000
+@@ -0,0 +1,40 @@
++/*
++ * riscos-mesa: OSMesa contexts drawn by RISC3D, a hardware path, where it
++ * has a driver (riscos-mesa's osmesa/risc3d_route.c, which libOSMesa
++ * contains on RISC OS). These are the hooks osmesa.c calls. Elsewhere
++ * (the build machine's own libOSMesa, for riscos-mesa's tests) they are
++ * weak: absent unless the program defines them, and then OSMesa draws in
++ * software as always.
++ */
++#ifndef OSMESA_RISCOS_H
++#define OSMESA_RISCOS_H
++
++#if defined(__riscos__)
++#define OSMESA_R3D_HOOK
++#define OSMESA_R3D_HAVE(f) 1
++#else
++#define OSMESA_R3D_HOOK __attribute__((weak))
++#define OSMESA_R3D_HAVE(f) ((f) != NULL)
++#endif
++
++/* After a software context is made: also make a RISC3D one for it if the
++   choice of renderer (riscos_mesa_pick_renderer) says so. */
++OSMESA_R3D_HOOK void osmesa_r3d_create(OSMesaContext o, int profile, int major, int minor,
++                                       GLenum format, int accum_bits);
++OSMESA_R3D_HOOK void osmesa_r3d_destroy(OSMesaContext o);
++/* OSMesaMakeCurrent: 1 if o now draws through RISC3D into buffer; 0 if
++   it draws in software (or o is NULL), with RISC3D's drawing let go of */
++OSMESA_R3D_HOOK int osmesa_r3d_make_current(OSMesaContext o, void *buffer, GLenum type,
++                                            int width, int height, GLenum format,
++                                            int row_length, int y_up);
++OSMESA_R3D_HOOK OSMesaContext osmesa_r3d_current(void);
++/* for the context current through RISC3D: OSMesaPixelStore's changes,
++   and what OSMesaGetIntegerv, OSMesaGetColorBuffer and
++   OSMesaGetDepthBuffer answer (1: answered) */
++OSMESA_R3D_HOOK void osmesa_r3d_retarget(OSMesaContext o, int row_length, int y_up);
++OSMESA_R3D_HOOK int osmesa_r3d_size(OSMesaContext o, int *width, int *height);
++OSMESA_R3D_HOOK int osmesa_r3d_color_buffer(OSMesaContext o, int *width, int *height, void **buffer);
++OSMESA_R3D_HOOK int osmesa_r3d_depth_buffer(OSMesaContext o, int *width, int *height,
++                                            int *bytes_per_value, void **buffer);
++
++#endif

@@ -13,17 +13,13 @@ X=$(cd "$(dirname "$0")/../dispmanx" && pwd)
 B=$(mktemp -d)
 R3=$(cd "$(dirname "$0")/../risc3d" && pwd)
 $CC $RO_CFLAGS -Wall -I"$E/include" -I"$X" -I"$STAGE/include" -I"$R3/lib" -c "$E/egl_riscos.c" -o "$B/egl_riscos.o"
-# RISC3D's client library (risc3d/, MIT, RISC3D 0.7): contexts drawn by a
-# hardware path where the RISC3D module has a driver (egl/parts/risc3d.c).
-# With egl/r3d_compat.h: its own copies of the few C library functions it
-# uses beyond 20.3.5-19's libEGL, so older mixed programs still work.
-$CC $RO_CFLAGS -O2 -include "$E/r3d_compat.h" -I"$R3/include" -I"$R3/lib" -I"$R3/gen" -I"$R3/proto" -c "$R3/lib/r3d_gl.c" -o "$B/r3d_gl.o"
-$CC $RO_CFLAGS -O2 -Wall -fno-math-errno -c "$E/r3d_compat.c" -o "$B/r3d_compat.o"
+# RISC3D's client library (risc3d/, MIT) and riscos_mesa_pick_renderer are
+# in libOSMesa (build-mesa.sh): egl/parts/risc3d.c uses them from there.
 $CC $RO_CFLAGS -Wall -I"$X/include" -I"$X" -I"$E/include" -I"$STAGE/include" -c "$X/bcm_host.c" -o "$B/bcm_host.o"
 echo "/* intentionally empty: see riscos-mesa dispmanx/ */" > "$B/empty.c"
 $CC $RO_CFLAGS -c "$B/empty.c" -o "$B/empty.o"
 rm -f "$STAGE/lib/libEGL.a" "$STAGE/lib/libbcm_host.a"
-$AR rcs "$STAGE/lib/libEGL.a" "$B/egl_riscos.o" "$B/r3d_gl.o" "$B/r3d_compat.o"
+$AR rcs "$STAGE/lib/libEGL.a" "$B/egl_riscos.o"
 $AR rcs "$STAGE/lib/libbcm_host.a" "$B/bcm_host.o"
 for l in GLESv2 GLESv1_CM vcos vchiq_arm; do
   rm -f "$STAGE/lib/lib$l.a"

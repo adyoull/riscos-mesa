@@ -31,6 +31,7 @@ mkdir -p "$OUT"; cd "$OUT"
 F="-no-pie -O1 -w -std=gnu99"
 gcc $F -D__riscos__ -I$H/fake -I$R/egl/include -I$M/include -I$R/dispmanx -c $R/egl/egl_riscos.c -o egl_riscos.o
 gcc $F -I$H -I$H/fake -c $H/fake_riscos.c -o fake_riscos.o
+gcc $F -I$H/fake -I$R/egl/include -I$M/include -c $R/osmesa/pick.c -o pick.o
 gcc $F -I$H -I$H/fake -c $H/portrun.c -o portrun.o
 gcc $F -I$R/tests/host-harness/ovl/fake -I$H -I$H/fake -c $R/tests/host-harness/ovl/fake_ovl.c -o fake_ovl.o
 fails=0
@@ -41,7 +42,7 @@ expect() {   # description command...
 app() {      # name source extra-libs...
   local n=$1 s=$2; shift 2
   gcc $F -D__riscos__ -Dmain=app_main -I$H/fake -I$R/egl/include -I$M/include "$X/$s" \
-      egl_riscos.o fake_riscos.o portrun.o -o "$n" "$@" -L$O -lOSMesa -lpthread -lm -Wl,-rpath,$O
+      egl_riscos.o pick.o fake_riscos.o portrun.o -o "$n" "$@" -L$O -lOSMesa -lpthread -lm -Wl,-rpath,$O
 }
 
 app fullscreen 1-fullscreen/fullscreen.c
@@ -57,7 +58,7 @@ expect "2-window: frames were drawn"        grep -qE "plots ([2-9][0-9]|1[0-9])"
 # The menu: Menu click, choose "Draw at 240x180" with Adjust (the menu
 # stays open), then "Hardware overlay", with the fake VideoOverlay loaded.
 gcc $F -D__riscos__ -Dmain=app_main -I$H/fake -I$R/egl/include -I$M/include "$X/2-window/window.c" \
-    egl_riscos.o fake_riscos.o portrun.o fake_ovl.o -o window-menu -L$O -lOSMesa -lpthread -lm -Wl,-rpath,$O
+    egl_riscos.o pick.o fake_riscos.o portrun.o fake_ovl.o -o window-menu -L$O -lOSMesa -lpthread -lm -Wl,-rpath,$O
 FRAMES=5 OVL=1 MENUS=1 KEYS=c100:100:2,u,m100:100,c100:100:1,s1,u,n,n,c100:100:2,u,s0,n,n,n,n,n,n PPM=window-menu.ppm \
     ./window-menu </dev/null > window-menu.txt 2>&1 || true
 expect "2-window menu: quits on the close request" grep -q "app_main returned" window-menu.txt
@@ -82,7 +83,7 @@ expect "3-shaders, EX0 EY0: shown twice the size" python3 "$HERE/colours.py" sha
 if [ -n "${GLUT:-}" ] && [ -n "${GLU:-}" ]; then
   gcc $F -D__riscos__ -Dmain=app_main -I$H/fake -I$R/egl/include -I$M/include \
       -I$R/src/freeglut-3.8.0/include -I${STAGE:-$R/stage}/include "$X/5-glut/glut.c" \
-      egl_riscos.o fake_riscos.o portrun.o -o teapot "$GLUT" "$GLU" -L$O -lOSMesa -lstdc++ -lpthread -lm -Wl,-rpath,$O
+      egl_riscos.o pick.o fake_riscos.o portrun.o -o teapot "$GLUT" "$GLU" -L$O -lOSMesa -lstdc++ -lpthread -lm -Wl,-rpath,$O
   FRAMES=10 KEYS=32,n,n,27 PPM=teapot.ppm ./teapot </dev/null > teapot.txt 2>&1 || true
   expect "5-glut: Escape leaves glutMainLoop" grep -q "app_main returned" teapot.txt
   expect "5-glut: lit orange teapot"          python3 "$HERE/colours.py" teapot.ppm teapot

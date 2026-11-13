@@ -51,6 +51,31 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     and with `SDL_RISCOS_GL_EGL` 0 "Mesa OffScreen". There RISC3D is
     Linux's Mesa in software with frames read back (about 55 fps against
     OSMesa's 340 at 320x240), so it says nothing about speed on a GPU.
+- **Programs that use OSMesa directly draw through RISC3D too** (the
+  owner: apps should use RISC3D automatically where it's available).
+  OSMesaCreateContext gets a RISC3D context beside the software one when
+  `riscos_mesa_pick_renderer` says so, and OSMesaMakeCurrent on the
+  program's buffer draws through it (`r3d_target`, RISC3D 0.7): the frame
+  is copied into the buffer at glFinish and glFlush, another MakeCurrent
+  and OSMesaGetColorBuffer. Software draws what RISC3D can't (accumulation
+  buffers, colour index, core profiles, share lists, GL_FLOAT and 16-bit
+  component buffers) and anything with `LIBGL_ALWAYS_SOFTWARE` or
+  `RISC3D$Disable` set. Mixed programs get it with the new !MesaLibs;
+  static ones when relinked. SDL's sprite path (`SDL_RISCOS_GL_EGL` 0) is
+  OSMesa too, so it follows.
+  - RISC3D's client and `riscos_mesa_pick_renderer` moved from libEGL to
+    libOSMesa (`osmesa/`), which EGL and SDL sit on; EGL's own OSMesa
+    contexts ask for software (`OSMESA_SOFTWARE_RISCOS`). New Mesa patch
+    `riscos-osmesa-risc3d`.
+  - egltest: "ES 2.0 version string" also takes ES 3.x, and ES 3.0
+    contexts are expected where the config lists ES 3.
+  - Checked: host (EGL 572 checks; r3d_e2e's new OSMesa part with RISC3D's
+    0.7 client and helper, 23 checks: pictures identical to software's,
+    the queries, Y_UP, colour and depth buffers, BGR, and the cases that
+    stay in software); QEMU's RISC OS on Linux with rol-3d 0.6:
+    osmesatest (static) and glbench (mixed) "3.1 RISC3D", SDL's sprite
+    path through RISC3D, LIBGL_ALWAYS_SOFTWARE back to Mesa OffScreen,
+    egltest 42 of 43 static and mixed.
 - **RISC3D 0.7: OpenGL 3.0/3.1 and OpenGL ES 3.0/3.1 through RISC3D.**
   libEGL has RISC3D's client 0.7 (tag v0.7; 0.5 added GL 3.x and GLES
   3.x, 0.6 EXT_direct_state_access, so RISC3D now carries every function

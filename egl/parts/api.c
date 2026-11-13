@@ -813,6 +813,9 @@ static void osmesa_context_attribs(const egl_config *c, const context_request *q
     attribs[n++] = OSMESA_DEPTH_BITS;   attribs[n++] = c->depth;
     attribs[n++] = OSMESA_STENCIL_BITS; attribs[n++] = c->stencil;
     attribs[n++] = OSMESA_ACCUM_BITS;   attribs[n++] = 0;
+    /* EGL chooses RISC3D itself (egl/parts/risc3d.c): an OSMesa context
+       here is one EGL wants in software */
+    attribs[n++] = OSMESA_SOFTWARE_RISCOS; attribs[n++] = 1;
     /* The profile only applies to GL 3.2+ (EGL_KHR_create_context). */
     attribs[n++] = OSMESA_PROFILE;
     if (q->es)

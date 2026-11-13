@@ -18,7 +18,7 @@ cd mesa-$V
 # added to the end of the list is applied to an existing tree. (A patch
 # that is changed isn't re-applied: remove src/mesa-20.3.5 to start
 # again, or rebase with tools/mesa-branch.sh.)
-PATCHES="riscos riscos-speed riscos-glsl-decode riscos-glsl-batch gcc13-vectorizer riscos-startup riscos-size-limit riscos-span-speed riscos-direct-rows riscos-uncompressed riscos-fast-tex riscos-fast-fog riscos-fastest riscos-eglimage riscos-osmesa-buffers riscos-push-flush riscos-fog-span riscos-audit-fixes riscos-exact-speed riscos-glsl-wmask riscos-glsl-neon riscos-es-extras riscos-glsl-jit riscos-temps riscos-tex-neon riscos-blend-neon riscos-depth-neon riscos-span-fast riscos-span-stats riscos-alpha-fast riscos-zfirst riscos-pic riscos-dispatch riscos-es1-vao"
+PATCHES="riscos riscos-speed riscos-glsl-decode riscos-glsl-batch gcc13-vectorizer riscos-startup riscos-size-limit riscos-span-speed riscos-direct-rows riscos-uncompressed riscos-fast-tex riscos-fast-fog riscos-fastest riscos-eglimage riscos-osmesa-buffers riscos-push-flush riscos-fog-span riscos-audit-fixes riscos-exact-speed riscos-glsl-wmask riscos-glsl-neon riscos-es-extras riscos-glsl-jit riscos-temps riscos-tex-neon riscos-blend-neon riscos-depth-neon riscos-span-fast riscos-span-stats riscos-alpha-fast riscos-zfirst riscos-pic riscos-dispatch riscos-es1-vao riscos-osmesa-risc3d"
 STAMP=.riscos-patches-applied
 if [ ! -f $STAMP ]; then
   echo "src/mesa-$V has no $STAMP (made by a much older build script):" >&2
@@ -65,6 +65,19 @@ cd $B
 rm -f libOSMesa-full.a
 { echo "CREATE libOSMesa-full.a"; echo "ADDLIB src/mesa/drivers/osmesa/libOSMesa.a"
   for a in $LIBS; do echo "ADDLIB $a"; done; echo SAVE; echo END; } | $AR -M
+# RISC3D, a hardware path (osmesa/): its client library (risc3d/, MIT),
+# riscos_mesa_pick_renderer, and the routing of OSMesa's own contexts to it
+# (patch riscos-osmesa-risc3d calls osmesa/risc3d_route.c). EGL and SDL use
+# the same client and choice from here. osmesa/r3d_compat.h gives the client
+# its own copies of the few C library functions it uses beyond 20.3.5-19's
+# libraries, so older mixed programs still work.
+R3=$HERE/risc3d OM=$HERE/osmesa
+$CC $RO_CFLAGS -O2 -include "$OM/r3d_compat.h" -I"$R3/include" -I"$R3/lib" -I"$R3/gen" -I"$R3/proto" \
+  -c "$R3/lib/r3d_gl.c" -o r3d_gl.o
+$CC $RO_CFLAGS -O2 -Wall -fno-math-errno -c "$OM/r3d_compat.c" -o r3d_compat.o
+$CC $RO_CFLAGS -O2 -Wall -I"$HERE/egl/include" -I../include -I"$R3/lib" -c "$OM/pick.c" -o r3d_pick.o
+$CC $RO_CFLAGS -O2 -Wall -I"$HERE/egl/include" -I../include -I"$R3/lib" -c "$OM/risc3d_route.c" -o r3d_route.o
+$AR rs libOSMesa-full.a r3d_gl.o r3d_compat.o r3d_pick.o r3d_route.o
 $RANLIB libOSMesa-full.a
 mkdir -p "$STAGE/lib" "$STAGE/include/GL" "$STAGE/include/KHR"
 cp libOSMesa-full.a "$STAGE/lib/libOSMesa.a"

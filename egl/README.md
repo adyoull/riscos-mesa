@@ -75,7 +75,21 @@ or if RISC3D can't make the context, OSMesa draws exactly as before.
   and SDL's GL windows all ask it: `RISCOS_MESA_SOFTWARE` or
   `RISCOS_MESA_RISC3D` (`RISCOS_MESA_V3D` is kept for a GPU driven from
   the program itself, later). OpenGL 3 and OpenGL ES 3 stay with OSMesa,
-  which refuses them as before.
+  which refuses them as before. It is in libOSMesa (`osmesa/pick.c`), with
+  RISC3D's client library, because OSMesa follows it too:
+- **Programs that use OSMesa directly** (`OSMesaCreateContext` and
+  `OSMesaMakeCurrent` on their own buffer) draw through RISC3D as well,
+  unchanged (`osmesa/risc3d_route.c`, Mesa patch `riscos-osmesa-risc3d`).
+  The program's buffer is the RISC3D context's framebuffer (`r3d_target`,
+  RISC3D 0.7) and the frame is copied into it at `glFinish` and `glFlush`,
+  when another context or buffer is made current, and for
+  `OSMesaGetColorBuffer`; `OSMesaGetDepthBuffer` reads the depth back.
+  Software draws, as before, contexts with accumulation buffers, colour
+  index, core profiles or a share list, buffers of other component types
+  (`GL_FLOAT`, `GL_UNSIGNED_SHORT`), and EGL's own OSMesa contexts
+  (`OSMESA_SOFTWARE_RISCOS`). A program that writes into its buffer itself
+  between frames would see that overwritten: `LIBGL_ALWAYS_SOFTWARE` keeps
+  it in software.
 
 - **How the calls get there.** The `gl*` entry points are glapi's stubs,
   calling through the current dispatch table. For a RISC3D context that
