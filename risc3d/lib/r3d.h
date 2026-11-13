@@ -35,6 +35,22 @@ struct r3d_context *r3d_create (void);	/* GLES 2. 0: see r3d_error */
 
 struct r3d_context *r3d_create_gl (void); /* OpenGL (compatibility profile). 0: see r3d_error */
 struct r3d_context *r3d_create_es1 (void); /* OpenGL ES 1.1 (from RISC3D 0.4). 0: see r3d_error */
+/* (from RISC3D 0.5) a context of at least this version: R3D_API_GL up to
+   3.1 (compatibility), R3D_API_GLES2 for GLES 2.0 to 3.1. The context
+   gives the highest version both the stream and the renderer have
+   (glGetString (GL_VERSION) says which); 0 if that is lower than asked:
+   see r3d_error. */
+struct r3d_context *r3d_create_version (int api, int major, int minor);
+/* (from RISC3D 0.7) the program's own buffer as the context's framebuffer
+   0, as OSMesaMakeCurrent's: the frame is copied into it at glFinish and
+   glFlush (when anything was drawn since) and at r3d_target_copy.
+   format: OSMesa's (OSMESA_RGBA = GL_RGBA, OSMESA_BGRA 1, OSMESA_ARGB 2,
+   OSMESA_RGB = GL_RGB, OSMESA_BGR 4, OSMESA_RGB_565 5), 8 bits a
+   component; row_length in pixels (0: the width); y_up: row 0 is the
+   bottom one (OSMesa's default). buffer 0: no longer. Returns 0, or why
+   not (then draw in software). The context's size becomes the buffer's. */
+const char *r3d_target (struct r3d_context *, void *buffer, int width, int height, int format, int row_length, int y_up);
+int r3d_target_copy (struct r3d_context *);	/* now: 0, or -1 */
 void r3d_make_current (struct r3d_context *);
 void r3d_destroy (struct r3d_context *);
 

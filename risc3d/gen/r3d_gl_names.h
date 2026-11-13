@@ -94,7 +94,7 @@ void r3d_glGetTexLevelParameteriv (GLenum target, GLint level, GLenum pname, GLi
 #define glGetTexLevelParameteriv r3d_glGetTexLevelParameteriv
 GLboolean r3d_glIsEnabled (GLenum cap);
 #define glIsEnabled r3d_glIsEnabled
-void r3d_glDepthRange (GLdouble n, GLdouble f);
+void r3d_glDepthRange (GLdouble n, GLdouble f_);
 #define glDepthRange r3d_glDepthRange
 void r3d_glViewport (GLint x, GLint y, GLsizei width, GLsizei height);
 #define glViewport r3d_glViewport
@@ -118,67 +118,67 @@ void r3d_glBitmap (GLsizei width, GLsizei height, GLfloat xorig, GLfloat yorig, 
 #define glBitmap r3d_glBitmap
 void r3d_glColor3b (GLbyte red, GLbyte green, GLbyte blue);
 #define glColor3b r3d_glColor3b
-void r3d_glColor3bv (const GLbyte * v);
+void r3d_glColor3bv (const GLbyte * v_);
 #define glColor3bv r3d_glColor3bv
 void r3d_glColor3d (GLdouble red, GLdouble green, GLdouble blue);
 #define glColor3d r3d_glColor3d
-void r3d_glColor3dv (const GLdouble * v);
+void r3d_glColor3dv (const GLdouble * v_);
 #define glColor3dv r3d_glColor3dv
 void r3d_glColor3f (GLfloat red, GLfloat green, GLfloat blue);
 #define glColor3f r3d_glColor3f
-void r3d_glColor3fv (const GLfloat * v);
+void r3d_glColor3fv (const GLfloat * v_);
 #define glColor3fv r3d_glColor3fv
 void r3d_glColor3i (GLint red, GLint green, GLint blue);
 #define glColor3i r3d_glColor3i
-void r3d_glColor3iv (const GLint * v);
+void r3d_glColor3iv (const GLint * v_);
 #define glColor3iv r3d_glColor3iv
 void r3d_glColor3s (GLshort red, GLshort green, GLshort blue);
 #define glColor3s r3d_glColor3s
-void r3d_glColor3sv (const GLshort * v);
+void r3d_glColor3sv (const GLshort * v_);
 #define glColor3sv r3d_glColor3sv
 void r3d_glColor3ub (GLubyte red, GLubyte green, GLubyte blue);
 #define glColor3ub r3d_glColor3ub
-void r3d_glColor3ubv (const GLubyte * v);
+void r3d_glColor3ubv (const GLubyte * v_);
 #define glColor3ubv r3d_glColor3ubv
 void r3d_glColor3ui (GLuint red, GLuint green, GLuint blue);
 #define glColor3ui r3d_glColor3ui
-void r3d_glColor3uiv (const GLuint * v);
+void r3d_glColor3uiv (const GLuint * v_);
 #define glColor3uiv r3d_glColor3uiv
 void r3d_glColor3us (GLushort red, GLushort green, GLushort blue);
 #define glColor3us r3d_glColor3us
-void r3d_glColor3usv (const GLushort * v);
+void r3d_glColor3usv (const GLushort * v_);
 #define glColor3usv r3d_glColor3usv
 void r3d_glColor4b (GLbyte red, GLbyte green, GLbyte blue, GLbyte alpha);
 #define glColor4b r3d_glColor4b
-void r3d_glColor4bv (const GLbyte * v);
+void r3d_glColor4bv (const GLbyte * v_);
 #define glColor4bv r3d_glColor4bv
 void r3d_glColor4d (GLdouble red, GLdouble green, GLdouble blue, GLdouble alpha);
 #define glColor4d r3d_glColor4d
-void r3d_glColor4dv (const GLdouble * v);
+void r3d_glColor4dv (const GLdouble * v_);
 #define glColor4dv r3d_glColor4dv
 void r3d_glColor4f (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
 #define glColor4f r3d_glColor4f
-void r3d_glColor4fv (const GLfloat * v);
+void r3d_glColor4fv (const GLfloat * v_);
 #define glColor4fv r3d_glColor4fv
 void r3d_glColor4i (GLint red, GLint green, GLint blue, GLint alpha);
 #define glColor4i r3d_glColor4i
-void r3d_glColor4iv (const GLint * v);
+void r3d_glColor4iv (const GLint * v_);
 #define glColor4iv r3d_glColor4iv
 void r3d_glColor4s (GLshort red, GLshort green, GLshort blue, GLshort alpha);
 #define glColor4s r3d_glColor4s
-void r3d_glColor4sv (const GLshort * v);
+void r3d_glColor4sv (const GLshort * v_);
 #define glColor4sv r3d_glColor4sv
 void r3d_glColor4ub (GLubyte red, GLubyte green, GLubyte blue, GLubyte alpha);
 #define glColor4ub r3d_glColor4ub
-void r3d_glColor4ubv (const GLubyte * v);
+void r3d_glColor4ubv (const GLubyte * v_);
 #define glColor4ubv r3d_glColor4ubv
 void r3d_glColor4ui (GLuint red, GLuint green, GLuint blue, GLuint alpha);
 #define glColor4ui r3d_glColor4ui
-void r3d_glColor4uiv (const GLuint * v);
+void r3d_glColor4uiv (const GLuint * v_);
 #define glColor4uiv r3d_glColor4uiv
 void r3d_glColor4us (GLushort red, GLushort green, GLushort blue, GLushort alpha);
 #define glColor4us r3d_glColor4us
-void r3d_glColor4usv (const GLushort * v);
+void r3d_glColor4usv (const GLushort * v_);
 #define glColor4usv r3d_glColor4usv
 void r3d_glEdgeFlag (GLboolean flag);
 #define glEdgeFlag r3d_glEdgeFlag
@@ -204,71 +204,71 @@ void r3d_glIndexsv (const GLshort * c);
 #define glIndexsv r3d_glIndexsv
 void r3d_glNormal3b (GLbyte nx, GLbyte ny, GLbyte nz);
 #define glNormal3b r3d_glNormal3b
-void r3d_glNormal3bv (const GLbyte * v);
+void r3d_glNormal3bv (const GLbyte * v_);
 #define glNormal3bv r3d_glNormal3bv
 void r3d_glNormal3d (GLdouble nx, GLdouble ny, GLdouble nz);
 #define glNormal3d r3d_glNormal3d
-void r3d_glNormal3dv (const GLdouble * v);
+void r3d_glNormal3dv (const GLdouble * v_);
 #define glNormal3dv r3d_glNormal3dv
 void r3d_glNormal3f (GLfloat nx, GLfloat ny, GLfloat nz);
 #define glNormal3f r3d_glNormal3f
-void r3d_glNormal3fv (const GLfloat * v);
+void r3d_glNormal3fv (const GLfloat * v_);
 #define glNormal3fv r3d_glNormal3fv
 void r3d_glNormal3i (GLint nx, GLint ny, GLint nz);
 #define glNormal3i r3d_glNormal3i
-void r3d_glNormal3iv (const GLint * v);
+void r3d_glNormal3iv (const GLint * v_);
 #define glNormal3iv r3d_glNormal3iv
 void r3d_glNormal3s (GLshort nx, GLshort ny, GLshort nz);
 #define glNormal3s r3d_glNormal3s
-void r3d_glNormal3sv (const GLshort * v);
+void r3d_glNormal3sv (const GLshort * v_);
 #define glNormal3sv r3d_glNormal3sv
 void r3d_glRasterPos2d (GLdouble x, GLdouble y);
 #define glRasterPos2d r3d_glRasterPos2d
-void r3d_glRasterPos2dv (const GLdouble * v);
+void r3d_glRasterPos2dv (const GLdouble * v_);
 #define glRasterPos2dv r3d_glRasterPos2dv
 void r3d_glRasterPos2f (GLfloat x, GLfloat y);
 #define glRasterPos2f r3d_glRasterPos2f
-void r3d_glRasterPos2fv (const GLfloat * v);
+void r3d_glRasterPos2fv (const GLfloat * v_);
 #define glRasterPos2fv r3d_glRasterPos2fv
 void r3d_glRasterPos2i (GLint x, GLint y);
 #define glRasterPos2i r3d_glRasterPos2i
-void r3d_glRasterPos2iv (const GLint * v);
+void r3d_glRasterPos2iv (const GLint * v_);
 #define glRasterPos2iv r3d_glRasterPos2iv
 void r3d_glRasterPos2s (GLshort x, GLshort y);
 #define glRasterPos2s r3d_glRasterPos2s
-void r3d_glRasterPos2sv (const GLshort * v);
+void r3d_glRasterPos2sv (const GLshort * v_);
 #define glRasterPos2sv r3d_glRasterPos2sv
 void r3d_glRasterPos3d (GLdouble x, GLdouble y, GLdouble z);
 #define glRasterPos3d r3d_glRasterPos3d
-void r3d_glRasterPos3dv (const GLdouble * v);
+void r3d_glRasterPos3dv (const GLdouble * v_);
 #define glRasterPos3dv r3d_glRasterPos3dv
 void r3d_glRasterPos3f (GLfloat x, GLfloat y, GLfloat z);
 #define glRasterPos3f r3d_glRasterPos3f
-void r3d_glRasterPos3fv (const GLfloat * v);
+void r3d_glRasterPos3fv (const GLfloat * v_);
 #define glRasterPos3fv r3d_glRasterPos3fv
 void r3d_glRasterPos3i (GLint x, GLint y, GLint z);
 #define glRasterPos3i r3d_glRasterPos3i
-void r3d_glRasterPos3iv (const GLint * v);
+void r3d_glRasterPos3iv (const GLint * v_);
 #define glRasterPos3iv r3d_glRasterPos3iv
 void r3d_glRasterPos3s (GLshort x, GLshort y, GLshort z);
 #define glRasterPos3s r3d_glRasterPos3s
-void r3d_glRasterPos3sv (const GLshort * v);
+void r3d_glRasterPos3sv (const GLshort * v_);
 #define glRasterPos3sv r3d_glRasterPos3sv
 void r3d_glRasterPos4d (GLdouble x, GLdouble y, GLdouble z, GLdouble w);
 #define glRasterPos4d r3d_glRasterPos4d
-void r3d_glRasterPos4dv (const GLdouble * v);
+void r3d_glRasterPos4dv (const GLdouble * v_);
 #define glRasterPos4dv r3d_glRasterPos4dv
 void r3d_glRasterPos4f (GLfloat x, GLfloat y, GLfloat z, GLfloat w);
 #define glRasterPos4f r3d_glRasterPos4f
-void r3d_glRasterPos4fv (const GLfloat * v);
+void r3d_glRasterPos4fv (const GLfloat * v_);
 #define glRasterPos4fv r3d_glRasterPos4fv
 void r3d_glRasterPos4i (GLint x, GLint y, GLint z, GLint w);
 #define glRasterPos4i r3d_glRasterPos4i
-void r3d_glRasterPos4iv (const GLint * v);
+void r3d_glRasterPos4iv (const GLint * v_);
 #define glRasterPos4iv r3d_glRasterPos4iv
 void r3d_glRasterPos4s (GLshort x, GLshort y, GLshort z, GLshort w);
 #define glRasterPos4s r3d_glRasterPos4s
-void r3d_glRasterPos4sv (const GLshort * v);
+void r3d_glRasterPos4sv (const GLshort * v_);
 #define glRasterPos4sv r3d_glRasterPos4sv
 void r3d_glRectd (GLdouble x1, GLdouble y1, GLdouble x2, GLdouble y2);
 #define glRectd r3d_glRectd
@@ -288,115 +288,115 @@ void r3d_glRectsv (const GLshort * v1, const GLshort * v2);
 #define glRectsv r3d_glRectsv
 void r3d_glTexCoord1d (GLdouble s);
 #define glTexCoord1d r3d_glTexCoord1d
-void r3d_glTexCoord1dv (const GLdouble * v);
+void r3d_glTexCoord1dv (const GLdouble * v_);
 #define glTexCoord1dv r3d_glTexCoord1dv
 void r3d_glTexCoord1f (GLfloat s);
 #define glTexCoord1f r3d_glTexCoord1f
-void r3d_glTexCoord1fv (const GLfloat * v);
+void r3d_glTexCoord1fv (const GLfloat * v_);
 #define glTexCoord1fv r3d_glTexCoord1fv
 void r3d_glTexCoord1i (GLint s);
 #define glTexCoord1i r3d_glTexCoord1i
-void r3d_glTexCoord1iv (const GLint * v);
+void r3d_glTexCoord1iv (const GLint * v_);
 #define glTexCoord1iv r3d_glTexCoord1iv
 void r3d_glTexCoord1s (GLshort s);
 #define glTexCoord1s r3d_glTexCoord1s
-void r3d_glTexCoord1sv (const GLshort * v);
+void r3d_glTexCoord1sv (const GLshort * v_);
 #define glTexCoord1sv r3d_glTexCoord1sv
 void r3d_glTexCoord2d (GLdouble s, GLdouble t);
 #define glTexCoord2d r3d_glTexCoord2d
-void r3d_glTexCoord2dv (const GLdouble * v);
+void r3d_glTexCoord2dv (const GLdouble * v_);
 #define glTexCoord2dv r3d_glTexCoord2dv
 void r3d_glTexCoord2f (GLfloat s, GLfloat t);
 #define glTexCoord2f r3d_glTexCoord2f
-void r3d_glTexCoord2fv (const GLfloat * v);
+void r3d_glTexCoord2fv (const GLfloat * v_);
 #define glTexCoord2fv r3d_glTexCoord2fv
 void r3d_glTexCoord2i (GLint s, GLint t);
 #define glTexCoord2i r3d_glTexCoord2i
-void r3d_glTexCoord2iv (const GLint * v);
+void r3d_glTexCoord2iv (const GLint * v_);
 #define glTexCoord2iv r3d_glTexCoord2iv
 void r3d_glTexCoord2s (GLshort s, GLshort t);
 #define glTexCoord2s r3d_glTexCoord2s
-void r3d_glTexCoord2sv (const GLshort * v);
+void r3d_glTexCoord2sv (const GLshort * v_);
 #define glTexCoord2sv r3d_glTexCoord2sv
 void r3d_glTexCoord3d (GLdouble s, GLdouble t, GLdouble r);
 #define glTexCoord3d r3d_glTexCoord3d
-void r3d_glTexCoord3dv (const GLdouble * v);
+void r3d_glTexCoord3dv (const GLdouble * v_);
 #define glTexCoord3dv r3d_glTexCoord3dv
 void r3d_glTexCoord3f (GLfloat s, GLfloat t, GLfloat r);
 #define glTexCoord3f r3d_glTexCoord3f
-void r3d_glTexCoord3fv (const GLfloat * v);
+void r3d_glTexCoord3fv (const GLfloat * v_);
 #define glTexCoord3fv r3d_glTexCoord3fv
 void r3d_glTexCoord3i (GLint s, GLint t, GLint r);
 #define glTexCoord3i r3d_glTexCoord3i
-void r3d_glTexCoord3iv (const GLint * v);
+void r3d_glTexCoord3iv (const GLint * v_);
 #define glTexCoord3iv r3d_glTexCoord3iv
 void r3d_glTexCoord3s (GLshort s, GLshort t, GLshort r);
 #define glTexCoord3s r3d_glTexCoord3s
-void r3d_glTexCoord3sv (const GLshort * v);
+void r3d_glTexCoord3sv (const GLshort * v_);
 #define glTexCoord3sv r3d_glTexCoord3sv
 void r3d_glTexCoord4d (GLdouble s, GLdouble t, GLdouble r, GLdouble q);
 #define glTexCoord4d r3d_glTexCoord4d
-void r3d_glTexCoord4dv (const GLdouble * v);
+void r3d_glTexCoord4dv (const GLdouble * v_);
 #define glTexCoord4dv r3d_glTexCoord4dv
 void r3d_glTexCoord4f (GLfloat s, GLfloat t, GLfloat r, GLfloat q);
 #define glTexCoord4f r3d_glTexCoord4f
-void r3d_glTexCoord4fv (const GLfloat * v);
+void r3d_glTexCoord4fv (const GLfloat * v_);
 #define glTexCoord4fv r3d_glTexCoord4fv
 void r3d_glTexCoord4i (GLint s, GLint t, GLint r, GLint q);
 #define glTexCoord4i r3d_glTexCoord4i
-void r3d_glTexCoord4iv (const GLint * v);
+void r3d_glTexCoord4iv (const GLint * v_);
 #define glTexCoord4iv r3d_glTexCoord4iv
 void r3d_glTexCoord4s (GLshort s, GLshort t, GLshort r, GLshort q);
 #define glTexCoord4s r3d_glTexCoord4s
-void r3d_glTexCoord4sv (const GLshort * v);
+void r3d_glTexCoord4sv (const GLshort * v_);
 #define glTexCoord4sv r3d_glTexCoord4sv
 void r3d_glVertex2d (GLdouble x, GLdouble y);
 #define glVertex2d r3d_glVertex2d
-void r3d_glVertex2dv (const GLdouble * v);
+void r3d_glVertex2dv (const GLdouble * v_);
 #define glVertex2dv r3d_glVertex2dv
 void r3d_glVertex2f (GLfloat x, GLfloat y);
 #define glVertex2f r3d_glVertex2f
-void r3d_glVertex2fv (const GLfloat * v);
+void r3d_glVertex2fv (const GLfloat * v_);
 #define glVertex2fv r3d_glVertex2fv
 void r3d_glVertex2i (GLint x, GLint y);
 #define glVertex2i r3d_glVertex2i
-void r3d_glVertex2iv (const GLint * v);
+void r3d_glVertex2iv (const GLint * v_);
 #define glVertex2iv r3d_glVertex2iv
 void r3d_glVertex2s (GLshort x, GLshort y);
 #define glVertex2s r3d_glVertex2s
-void r3d_glVertex2sv (const GLshort * v);
+void r3d_glVertex2sv (const GLshort * v_);
 #define glVertex2sv r3d_glVertex2sv
 void r3d_glVertex3d (GLdouble x, GLdouble y, GLdouble z);
 #define glVertex3d r3d_glVertex3d
-void r3d_glVertex3dv (const GLdouble * v);
+void r3d_glVertex3dv (const GLdouble * v_);
 #define glVertex3dv r3d_glVertex3dv
 void r3d_glVertex3f (GLfloat x, GLfloat y, GLfloat z);
 #define glVertex3f r3d_glVertex3f
-void r3d_glVertex3fv (const GLfloat * v);
+void r3d_glVertex3fv (const GLfloat * v_);
 #define glVertex3fv r3d_glVertex3fv
 void r3d_glVertex3i (GLint x, GLint y, GLint z);
 #define glVertex3i r3d_glVertex3i
-void r3d_glVertex3iv (const GLint * v);
+void r3d_glVertex3iv (const GLint * v_);
 #define glVertex3iv r3d_glVertex3iv
 void r3d_glVertex3s (GLshort x, GLshort y, GLshort z);
 #define glVertex3s r3d_glVertex3s
-void r3d_glVertex3sv (const GLshort * v);
+void r3d_glVertex3sv (const GLshort * v_);
 #define glVertex3sv r3d_glVertex3sv
 void r3d_glVertex4d (GLdouble x, GLdouble y, GLdouble z, GLdouble w);
 #define glVertex4d r3d_glVertex4d
-void r3d_glVertex4dv (const GLdouble * v);
+void r3d_glVertex4dv (const GLdouble * v_);
 #define glVertex4dv r3d_glVertex4dv
 void r3d_glVertex4f (GLfloat x, GLfloat y, GLfloat z, GLfloat w);
 #define glVertex4f r3d_glVertex4f
-void r3d_glVertex4fv (const GLfloat * v);
+void r3d_glVertex4fv (const GLfloat * v_);
 #define glVertex4fv r3d_glVertex4fv
 void r3d_glVertex4i (GLint x, GLint y, GLint z, GLint w);
 #define glVertex4i r3d_glVertex4i
-void r3d_glVertex4iv (const GLint * v);
+void r3d_glVertex4iv (const GLint * v_);
 #define glVertex4iv r3d_glVertex4iv
 void r3d_glVertex4s (GLshort x, GLshort y, GLshort z, GLshort w);
 #define glVertex4s r3d_glVertex4s
-void r3d_glVertex4sv (const GLshort * v);
+void r3d_glVertex4sv (const GLshort * v_);
 #define glVertex4sv r3d_glVertex4sv
 void r3d_glClipPlane (GLenum plane, const GLdouble * equation);
 #define glClipPlane r3d_glClipPlane
@@ -512,11 +512,11 @@ void r3d_glEvalCoord1f (GLfloat u);
 #define glEvalCoord1f r3d_glEvalCoord1f
 void r3d_glEvalCoord1fv (const GLfloat * u);
 #define glEvalCoord1fv r3d_glEvalCoord1fv
-void r3d_glEvalCoord2d (GLdouble u, GLdouble v);
+void r3d_glEvalCoord2d (GLdouble u, GLdouble v_);
 #define glEvalCoord2d r3d_glEvalCoord2d
 void r3d_glEvalCoord2dv (const GLdouble * u);
 #define glEvalCoord2dv r3d_glEvalCoord2dv
-void r3d_glEvalCoord2f (GLfloat u, GLfloat v);
+void r3d_glEvalCoord2f (GLfloat u, GLfloat v_);
 #define glEvalCoord2f r3d_glEvalCoord2f
 void r3d_glEvalCoord2fv (const GLfloat * u);
 #define glEvalCoord2fv r3d_glEvalCoord2fv
@@ -552,11 +552,11 @@ void r3d_glGetLightfv (GLenum light, GLenum pname, GLfloat * params);
 #define glGetLightfv r3d_glGetLightfv
 void r3d_glGetLightiv (GLenum light, GLenum pname, GLint * params);
 #define glGetLightiv r3d_glGetLightiv
-void r3d_glGetMapdv (GLenum target, GLenum query, GLdouble * v);
+void r3d_glGetMapdv (GLenum target, GLenum query, GLdouble * v_);
 #define glGetMapdv r3d_glGetMapdv
-void r3d_glGetMapfv (GLenum target, GLenum query, GLfloat * v);
+void r3d_glGetMapfv (GLenum target, GLenum query, GLfloat * v_);
 #define glGetMapfv r3d_glGetMapfv
-void r3d_glGetMapiv (GLenum target, GLenum query, GLint * v);
+void r3d_glGetMapiv (GLenum target, GLenum query, GLint * v_);
 #define glGetMapiv r3d_glGetMapiv
 void r3d_glGetMaterialfv (GLenum face, GLenum pname, GLfloat * params);
 #define glGetMaterialfv r3d_glGetMaterialfv
@@ -704,67 +704,67 @@ void r3d_glClientActiveTexture (GLenum texture);
 #define glClientActiveTexture r3d_glClientActiveTexture
 void r3d_glMultiTexCoord1d (GLenum target, GLdouble s);
 #define glMultiTexCoord1d r3d_glMultiTexCoord1d
-void r3d_glMultiTexCoord1dv (GLenum target, const GLdouble * v);
+void r3d_glMultiTexCoord1dv (GLenum target, const GLdouble * v_);
 #define glMultiTexCoord1dv r3d_glMultiTexCoord1dv
 void r3d_glMultiTexCoord1f (GLenum target, GLfloat s);
 #define glMultiTexCoord1f r3d_glMultiTexCoord1f
-void r3d_glMultiTexCoord1fv (GLenum target, const GLfloat * v);
+void r3d_glMultiTexCoord1fv (GLenum target, const GLfloat * v_);
 #define glMultiTexCoord1fv r3d_glMultiTexCoord1fv
 void r3d_glMultiTexCoord1i (GLenum target, GLint s);
 #define glMultiTexCoord1i r3d_glMultiTexCoord1i
-void r3d_glMultiTexCoord1iv (GLenum target, const GLint * v);
+void r3d_glMultiTexCoord1iv (GLenum target, const GLint * v_);
 #define glMultiTexCoord1iv r3d_glMultiTexCoord1iv
 void r3d_glMultiTexCoord1s (GLenum target, GLshort s);
 #define glMultiTexCoord1s r3d_glMultiTexCoord1s
-void r3d_glMultiTexCoord1sv (GLenum target, const GLshort * v);
+void r3d_glMultiTexCoord1sv (GLenum target, const GLshort * v_);
 #define glMultiTexCoord1sv r3d_glMultiTexCoord1sv
 void r3d_glMultiTexCoord2d (GLenum target, GLdouble s, GLdouble t);
 #define glMultiTexCoord2d r3d_glMultiTexCoord2d
-void r3d_glMultiTexCoord2dv (GLenum target, const GLdouble * v);
+void r3d_glMultiTexCoord2dv (GLenum target, const GLdouble * v_);
 #define glMultiTexCoord2dv r3d_glMultiTexCoord2dv
 void r3d_glMultiTexCoord2f (GLenum target, GLfloat s, GLfloat t);
 #define glMultiTexCoord2f r3d_glMultiTexCoord2f
-void r3d_glMultiTexCoord2fv (GLenum target, const GLfloat * v);
+void r3d_glMultiTexCoord2fv (GLenum target, const GLfloat * v_);
 #define glMultiTexCoord2fv r3d_glMultiTexCoord2fv
 void r3d_glMultiTexCoord2i (GLenum target, GLint s, GLint t);
 #define glMultiTexCoord2i r3d_glMultiTexCoord2i
-void r3d_glMultiTexCoord2iv (GLenum target, const GLint * v);
+void r3d_glMultiTexCoord2iv (GLenum target, const GLint * v_);
 #define glMultiTexCoord2iv r3d_glMultiTexCoord2iv
 void r3d_glMultiTexCoord2s (GLenum target, GLshort s, GLshort t);
 #define glMultiTexCoord2s r3d_glMultiTexCoord2s
-void r3d_glMultiTexCoord2sv (GLenum target, const GLshort * v);
+void r3d_glMultiTexCoord2sv (GLenum target, const GLshort * v_);
 #define glMultiTexCoord2sv r3d_glMultiTexCoord2sv
 void r3d_glMultiTexCoord3d (GLenum target, GLdouble s, GLdouble t, GLdouble r);
 #define glMultiTexCoord3d r3d_glMultiTexCoord3d
-void r3d_glMultiTexCoord3dv (GLenum target, const GLdouble * v);
+void r3d_glMultiTexCoord3dv (GLenum target, const GLdouble * v_);
 #define glMultiTexCoord3dv r3d_glMultiTexCoord3dv
 void r3d_glMultiTexCoord3f (GLenum target, GLfloat s, GLfloat t, GLfloat r);
 #define glMultiTexCoord3f r3d_glMultiTexCoord3f
-void r3d_glMultiTexCoord3fv (GLenum target, const GLfloat * v);
+void r3d_glMultiTexCoord3fv (GLenum target, const GLfloat * v_);
 #define glMultiTexCoord3fv r3d_glMultiTexCoord3fv
 void r3d_glMultiTexCoord3i (GLenum target, GLint s, GLint t, GLint r);
 #define glMultiTexCoord3i r3d_glMultiTexCoord3i
-void r3d_glMultiTexCoord3iv (GLenum target, const GLint * v);
+void r3d_glMultiTexCoord3iv (GLenum target, const GLint * v_);
 #define glMultiTexCoord3iv r3d_glMultiTexCoord3iv
 void r3d_glMultiTexCoord3s (GLenum target, GLshort s, GLshort t, GLshort r);
 #define glMultiTexCoord3s r3d_glMultiTexCoord3s
-void r3d_glMultiTexCoord3sv (GLenum target, const GLshort * v);
+void r3d_glMultiTexCoord3sv (GLenum target, const GLshort * v_);
 #define glMultiTexCoord3sv r3d_glMultiTexCoord3sv
 void r3d_glMultiTexCoord4d (GLenum target, GLdouble s, GLdouble t, GLdouble r, GLdouble q);
 #define glMultiTexCoord4d r3d_glMultiTexCoord4d
-void r3d_glMultiTexCoord4dv (GLenum target, const GLdouble * v);
+void r3d_glMultiTexCoord4dv (GLenum target, const GLdouble * v_);
 #define glMultiTexCoord4dv r3d_glMultiTexCoord4dv
 void r3d_glMultiTexCoord4f (GLenum target, GLfloat s, GLfloat t, GLfloat r, GLfloat q);
 #define glMultiTexCoord4f r3d_glMultiTexCoord4f
-void r3d_glMultiTexCoord4fv (GLenum target, const GLfloat * v);
+void r3d_glMultiTexCoord4fv (GLenum target, const GLfloat * v_);
 #define glMultiTexCoord4fv r3d_glMultiTexCoord4fv
 void r3d_glMultiTexCoord4i (GLenum target, GLint s, GLint t, GLint r, GLint q);
 #define glMultiTexCoord4i r3d_glMultiTexCoord4i
-void r3d_glMultiTexCoord4iv (GLenum target, const GLint * v);
+void r3d_glMultiTexCoord4iv (GLenum target, const GLint * v_);
 #define glMultiTexCoord4iv r3d_glMultiTexCoord4iv
 void r3d_glMultiTexCoord4s (GLenum target, GLshort s, GLshort t, GLshort r, GLshort q);
 #define glMultiTexCoord4s r3d_glMultiTexCoord4s
-void r3d_glMultiTexCoord4sv (GLenum target, const GLshort * v);
+void r3d_glMultiTexCoord4sv (GLenum target, const GLshort * v_);
 #define glMultiTexCoord4sv r3d_glMultiTexCoord4sv
 void r3d_glLoadTransposeMatrixf (const GLfloat * m);
 #define glLoadTransposeMatrixf r3d_glLoadTransposeMatrixf
@@ -800,69 +800,69 @@ void r3d_glFogCoordPointer (GLenum type, GLsizei stride, const void * pointer);
 #define glFogCoordPointer r3d_glFogCoordPointer
 void r3d_glSecondaryColor3b (GLbyte red, GLbyte green, GLbyte blue);
 #define glSecondaryColor3b r3d_glSecondaryColor3b
-void r3d_glSecondaryColor3bv (const GLbyte * v);
+void r3d_glSecondaryColor3bv (const GLbyte * v_);
 #define glSecondaryColor3bv r3d_glSecondaryColor3bv
 void r3d_glSecondaryColor3d (GLdouble red, GLdouble green, GLdouble blue);
 #define glSecondaryColor3d r3d_glSecondaryColor3d
-void r3d_glSecondaryColor3dv (const GLdouble * v);
+void r3d_glSecondaryColor3dv (const GLdouble * v_);
 #define glSecondaryColor3dv r3d_glSecondaryColor3dv
 void r3d_glSecondaryColor3f (GLfloat red, GLfloat green, GLfloat blue);
 #define glSecondaryColor3f r3d_glSecondaryColor3f
-void r3d_glSecondaryColor3fv (const GLfloat * v);
+void r3d_glSecondaryColor3fv (const GLfloat * v_);
 #define glSecondaryColor3fv r3d_glSecondaryColor3fv
 void r3d_glSecondaryColor3i (GLint red, GLint green, GLint blue);
 #define glSecondaryColor3i r3d_glSecondaryColor3i
-void r3d_glSecondaryColor3iv (const GLint * v);
+void r3d_glSecondaryColor3iv (const GLint * v_);
 #define glSecondaryColor3iv r3d_glSecondaryColor3iv
 void r3d_glSecondaryColor3s (GLshort red, GLshort green, GLshort blue);
 #define glSecondaryColor3s r3d_glSecondaryColor3s
-void r3d_glSecondaryColor3sv (const GLshort * v);
+void r3d_glSecondaryColor3sv (const GLshort * v_);
 #define glSecondaryColor3sv r3d_glSecondaryColor3sv
 void r3d_glSecondaryColor3ub (GLubyte red, GLubyte green, GLubyte blue);
 #define glSecondaryColor3ub r3d_glSecondaryColor3ub
-void r3d_glSecondaryColor3ubv (const GLubyte * v);
+void r3d_glSecondaryColor3ubv (const GLubyte * v_);
 #define glSecondaryColor3ubv r3d_glSecondaryColor3ubv
 void r3d_glSecondaryColor3ui (GLuint red, GLuint green, GLuint blue);
 #define glSecondaryColor3ui r3d_glSecondaryColor3ui
-void r3d_glSecondaryColor3uiv (const GLuint * v);
+void r3d_glSecondaryColor3uiv (const GLuint * v_);
 #define glSecondaryColor3uiv r3d_glSecondaryColor3uiv
 void r3d_glSecondaryColor3us (GLushort red, GLushort green, GLushort blue);
 #define glSecondaryColor3us r3d_glSecondaryColor3us
-void r3d_glSecondaryColor3usv (const GLushort * v);
+void r3d_glSecondaryColor3usv (const GLushort * v_);
 #define glSecondaryColor3usv r3d_glSecondaryColor3usv
 void r3d_glSecondaryColorPointer (GLint size, GLenum type, GLsizei stride, const void * pointer);
 #define glSecondaryColorPointer r3d_glSecondaryColorPointer
 void r3d_glWindowPos2d (GLdouble x, GLdouble y);
 #define glWindowPos2d r3d_glWindowPos2d
-void r3d_glWindowPos2dv (const GLdouble * v);
+void r3d_glWindowPos2dv (const GLdouble * v_);
 #define glWindowPos2dv r3d_glWindowPos2dv
 void r3d_glWindowPos2f (GLfloat x, GLfloat y);
 #define glWindowPos2f r3d_glWindowPos2f
-void r3d_glWindowPos2fv (const GLfloat * v);
+void r3d_glWindowPos2fv (const GLfloat * v_);
 #define glWindowPos2fv r3d_glWindowPos2fv
 void r3d_glWindowPos2i (GLint x, GLint y);
 #define glWindowPos2i r3d_glWindowPos2i
-void r3d_glWindowPos2iv (const GLint * v);
+void r3d_glWindowPos2iv (const GLint * v_);
 #define glWindowPos2iv r3d_glWindowPos2iv
 void r3d_glWindowPos2s (GLshort x, GLshort y);
 #define glWindowPos2s r3d_glWindowPos2s
-void r3d_glWindowPos2sv (const GLshort * v);
+void r3d_glWindowPos2sv (const GLshort * v_);
 #define glWindowPos2sv r3d_glWindowPos2sv
 void r3d_glWindowPos3d (GLdouble x, GLdouble y, GLdouble z);
 #define glWindowPos3d r3d_glWindowPos3d
-void r3d_glWindowPos3dv (const GLdouble * v);
+void r3d_glWindowPos3dv (const GLdouble * v_);
 #define glWindowPos3dv r3d_glWindowPos3dv
 void r3d_glWindowPos3f (GLfloat x, GLfloat y, GLfloat z);
 #define glWindowPos3f r3d_glWindowPos3f
-void r3d_glWindowPos3fv (const GLfloat * v);
+void r3d_glWindowPos3fv (const GLfloat * v_);
 #define glWindowPos3fv r3d_glWindowPos3fv
 void r3d_glWindowPos3i (GLint x, GLint y, GLint z);
 #define glWindowPos3i r3d_glWindowPos3i
-void r3d_glWindowPos3iv (const GLint * v);
+void r3d_glWindowPos3iv (const GLint * v_);
 #define glWindowPos3iv r3d_glWindowPos3iv
 void r3d_glWindowPos3s (GLshort x, GLshort y, GLshort z);
 #define glWindowPos3s r3d_glWindowPos3s
-void r3d_glWindowPos3sv (const GLshort * v);
+void r3d_glWindowPos3sv (const GLshort * v_);
 #define glWindowPos3sv r3d_glWindowPos3sv
 void r3d_glBlendColor (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
 #define glBlendColor r3d_glBlendColor
@@ -1020,75 +1020,75 @@ void r3d_glValidateProgram (GLuint program);
 #define glValidateProgram r3d_glValidateProgram
 void r3d_glVertexAttrib1d (GLuint index, GLdouble x);
 #define glVertexAttrib1d r3d_glVertexAttrib1d
-void r3d_glVertexAttrib1dv (GLuint index, const GLdouble * v);
+void r3d_glVertexAttrib1dv (GLuint index, const GLdouble * v_);
 #define glVertexAttrib1dv r3d_glVertexAttrib1dv
 void r3d_glVertexAttrib1f (GLuint index, GLfloat x);
 #define glVertexAttrib1f r3d_glVertexAttrib1f
-void r3d_glVertexAttrib1fv (GLuint index, const GLfloat * v);
+void r3d_glVertexAttrib1fv (GLuint index, const GLfloat * v_);
 #define glVertexAttrib1fv r3d_glVertexAttrib1fv
 void r3d_glVertexAttrib1s (GLuint index, GLshort x);
 #define glVertexAttrib1s r3d_glVertexAttrib1s
-void r3d_glVertexAttrib1sv (GLuint index, const GLshort * v);
+void r3d_glVertexAttrib1sv (GLuint index, const GLshort * v_);
 #define glVertexAttrib1sv r3d_glVertexAttrib1sv
 void r3d_glVertexAttrib2d (GLuint index, GLdouble x, GLdouble y);
 #define glVertexAttrib2d r3d_glVertexAttrib2d
-void r3d_glVertexAttrib2dv (GLuint index, const GLdouble * v);
+void r3d_glVertexAttrib2dv (GLuint index, const GLdouble * v_);
 #define glVertexAttrib2dv r3d_glVertexAttrib2dv
 void r3d_glVertexAttrib2f (GLuint index, GLfloat x, GLfloat y);
 #define glVertexAttrib2f r3d_glVertexAttrib2f
-void r3d_glVertexAttrib2fv (GLuint index, const GLfloat * v);
+void r3d_glVertexAttrib2fv (GLuint index, const GLfloat * v_);
 #define glVertexAttrib2fv r3d_glVertexAttrib2fv
 void r3d_glVertexAttrib2s (GLuint index, GLshort x, GLshort y);
 #define glVertexAttrib2s r3d_glVertexAttrib2s
-void r3d_glVertexAttrib2sv (GLuint index, const GLshort * v);
+void r3d_glVertexAttrib2sv (GLuint index, const GLshort * v_);
 #define glVertexAttrib2sv r3d_glVertexAttrib2sv
 void r3d_glVertexAttrib3d (GLuint index, GLdouble x, GLdouble y, GLdouble z);
 #define glVertexAttrib3d r3d_glVertexAttrib3d
-void r3d_glVertexAttrib3dv (GLuint index, const GLdouble * v);
+void r3d_glVertexAttrib3dv (GLuint index, const GLdouble * v_);
 #define glVertexAttrib3dv r3d_glVertexAttrib3dv
 void r3d_glVertexAttrib3f (GLuint index, GLfloat x, GLfloat y, GLfloat z);
 #define glVertexAttrib3f r3d_glVertexAttrib3f
-void r3d_glVertexAttrib3fv (GLuint index, const GLfloat * v);
+void r3d_glVertexAttrib3fv (GLuint index, const GLfloat * v_);
 #define glVertexAttrib3fv r3d_glVertexAttrib3fv
 void r3d_glVertexAttrib3s (GLuint index, GLshort x, GLshort y, GLshort z);
 #define glVertexAttrib3s r3d_glVertexAttrib3s
-void r3d_glVertexAttrib3sv (GLuint index, const GLshort * v);
+void r3d_glVertexAttrib3sv (GLuint index, const GLshort * v_);
 #define glVertexAttrib3sv r3d_glVertexAttrib3sv
-void r3d_glVertexAttrib4Nbv (GLuint index, const GLbyte * v);
+void r3d_glVertexAttrib4Nbv (GLuint index, const GLbyte * v_);
 #define glVertexAttrib4Nbv r3d_glVertexAttrib4Nbv
-void r3d_glVertexAttrib4Niv (GLuint index, const GLint * v);
+void r3d_glVertexAttrib4Niv (GLuint index, const GLint * v_);
 #define glVertexAttrib4Niv r3d_glVertexAttrib4Niv
-void r3d_glVertexAttrib4Nsv (GLuint index, const GLshort * v);
+void r3d_glVertexAttrib4Nsv (GLuint index, const GLshort * v_);
 #define glVertexAttrib4Nsv r3d_glVertexAttrib4Nsv
 void r3d_glVertexAttrib4Nub (GLuint index, GLubyte x, GLubyte y, GLubyte z, GLubyte w);
 #define glVertexAttrib4Nub r3d_glVertexAttrib4Nub
-void r3d_glVertexAttrib4Nubv (GLuint index, const GLubyte * v);
+void r3d_glVertexAttrib4Nubv (GLuint index, const GLubyte * v_);
 #define glVertexAttrib4Nubv r3d_glVertexAttrib4Nubv
-void r3d_glVertexAttrib4Nuiv (GLuint index, const GLuint * v);
+void r3d_glVertexAttrib4Nuiv (GLuint index, const GLuint * v_);
 #define glVertexAttrib4Nuiv r3d_glVertexAttrib4Nuiv
-void r3d_glVertexAttrib4Nusv (GLuint index, const GLushort * v);
+void r3d_glVertexAttrib4Nusv (GLuint index, const GLushort * v_);
 #define glVertexAttrib4Nusv r3d_glVertexAttrib4Nusv
-void r3d_glVertexAttrib4bv (GLuint index, const GLbyte * v);
+void r3d_glVertexAttrib4bv (GLuint index, const GLbyte * v_);
 #define glVertexAttrib4bv r3d_glVertexAttrib4bv
 void r3d_glVertexAttrib4d (GLuint index, GLdouble x, GLdouble y, GLdouble z, GLdouble w);
 #define glVertexAttrib4d r3d_glVertexAttrib4d
-void r3d_glVertexAttrib4dv (GLuint index, const GLdouble * v);
+void r3d_glVertexAttrib4dv (GLuint index, const GLdouble * v_);
 #define glVertexAttrib4dv r3d_glVertexAttrib4dv
 void r3d_glVertexAttrib4f (GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w);
 #define glVertexAttrib4f r3d_glVertexAttrib4f
-void r3d_glVertexAttrib4fv (GLuint index, const GLfloat * v);
+void r3d_glVertexAttrib4fv (GLuint index, const GLfloat * v_);
 #define glVertexAttrib4fv r3d_glVertexAttrib4fv
-void r3d_glVertexAttrib4iv (GLuint index, const GLint * v);
+void r3d_glVertexAttrib4iv (GLuint index, const GLint * v_);
 #define glVertexAttrib4iv r3d_glVertexAttrib4iv
 void r3d_glVertexAttrib4s (GLuint index, GLshort x, GLshort y, GLshort z, GLshort w);
 #define glVertexAttrib4s r3d_glVertexAttrib4s
-void r3d_glVertexAttrib4sv (GLuint index, const GLshort * v);
+void r3d_glVertexAttrib4sv (GLuint index, const GLshort * v_);
 #define glVertexAttrib4sv r3d_glVertexAttrib4sv
-void r3d_glVertexAttrib4ubv (GLuint index, const GLubyte * v);
+void r3d_glVertexAttrib4ubv (GLuint index, const GLubyte * v_);
 #define glVertexAttrib4ubv r3d_glVertexAttrib4ubv
-void r3d_glVertexAttrib4uiv (GLuint index, const GLuint * v);
+void r3d_glVertexAttrib4uiv (GLuint index, const GLuint * v_);
 #define glVertexAttrib4uiv r3d_glVertexAttrib4uiv
-void r3d_glVertexAttrib4usv (GLuint index, const GLushort * v);
+void r3d_glVertexAttrib4usv (GLuint index, const GLushort * v_);
 #define glVertexAttrib4usv r3d_glVertexAttrib4usv
 void r3d_glVertexAttribPointer (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void * pointer);
 #define glVertexAttribPointer r3d_glVertexAttribPointer
@@ -1110,13 +1110,13 @@ void r3d_glBindRenderbuffer (GLenum target, GLuint renderbuffer);
 #define glBindRenderbuffer r3d_glBindRenderbuffer
 GLenum r3d_glCheckFramebufferStatus (GLenum target);
 #define glCheckFramebufferStatus r3d_glCheckFramebufferStatus
-void r3d_glClearDepthf (GLfloat d);
+void r3d_glClearDepthf (GLfloat d_);
 #define glClearDepthf r3d_glClearDepthf
 void r3d_glDeleteFramebuffers (GLsizei n, const GLuint * framebuffers);
 #define glDeleteFramebuffers r3d_glDeleteFramebuffers
 void r3d_glDeleteRenderbuffers (GLsizei n, const GLuint * renderbuffers);
 #define glDeleteRenderbuffers r3d_glDeleteRenderbuffers
-void r3d_glDepthRangef (GLfloat n, GLfloat f);
+void r3d_glDepthRangef (GLfloat n, GLfloat f_);
 #define glDepthRangef r3d_glDepthRangef
 void r3d_glFramebufferRenderbuffer (GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 #define glFramebufferRenderbuffer r3d_glFramebufferRenderbuffer
@@ -1156,11 +1156,11 @@ void r3d_glFramebufferTextureLayer (GLenum target, GLenum attachment, GLuint tex
 #define glFramebufferTextureLayer r3d_glFramebufferTextureLayer
 void r3d_glClipPlanef (GLenum p, const GLfloat * eqn);
 #define glClipPlanef r3d_glClipPlanef
-void r3d_glFrustumf (GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f);
+void r3d_glFrustumf (GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f_);
 #define glFrustumf r3d_glFrustumf
 void r3d_glGetClipPlanef (GLenum plane, GLfloat * equation);
 #define glGetClipPlanef r3d_glGetClipPlanef
-void r3d_glOrthof (GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f);
+void r3d_glOrthof (GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f_);
 #define glOrthof r3d_glOrthof
 void r3d_glAlphaFuncx (GLenum func, GLfixed ref);
 #define glAlphaFuncx r3d_glAlphaFuncx
@@ -1172,13 +1172,13 @@ void r3d_glClipPlanex (GLenum plane, const GLfixed * equation);
 #define glClipPlanex r3d_glClipPlanex
 void r3d_glColor4x (GLfixed red, GLfixed green, GLfixed blue, GLfixed alpha);
 #define glColor4x r3d_glColor4x
-void r3d_glDepthRangex (GLfixed n, GLfixed f);
+void r3d_glDepthRangex (GLfixed n, GLfixed f_);
 #define glDepthRangex r3d_glDepthRangex
 void r3d_glFogx (GLenum pname, GLfixed param);
 #define glFogx r3d_glFogx
 void r3d_glFogxv (GLenum pname, const GLfixed * param);
 #define glFogxv r3d_glFogxv
-void r3d_glFrustumx (GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f);
+void r3d_glFrustumx (GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f_);
 #define glFrustumx r3d_glFrustumx
 void r3d_glGetClipPlanex (GLenum plane, GLfixed * equation);
 #define glGetClipPlanex r3d_glGetClipPlanex
@@ -1214,7 +1214,7 @@ void r3d_glMultiTexCoord4x (GLenum texture, GLfixed s, GLfixed t, GLfixed r, GLf
 #define glMultiTexCoord4x r3d_glMultiTexCoord4x
 void r3d_glNormal3x (GLfixed nx, GLfixed ny, GLfixed nz);
 #define glNormal3x r3d_glNormal3x
-void r3d_glOrthox (GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f);
+void r3d_glOrthox (GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f_);
 #define glOrthox r3d_glOrthox
 void r3d_glPointParameterx (GLenum pname, GLfixed param);
 #define glPointParameterx r3d_glPointParameterx
@@ -1410,4 +1410,974 @@ void r3d_glGetProgramBinary (GLuint program, GLsizei bufSize, GLsizei * length, 
 #define glGetProgramBinary r3d_glGetProgramBinary
 void r3d_glProgramBinary (GLuint program, GLenum binaryFormat, const void * binary, GLsizei length);
 #define glProgramBinary r3d_glProgramBinary
+void r3d_glColorMaski (GLuint index, GLboolean r, GLboolean g_, GLboolean b, GLboolean a_);
+#define glColorMaski r3d_glColorMaski
+void r3d_glGetBooleani_v (GLenum target, GLuint index, GLboolean * data);
+#define glGetBooleani_v r3d_glGetBooleani_v
+void r3d_glGetIntegeri_v (GLenum target, GLuint index, GLint * data);
+#define glGetIntegeri_v r3d_glGetIntegeri_v
+void r3d_glEnablei (GLenum target, GLuint index);
+#define glEnablei r3d_glEnablei
+void r3d_glDisablei (GLenum target, GLuint index);
+#define glDisablei r3d_glDisablei
+GLboolean r3d_glIsEnabledi (GLenum target, GLuint index);
+#define glIsEnabledi r3d_glIsEnabledi
+void r3d_glBeginTransformFeedback (GLenum primitiveMode);
+#define glBeginTransformFeedback r3d_glBeginTransformFeedback
+void r3d_glEndTransformFeedback (void);
+#define glEndTransformFeedback r3d_glEndTransformFeedback
+void r3d_glBindBufferRange (GLenum target, GLuint index, GLuint buffer, GLintptr offset, GLsizeiptr size);
+#define glBindBufferRange r3d_glBindBufferRange
+void r3d_glBindBufferBase (GLenum target, GLuint index, GLuint buffer);
+#define glBindBufferBase r3d_glBindBufferBase
+void r3d_glTransformFeedbackVaryings (GLuint program, GLsizei count, const GLchar *const* varyings, GLenum bufferMode);
+#define glTransformFeedbackVaryings r3d_glTransformFeedbackVaryings
+void r3d_glGetTransformFeedbackVarying (GLuint program, GLuint index, GLsizei bufSize, GLsizei * length, GLsizei * size, GLenum * type, GLchar * name);
+#define glGetTransformFeedbackVarying r3d_glGetTransformFeedbackVarying
+void r3d_glClampColor (GLenum target, GLenum clamp);
+#define glClampColor r3d_glClampColor
+void r3d_glVertexAttribIPointer (GLuint index, GLint size, GLenum type, GLsizei stride, const void * pointer);
+#define glVertexAttribIPointer r3d_glVertexAttribIPointer
+void r3d_glGetVertexAttribIiv (GLuint index, GLenum pname, GLint * params);
+#define glGetVertexAttribIiv r3d_glGetVertexAttribIiv
+void r3d_glGetVertexAttribIuiv (GLuint index, GLenum pname, GLuint * params);
+#define glGetVertexAttribIuiv r3d_glGetVertexAttribIuiv
+void r3d_glVertexAttribI1i (GLuint index, GLint x);
+#define glVertexAttribI1i r3d_glVertexAttribI1i
+void r3d_glVertexAttribI2i (GLuint index, GLint x, GLint y);
+#define glVertexAttribI2i r3d_glVertexAttribI2i
+void r3d_glVertexAttribI3i (GLuint index, GLint x, GLint y, GLint z);
+#define glVertexAttribI3i r3d_glVertexAttribI3i
+void r3d_glVertexAttribI4i (GLuint index, GLint x, GLint y, GLint z, GLint w);
+#define glVertexAttribI4i r3d_glVertexAttribI4i
+void r3d_glVertexAttribI1ui (GLuint index, GLuint x);
+#define glVertexAttribI1ui r3d_glVertexAttribI1ui
+void r3d_glVertexAttribI2ui (GLuint index, GLuint x, GLuint y);
+#define glVertexAttribI2ui r3d_glVertexAttribI2ui
+void r3d_glVertexAttribI3ui (GLuint index, GLuint x, GLuint y, GLuint z);
+#define glVertexAttribI3ui r3d_glVertexAttribI3ui
+void r3d_glVertexAttribI4ui (GLuint index, GLuint x, GLuint y, GLuint z, GLuint w);
+#define glVertexAttribI4ui r3d_glVertexAttribI4ui
+void r3d_glVertexAttribI1iv (GLuint index, const GLint * v_);
+#define glVertexAttribI1iv r3d_glVertexAttribI1iv
+void r3d_glVertexAttribI2iv (GLuint index, const GLint * v_);
+#define glVertexAttribI2iv r3d_glVertexAttribI2iv
+void r3d_glVertexAttribI3iv (GLuint index, const GLint * v_);
+#define glVertexAttribI3iv r3d_glVertexAttribI3iv
+void r3d_glVertexAttribI4iv (GLuint index, const GLint * v_);
+#define glVertexAttribI4iv r3d_glVertexAttribI4iv
+void r3d_glVertexAttribI1uiv (GLuint index, const GLuint * v_);
+#define glVertexAttribI1uiv r3d_glVertexAttribI1uiv
+void r3d_glVertexAttribI2uiv (GLuint index, const GLuint * v_);
+#define glVertexAttribI2uiv r3d_glVertexAttribI2uiv
+void r3d_glVertexAttribI3uiv (GLuint index, const GLuint * v_);
+#define glVertexAttribI3uiv r3d_glVertexAttribI3uiv
+void r3d_glVertexAttribI4uiv (GLuint index, const GLuint * v_);
+#define glVertexAttribI4uiv r3d_glVertexAttribI4uiv
+void r3d_glVertexAttribI4bv (GLuint index, const GLbyte * v_);
+#define glVertexAttribI4bv r3d_glVertexAttribI4bv
+void r3d_glVertexAttribI4sv (GLuint index, const GLshort * v_);
+#define glVertexAttribI4sv r3d_glVertexAttribI4sv
+void r3d_glVertexAttribI4ubv (GLuint index, const GLubyte * v_);
+#define glVertexAttribI4ubv r3d_glVertexAttribI4ubv
+void r3d_glVertexAttribI4usv (GLuint index, const GLushort * v_);
+#define glVertexAttribI4usv r3d_glVertexAttribI4usv
+void r3d_glGetUniformuiv (GLuint program, GLint location, GLuint * params);
+#define glGetUniformuiv r3d_glGetUniformuiv
+void r3d_glBindFragDataLocation (GLuint program, GLuint color, const GLchar * name);
+#define glBindFragDataLocation r3d_glBindFragDataLocation
+GLint r3d_glGetFragDataLocation (GLuint program, const GLchar * name);
+#define glGetFragDataLocation r3d_glGetFragDataLocation
+void r3d_glUniform1ui (GLint location, GLuint v0);
+#define glUniform1ui r3d_glUniform1ui
+void r3d_glUniform2ui (GLint location, GLuint v0, GLuint v1);
+#define glUniform2ui r3d_glUniform2ui
+void r3d_glUniform3ui (GLint location, GLuint v0, GLuint v1, GLuint v2);
+#define glUniform3ui r3d_glUniform3ui
+void r3d_glUniform4ui (GLint location, GLuint v0, GLuint v1, GLuint v2, GLuint v3);
+#define glUniform4ui r3d_glUniform4ui
+void r3d_glUniform1uiv (GLint location, GLsizei count, const GLuint * value);
+#define glUniform1uiv r3d_glUniform1uiv
+void r3d_glUniform2uiv (GLint location, GLsizei count, const GLuint * value);
+#define glUniform2uiv r3d_glUniform2uiv
+void r3d_glUniform3uiv (GLint location, GLsizei count, const GLuint * value);
+#define glUniform3uiv r3d_glUniform3uiv
+void r3d_glUniform4uiv (GLint location, GLsizei count, const GLuint * value);
+#define glUniform4uiv r3d_glUniform4uiv
+void r3d_glClearBufferiv (GLenum buffer, GLint drawbuffer, const GLint * value);
+#define glClearBufferiv r3d_glClearBufferiv
+void r3d_glClearBufferuiv (GLenum buffer, GLint drawbuffer, const GLuint * value);
+#define glClearBufferuiv r3d_glClearBufferuiv
+void r3d_glClearBufferfv (GLenum buffer, GLint drawbuffer, const GLfloat * value);
+#define glClearBufferfv r3d_glClearBufferfv
+void r3d_glClearBufferfi (GLenum buffer, GLint drawbuffer, GLfloat depth, GLint stencil);
+#define glClearBufferfi r3d_glClearBufferfi
+const GLubyte * r3d_glGetStringi (GLenum name, GLuint index);
+#define glGetStringi r3d_glGetStringi
+void r3d_glTexBuffer (GLenum target, GLenum internalformat, GLuint buffer);
+#define glTexBuffer r3d_glTexBuffer
+void r3d_glPrimitiveRestartIndex (GLuint index);
+#define glPrimitiveRestartIndex r3d_glPrimitiveRestartIndex
+void r3d_glCopyBufferSubData (GLenum readTarget, GLenum writeTarget, GLintptr readOffset, GLintptr writeOffset, GLsizeiptr size);
+#define glCopyBufferSubData r3d_glCopyBufferSubData
+void r3d_glGetUniformIndices (GLuint program, GLsizei uniformCount, const GLchar *const* uniformNames, GLuint * uniformIndices);
+#define glGetUniformIndices r3d_glGetUniformIndices
+void r3d_glGetActiveUniformsiv (GLuint program, GLsizei uniformCount, const GLuint * uniformIndices, GLenum pname, GLint * params);
+#define glGetActiveUniformsiv r3d_glGetActiveUniformsiv
+void r3d_glGetActiveUniformName (GLuint program, GLuint uniformIndex, GLsizei bufSize, GLsizei * length, GLchar * uniformName);
+#define glGetActiveUniformName r3d_glGetActiveUniformName
+GLuint r3d_glGetUniformBlockIndex (GLuint program, const GLchar * uniformBlockName);
+#define glGetUniformBlockIndex r3d_glGetUniformBlockIndex
+void r3d_glGetActiveUniformBlockiv (GLuint program, GLuint uniformBlockIndex, GLenum pname, GLint * params);
+#define glGetActiveUniformBlockiv r3d_glGetActiveUniformBlockiv
+void r3d_glGetActiveUniformBlockName (GLuint program, GLuint uniformBlockIndex, GLsizei bufSize, GLsizei * length, GLchar * uniformBlockName);
+#define glGetActiveUniformBlockName r3d_glGetActiveUniformBlockName
+void r3d_glUniformBlockBinding (GLuint program, GLuint uniformBlockIndex, GLuint uniformBlockBinding);
+#define glUniformBlockBinding r3d_glUniformBlockBinding
+GLsync r3d_glFenceSync (GLenum condition, GLbitfield flags);
+#define glFenceSync r3d_glFenceSync
+GLboolean r3d_glIsSync (GLsync sync);
+#define glIsSync r3d_glIsSync
+void r3d_glDeleteSync (GLsync sync);
+#define glDeleteSync r3d_glDeleteSync
+GLenum r3d_glClientWaitSync (GLsync sync, GLbitfield flags, GLuint64 timeout);
+#define glClientWaitSync r3d_glClientWaitSync
+void r3d_glWaitSync (GLsync sync, GLbitfield flags, GLuint64 timeout);
+#define glWaitSync r3d_glWaitSync
+void r3d_glGetInteger64v (GLenum pname, GLint64 * data);
+#define glGetInteger64v r3d_glGetInteger64v
+void r3d_glGetSynciv (GLsync sync, GLenum pname, GLsizei count, GLsizei * length, GLint * values);
+#define glGetSynciv r3d_glGetSynciv
+void r3d_glGetInteger64i_v (GLenum target, GLuint index, GLint64 * data);
+#define glGetInteger64i_v r3d_glGetInteger64i_v
+void r3d_glGetBufferParameteri64v (GLenum target, GLenum pname, GLint64 * params);
+#define glGetBufferParameteri64v r3d_glGetBufferParameteri64v
+void r3d_glGenSamplers (GLsizei count, GLuint * samplers);
+#define glGenSamplers r3d_glGenSamplers
+void r3d_glDeleteSamplers (GLsizei count, const GLuint * samplers);
+#define glDeleteSamplers r3d_glDeleteSamplers
+GLboolean r3d_glIsSampler (GLuint sampler);
+#define glIsSampler r3d_glIsSampler
+void r3d_glBindSampler (GLuint unit, GLuint sampler);
+#define glBindSampler r3d_glBindSampler
+void r3d_glSamplerParameteri (GLuint sampler, GLenum pname, GLint param);
+#define glSamplerParameteri r3d_glSamplerParameteri
+void r3d_glSamplerParameteriv (GLuint sampler, GLenum pname, const GLint * param);
+#define glSamplerParameteriv r3d_glSamplerParameteriv
+void r3d_glSamplerParameterf (GLuint sampler, GLenum pname, GLfloat param);
+#define glSamplerParameterf r3d_glSamplerParameterf
+void r3d_glSamplerParameterfv (GLuint sampler, GLenum pname, const GLfloat * param);
+#define glSamplerParameterfv r3d_glSamplerParameterfv
+void r3d_glGetSamplerParameteriv (GLuint sampler, GLenum pname, GLint * params);
+#define glGetSamplerParameteriv r3d_glGetSamplerParameteriv
+void r3d_glGetSamplerParameterfv (GLuint sampler, GLenum pname, GLfloat * params);
+#define glGetSamplerParameterfv r3d_glGetSamplerParameterfv
+void r3d_glVertexAttribDivisor (GLuint index, GLuint divisor);
+#define glVertexAttribDivisor r3d_glVertexAttribDivisor
+void r3d_glBindTransformFeedback (GLenum target, GLuint id);
+#define glBindTransformFeedback r3d_glBindTransformFeedback
+void r3d_glDeleteTransformFeedbacks (GLsizei n, const GLuint * ids);
+#define glDeleteTransformFeedbacks r3d_glDeleteTransformFeedbacks
+void r3d_glGenTransformFeedbacks (GLsizei n, GLuint * ids);
+#define glGenTransformFeedbacks r3d_glGenTransformFeedbacks
+GLboolean r3d_glIsTransformFeedback (GLuint id);
+#define glIsTransformFeedback r3d_glIsTransformFeedback
+void r3d_glPauseTransformFeedback (void);
+#define glPauseTransformFeedback r3d_glPauseTransformFeedback
+void r3d_glResumeTransformFeedback (void);
+#define glResumeTransformFeedback r3d_glResumeTransformFeedback
+void r3d_glInvalidateFramebuffer (GLenum target, GLsizei numAttachments, const GLenum * attachments);
+#define glInvalidateFramebuffer r3d_glInvalidateFramebuffer
+void r3d_glInvalidateSubFramebuffer (GLenum target, GLsizei numAttachments, const GLenum * attachments, GLint x, GLint y, GLsizei width, GLsizei height);
+#define glInvalidateSubFramebuffer r3d_glInvalidateSubFramebuffer
+void r3d_glTexStorage2D (GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height);
+#define glTexStorage2D r3d_glTexStorage2D
+void r3d_glTexStorage3D (GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth);
+#define glTexStorage3D r3d_glTexStorage3D
+void r3d_glGetInternalformativ (GLenum target, GLenum internalformat, GLenum pname, GLsizei count, GLint * params);
+#define glGetInternalformativ r3d_glGetInternalformativ
+void r3d_glDispatchCompute (GLuint num_groups_x, GLuint num_groups_y, GLuint num_groups_z);
+#define glDispatchCompute r3d_glDispatchCompute
+void r3d_glDispatchComputeIndirect (GLintptr indirect);
+#define glDispatchComputeIndirect r3d_glDispatchComputeIndirect
+void r3d_glDrawArraysIndirect (GLenum mode, const void * indirect);
+#define glDrawArraysIndirect r3d_glDrawArraysIndirect
+void r3d_glDrawElementsIndirect (GLenum mode, GLenum type, const void * indirect);
+#define glDrawElementsIndirect r3d_glDrawElementsIndirect
+void r3d_glFramebufferParameteri (GLenum target, GLenum pname, GLint param);
+#define glFramebufferParameteri r3d_glFramebufferParameteri
+void r3d_glGetFramebufferParameteriv (GLenum target, GLenum pname, GLint * params);
+#define glGetFramebufferParameteriv r3d_glGetFramebufferParameteriv
+void r3d_glGetProgramInterfaceiv (GLuint program, GLenum programInterface, GLenum pname, GLint * params);
+#define glGetProgramInterfaceiv r3d_glGetProgramInterfaceiv
+GLuint r3d_glGetProgramResourceIndex (GLuint program, GLenum programInterface, const GLchar * name);
+#define glGetProgramResourceIndex r3d_glGetProgramResourceIndex
+void r3d_glGetProgramResourceName (GLuint program, GLenum programInterface, GLuint index, GLsizei bufSize, GLsizei * length, GLchar * name);
+#define glGetProgramResourceName r3d_glGetProgramResourceName
+void r3d_glGetProgramResourceiv (GLuint program, GLenum programInterface, GLuint index, GLsizei propCount, const GLenum * props, GLsizei count, GLsizei * length, GLint * params);
+#define glGetProgramResourceiv r3d_glGetProgramResourceiv
+GLint r3d_glGetProgramResourceLocation (GLuint program, GLenum programInterface, const GLchar * name);
+#define glGetProgramResourceLocation r3d_glGetProgramResourceLocation
+void r3d_glBindImageTexture (GLuint unit, GLuint texture, GLint level, GLboolean layered, GLint layer, GLenum access, GLenum format);
+#define glBindImageTexture r3d_glBindImageTexture
+void r3d_glMemoryBarrier (GLbitfield barriers);
+#define glMemoryBarrier r3d_glMemoryBarrier
+void r3d_glMemoryBarrierByRegion (GLbitfield barriers);
+#define glMemoryBarrierByRegion r3d_glMemoryBarrierByRegion
+void r3d_glTexStorage2DMultisample (GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations);
+#define glTexStorage2DMultisample r3d_glTexStorage2DMultisample
+void r3d_glGetMultisamplefv (GLenum pname, GLuint index, GLfloat * val);
+#define glGetMultisamplefv r3d_glGetMultisamplefv
+void r3d_glSampleMaski (GLuint maskNumber, GLbitfield mask);
+#define glSampleMaski r3d_glSampleMaski
+void r3d_glBindVertexBuffer (GLuint bindingindex, GLuint buffer, GLintptr offset, GLsizei stride);
+#define glBindVertexBuffer r3d_glBindVertexBuffer
+void r3d_glVertexAttribFormat (GLuint attribindex, GLint size, GLenum type, GLboolean normalized, GLuint relativeoffset);
+#define glVertexAttribFormat r3d_glVertexAttribFormat
+void r3d_glVertexAttribIFormat (GLuint attribindex, GLint size, GLenum type, GLuint relativeoffset);
+#define glVertexAttribIFormat r3d_glVertexAttribIFormat
+void r3d_glVertexAttribBinding (GLuint attribindex, GLuint bindingindex);
+#define glVertexAttribBinding r3d_glVertexAttribBinding
+void r3d_glVertexBindingDivisor (GLuint bindingindex, GLuint divisor);
+#define glVertexBindingDivisor r3d_glVertexBindingDivisor
+GLenum r3d_glObjectPurgeableAPPLE (GLenum objectType, GLuint name, GLenum option);
+#define glObjectPurgeableAPPLE r3d_glObjectPurgeableAPPLE
+GLenum r3d_glObjectUnpurgeableAPPLE (GLenum objectType, GLuint name, GLenum option);
+#define glObjectUnpurgeableAPPLE r3d_glObjectUnpurgeableAPPLE
+void r3d_glGetObjectParameterivAPPLE (GLenum objectType, GLuint name, GLenum pname, GLint * params);
+#define glGetObjectParameterivAPPLE r3d_glGetObjectParameterivAPPLE
+void r3d_glClearBufferData (GLenum target, GLenum internalformat, GLenum format, GLenum type, const void * data);
+#define glClearBufferData r3d_glClearBufferData
+void r3d_glClearBufferSubData (GLenum target, GLenum internalformat, GLintptr offset, GLsizeiptr size, GLenum format, GLenum type, const void * data);
+#define glClearBufferSubData r3d_glClearBufferSubData
+void r3d_glProgramStringARB (GLenum target, GLenum format, GLsizei len, const void * string);
+#define glProgramStringARB r3d_glProgramStringARB
+void r3d_glBindProgramARB (GLenum target, GLuint program);
+#define glBindProgramARB r3d_glBindProgramARB
+void r3d_glDeleteProgramsARB (GLsizei n, const GLuint * programs);
+#define glDeleteProgramsARB r3d_glDeleteProgramsARB
+void r3d_glGenProgramsARB (GLsizei n, GLuint * programs);
+#define glGenProgramsARB r3d_glGenProgramsARB
+void r3d_glProgramEnvParameter4dARB (GLenum target, GLuint index, GLdouble x, GLdouble y, GLdouble z, GLdouble w);
+#define glProgramEnvParameter4dARB r3d_glProgramEnvParameter4dARB
+void r3d_glProgramEnvParameter4dvARB (GLenum target, GLuint index, const GLdouble * params);
+#define glProgramEnvParameter4dvARB r3d_glProgramEnvParameter4dvARB
+void r3d_glProgramEnvParameter4fARB (GLenum target, GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w);
+#define glProgramEnvParameter4fARB r3d_glProgramEnvParameter4fARB
+void r3d_glProgramEnvParameter4fvARB (GLenum target, GLuint index, const GLfloat * params);
+#define glProgramEnvParameter4fvARB r3d_glProgramEnvParameter4fvARB
+void r3d_glProgramLocalParameter4dARB (GLenum target, GLuint index, GLdouble x, GLdouble y, GLdouble z, GLdouble w);
+#define glProgramLocalParameter4dARB r3d_glProgramLocalParameter4dARB
+void r3d_glProgramLocalParameter4dvARB (GLenum target, GLuint index, const GLdouble * params);
+#define glProgramLocalParameter4dvARB r3d_glProgramLocalParameter4dvARB
+void r3d_glProgramLocalParameter4fARB (GLenum target, GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w);
+#define glProgramLocalParameter4fARB r3d_glProgramLocalParameter4fARB
+void r3d_glProgramLocalParameter4fvARB (GLenum target, GLuint index, const GLfloat * params);
+#define glProgramLocalParameter4fvARB r3d_glProgramLocalParameter4fvARB
+void r3d_glGetProgramEnvParameterdvARB (GLenum target, GLuint index, GLdouble * params);
+#define glGetProgramEnvParameterdvARB r3d_glGetProgramEnvParameterdvARB
+void r3d_glGetProgramEnvParameterfvARB (GLenum target, GLuint index, GLfloat * params);
+#define glGetProgramEnvParameterfvARB r3d_glGetProgramEnvParameterfvARB
+void r3d_glGetProgramLocalParameterdvARB (GLenum target, GLuint index, GLdouble * params);
+#define glGetProgramLocalParameterdvARB r3d_glGetProgramLocalParameterdvARB
+void r3d_glGetProgramLocalParameterfvARB (GLenum target, GLuint index, GLfloat * params);
+#define glGetProgramLocalParameterfvARB r3d_glGetProgramLocalParameterfvARB
+void r3d_glGetProgramivARB (GLenum target, GLenum pname, GLint * params);
+#define glGetProgramivARB r3d_glGetProgramivARB
+void r3d_glGetProgramStringARB (GLenum target, GLenum pname, void * string);
+#define glGetProgramStringARB r3d_glGetProgramStringARB
+void r3d_glGetTextureSubImage (GLuint texture, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, GLsizei bufSize, void * pixels);
+#define glGetTextureSubImage r3d_glGetTextureSubImage
+void r3d_glGetCompressedTextureSubImage (GLuint texture, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLsizei bufSize, void * pixels);
+#define glGetCompressedTextureSubImage r3d_glGetCompressedTextureSubImage
+void r3d_glInvalidateTexSubImage (GLuint texture, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth);
+#define glInvalidateTexSubImage r3d_glInvalidateTexSubImage
+void r3d_glInvalidateTexImage (GLuint texture, GLint level);
+#define glInvalidateTexImage r3d_glInvalidateTexImage
+void r3d_glInvalidateBufferSubData (GLuint buffer, GLintptr offset, GLsizeiptr length);
+#define glInvalidateBufferSubData r3d_glInvalidateBufferSubData
+void r3d_glInvalidateBufferData (GLuint buffer);
+#define glInvalidateBufferData r3d_glInvalidateBufferData
+void r3d_glBindBuffersBase (GLenum target, GLuint first, GLsizei count, const GLuint * buffers);
+#define glBindBuffersBase r3d_glBindBuffersBase
+void r3d_glBindBuffersRange (GLenum target, GLuint first, GLsizei count, const GLuint * buffers, const GLintptr * offsets, const GLsizeiptr * sizes);
+#define glBindBuffersRange r3d_glBindBuffersRange
+void r3d_glBindTextures (GLuint first, GLsizei count, const GLuint * textures);
+#define glBindTextures r3d_glBindTextures
+void r3d_glBindSamplers (GLuint first, GLsizei count, const GLuint * samplers);
+#define glBindSamplers r3d_glBindSamplers
+void r3d_glBindImageTextures (GLuint first, GLsizei count, const GLuint * textures);
+#define glBindImageTextures r3d_glBindImageTextures
+void r3d_glBindVertexBuffers (GLuint first, GLsizei count, const GLuint * buffers, const GLintptr * offsets, const GLsizei * strides);
+#define glBindVertexBuffers r3d_glBindVertexBuffers
+GLint r3d_glGetProgramResourceLocationIndex (GLuint program, GLenum programInterface, const GLchar * name);
+#define glGetProgramResourceLocationIndex r3d_glGetProgramResourceLocationIndex
+void r3d_glProvokingVertex (GLenum mode);
+#define glProvokingVertex r3d_glProvokingVertex
+GLenum r3d_glGetGraphicsResetStatus (void);
+#define glGetGraphicsResetStatus r3d_glGetGraphicsResetStatus
+void r3d_glGetnTexImage (GLenum target, GLint level, GLenum format, GLenum type, GLsizei bufSize, void * pixels);
+#define glGetnTexImage r3d_glGetnTexImage
+void r3d_glReadnPixels (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLsizei bufSize, void * data);
+#define glReadnPixels r3d_glReadnPixels
+void r3d_glGetnCompressedTexImage (GLenum target, GLint lod, GLsizei bufSize, void * pixels);
+#define glGetnCompressedTexImage r3d_glGetnCompressedTexImage
+void r3d_glGetnUniformfv (GLuint program, GLint location, GLsizei bufSize, GLfloat * params);
+#define glGetnUniformfv r3d_glGetnUniformfv
+void r3d_glGetnUniformiv (GLuint program, GLint location, GLsizei bufSize, GLint * params);
+#define glGetnUniformiv r3d_glGetnUniformiv
+void r3d_glGetnUniformuiv (GLuint program, GLint location, GLsizei bufSize, GLuint * params);
+#define glGetnUniformuiv r3d_glGetnUniformuiv
+void r3d_glGetnUniformdv (GLuint program, GLint location, GLsizei bufSize, GLdouble * params);
+#define glGetnUniformdv r3d_glGetnUniformdv
+void r3d_glGetnMapdv (GLenum target, GLenum query, GLsizei bufSize, GLdouble * v_);
+#define glGetnMapdv r3d_glGetnMapdv
+void r3d_glGetnMapfv (GLenum target, GLenum query, GLsizei bufSize, GLfloat * v_);
+#define glGetnMapfv r3d_glGetnMapfv
+void r3d_glGetnMapiv (GLenum target, GLenum query, GLsizei bufSize, GLint * v_);
+#define glGetnMapiv r3d_glGetnMapiv
+void r3d_glGetnPixelMapfv (GLenum map, GLsizei bufSize, GLfloat * values);
+#define glGetnPixelMapfv r3d_glGetnPixelMapfv
+void r3d_glGetnPixelMapuiv (GLenum map, GLsizei bufSize, GLuint * values);
+#define glGetnPixelMapuiv r3d_glGetnPixelMapuiv
+void r3d_glGetnPixelMapusv (GLenum map, GLsizei bufSize, GLushort * values);
+#define glGetnPixelMapusv r3d_glGetnPixelMapusv
+void r3d_glGetnPolygonStipple (GLsizei bufSize, GLubyte * pattern);
+#define glGetnPolygonStipple r3d_glGetnPolygonStipple
+void r3d_glGetnColorTable (GLenum target, GLenum format, GLenum type, GLsizei bufSize, void * table);
+#define glGetnColorTable r3d_glGetnColorTable
+void r3d_glGetnConvolutionFilter (GLenum target, GLenum format, GLenum type, GLsizei bufSize, void * image);
+#define glGetnConvolutionFilter r3d_glGetnConvolutionFilter
+void r3d_glGetnSeparableFilter (GLenum target, GLenum format, GLenum type, GLsizei rowBufSize, void * row, GLsizei columnBufSize, void * column, void * span);
+#define glGetnSeparableFilter r3d_glGetnSeparableFilter
+void r3d_glGetnHistogram (GLenum target, GLboolean reset, GLenum format, GLenum type, GLsizei bufSize, void * values);
+#define glGetnHistogram r3d_glGetnHistogram
+void r3d_glGetnMinmax (GLenum target, GLboolean reset, GLenum format, GLenum type, GLsizei bufSize, void * values);
+#define glGetnMinmax r3d_glGetnMinmax
+void r3d_glProgramUniform1d (GLuint program, GLint location, GLdouble v0);
+#define glProgramUniform1d r3d_glProgramUniform1d
+void r3d_glProgramUniform1dv (GLuint program, GLint location, GLsizei count, const GLdouble * value);
+#define glProgramUniform1dv r3d_glProgramUniform1dv
+void r3d_glProgramUniform2d (GLuint program, GLint location, GLdouble v0, GLdouble v1);
+#define glProgramUniform2d r3d_glProgramUniform2d
+void r3d_glProgramUniform2dv (GLuint program, GLint location, GLsizei count, const GLdouble * value);
+#define glProgramUniform2dv r3d_glProgramUniform2dv
+void r3d_glProgramUniform3d (GLuint program, GLint location, GLdouble v0, GLdouble v1, GLdouble v2);
+#define glProgramUniform3d r3d_glProgramUniform3d
+void r3d_glProgramUniform3dv (GLuint program, GLint location, GLsizei count, const GLdouble * value);
+#define glProgramUniform3dv r3d_glProgramUniform3dv
+void r3d_glProgramUniform4d (GLuint program, GLint location, GLdouble v0, GLdouble v1, GLdouble v2, GLdouble v3);
+#define glProgramUniform4d r3d_glProgramUniform4d
+void r3d_glProgramUniform4dv (GLuint program, GLint location, GLsizei count, const GLdouble * value);
+#define glProgramUniform4dv r3d_glProgramUniform4dv
+void r3d_glProgramUniformMatrix2dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value);
+#define glProgramUniformMatrix2dv r3d_glProgramUniformMatrix2dv
+void r3d_glProgramUniformMatrix3dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value);
+#define glProgramUniformMatrix3dv r3d_glProgramUniformMatrix3dv
+void r3d_glProgramUniformMatrix4dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value);
+#define glProgramUniformMatrix4dv r3d_glProgramUniformMatrix4dv
+void r3d_glProgramUniformMatrix2x3dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value);
+#define glProgramUniformMatrix2x3dv r3d_glProgramUniformMatrix2x3dv
+void r3d_glProgramUniformMatrix3x2dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value);
+#define glProgramUniformMatrix3x2dv r3d_glProgramUniformMatrix3x2dv
+void r3d_glProgramUniformMatrix2x4dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value);
+#define glProgramUniformMatrix2x4dv r3d_glProgramUniformMatrix2x4dv
+void r3d_glProgramUniformMatrix4x2dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value);
+#define glProgramUniformMatrix4x2dv r3d_glProgramUniformMatrix4x2dv
+void r3d_glProgramUniformMatrix3x4dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value);
+#define glProgramUniformMatrix3x4dv r3d_glProgramUniformMatrix3x4dv
+void r3d_glProgramUniformMatrix4x3dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value);
+#define glProgramUniformMatrix4x3dv r3d_glProgramUniformMatrix4x3dv
+void r3d_glDeleteObjectARB (GLhandleARB obj);
+#define glDeleteObjectARB r3d_glDeleteObjectARB
+GLhandleARB r3d_glGetHandleARB (GLenum pname);
+#define glGetHandleARB r3d_glGetHandleARB
+void r3d_glGetObjectParameterfvARB (GLhandleARB obj, GLenum pname, GLfloat * params);
+#define glGetObjectParameterfvARB r3d_glGetObjectParameterfvARB
+void r3d_glGetObjectParameterivARB (GLhandleARB obj, GLenum pname, GLint * params);
+#define glGetObjectParameterivARB r3d_glGetObjectParameterivARB
+void r3d_glGetInfoLogARB (GLhandleARB obj, GLsizei maxLength, GLsizei * length, GLcharARB * infoLog);
+#define glGetInfoLogARB r3d_glGetInfoLogARB
+void r3d_glGetAttachedObjectsARB (GLhandleARB containerObj, GLsizei maxCount, GLsizei * count, GLhandleARB * obj);
+#define glGetAttachedObjectsARB r3d_glGetAttachedObjectsARB
+void r3d_glNamedStringARB (GLenum type, GLint namelen, const GLchar * name, GLint stringlen, const GLchar * string);
+#define glNamedStringARB r3d_glNamedStringARB
+void r3d_glDeleteNamedStringARB (GLint namelen, const GLchar * name);
+#define glDeleteNamedStringARB r3d_glDeleteNamedStringARB
+void r3d_glCompileShaderIncludeARB (GLuint shader, GLsizei count, const GLchar *const* path, const GLint * length);
+#define glCompileShaderIncludeARB r3d_glCompileShaderIncludeARB
+GLboolean r3d_glIsNamedStringARB (GLint namelen, const GLchar * name);
+#define glIsNamedStringARB r3d_glIsNamedStringARB
+void r3d_glGetNamedStringARB (GLint namelen, const GLchar * name, GLsizei bufSize, GLint * stringlen, GLchar * string);
+#define glGetNamedStringARB r3d_glGetNamedStringARB
+void r3d_glGetNamedStringivARB (GLint namelen, const GLchar * name, GLenum pname, GLint * params);
+#define glGetNamedStringivARB r3d_glGetNamedStringivARB
+void r3d_glTexStorage1D (GLenum target, GLsizei levels, GLenum internalformat, GLsizei width);
+#define glTexStorage1D r3d_glTexStorage1D
+void r3d_glVertexAttribLFormat (GLuint attribindex, GLint size, GLenum type, GLuint relativeoffset);
+#define glVertexAttribLFormat r3d_glVertexAttribLFormat
+GLuint r3d_glGenFragmentShadersATI (GLuint range);
+#define glGenFragmentShadersATI r3d_glGenFragmentShadersATI
+void r3d_glBindFragmentShaderATI (GLuint id);
+#define glBindFragmentShaderATI r3d_glBindFragmentShaderATI
+void r3d_glDeleteFragmentShaderATI (GLuint id);
+#define glDeleteFragmentShaderATI r3d_glDeleteFragmentShaderATI
+void r3d_glBeginFragmentShaderATI (void);
+#define glBeginFragmentShaderATI r3d_glBeginFragmentShaderATI
+void r3d_glEndFragmentShaderATI (void);
+#define glEndFragmentShaderATI r3d_glEndFragmentShaderATI
+void r3d_glPassTexCoordATI (GLuint dst, GLuint coord, GLenum swizzle);
+#define glPassTexCoordATI r3d_glPassTexCoordATI
+void r3d_glSampleMapATI (GLuint dst, GLuint interp, GLenum swizzle);
+#define glSampleMapATI r3d_glSampleMapATI
+void r3d_glColorFragmentOp1ATI (GLenum op, GLuint dst, GLuint dstMask, GLuint dstMod, GLuint arg1, GLuint arg1Rep, GLuint arg1Mod);
+#define glColorFragmentOp1ATI r3d_glColorFragmentOp1ATI
+void r3d_glColorFragmentOp2ATI (GLenum op, GLuint dst, GLuint dstMask, GLuint dstMod, GLuint arg1, GLuint arg1Rep, GLuint arg1Mod, GLuint arg2, GLuint arg2Rep, GLuint arg2Mod);
+#define glColorFragmentOp2ATI r3d_glColorFragmentOp2ATI
+void r3d_glColorFragmentOp3ATI (GLenum op, GLuint dst, GLuint dstMask, GLuint dstMod, GLuint arg1, GLuint arg1Rep, GLuint arg1Mod, GLuint arg2, GLuint arg2Rep, GLuint arg2Mod, GLuint arg3, GLuint arg3Rep, GLuint arg3Mod);
+#define glColorFragmentOp3ATI r3d_glColorFragmentOp3ATI
+void r3d_glAlphaFragmentOp1ATI (GLenum op, GLuint dst, GLuint dstMod, GLuint arg1, GLuint arg1Rep, GLuint arg1Mod);
+#define glAlphaFragmentOp1ATI r3d_glAlphaFragmentOp1ATI
+void r3d_glAlphaFragmentOp2ATI (GLenum op, GLuint dst, GLuint dstMod, GLuint arg1, GLuint arg1Rep, GLuint arg1Mod, GLuint arg2, GLuint arg2Rep, GLuint arg2Mod);
+#define glAlphaFragmentOp2ATI r3d_glAlphaFragmentOp2ATI
+void r3d_glAlphaFragmentOp3ATI (GLenum op, GLuint dst, GLuint dstMod, GLuint arg1, GLuint arg1Rep, GLuint arg1Mod, GLuint arg2, GLuint arg2Rep, GLuint arg2Mod, GLuint arg3, GLuint arg3Rep, GLuint arg3Mod);
+#define glAlphaFragmentOp3ATI r3d_glAlphaFragmentOp3ATI
+void r3d_glSetFragmentShaderConstantATI (GLuint dst, const GLfloat * value);
+#define glSetFragmentShaderConstantATI r3d_glSetFragmentShaderConstantATI
+void r3d_glLockArraysEXT (GLint first, GLsizei count);
+#define glLockArraysEXT r3d_glLockArraysEXT
+void r3d_glUnlockArraysEXT (void);
+#define glUnlockArraysEXT r3d_glUnlockArraysEXT
+void r3d_glDepthBoundsEXT (GLclampd zmin, GLclampd zmax);
+#define glDepthBoundsEXT r3d_glDepthBoundsEXT
+void r3d_glProgramEnvParameters4fvEXT (GLenum target, GLuint index, GLsizei count, const GLfloat * params);
+#define glProgramEnvParameters4fvEXT r3d_glProgramEnvParameters4fvEXT
+void r3d_glProgramLocalParameters4fvEXT (GLenum target, GLuint index, GLsizei count, const GLfloat * params);
+#define glProgramLocalParameters4fvEXT r3d_glProgramLocalParameters4fvEXT
+void r3d_glActiveStencilFaceEXT (GLenum face);
+#define glActiveStencilFaceEXT r3d_glActiveStencilFaceEXT
+void r3d_glColorPointerEXT (GLint size, GLenum type, GLsizei stride, GLsizei count, const void * pointer);
+#define glColorPointerEXT r3d_glColorPointerEXT
+void r3d_glEdgeFlagPointerEXT (GLsizei stride, GLsizei count, const GLboolean * pointer);
+#define glEdgeFlagPointerEXT r3d_glEdgeFlagPointerEXT
+void r3d_glIndexPointerEXT (GLenum type, GLsizei stride, GLsizei count, const void * pointer);
+#define glIndexPointerEXT r3d_glIndexPointerEXT
+void r3d_glNormalPointerEXT (GLenum type, GLsizei stride, GLsizei count, const void * pointer);
+#define glNormalPointerEXT r3d_glNormalPointerEXT
+void r3d_glTexCoordPointerEXT (GLint size, GLenum type, GLsizei stride, GLsizei count, const void * pointer);
+#define glTexCoordPointerEXT r3d_glTexCoordPointerEXT
+void r3d_glVertexPointerEXT (GLint size, GLenum type, GLsizei stride, GLsizei count, const void * pointer);
+#define glVertexPointerEXT r3d_glVertexPointerEXT
+void r3d_glMultiModeDrawArraysIBM (const GLenum * mode, const GLint * first, const GLsizei * count, GLsizei primcount, GLint modestride);
+#define glMultiModeDrawArraysIBM r3d_glMultiModeDrawArraysIBM
+void r3d_glMultiModeDrawElementsIBM (const GLenum * mode, const GLsizei * count, GLenum type, const void *const* indices, GLsizei primcount, GLint modestride);
+#define glMultiModeDrawElementsIBM r3d_glMultiModeDrawElementsIBM
+void r3d_glWindowPos4dMESA (GLdouble x, GLdouble y, GLdouble z, GLdouble w);
+#define glWindowPos4dMESA r3d_glWindowPos4dMESA
+void r3d_glWindowPos4dvMESA (const GLdouble * v_);
+#define glWindowPos4dvMESA r3d_glWindowPos4dvMESA
+void r3d_glWindowPos4fMESA (GLfloat x, GLfloat y, GLfloat z, GLfloat w);
+#define glWindowPos4fMESA r3d_glWindowPos4fMESA
+void r3d_glWindowPos4fvMESA (const GLfloat * v_);
+#define glWindowPos4fvMESA r3d_glWindowPos4fvMESA
+void r3d_glWindowPos4iMESA (GLint x, GLint y, GLint z, GLint w);
+#define glWindowPos4iMESA r3d_glWindowPos4iMESA
+void r3d_glWindowPos4ivMESA (const GLint * v_);
+#define glWindowPos4ivMESA r3d_glWindowPos4ivMESA
+void r3d_glWindowPos4sMESA (GLshort x, GLshort y, GLshort z, GLshort w);
+#define glWindowPos4sMESA r3d_glWindowPos4sMESA
+void r3d_glWindowPos4svMESA (const GLshort * v_);
+#define glWindowPos4svMESA r3d_glWindowPos4svMESA
+void r3d_glVertex2hNV (GLhalfNV x, GLhalfNV y);
+#define glVertex2hNV r3d_glVertex2hNV
+void r3d_glVertex2hvNV (const GLhalfNV * v_);
+#define glVertex2hvNV r3d_glVertex2hvNV
+void r3d_glVertex3hNV (GLhalfNV x, GLhalfNV y, GLhalfNV z);
+#define glVertex3hNV r3d_glVertex3hNV
+void r3d_glVertex3hvNV (const GLhalfNV * v_);
+#define glVertex3hvNV r3d_glVertex3hvNV
+void r3d_glVertex4hNV (GLhalfNV x, GLhalfNV y, GLhalfNV z, GLhalfNV w);
+#define glVertex4hNV r3d_glVertex4hNV
+void r3d_glVertex4hvNV (const GLhalfNV * v_);
+#define glVertex4hvNV r3d_glVertex4hvNV
+void r3d_glNormal3hNV (GLhalfNV nx, GLhalfNV ny, GLhalfNV nz);
+#define glNormal3hNV r3d_glNormal3hNV
+void r3d_glNormal3hvNV (const GLhalfNV * v_);
+#define glNormal3hvNV r3d_glNormal3hvNV
+void r3d_glColor3hNV (GLhalfNV red, GLhalfNV green, GLhalfNV blue);
+#define glColor3hNV r3d_glColor3hNV
+void r3d_glColor3hvNV (const GLhalfNV * v_);
+#define glColor3hvNV r3d_glColor3hvNV
+void r3d_glColor4hNV (GLhalfNV red, GLhalfNV green, GLhalfNV blue, GLhalfNV alpha);
+#define glColor4hNV r3d_glColor4hNV
+void r3d_glColor4hvNV (const GLhalfNV * v_);
+#define glColor4hvNV r3d_glColor4hvNV
+void r3d_glTexCoord1hNV (GLhalfNV s);
+#define glTexCoord1hNV r3d_glTexCoord1hNV
+void r3d_glTexCoord1hvNV (const GLhalfNV * v_);
+#define glTexCoord1hvNV r3d_glTexCoord1hvNV
+void r3d_glTexCoord2hNV (GLhalfNV s, GLhalfNV t);
+#define glTexCoord2hNV r3d_glTexCoord2hNV
+void r3d_glTexCoord2hvNV (const GLhalfNV * v_);
+#define glTexCoord2hvNV r3d_glTexCoord2hvNV
+void r3d_glTexCoord3hNV (GLhalfNV s, GLhalfNV t, GLhalfNV r);
+#define glTexCoord3hNV r3d_glTexCoord3hNV
+void r3d_glTexCoord3hvNV (const GLhalfNV * v_);
+#define glTexCoord3hvNV r3d_glTexCoord3hvNV
+void r3d_glTexCoord4hNV (GLhalfNV s, GLhalfNV t, GLhalfNV r, GLhalfNV q);
+#define glTexCoord4hNV r3d_glTexCoord4hNV
+void r3d_glTexCoord4hvNV (const GLhalfNV * v_);
+#define glTexCoord4hvNV r3d_glTexCoord4hvNV
+void r3d_glMultiTexCoord1hNV (GLenum target, GLhalfNV s);
+#define glMultiTexCoord1hNV r3d_glMultiTexCoord1hNV
+void r3d_glMultiTexCoord1hvNV (GLenum target, const GLhalfNV * v_);
+#define glMultiTexCoord1hvNV r3d_glMultiTexCoord1hvNV
+void r3d_glMultiTexCoord2hNV (GLenum target, GLhalfNV s, GLhalfNV t);
+#define glMultiTexCoord2hNV r3d_glMultiTexCoord2hNV
+void r3d_glMultiTexCoord2hvNV (GLenum target, const GLhalfNV * v_);
+#define glMultiTexCoord2hvNV r3d_glMultiTexCoord2hvNV
+void r3d_glMultiTexCoord3hNV (GLenum target, GLhalfNV s, GLhalfNV t, GLhalfNV r);
+#define glMultiTexCoord3hNV r3d_glMultiTexCoord3hNV
+void r3d_glMultiTexCoord3hvNV (GLenum target, const GLhalfNV * v_);
+#define glMultiTexCoord3hvNV r3d_glMultiTexCoord3hvNV
+void r3d_glMultiTexCoord4hNV (GLenum target, GLhalfNV s, GLhalfNV t, GLhalfNV r, GLhalfNV q);
+#define glMultiTexCoord4hNV r3d_glMultiTexCoord4hNV
+void r3d_glMultiTexCoord4hvNV (GLenum target, const GLhalfNV * v_);
+#define glMultiTexCoord4hvNV r3d_glMultiTexCoord4hvNV
+void r3d_glVertexAttrib1hNV (GLuint index, GLhalfNV x);
+#define glVertexAttrib1hNV r3d_glVertexAttrib1hNV
+void r3d_glVertexAttrib1hvNV (GLuint index, const GLhalfNV * v_);
+#define glVertexAttrib1hvNV r3d_glVertexAttrib1hvNV
+void r3d_glVertexAttrib2hNV (GLuint index, GLhalfNV x, GLhalfNV y);
+#define glVertexAttrib2hNV r3d_glVertexAttrib2hNV
+void r3d_glVertexAttrib2hvNV (GLuint index, const GLhalfNV * v_);
+#define glVertexAttrib2hvNV r3d_glVertexAttrib2hvNV
+void r3d_glVertexAttrib3hNV (GLuint index, GLhalfNV x, GLhalfNV y, GLhalfNV z);
+#define glVertexAttrib3hNV r3d_glVertexAttrib3hNV
+void r3d_glVertexAttrib3hvNV (GLuint index, const GLhalfNV * v_);
+#define glVertexAttrib3hvNV r3d_glVertexAttrib3hvNV
+void r3d_glVertexAttrib4hNV (GLuint index, GLhalfNV x, GLhalfNV y, GLhalfNV z, GLhalfNV w);
+#define glVertexAttrib4hNV r3d_glVertexAttrib4hNV
+void r3d_glVertexAttrib4hvNV (GLuint index, const GLhalfNV * v_);
+#define glVertexAttrib4hvNV r3d_glVertexAttrib4hvNV
+void r3d_glVertexAttribs1hvNV (GLuint index, GLsizei n, const GLhalfNV * v_);
+#define glVertexAttribs1hvNV r3d_glVertexAttribs1hvNV
+void r3d_glVertexAttribs2hvNV (GLuint index, GLsizei n, const GLhalfNV * v_);
+#define glVertexAttribs2hvNV r3d_glVertexAttribs2hvNV
+void r3d_glVertexAttribs3hvNV (GLuint index, GLsizei n, const GLhalfNV * v_);
+#define glVertexAttribs3hvNV r3d_glVertexAttribs3hvNV
+void r3d_glVertexAttribs4hvNV (GLuint index, GLsizei n, const GLhalfNV * v_);
+#define glVertexAttribs4hvNV r3d_glVertexAttribs4hvNV
+void r3d_glFogCoordhNV (GLhalfNV fog);
+#define glFogCoordhNV r3d_glFogCoordhNV
+void r3d_glFogCoordhvNV (const GLhalfNV * fog);
+#define glFogCoordhvNV r3d_glFogCoordhvNV
+void r3d_glSecondaryColor3hNV (GLhalfNV red, GLhalfNV green, GLhalfNV blue);
+#define glSecondaryColor3hNV r3d_glSecondaryColor3hNV
+void r3d_glSecondaryColor3hvNV (const GLhalfNV * v_);
+#define glSecondaryColor3hvNV r3d_glSecondaryColor3hvNV
+void r3d_glVertexWeighthNV (GLhalfNV weight);
+#define glVertexWeighthNV r3d_glVertexWeighthNV
+void r3d_glVertexWeighthvNV (const GLhalfNV * weight);
+#define glVertexWeighthvNV r3d_glVertexWeighthvNV
+void r3d_glMatrixLoadfEXT (GLenum mode, const GLfloat * m);
+#define glMatrixLoadfEXT r3d_glMatrixLoadfEXT
+void r3d_glMatrixLoaddEXT (GLenum mode, const GLdouble * m);
+#define glMatrixLoaddEXT r3d_glMatrixLoaddEXT
+void r3d_glMatrixMultfEXT (GLenum mode, const GLfloat * m);
+#define glMatrixMultfEXT r3d_glMatrixMultfEXT
+void r3d_glMatrixMultdEXT (GLenum mode, const GLdouble * m);
+#define glMatrixMultdEXT r3d_glMatrixMultdEXT
+void r3d_glMatrixLoadIdentityEXT (GLenum mode);
+#define glMatrixLoadIdentityEXT r3d_glMatrixLoadIdentityEXT
+void r3d_glMatrixRotatefEXT (GLenum mode, GLfloat angle, GLfloat x, GLfloat y, GLfloat z);
+#define glMatrixRotatefEXT r3d_glMatrixRotatefEXT
+void r3d_glMatrixRotatedEXT (GLenum mode, GLdouble angle, GLdouble x, GLdouble y, GLdouble z);
+#define glMatrixRotatedEXT r3d_glMatrixRotatedEXT
+void r3d_glMatrixScalefEXT (GLenum mode, GLfloat x, GLfloat y, GLfloat z);
+#define glMatrixScalefEXT r3d_glMatrixScalefEXT
+void r3d_glMatrixScaledEXT (GLenum mode, GLdouble x, GLdouble y, GLdouble z);
+#define glMatrixScaledEXT r3d_glMatrixScaledEXT
+void r3d_glMatrixTranslatefEXT (GLenum mode, GLfloat x, GLfloat y, GLfloat z);
+#define glMatrixTranslatefEXT r3d_glMatrixTranslatefEXT
+void r3d_glMatrixTranslatedEXT (GLenum mode, GLdouble x, GLdouble y, GLdouble z);
+#define glMatrixTranslatedEXT r3d_glMatrixTranslatedEXT
+void r3d_glMatrixFrustumEXT (GLenum mode, GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
+#define glMatrixFrustumEXT r3d_glMatrixFrustumEXT
+void r3d_glMatrixOrthoEXT (GLenum mode, GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
+#define glMatrixOrthoEXT r3d_glMatrixOrthoEXT
+void r3d_glMatrixPopEXT (GLenum mode);
+#define glMatrixPopEXT r3d_glMatrixPopEXT
+void r3d_glMatrixPushEXT (GLenum mode);
+#define glMatrixPushEXT r3d_glMatrixPushEXT
+void r3d_glClientAttribDefaultEXT (GLbitfield mask);
+#define glClientAttribDefaultEXT r3d_glClientAttribDefaultEXT
+void r3d_glPushClientAttribDefaultEXT (GLbitfield mask);
+#define glPushClientAttribDefaultEXT r3d_glPushClientAttribDefaultEXT
+void r3d_glTextureParameterfEXT (GLuint texture, GLenum target, GLenum pname, GLfloat param);
+#define glTextureParameterfEXT r3d_glTextureParameterfEXT
+void r3d_glTextureParameterfvEXT (GLuint texture, GLenum target, GLenum pname, const GLfloat * params);
+#define glTextureParameterfvEXT r3d_glTextureParameterfvEXT
+void r3d_glTextureParameteriEXT (GLuint texture, GLenum target, GLenum pname, GLint param);
+#define glTextureParameteriEXT r3d_glTextureParameteriEXT
+void r3d_glTextureParameterivEXT (GLuint texture, GLenum target, GLenum pname, const GLint * params);
+#define glTextureParameterivEXT r3d_glTextureParameterivEXT
+void r3d_glTextureImage1DEXT (GLuint texture, GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const void * pixels);
+#define glTextureImage1DEXT r3d_glTextureImage1DEXT
+void r3d_glTextureImage2DEXT (GLuint texture, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void * pixels);
+#define glTextureImage2DEXT r3d_glTextureImage2DEXT
+void r3d_glTextureSubImage1DEXT (GLuint texture, GLenum target, GLint level, GLint xoffset, GLsizei width, GLenum format, GLenum type, const void * pixels);
+#define glTextureSubImage1DEXT r3d_glTextureSubImage1DEXT
+void r3d_glTextureSubImage2DEXT (GLuint texture, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void * pixels);
+#define glTextureSubImage2DEXT r3d_glTextureSubImage2DEXT
+void r3d_glCopyTextureImage1DEXT (GLuint texture, GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLint border);
+#define glCopyTextureImage1DEXT r3d_glCopyTextureImage1DEXT
+void r3d_glCopyTextureImage2DEXT (GLuint texture, GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
+#define glCopyTextureImage2DEXT r3d_glCopyTextureImage2DEXT
+void r3d_glCopyTextureSubImage1DEXT (GLuint texture, GLenum target, GLint level, GLint xoffset, GLint x, GLint y, GLsizei width);
+#define glCopyTextureSubImage1DEXT r3d_glCopyTextureSubImage1DEXT
+void r3d_glCopyTextureSubImage2DEXT (GLuint texture, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
+#define glCopyTextureSubImage2DEXT r3d_glCopyTextureSubImage2DEXT
+void r3d_glGetTextureImageEXT (GLuint texture, GLenum target, GLint level, GLenum format, GLenum type, void * pixels);
+#define glGetTextureImageEXT r3d_glGetTextureImageEXT
+void r3d_glGetTextureParameterfvEXT (GLuint texture, GLenum target, GLenum pname, GLfloat * params);
+#define glGetTextureParameterfvEXT r3d_glGetTextureParameterfvEXT
+void r3d_glGetTextureParameterivEXT (GLuint texture, GLenum target, GLenum pname, GLint * params);
+#define glGetTextureParameterivEXT r3d_glGetTextureParameterivEXT
+void r3d_glGetTextureLevelParameterfvEXT (GLuint texture, GLenum target, GLint level, GLenum pname, GLfloat * params);
+#define glGetTextureLevelParameterfvEXT r3d_glGetTextureLevelParameterfvEXT
+void r3d_glGetTextureLevelParameterivEXT (GLuint texture, GLenum target, GLint level, GLenum pname, GLint * params);
+#define glGetTextureLevelParameterivEXT r3d_glGetTextureLevelParameterivEXT
+void r3d_glTextureImage3DEXT (GLuint texture, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void * pixels);
+#define glTextureImage3DEXT r3d_glTextureImage3DEXT
+void r3d_glTextureSubImage3DEXT (GLuint texture, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void * pixels);
+#define glTextureSubImage3DEXT r3d_glTextureSubImage3DEXT
+void r3d_glCopyTextureSubImage3DEXT (GLuint texture, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLint x, GLint y, GLsizei width, GLsizei height);
+#define glCopyTextureSubImage3DEXT r3d_glCopyTextureSubImage3DEXT
+void r3d_glBindMultiTextureEXT (GLenum texunit, GLenum target, GLuint texture);
+#define glBindMultiTextureEXT r3d_glBindMultiTextureEXT
+void r3d_glMultiTexCoordPointerEXT (GLenum texunit, GLint size, GLenum type, GLsizei stride, const void * pointer);
+#define glMultiTexCoordPointerEXT r3d_glMultiTexCoordPointerEXT
+void r3d_glMultiTexEnvfEXT (GLenum texunit, GLenum target, GLenum pname, GLfloat param);
+#define glMultiTexEnvfEXT r3d_glMultiTexEnvfEXT
+void r3d_glMultiTexEnvfvEXT (GLenum texunit, GLenum target, GLenum pname, const GLfloat * params);
+#define glMultiTexEnvfvEXT r3d_glMultiTexEnvfvEXT
+void r3d_glMultiTexEnviEXT (GLenum texunit, GLenum target, GLenum pname, GLint param);
+#define glMultiTexEnviEXT r3d_glMultiTexEnviEXT
+void r3d_glMultiTexEnvivEXT (GLenum texunit, GLenum target, GLenum pname, const GLint * params);
+#define glMultiTexEnvivEXT r3d_glMultiTexEnvivEXT
+void r3d_glMultiTexGendEXT (GLenum texunit, GLenum coord, GLenum pname, GLdouble param);
+#define glMultiTexGendEXT r3d_glMultiTexGendEXT
+void r3d_glMultiTexGendvEXT (GLenum texunit, GLenum coord, GLenum pname, const GLdouble * params);
+#define glMultiTexGendvEXT r3d_glMultiTexGendvEXT
+void r3d_glMultiTexGenfEXT (GLenum texunit, GLenum coord, GLenum pname, GLfloat param);
+#define glMultiTexGenfEXT r3d_glMultiTexGenfEXT
+void r3d_glMultiTexGenfvEXT (GLenum texunit, GLenum coord, GLenum pname, const GLfloat * params);
+#define glMultiTexGenfvEXT r3d_glMultiTexGenfvEXT
+void r3d_glMultiTexGeniEXT (GLenum texunit, GLenum coord, GLenum pname, GLint param);
+#define glMultiTexGeniEXT r3d_glMultiTexGeniEXT
+void r3d_glMultiTexGenivEXT (GLenum texunit, GLenum coord, GLenum pname, const GLint * params);
+#define glMultiTexGenivEXT r3d_glMultiTexGenivEXT
+void r3d_glGetMultiTexEnvfvEXT (GLenum texunit, GLenum target, GLenum pname, GLfloat * params);
+#define glGetMultiTexEnvfvEXT r3d_glGetMultiTexEnvfvEXT
+void r3d_glGetMultiTexEnvivEXT (GLenum texunit, GLenum target, GLenum pname, GLint * params);
+#define glGetMultiTexEnvivEXT r3d_glGetMultiTexEnvivEXT
+void r3d_glGetMultiTexGendvEXT (GLenum texunit, GLenum coord, GLenum pname, GLdouble * params);
+#define glGetMultiTexGendvEXT r3d_glGetMultiTexGendvEXT
+void r3d_glGetMultiTexGenfvEXT (GLenum texunit, GLenum coord, GLenum pname, GLfloat * params);
+#define glGetMultiTexGenfvEXT r3d_glGetMultiTexGenfvEXT
+void r3d_glGetMultiTexGenivEXT (GLenum texunit, GLenum coord, GLenum pname, GLint * params);
+#define glGetMultiTexGenivEXT r3d_glGetMultiTexGenivEXT
+void r3d_glMultiTexParameteriEXT (GLenum texunit, GLenum target, GLenum pname, GLint param);
+#define glMultiTexParameteriEXT r3d_glMultiTexParameteriEXT
+void r3d_glMultiTexParameterivEXT (GLenum texunit, GLenum target, GLenum pname, const GLint * params);
+#define glMultiTexParameterivEXT r3d_glMultiTexParameterivEXT
+void r3d_glMultiTexParameterfEXT (GLenum texunit, GLenum target, GLenum pname, GLfloat param);
+#define glMultiTexParameterfEXT r3d_glMultiTexParameterfEXT
+void r3d_glMultiTexParameterfvEXT (GLenum texunit, GLenum target, GLenum pname, const GLfloat * params);
+#define glMultiTexParameterfvEXT r3d_glMultiTexParameterfvEXT
+void r3d_glMultiTexImage1DEXT (GLenum texunit, GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const void * pixels);
+#define glMultiTexImage1DEXT r3d_glMultiTexImage1DEXT
+void r3d_glMultiTexImage2DEXT (GLenum texunit, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void * pixels);
+#define glMultiTexImage2DEXT r3d_glMultiTexImage2DEXT
+void r3d_glMultiTexSubImage1DEXT (GLenum texunit, GLenum target, GLint level, GLint xoffset, GLsizei width, GLenum format, GLenum type, const void * pixels);
+#define glMultiTexSubImage1DEXT r3d_glMultiTexSubImage1DEXT
+void r3d_glMultiTexSubImage2DEXT (GLenum texunit, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void * pixels);
+#define glMultiTexSubImage2DEXT r3d_glMultiTexSubImage2DEXT
+void r3d_glCopyMultiTexImage1DEXT (GLenum texunit, GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLint border);
+#define glCopyMultiTexImage1DEXT r3d_glCopyMultiTexImage1DEXT
+void r3d_glCopyMultiTexImage2DEXT (GLenum texunit, GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
+#define glCopyMultiTexImage2DEXT r3d_glCopyMultiTexImage2DEXT
+void r3d_glCopyMultiTexSubImage1DEXT (GLenum texunit, GLenum target, GLint level, GLint xoffset, GLint x, GLint y, GLsizei width);
+#define glCopyMultiTexSubImage1DEXT r3d_glCopyMultiTexSubImage1DEXT
+void r3d_glCopyMultiTexSubImage2DEXT (GLenum texunit, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
+#define glCopyMultiTexSubImage2DEXT r3d_glCopyMultiTexSubImage2DEXT
+void r3d_glGetMultiTexImageEXT (GLenum texunit, GLenum target, GLint level, GLenum format, GLenum type, void * pixels);
+#define glGetMultiTexImageEXT r3d_glGetMultiTexImageEXT
+void r3d_glGetMultiTexParameterfvEXT (GLenum texunit, GLenum target, GLenum pname, GLfloat * params);
+#define glGetMultiTexParameterfvEXT r3d_glGetMultiTexParameterfvEXT
+void r3d_glGetMultiTexParameterivEXT (GLenum texunit, GLenum target, GLenum pname, GLint * params);
+#define glGetMultiTexParameterivEXT r3d_glGetMultiTexParameterivEXT
+void r3d_glGetMultiTexLevelParameterfvEXT (GLenum texunit, GLenum target, GLint level, GLenum pname, GLfloat * params);
+#define glGetMultiTexLevelParameterfvEXT r3d_glGetMultiTexLevelParameterfvEXT
+void r3d_glGetMultiTexLevelParameterivEXT (GLenum texunit, GLenum target, GLint level, GLenum pname, GLint * params);
+#define glGetMultiTexLevelParameterivEXT r3d_glGetMultiTexLevelParameterivEXT
+void r3d_glMultiTexImage3DEXT (GLenum texunit, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void * pixels);
+#define glMultiTexImage3DEXT r3d_glMultiTexImage3DEXT
+void r3d_glMultiTexSubImage3DEXT (GLenum texunit, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void * pixels);
+#define glMultiTexSubImage3DEXT r3d_glMultiTexSubImage3DEXT
+void r3d_glCopyMultiTexSubImage3DEXT (GLenum texunit, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLint x, GLint y, GLsizei width, GLsizei height);
+#define glCopyMultiTexSubImage3DEXT r3d_glCopyMultiTexSubImage3DEXT
+void r3d_glEnableClientStateIndexedEXT (GLenum array, GLuint index);
+#define glEnableClientStateIndexedEXT r3d_glEnableClientStateIndexedEXT
+void r3d_glDisableClientStateIndexedEXT (GLenum array, GLuint index);
+#define glDisableClientStateIndexedEXT r3d_glDisableClientStateIndexedEXT
+void r3d_glGetFloatIndexedvEXT (GLenum target, GLuint index, GLfloat * data);
+#define glGetFloatIndexedvEXT r3d_glGetFloatIndexedvEXT
+void r3d_glGetDoubleIndexedvEXT (GLenum target, GLuint index, GLdouble * data);
+#define glGetDoubleIndexedvEXT r3d_glGetDoubleIndexedvEXT
+void r3d_glGetPointerIndexedvEXT (GLenum target, GLuint index, void ** data);
+#define glGetPointerIndexedvEXT r3d_glGetPointerIndexedvEXT
+void r3d_glCompressedTextureImage3DEXT (GLuint texture, GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const void * bits);
+#define glCompressedTextureImage3DEXT r3d_glCompressedTextureImage3DEXT
+void r3d_glCompressedTextureImage2DEXT (GLuint texture, GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const void * bits);
+#define glCompressedTextureImage2DEXT r3d_glCompressedTextureImage2DEXT
+void r3d_glCompressedTextureImage1DEXT (GLuint texture, GLenum target, GLint level, GLenum internalformat, GLsizei width, GLint border, GLsizei imageSize, const void * bits);
+#define glCompressedTextureImage1DEXT r3d_glCompressedTextureImage1DEXT
+void r3d_glCompressedTextureSubImage3DEXT (GLuint texture, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void * bits);
+#define glCompressedTextureSubImage3DEXT r3d_glCompressedTextureSubImage3DEXT
+void r3d_glCompressedTextureSubImage2DEXT (GLuint texture, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void * bits);
+#define glCompressedTextureSubImage2DEXT r3d_glCompressedTextureSubImage2DEXT
+void r3d_glCompressedTextureSubImage1DEXT (GLuint texture, GLenum target, GLint level, GLint xoffset, GLsizei width, GLenum format, GLsizei imageSize, const void * bits);
+#define glCompressedTextureSubImage1DEXT r3d_glCompressedTextureSubImage1DEXT
+void r3d_glGetCompressedTextureImageEXT (GLuint texture, GLenum target, GLint lod, void * img);
+#define glGetCompressedTextureImageEXT r3d_glGetCompressedTextureImageEXT
+void r3d_glCompressedMultiTexImage3DEXT (GLenum texunit, GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const void * bits);
+#define glCompressedMultiTexImage3DEXT r3d_glCompressedMultiTexImage3DEXT
+void r3d_glCompressedMultiTexImage2DEXT (GLenum texunit, GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const void * bits);
+#define glCompressedMultiTexImage2DEXT r3d_glCompressedMultiTexImage2DEXT
+void r3d_glCompressedMultiTexImage1DEXT (GLenum texunit, GLenum target, GLint level, GLenum internalformat, GLsizei width, GLint border, GLsizei imageSize, const void * bits);
+#define glCompressedMultiTexImage1DEXT r3d_glCompressedMultiTexImage1DEXT
+void r3d_glCompressedMultiTexSubImage3DEXT (GLenum texunit, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void * bits);
+#define glCompressedMultiTexSubImage3DEXT r3d_glCompressedMultiTexSubImage3DEXT
+void r3d_glCompressedMultiTexSubImage2DEXT (GLenum texunit, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void * bits);
+#define glCompressedMultiTexSubImage2DEXT r3d_glCompressedMultiTexSubImage2DEXT
+void r3d_glCompressedMultiTexSubImage1DEXT (GLenum texunit, GLenum target, GLint level, GLint xoffset, GLsizei width, GLenum format, GLsizei imageSize, const void * bits);
+#define glCompressedMultiTexSubImage1DEXT r3d_glCompressedMultiTexSubImage1DEXT
+void r3d_glGetCompressedMultiTexImageEXT (GLenum texunit, GLenum target, GLint lod, void * img);
+#define glGetCompressedMultiTexImageEXT r3d_glGetCompressedMultiTexImageEXT
+void r3d_glMatrixLoadTransposefEXT (GLenum mode, const GLfloat * m);
+#define glMatrixLoadTransposefEXT r3d_glMatrixLoadTransposefEXT
+void r3d_glMatrixLoadTransposedEXT (GLenum mode, const GLdouble * m);
+#define glMatrixLoadTransposedEXT r3d_glMatrixLoadTransposedEXT
+void r3d_glMatrixMultTransposefEXT (GLenum mode, const GLfloat * m);
+#define glMatrixMultTransposefEXT r3d_glMatrixMultTransposefEXT
+void r3d_glMatrixMultTransposedEXT (GLenum mode, const GLdouble * m);
+#define glMatrixMultTransposedEXT r3d_glMatrixMultTransposedEXT
+void r3d_glNamedBufferDataEXT (GLuint buffer, GLsizeiptr size, const void * data, GLenum usage);
+#define glNamedBufferDataEXT r3d_glNamedBufferDataEXT
+void r3d_glNamedBufferSubDataEXT (GLuint buffer, GLintptr offset, GLsizeiptr size, const void * data);
+#define glNamedBufferSubDataEXT r3d_glNamedBufferSubDataEXT
+void * r3d_glMapNamedBufferEXT (GLuint buffer, GLenum access);
+#define glMapNamedBufferEXT r3d_glMapNamedBufferEXT
+GLboolean r3d_glUnmapNamedBufferEXT (GLuint buffer);
+#define glUnmapNamedBufferEXT r3d_glUnmapNamedBufferEXT
+void r3d_glGetNamedBufferParameterivEXT (GLuint buffer, GLenum pname, GLint * params);
+#define glGetNamedBufferParameterivEXT r3d_glGetNamedBufferParameterivEXT
+void r3d_glGetNamedBufferPointervEXT (GLuint buffer, GLenum pname, void ** params);
+#define glGetNamedBufferPointervEXT r3d_glGetNamedBufferPointervEXT
+void r3d_glGetNamedBufferSubDataEXT (GLuint buffer, GLintptr offset, GLsizeiptr size, void * data);
+#define glGetNamedBufferSubDataEXT r3d_glGetNamedBufferSubDataEXT
+void r3d_glTextureBufferEXT (GLuint texture, GLenum target, GLenum internalformat, GLuint buffer);
+#define glTextureBufferEXT r3d_glTextureBufferEXT
+void r3d_glMultiTexBufferEXT (GLenum texunit, GLenum target, GLenum internalformat, GLuint buffer);
+#define glMultiTexBufferEXT r3d_glMultiTexBufferEXT
+void r3d_glTextureParameterIivEXT (GLuint texture, GLenum target, GLenum pname, const GLint * params);
+#define glTextureParameterIivEXT r3d_glTextureParameterIivEXT
+void r3d_glTextureParameterIuivEXT (GLuint texture, GLenum target, GLenum pname, const GLuint * params);
+#define glTextureParameterIuivEXT r3d_glTextureParameterIuivEXT
+void r3d_glGetTextureParameterIivEXT (GLuint texture, GLenum target, GLenum pname, GLint * params);
+#define glGetTextureParameterIivEXT r3d_glGetTextureParameterIivEXT
+void r3d_glGetTextureParameterIuivEXT (GLuint texture, GLenum target, GLenum pname, GLuint * params);
+#define glGetTextureParameterIuivEXT r3d_glGetTextureParameterIuivEXT
+void r3d_glMultiTexParameterIivEXT (GLenum texunit, GLenum target, GLenum pname, const GLint * params);
+#define glMultiTexParameterIivEXT r3d_glMultiTexParameterIivEXT
+void r3d_glMultiTexParameterIuivEXT (GLenum texunit, GLenum target, GLenum pname, const GLuint * params);
+#define glMultiTexParameterIuivEXT r3d_glMultiTexParameterIuivEXT
+void r3d_glGetMultiTexParameterIivEXT (GLenum texunit, GLenum target, GLenum pname, GLint * params);
+#define glGetMultiTexParameterIivEXT r3d_glGetMultiTexParameterIivEXT
+void r3d_glGetMultiTexParameterIuivEXT (GLenum texunit, GLenum target, GLenum pname, GLuint * params);
+#define glGetMultiTexParameterIuivEXT r3d_glGetMultiTexParameterIuivEXT
+void r3d_glNamedProgramLocalParameters4fvEXT (GLuint program, GLenum target, GLuint index, GLsizei count, const GLfloat * params);
+#define glNamedProgramLocalParameters4fvEXT r3d_glNamedProgramLocalParameters4fvEXT
+void r3d_glNamedProgramLocalParameterI4iEXT (GLuint program, GLenum target, GLuint index, GLint x, GLint y, GLint z, GLint w);
+#define glNamedProgramLocalParameterI4iEXT r3d_glNamedProgramLocalParameterI4iEXT
+void r3d_glNamedProgramLocalParameterI4ivEXT (GLuint program, GLenum target, GLuint index, const GLint * params);
+#define glNamedProgramLocalParameterI4ivEXT r3d_glNamedProgramLocalParameterI4ivEXT
+void r3d_glNamedProgramLocalParametersI4ivEXT (GLuint program, GLenum target, GLuint index, GLsizei count, const GLint * params);
+#define glNamedProgramLocalParametersI4ivEXT r3d_glNamedProgramLocalParametersI4ivEXT
+void r3d_glNamedProgramLocalParameterI4uiEXT (GLuint program, GLenum target, GLuint index, GLuint x, GLuint y, GLuint z, GLuint w);
+#define glNamedProgramLocalParameterI4uiEXT r3d_glNamedProgramLocalParameterI4uiEXT
+void r3d_glNamedProgramLocalParameterI4uivEXT (GLuint program, GLenum target, GLuint index, const GLuint * params);
+#define glNamedProgramLocalParameterI4uivEXT r3d_glNamedProgramLocalParameterI4uivEXT
+void r3d_glNamedProgramLocalParametersI4uivEXT (GLuint program, GLenum target, GLuint index, GLsizei count, const GLuint * params);
+#define glNamedProgramLocalParametersI4uivEXT r3d_glNamedProgramLocalParametersI4uivEXT
+void r3d_glGetNamedProgramLocalParameterIivEXT (GLuint program, GLenum target, GLuint index, GLint * params);
+#define glGetNamedProgramLocalParameterIivEXT r3d_glGetNamedProgramLocalParameterIivEXT
+void r3d_glGetNamedProgramLocalParameterIuivEXT (GLuint program, GLenum target, GLuint index, GLuint * params);
+#define glGetNamedProgramLocalParameterIuivEXT r3d_glGetNamedProgramLocalParameterIuivEXT
+void r3d_glEnableClientStateiEXT (GLenum array, GLuint index);
+#define glEnableClientStateiEXT r3d_glEnableClientStateiEXT
+void r3d_glDisableClientStateiEXT (GLenum array, GLuint index);
+#define glDisableClientStateiEXT r3d_glDisableClientStateiEXT
+void r3d_glGetFloati_vEXT (GLenum pname, GLuint index, GLfloat * params);
+#define glGetFloati_vEXT r3d_glGetFloati_vEXT
+void r3d_glGetDoublei_vEXT (GLenum pname, GLuint index, GLdouble * params);
+#define glGetDoublei_vEXT r3d_glGetDoublei_vEXT
+void r3d_glGetPointeri_vEXT (GLenum pname, GLuint index, void ** params);
+#define glGetPointeri_vEXT r3d_glGetPointeri_vEXT
+void r3d_glNamedProgramStringEXT (GLuint program, GLenum target, GLenum format, GLsizei len, const void * string);
+#define glNamedProgramStringEXT r3d_glNamedProgramStringEXT
+void r3d_glNamedProgramLocalParameter4dEXT (GLuint program, GLenum target, GLuint index, GLdouble x, GLdouble y, GLdouble z, GLdouble w);
+#define glNamedProgramLocalParameter4dEXT r3d_glNamedProgramLocalParameter4dEXT
+void r3d_glNamedProgramLocalParameter4dvEXT (GLuint program, GLenum target, GLuint index, const GLdouble * params);
+#define glNamedProgramLocalParameter4dvEXT r3d_glNamedProgramLocalParameter4dvEXT
+void r3d_glNamedProgramLocalParameter4fEXT (GLuint program, GLenum target, GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w);
+#define glNamedProgramLocalParameter4fEXT r3d_glNamedProgramLocalParameter4fEXT
+void r3d_glNamedProgramLocalParameter4fvEXT (GLuint program, GLenum target, GLuint index, const GLfloat * params);
+#define glNamedProgramLocalParameter4fvEXT r3d_glNamedProgramLocalParameter4fvEXT
+void r3d_glGetNamedProgramLocalParameterdvEXT (GLuint program, GLenum target, GLuint index, GLdouble * params);
+#define glGetNamedProgramLocalParameterdvEXT r3d_glGetNamedProgramLocalParameterdvEXT
+void r3d_glGetNamedProgramLocalParameterfvEXT (GLuint program, GLenum target, GLuint index, GLfloat * params);
+#define glGetNamedProgramLocalParameterfvEXT r3d_glGetNamedProgramLocalParameterfvEXT
+void r3d_glGetNamedProgramivEXT (GLuint program, GLenum target, GLenum pname, GLint * params);
+#define glGetNamedProgramivEXT r3d_glGetNamedProgramivEXT
+void r3d_glGetNamedProgramStringEXT (GLuint program, GLenum target, GLenum pname, void * string);
+#define glGetNamedProgramStringEXT r3d_glGetNamedProgramStringEXT
+void r3d_glNamedRenderbufferStorageEXT (GLuint renderbuffer, GLenum internalformat, GLsizei width, GLsizei height);
+#define glNamedRenderbufferStorageEXT r3d_glNamedRenderbufferStorageEXT
+void r3d_glGetNamedRenderbufferParameterivEXT (GLuint renderbuffer, GLenum pname, GLint * params);
+#define glGetNamedRenderbufferParameterivEXT r3d_glGetNamedRenderbufferParameterivEXT
+void r3d_glNamedRenderbufferStorageMultisampleEXT (GLuint renderbuffer, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
+#define glNamedRenderbufferStorageMultisampleEXT r3d_glNamedRenderbufferStorageMultisampleEXT
+void r3d_glNamedRenderbufferStorageMultisampleCoverageEXT (GLuint renderbuffer, GLsizei coverageSamples, GLsizei colorSamples, GLenum internalformat, GLsizei width, GLsizei height);
+#define glNamedRenderbufferStorageMultisampleCoverageEXT r3d_glNamedRenderbufferStorageMultisampleCoverageEXT
+GLenum r3d_glCheckNamedFramebufferStatusEXT (GLuint framebuffer, GLenum target);
+#define glCheckNamedFramebufferStatusEXT r3d_glCheckNamedFramebufferStatusEXT
+void r3d_glNamedFramebufferTexture1DEXT (GLuint framebuffer, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+#define glNamedFramebufferTexture1DEXT r3d_glNamedFramebufferTexture1DEXT
+void r3d_glNamedFramebufferTexture2DEXT (GLuint framebuffer, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+#define glNamedFramebufferTexture2DEXT r3d_glNamedFramebufferTexture2DEXT
+void r3d_glNamedFramebufferTexture3DEXT (GLuint framebuffer, GLenum attachment, GLenum textarget, GLuint texture, GLint level, GLint zoffset);
+#define glNamedFramebufferTexture3DEXT r3d_glNamedFramebufferTexture3DEXT
+void r3d_glNamedFramebufferRenderbufferEXT (GLuint framebuffer, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
+#define glNamedFramebufferRenderbufferEXT r3d_glNamedFramebufferRenderbufferEXT
+void r3d_glGetNamedFramebufferAttachmentParameterivEXT (GLuint framebuffer, GLenum attachment, GLenum pname, GLint * params);
+#define glGetNamedFramebufferAttachmentParameterivEXT r3d_glGetNamedFramebufferAttachmentParameterivEXT
+void r3d_glGenerateTextureMipmapEXT (GLuint texture, GLenum target);
+#define glGenerateTextureMipmapEXT r3d_glGenerateTextureMipmapEXT
+void r3d_glGenerateMultiTexMipmapEXT (GLenum texunit, GLenum target);
+#define glGenerateMultiTexMipmapEXT r3d_glGenerateMultiTexMipmapEXT
+void r3d_glFramebufferDrawBufferEXT (GLuint framebuffer, GLenum mode);
+#define glFramebufferDrawBufferEXT r3d_glFramebufferDrawBufferEXT
+void r3d_glFramebufferDrawBuffersEXT (GLuint framebuffer, GLsizei n, const GLenum * bufs);
+#define glFramebufferDrawBuffersEXT r3d_glFramebufferDrawBuffersEXT
+void r3d_glFramebufferReadBufferEXT (GLuint framebuffer, GLenum mode);
+#define glFramebufferReadBufferEXT r3d_glFramebufferReadBufferEXT
+void r3d_glGetFramebufferParameterivEXT (GLuint framebuffer, GLenum pname, GLint * params);
+#define glGetFramebufferParameterivEXT r3d_glGetFramebufferParameterivEXT
+void r3d_glNamedCopyBufferSubDataEXT (GLuint readBuffer, GLuint writeBuffer, GLintptr readOffset, GLintptr writeOffset, GLsizeiptr size);
+#define glNamedCopyBufferSubDataEXT r3d_glNamedCopyBufferSubDataEXT
+void r3d_glNamedFramebufferTextureEXT (GLuint framebuffer, GLenum attachment, GLuint texture, GLint level);
+#define glNamedFramebufferTextureEXT r3d_glNamedFramebufferTextureEXT
+void r3d_glNamedFramebufferTextureLayerEXT (GLuint framebuffer, GLenum attachment, GLuint texture, GLint level, GLint layer);
+#define glNamedFramebufferTextureLayerEXT r3d_glNamedFramebufferTextureLayerEXT
+void r3d_glNamedFramebufferTextureFaceEXT (GLuint framebuffer, GLenum attachment, GLuint texture, GLint level, GLenum face);
+#define glNamedFramebufferTextureFaceEXT r3d_glNamedFramebufferTextureFaceEXT
+void r3d_glTextureRenderbufferEXT (GLuint texture, GLenum target, GLuint renderbuffer);
+#define glTextureRenderbufferEXT r3d_glTextureRenderbufferEXT
+void r3d_glMultiTexRenderbufferEXT (GLenum texunit, GLenum target, GLuint renderbuffer);
+#define glMultiTexRenderbufferEXT r3d_glMultiTexRenderbufferEXT
+void r3d_glVertexArrayVertexOffsetEXT (GLuint vaobj, GLuint buffer, GLint size, GLenum type, GLsizei stride, GLintptr offset);
+#define glVertexArrayVertexOffsetEXT r3d_glVertexArrayVertexOffsetEXT
+void r3d_glVertexArrayColorOffsetEXT (GLuint vaobj, GLuint buffer, GLint size, GLenum type, GLsizei stride, GLintptr offset);
+#define glVertexArrayColorOffsetEXT r3d_glVertexArrayColorOffsetEXT
+void r3d_glVertexArrayEdgeFlagOffsetEXT (GLuint vaobj, GLuint buffer, GLsizei stride, GLintptr offset);
+#define glVertexArrayEdgeFlagOffsetEXT r3d_glVertexArrayEdgeFlagOffsetEXT
+void r3d_glVertexArrayIndexOffsetEXT (GLuint vaobj, GLuint buffer, GLenum type, GLsizei stride, GLintptr offset);
+#define glVertexArrayIndexOffsetEXT r3d_glVertexArrayIndexOffsetEXT
+void r3d_glVertexArrayNormalOffsetEXT (GLuint vaobj, GLuint buffer, GLenum type, GLsizei stride, GLintptr offset);
+#define glVertexArrayNormalOffsetEXT r3d_glVertexArrayNormalOffsetEXT
+void r3d_glVertexArrayTexCoordOffsetEXT (GLuint vaobj, GLuint buffer, GLint size, GLenum type, GLsizei stride, GLintptr offset);
+#define glVertexArrayTexCoordOffsetEXT r3d_glVertexArrayTexCoordOffsetEXT
+void r3d_glVertexArrayMultiTexCoordOffsetEXT (GLuint vaobj, GLuint buffer, GLenum texunit, GLint size, GLenum type, GLsizei stride, GLintptr offset);
+#define glVertexArrayMultiTexCoordOffsetEXT r3d_glVertexArrayMultiTexCoordOffsetEXT
+void r3d_glVertexArrayFogCoordOffsetEXT (GLuint vaobj, GLuint buffer, GLenum type, GLsizei stride, GLintptr offset);
+#define glVertexArrayFogCoordOffsetEXT r3d_glVertexArrayFogCoordOffsetEXT
+void r3d_glVertexArraySecondaryColorOffsetEXT (GLuint vaobj, GLuint buffer, GLint size, GLenum type, GLsizei stride, GLintptr offset);
+#define glVertexArraySecondaryColorOffsetEXT r3d_glVertexArraySecondaryColorOffsetEXT
+void r3d_glVertexArrayVertexAttribOffsetEXT (GLuint vaobj, GLuint buffer, GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, GLintptr offset);
+#define glVertexArrayVertexAttribOffsetEXT r3d_glVertexArrayVertexAttribOffsetEXT
+void r3d_glVertexArrayVertexAttribIOffsetEXT (GLuint vaobj, GLuint buffer, GLuint index, GLint size, GLenum type, GLsizei stride, GLintptr offset);
+#define glVertexArrayVertexAttribIOffsetEXT r3d_glVertexArrayVertexAttribIOffsetEXT
+void r3d_glEnableVertexArrayEXT (GLuint vaobj, GLenum array);
+#define glEnableVertexArrayEXT r3d_glEnableVertexArrayEXT
+void r3d_glDisableVertexArrayEXT (GLuint vaobj, GLenum array);
+#define glDisableVertexArrayEXT r3d_glDisableVertexArrayEXT
+void r3d_glEnableVertexArrayAttribEXT (GLuint vaobj, GLuint index);
+#define glEnableVertexArrayAttribEXT r3d_glEnableVertexArrayAttribEXT
+void r3d_glDisableVertexArrayAttribEXT (GLuint vaobj, GLuint index);
+#define glDisableVertexArrayAttribEXT r3d_glDisableVertexArrayAttribEXT
+void r3d_glGetVertexArrayIntegervEXT (GLuint vaobj, GLenum pname, GLint * param);
+#define glGetVertexArrayIntegervEXT r3d_glGetVertexArrayIntegervEXT
+void r3d_glGetVertexArrayPointervEXT (GLuint vaobj, GLenum pname, void ** param);
+#define glGetVertexArrayPointervEXT r3d_glGetVertexArrayPointervEXT
+void r3d_glGetVertexArrayIntegeri_vEXT (GLuint vaobj, GLuint index, GLenum pname, GLint * param);
+#define glGetVertexArrayIntegeri_vEXT r3d_glGetVertexArrayIntegeri_vEXT
+void r3d_glGetVertexArrayPointeri_vEXT (GLuint vaobj, GLuint index, GLenum pname, void ** param);
+#define glGetVertexArrayPointeri_vEXT r3d_glGetVertexArrayPointeri_vEXT
+void * r3d_glMapNamedBufferRangeEXT (GLuint buffer, GLintptr offset, GLsizeiptr length, GLbitfield access);
+#define glMapNamedBufferRangeEXT r3d_glMapNamedBufferRangeEXT
+void r3d_glFlushMappedNamedBufferRangeEXT (GLuint buffer, GLintptr offset, GLsizeiptr length);
+#define glFlushMappedNamedBufferRangeEXT r3d_glFlushMappedNamedBufferRangeEXT
+void r3d_glNamedBufferStorageEXT (GLuint buffer, GLsizeiptr size, const void * data, GLbitfield flags);
+#define glNamedBufferStorageEXT r3d_glNamedBufferStorageEXT
+void r3d_glClearNamedBufferDataEXT (GLuint buffer, GLenum internalformat, GLenum format, GLenum type, const void * data);
+#define glClearNamedBufferDataEXT r3d_glClearNamedBufferDataEXT
+void r3d_glClearNamedBufferSubDataEXT (GLuint buffer, GLenum internalformat, GLsizeiptr offset, GLsizeiptr size, GLenum format, GLenum type, const void * data);
+#define glClearNamedBufferSubDataEXT r3d_glClearNamedBufferSubDataEXT
+void r3d_glNamedFramebufferParameteriEXT (GLuint framebuffer, GLenum pname, GLint param);
+#define glNamedFramebufferParameteriEXT r3d_glNamedFramebufferParameteriEXT
+void r3d_glGetNamedFramebufferParameterivEXT (GLuint framebuffer, GLenum pname, GLint * params);
+#define glGetNamedFramebufferParameterivEXT r3d_glGetNamedFramebufferParameterivEXT
+void r3d_glTextureBufferRangeEXT (GLuint texture, GLenum target, GLenum internalformat, GLuint buffer, GLintptr offset, GLsizeiptr size);
+#define glTextureBufferRangeEXT r3d_glTextureBufferRangeEXT
+void r3d_glTextureStorage1DEXT (GLuint texture, GLenum target, GLsizei levels, GLenum internalformat, GLsizei width);
+#define glTextureStorage1DEXT r3d_glTextureStorage1DEXT
+void r3d_glTextureStorage2DEXT (GLuint texture, GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height);
+#define glTextureStorage2DEXT r3d_glTextureStorage2DEXT
+void r3d_glTextureStorage3DEXT (GLuint texture, GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth);
+#define glTextureStorage3DEXT r3d_glTextureStorage3DEXT
+void r3d_glTextureStorage2DMultisampleEXT (GLuint texture, GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations);
+#define glTextureStorage2DMultisampleEXT r3d_glTextureStorage2DMultisampleEXT
+void r3d_glTextureStorage3DMultisampleEXT (GLuint texture, GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLboolean fixedsamplelocations);
+#define glTextureStorage3DMultisampleEXT r3d_glTextureStorage3DMultisampleEXT
+void r3d_glVertexArrayBindVertexBufferEXT (GLuint vaobj, GLuint bindingindex, GLuint buffer, GLintptr offset, GLsizei stride);
+#define glVertexArrayBindVertexBufferEXT r3d_glVertexArrayBindVertexBufferEXT
+void r3d_glVertexArrayVertexAttribFormatEXT (GLuint vaobj, GLuint attribindex, GLint size, GLenum type, GLboolean normalized, GLuint relativeoffset);
+#define glVertexArrayVertexAttribFormatEXT r3d_glVertexArrayVertexAttribFormatEXT
+void r3d_glVertexArrayVertexAttribIFormatEXT (GLuint vaobj, GLuint attribindex, GLint size, GLenum type, GLuint relativeoffset);
+#define glVertexArrayVertexAttribIFormatEXT r3d_glVertexArrayVertexAttribIFormatEXT
+void r3d_glVertexArrayVertexAttribLFormatEXT (GLuint vaobj, GLuint attribindex, GLint size, GLenum type, GLuint relativeoffset);
+#define glVertexArrayVertexAttribLFormatEXT r3d_glVertexArrayVertexAttribLFormatEXT
+void r3d_glVertexArrayVertexAttribBindingEXT (GLuint vaobj, GLuint attribindex, GLuint bindingindex);
+#define glVertexArrayVertexAttribBindingEXT r3d_glVertexArrayVertexAttribBindingEXT
+void r3d_glVertexArrayVertexBindingDivisorEXT (GLuint vaobj, GLuint bindingindex, GLuint divisor);
+#define glVertexArrayVertexBindingDivisorEXT r3d_glVertexArrayVertexBindingDivisorEXT
+void r3d_glVertexArrayVertexAttribLOffsetEXT (GLuint vaobj, GLuint buffer, GLuint index, GLint size, GLenum type, GLsizei stride, GLintptr offset);
+#define glVertexArrayVertexAttribLOffsetEXT r3d_glVertexArrayVertexAttribLOffsetEXT
+void r3d_glTexturePageCommitmentEXT (GLuint texture, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLboolean commit);
+#define glTexturePageCommitmentEXT r3d_glTexturePageCommitmentEXT
+void r3d_glVertexArrayVertexAttribDivisorEXT (GLuint vaobj, GLuint index, GLuint divisor);
+#define glVertexArrayVertexAttribDivisorEXT r3d_glVertexArrayVertexAttribDivisorEXT
 #endif

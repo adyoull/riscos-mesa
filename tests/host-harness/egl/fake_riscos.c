@@ -719,6 +719,15 @@ struct r3d_context *r3d_create(void) { return fr_new(0); }
 struct r3d_context *r3d_create_gl(void) { return fr_new(1); }
 int fake_r3d_no_es1;    /* a rol-3d older than 0.4: no GLES 1.1 */
 struct r3d_context *r3d_create_es1(void) { return fake_r3d_no_es1 ? NULL : fr_new(2); }
+/* RISC3D 0.5: up to 3.1 (fake_r3d_max, as 10 * major + minor: 31) */
+int fake_r3d_max = 31, fake_r3d_versioned;
+struct r3d_context *r3d_create_version(int api, int major, int minor)
+{
+    (void) api;
+    if (10 * major + minor > fake_r3d_max) return NULL;
+    fake_r3d_versioned++;
+    return fr_new(api == 1);
+}
 void r3d_make_current(struct r3d_context *c) { fr_cur = c; }
 void r3d_destroy(struct r3d_context *c) { if (fr_cur == c) fr_cur = NULL; free(c); fake_r3d_live--; }
 void r3d_surface(int w, int h) { if (fr_cur) { fr_cur->w = w; fr_cur->h = h; } }

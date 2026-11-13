@@ -247,9 +247,10 @@ static int r3dw_always_software(void)
    and later OSMesa: api EGL_OPENGL_API or EGL_OPENGL_ES_API, the version
    asked for (0.0: none, GL 2.1 or GLES 1). In order:
    1. LIBGL_ALWAYS_SOFTWARE or RISC3D$Disable set: software.
-   2. RISC3D has a driver and draws this version (GL up to 2.1, GLES 1.1
-      and 2.0): RISC3D. (GLES 1.1 needs RISC3D 0.4's rol-3d too: if it
-      can't make one, EGL uses OSMesa all the same.)
+   2. RISC3D has a driver and the version is one RISC3D can give (GL up
+      to 3.1, compatibility; GLES 1.1 to 3.1): RISC3D. Whether its renderer
+      gives that much is known only when the context is made: if RISC3D
+      can't, EGL uses OSMesa all the same (GL 2.1, GLES 1.1 and 2.0).
    3. (Reserved: a GPU driven in the program, RISCOS_MESA_V3D.)
    4. Software: OSMesa, which refuses what it can't do, as before. */
 EGLAPI int EGLAPIENTRY riscos_mesa_pick_renderer(unsigned int api, int major, int minor)
@@ -258,9 +259,9 @@ EGLAPI int EGLAPIENTRY riscos_mesa_pick_renderer(unsigned int api, int major, in
     if (r3dw_always_software() || !r3d_available())
         return RISCOS_MESA_SOFTWARE;
     if (api == EGL_OPENGL_ES_API)
-        ok = major <= 1 || (major == 2 && minor == 0);
+        ok = major <= 1 || (major == 2 && minor == 0) || (major == 3 && minor <= 1);
     else if (api == EGL_OPENGL_API)
-        ok = major < 2 || (major == 2 && minor <= 1);
+        ok = major < 3 || (major == 3 && minor <= 1);
     else
         ok = 0;
     return ok ? RISCOS_MESA_RISC3D : RISCOS_MESA_SOFTWARE;
@@ -274,10 +275,12 @@ static struct r3d_context *r3dw_create(EGLenum api, const context_request *q, co
     if (share || q->software)
         return NULL;
     if (api == EGL_OPENGL_ES_API) {
-        if (riscos_mesa_pick_renderer(api, q->es, 0) != RISCOS_MESA_RISC3D)
+        if (riscos_mesa_pick_renderer(api, q->major, q->minor) != RISCOS_MESA_RISC3D)
             return NULL;
-        if (q->es == 2)
-            r = r3d_create();
+        if (q->es == 3)
+            r = r3d_create_version(R3D_API_GLES2, q->major, q->minor);     /* RISC3D 0.5 */
+        else if (q->es == 2)
+            r = r3d_create();           /* the highest it has, ES 3.1 on a Pi 4, as Mesa's EGL */
         else if (q->es == 1)
             r = r3d_create_es1();       /* RISC3D 0.4 (rol-3d 0.4): else NULL, OSMesa */
     } else if (!q->es) {
@@ -285,7 +288,10 @@ static struct r3d_context *r3dw_create(EGLenum api, const context_request *q, co
         if (riscos_mesa_pick_renderer(api, q->explicit_version ? q->major : 0,
                                       q->explicit_version ? q->minor : 0) != RISCOS_MESA_RISC3D)
             return NULL;
-        r = r3d_create_gl();
+        if (q->explicit_version && q->major >= 3)
+            r = r3d_create_version(R3D_API_GL, q->major, q->minor);        /* RISC3D 0.5 */
+        else
+            r = r3d_create_gl();        /* the highest it has, compatibility profile */
     }
     if (r && !r3dw_dispatch()) {
         r3d_destroy(r);
@@ -315,7 +321,24 @@ static int r3dw_want_overlapped(void)
 static const char *r3dw_version(void)
 {
     return riscos_mesa_pick_renderer(EGL_OPENGL_API, 0, 0) == RISCOS_MESA_RISC3D
-           ? "1.4 riscos-mesa (OSMesa; RISC3D for GL 2.1, GLES 1.1 and GLES 2)" : EGL_RISCOS_VERSION;
+           ? "1.4 riscos-mesa (OSMesa; RISC3D for OpenGL and OpenGL ES)" : EGL_RISCOS_VERSION;
+}
+
+/* EGL_OPENGL_ES3_BIT in configs' EGL_RENDERABLE_TYPE: only when RISC3D
+   gives ES 3.0, which is known by making a context (once). */
+static int r3dw_es3(void)
+{
+    static int known = -1;
+    struct r3d_context *r;
+    if (riscos_mesa_pick_renderer(EGL_OPENGL_ES_API, 3, 0) != RISCOS_MESA_RISC3D)
+        return 0;
+    if (known < 0) {
+        r = r3d_create_version(R3D_API_GLES2, 3, 0);
+        known = r != NULL;
+        if (r)
+            r3d_destroy(r);
+    }
+    return known;
 }
 
 /* make c (a RISC3D context) the one drawing, after OSMesa's is released */

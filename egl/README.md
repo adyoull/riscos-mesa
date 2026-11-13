@@ -62,9 +62,10 @@ The `fail()` and `ok()` helpers set the calling thread's error.
 
 Where the RISC3D module has a driver registered (on RISC OS on Linux, its
 Linux3D driver, which has Linux's graphics driver draw), `eglCreateContext`
-gives OpenGL contexts (up to 2.1, compatibility profile), OpenGL ES 1.1
-contexts (RISC3D 0.4 and its rol-3d) and OpenGL ES 2 contexts to RISC3D
-instead of OSMesa. Programs don't change: they call EGL and GL as before.
+gives OpenGL contexts (up to 3.1, compatibility profile) and OpenGL ES
+1.1, 2.0, 3.0 and 3.1 contexts to RISC3D instead of OSMesa (ES 1.1 needs
+RISC3D 0.4's rol-3d, GL 3 and ES 3 0.5's, and a renderer that has them;
+only RISC3D gives GL 3 and ES 3: without it they are refused, as before). Programs don't change: they call EGL and GL as before.
 Anywhere else, with `RISC3D$Disable` or `LIBGL_ALWAYS_SOFTWARE` set (system
 variables; `LIBGL_ALWAYS_SOFTWARE` as Mesa's, 0, false or no don't count),
 or if RISC3D can't make the context, OSMesa draws exactly as before.

@@ -206,6 +206,22 @@ static void *run(void *arg)
         CHECK(ctx && wd->egl_surface, "GLES 1.1 with RISC3D: the EGL path");
         RISCOS_GL_DeleteContext(&dev, ctx); current_ctx = NULL;
         RISCOS_GL_DestroyWindowBuffer(&win);
+        dev.gl_config.major_version = 3; dev.gl_config.minor_version = 0;
+        ctx = RISCOS_GL_CreateContext(&dev, &win); current_ctx = ctx;
+        CHECK(ctx && wd->egl_surface, "GLES 3.0 with RISC3D: an EGL context (%s)", ctx ? "made" : errbuf);
+        RISCOS_GL_DeleteContext(&dev, ctx); current_ctx = NULL;
+        RISCOS_GL_DestroyWindowBuffer(&win);
+        dev.gl_config.profile_mask = 0; dev.gl_config.major_version = 3; dev.gl_config.minor_version = 1;
+        ctx = RISCOS_GL_CreateContext(&dev, &win); current_ctx = ctx;
+        CHECK(ctx && wd->egl_surface, "GL 3.1 with RISC3D: an EGL context (%s)", ctx ? "made" : errbuf);
+        RISCOS_GL_DeleteContext(&dev, ctx); current_ctx = NULL;
+        RISCOS_GL_DestroyWindowBuffer(&win);
+        dev.gl_config.major_version = 3; dev.gl_config.minor_version = 2;
+        dev.gl_config.profile_mask = SDL_GL_CONTEXT_PROFILE_CORE;
+        ctx = RISCOS_GL_CreateContext(&dev, &win); current_ctx = ctx;
+        CHECK(!ctx, "GL 3.2 core with RISC3D: refused");
+        if (ctx) { RISCOS_GL_DeleteContext(&dev, ctx); current_ctx = NULL; }
+        RISCOS_GL_DestroyWindowBuffer(&win);
         dev.gl_config.profile_mask = 0; dev.gl_config.major_version = 2; dev.gl_config.minor_version = 1;
         fake_r3d_on = 0;
         ctx = RISCOS_GL_CreateContext(&dev, &win); current_ctx = ctx;

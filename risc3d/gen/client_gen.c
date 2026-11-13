@@ -195,6 +195,7 @@ glDepthMask (GLboolean flag)
 void
 glDisable (GLenum cap)
 {
+  r3d_track_glDisable (cap);
   uint32_t *a = r3d_put (OP_glDisable, 1);
   if (!a)
     return;
@@ -204,6 +205,7 @@ glDisable (GLenum cap)
 void
 glEnable (GLenum cap)
 {
+  r3d_track_glEnable (cap);
   uint32_t *a = r3d_put (OP_glEnable, 1);
   if (!a)
     return;
@@ -213,6 +215,7 @@ glEnable (GLenum cap)
 void
 glFinish (void)
 {
+  r3d_track_glFinish ();
   if (!r3d_put (OP_glFinish, 0))
     return;
 }
@@ -220,6 +223,7 @@ glFinish (void)
 void
 glFlush (void)
 {
+  r3d_track_glFlush ();
   if (!r3d_put (OP_glFlush, 0))
     return;
 }
@@ -402,13 +406,13 @@ glIsEnabled (GLenum cap)
 }
 
 void
-glDepthRange (GLdouble n, GLdouble f)
+glDepthRange (GLdouble n, GLdouble f_)
 {
   uint32_t *a = r3d_put (OP_glDepthRange, 4);
   if (!a)
     return;
   r3d_d2w (a + 0, n);
-  r3d_d2w (a + 2, f);
+  r3d_d2w (a + 2, f_);
 }
 
 void
@@ -498,14 +502,14 @@ glColor3b (GLbyte red, GLbyte green, GLbyte blue)
 }
 
 void
-glColor3bv (const GLbyte * v)
+glColor3bv (const GLbyte * v_)
 {
   uint32_t *a = r3d_put (OP_glColor3bv, 2);
   if (!a)
     return;
   a[0] = 3;
   a[1] = 0;
-  memcpy (a + 1, v, 3);
+  memcpy (a + 1, v_, 3);
 }
 
 void
@@ -522,15 +526,15 @@ glColor3d (GLdouble red, GLdouble green, GLdouble blue)
 }
 
 void
-glColor3dv (const GLdouble * v)
+glColor3dv (const GLdouble * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_COLOR, 0, 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_COLOR, 0, 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glColor3dv, 7);
   if (!a)
     return;
   a[0] = 24;
-  memcpy (a + 1, v, 24);
+  memcpy (a + 1, v_, 24);
 }
 
 void
@@ -547,15 +551,15 @@ glColor3f (GLfloat red, GLfloat green, GLfloat blue)
 }
 
 void
-glColor3fv (const GLfloat * v)
+glColor3fv (const GLfloat * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_COLOR, 0, 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_COLOR, 0, 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glColor3fv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -570,13 +574,13 @@ glColor3i (GLint red, GLint green, GLint blue)
 }
 
 void
-glColor3iv (const GLint * v)
+glColor3iv (const GLint * v_)
 {
   uint32_t *a = r3d_put (OP_glColor3iv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -591,14 +595,14 @@ glColor3s (GLshort red, GLshort green, GLshort blue)
 }
 
 void
-glColor3sv (const GLshort * v)
+glColor3sv (const GLshort * v_)
 {
   uint32_t *a = r3d_put (OP_glColor3sv, 3);
   if (!a)
     return;
   a[0] = 6;
   a[2] = 0;
-  memcpy (a + 1, v, 6);
+  memcpy (a + 1, v_, 6);
 }
 
 void
@@ -615,16 +619,16 @@ glColor3ub (GLubyte red, GLubyte green, GLubyte blue)
 }
 
 void
-glColor3ubv (const GLubyte * v)
+glColor3ubv (const GLubyte * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_COLOR, 0, 3, (const GLfloat[4]) { v[0] / 255.0F, v[1] / 255.0F, v[2] / 255.0F, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_COLOR, 0, 3, (const GLfloat[4]) { v_[0] / 255.0F, v_[1] / 255.0F, v_[2] / 255.0F, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glColor3ubv, 2);
   if (!a)
     return;
   a[0] = 3;
   a[1] = 0;
-  memcpy (a + 1, v, 3);
+  memcpy (a + 1, v_, 3);
 }
 
 void
@@ -639,13 +643,13 @@ glColor3ui (GLuint red, GLuint green, GLuint blue)
 }
 
 void
-glColor3uiv (const GLuint * v)
+glColor3uiv (const GLuint * v_)
 {
   uint32_t *a = r3d_put (OP_glColor3uiv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -660,14 +664,14 @@ glColor3us (GLushort red, GLushort green, GLushort blue)
 }
 
 void
-glColor3usv (const GLushort * v)
+glColor3usv (const GLushort * v_)
 {
   uint32_t *a = r3d_put (OP_glColor3usv, 3);
   if (!a)
     return;
   a[0] = 6;
   a[2] = 0;
-  memcpy (a + 1, v, 6);
+  memcpy (a + 1, v_, 6);
 }
 
 void
@@ -683,13 +687,13 @@ glColor4b (GLbyte red, GLbyte green, GLbyte blue, GLbyte alpha)
 }
 
 void
-glColor4bv (const GLbyte * v)
+glColor4bv (const GLbyte * v_)
 {
   uint32_t *a = r3d_put (OP_glColor4bv, 2);
   if (!a)
     return;
   a[0] = 4;
-  memcpy (a + 1, v, 4);
+  memcpy (a + 1, v_, 4);
 }
 
 void
@@ -707,15 +711,15 @@ glColor4d (GLdouble red, GLdouble green, GLdouble blue, GLdouble alpha)
 }
 
 void
-glColor4dv (const GLdouble * v)
+glColor4dv (const GLdouble * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_COLOR, 0, 4, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], (GLfloat) v[3] }))
+  if (cur->imm_on && r3d_imm (IMM_COLOR, 0, 4, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], (GLfloat) v_[3] }))
     return;
   uint32_t *a = r3d_put (OP_glColor4dv, 9);
   if (!a)
     return;
   a[0] = 32;
-  memcpy (a + 1, v, 32);
+  memcpy (a + 1, v_, 32);
 }
 
 void
@@ -733,15 +737,15 @@ glColor4f (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)
 }
 
 void
-glColor4fv (const GLfloat * v)
+glColor4fv (const GLfloat * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_COLOR, 0, 4, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], (GLfloat) v[3] }))
+  if (cur->imm_on && r3d_imm (IMM_COLOR, 0, 4, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], (GLfloat) v_[3] }))
     return;
   uint32_t *a = r3d_put (OP_glColor4fv, 5);
   if (!a)
     return;
   a[0] = 16;
-  memcpy (a + 1, v, 16);
+  memcpy (a + 1, v_, 16);
 }
 
 void
@@ -757,13 +761,13 @@ glColor4i (GLint red, GLint green, GLint blue, GLint alpha)
 }
 
 void
-glColor4iv (const GLint * v)
+glColor4iv (const GLint * v_)
 {
   uint32_t *a = r3d_put (OP_glColor4iv, 5);
   if (!a)
     return;
   a[0] = 16;
-  memcpy (a + 1, v, 16);
+  memcpy (a + 1, v_, 16);
 }
 
 void
@@ -779,13 +783,13 @@ glColor4s (GLshort red, GLshort green, GLshort blue, GLshort alpha)
 }
 
 void
-glColor4sv (const GLshort * v)
+glColor4sv (const GLshort * v_)
 {
   uint32_t *a = r3d_put (OP_glColor4sv, 3);
   if (!a)
     return;
   a[0] = 8;
-  memcpy (a + 1, v, 8);
+  memcpy (a + 1, v_, 8);
 }
 
 void
@@ -803,15 +807,15 @@ glColor4ub (GLubyte red, GLubyte green, GLubyte blue, GLubyte alpha)
 }
 
 void
-glColor4ubv (const GLubyte * v)
+glColor4ubv (const GLubyte * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_COLOR, 0, 4, (const GLfloat[4]) { v[0] / 255.0F, v[1] / 255.0F, v[2] / 255.0F, v[3] / 255.0F }))
+  if (cur->imm_on && r3d_imm (IMM_COLOR, 0, 4, (const GLfloat[4]) { v_[0] / 255.0F, v_[1] / 255.0F, v_[2] / 255.0F, v_[3] / 255.0F }))
     return;
   uint32_t *a = r3d_put (OP_glColor4ubv, 2);
   if (!a)
     return;
   a[0] = 4;
-  memcpy (a + 1, v, 4);
+  memcpy (a + 1, v_, 4);
 }
 
 void
@@ -827,13 +831,13 @@ glColor4ui (GLuint red, GLuint green, GLuint blue, GLuint alpha)
 }
 
 void
-glColor4uiv (const GLuint * v)
+glColor4uiv (const GLuint * v_)
 {
   uint32_t *a = r3d_put (OP_glColor4uiv, 5);
   if (!a)
     return;
   a[0] = 16;
-  memcpy (a + 1, v, 16);
+  memcpy (a + 1, v_, 16);
 }
 
 void
@@ -849,13 +853,13 @@ glColor4us (GLushort red, GLushort green, GLushort blue, GLushort alpha)
 }
 
 void
-glColor4usv (const GLushort * v)
+glColor4usv (const GLushort * v_)
 {
   uint32_t *a = r3d_put (OP_glColor4usv, 3);
   if (!a)
     return;
   a[0] = 8;
-  memcpy (a + 1, v, 8);
+  memcpy (a + 1, v_, 8);
 }
 
 void
@@ -980,14 +984,14 @@ glNormal3b (GLbyte nx, GLbyte ny, GLbyte nz)
 }
 
 void
-glNormal3bv (const GLbyte * v)
+glNormal3bv (const GLbyte * v_)
 {
   uint32_t *a = r3d_put (OP_glNormal3bv, 2);
   if (!a)
     return;
   a[0] = 3;
   a[1] = 0;
-  memcpy (a + 1, v, 3);
+  memcpy (a + 1, v_, 3);
 }
 
 void
@@ -1004,15 +1008,15 @@ glNormal3d (GLdouble nx, GLdouble ny, GLdouble nz)
 }
 
 void
-glNormal3dv (const GLdouble * v)
+glNormal3dv (const GLdouble * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_NORMAL, 0, 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_NORMAL, 0, 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glNormal3dv, 7);
   if (!a)
     return;
   a[0] = 24;
-  memcpy (a + 1, v, 24);
+  memcpy (a + 1, v_, 24);
 }
 
 void
@@ -1029,15 +1033,15 @@ glNormal3f (GLfloat nx, GLfloat ny, GLfloat nz)
 }
 
 void
-glNormal3fv (const GLfloat * v)
+glNormal3fv (const GLfloat * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_NORMAL, 0, 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_NORMAL, 0, 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glNormal3fv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -1052,13 +1056,13 @@ glNormal3i (GLint nx, GLint ny, GLint nz)
 }
 
 void
-glNormal3iv (const GLint * v)
+glNormal3iv (const GLint * v_)
 {
   uint32_t *a = r3d_put (OP_glNormal3iv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -1073,14 +1077,14 @@ glNormal3s (GLshort nx, GLshort ny, GLshort nz)
 }
 
 void
-glNormal3sv (const GLshort * v)
+glNormal3sv (const GLshort * v_)
 {
   uint32_t *a = r3d_put (OP_glNormal3sv, 3);
   if (!a)
     return;
   a[0] = 6;
   a[2] = 0;
-  memcpy (a + 1, v, 6);
+  memcpy (a + 1, v_, 6);
 }
 
 void
@@ -1094,13 +1098,13 @@ glRasterPos2d (GLdouble x, GLdouble y)
 }
 
 void
-glRasterPos2dv (const GLdouble * v)
+glRasterPos2dv (const GLdouble * v_)
 {
   uint32_t *a = r3d_put (OP_glRasterPos2dv, 5);
   if (!a)
     return;
   a[0] = 16;
-  memcpy (a + 1, v, 16);
+  memcpy (a + 1, v_, 16);
 }
 
 void
@@ -1114,13 +1118,13 @@ glRasterPos2f (GLfloat x, GLfloat y)
 }
 
 void
-glRasterPos2fv (const GLfloat * v)
+glRasterPos2fv (const GLfloat * v_)
 {
   uint32_t *a = r3d_put (OP_glRasterPos2fv, 3);
   if (!a)
     return;
   a[0] = 8;
-  memcpy (a + 1, v, 8);
+  memcpy (a + 1, v_, 8);
 }
 
 void
@@ -1134,13 +1138,13 @@ glRasterPos2i (GLint x, GLint y)
 }
 
 void
-glRasterPos2iv (const GLint * v)
+glRasterPos2iv (const GLint * v_)
 {
   uint32_t *a = r3d_put (OP_glRasterPos2iv, 3);
   if (!a)
     return;
   a[0] = 8;
-  memcpy (a + 1, v, 8);
+  memcpy (a + 1, v_, 8);
 }
 
 void
@@ -1154,13 +1158,13 @@ glRasterPos2s (GLshort x, GLshort y)
 }
 
 void
-glRasterPos2sv (const GLshort * v)
+glRasterPos2sv (const GLshort * v_)
 {
   uint32_t *a = r3d_put (OP_glRasterPos2sv, 2);
   if (!a)
     return;
   a[0] = 4;
-  memcpy (a + 1, v, 4);
+  memcpy (a + 1, v_, 4);
 }
 
 void
@@ -1175,13 +1179,13 @@ glRasterPos3d (GLdouble x, GLdouble y, GLdouble z)
 }
 
 void
-glRasterPos3dv (const GLdouble * v)
+glRasterPos3dv (const GLdouble * v_)
 {
   uint32_t *a = r3d_put (OP_glRasterPos3dv, 7);
   if (!a)
     return;
   a[0] = 24;
-  memcpy (a + 1, v, 24);
+  memcpy (a + 1, v_, 24);
 }
 
 void
@@ -1196,13 +1200,13 @@ glRasterPos3f (GLfloat x, GLfloat y, GLfloat z)
 }
 
 void
-glRasterPos3fv (const GLfloat * v)
+glRasterPos3fv (const GLfloat * v_)
 {
   uint32_t *a = r3d_put (OP_glRasterPos3fv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -1217,13 +1221,13 @@ glRasterPos3i (GLint x, GLint y, GLint z)
 }
 
 void
-glRasterPos3iv (const GLint * v)
+glRasterPos3iv (const GLint * v_)
 {
   uint32_t *a = r3d_put (OP_glRasterPos3iv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -1238,14 +1242,14 @@ glRasterPos3s (GLshort x, GLshort y, GLshort z)
 }
 
 void
-glRasterPos3sv (const GLshort * v)
+glRasterPos3sv (const GLshort * v_)
 {
   uint32_t *a = r3d_put (OP_glRasterPos3sv, 3);
   if (!a)
     return;
   a[0] = 6;
   a[2] = 0;
-  memcpy (a + 1, v, 6);
+  memcpy (a + 1, v_, 6);
 }
 
 void
@@ -1261,13 +1265,13 @@ glRasterPos4d (GLdouble x, GLdouble y, GLdouble z, GLdouble w)
 }
 
 void
-glRasterPos4dv (const GLdouble * v)
+glRasterPos4dv (const GLdouble * v_)
 {
   uint32_t *a = r3d_put (OP_glRasterPos4dv, 9);
   if (!a)
     return;
   a[0] = 32;
-  memcpy (a + 1, v, 32);
+  memcpy (a + 1, v_, 32);
 }
 
 void
@@ -1283,13 +1287,13 @@ glRasterPos4f (GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 }
 
 void
-glRasterPos4fv (const GLfloat * v)
+glRasterPos4fv (const GLfloat * v_)
 {
   uint32_t *a = r3d_put (OP_glRasterPos4fv, 5);
   if (!a)
     return;
   a[0] = 16;
-  memcpy (a + 1, v, 16);
+  memcpy (a + 1, v_, 16);
 }
 
 void
@@ -1305,13 +1309,13 @@ glRasterPos4i (GLint x, GLint y, GLint z, GLint w)
 }
 
 void
-glRasterPos4iv (const GLint * v)
+glRasterPos4iv (const GLint * v_)
 {
   uint32_t *a = r3d_put (OP_glRasterPos4iv, 5);
   if (!a)
     return;
   a[0] = 16;
-  memcpy (a + 1, v, 16);
+  memcpy (a + 1, v_, 16);
 }
 
 void
@@ -1327,13 +1331,13 @@ glRasterPos4s (GLshort x, GLshort y, GLshort z, GLshort w)
 }
 
 void
-glRasterPos4sv (const GLshort * v)
+glRasterPos4sv (const GLshort * v_)
 {
   uint32_t *a = r3d_put (OP_glRasterPos4sv, 3);
   if (!a)
     return;
   a[0] = 8;
-  memcpy (a + 1, v, 8);
+  memcpy (a + 1, v_, 8);
 }
 
 void
@@ -1444,15 +1448,15 @@ glTexCoord1d (GLdouble s)
 }
 
 void
-glTexCoord1dv (const GLdouble * v)
+glTexCoord1dv (const GLdouble * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 1, (const GLfloat[4]) { (GLfloat) v[0], 0, 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 1, (const GLfloat[4]) { (GLfloat) v_[0], 0, 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord1dv, 3);
   if (!a)
     return;
   a[0] = 8;
-  memcpy (a + 1, v, 8);
+  memcpy (a + 1, v_, 8);
 }
 
 void
@@ -1467,15 +1471,15 @@ glTexCoord1f (GLfloat s)
 }
 
 void
-glTexCoord1fv (const GLfloat * v)
+glTexCoord1fv (const GLfloat * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 1, (const GLfloat[4]) { (GLfloat) v[0], 0, 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 1, (const GLfloat[4]) { (GLfloat) v_[0], 0, 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord1fv, 2);
   if (!a)
     return;
   a[0] = 4;
-  memcpy (a + 1, v, 4);
+  memcpy (a + 1, v_, 4);
 }
 
 void
@@ -1490,15 +1494,15 @@ glTexCoord1i (GLint s)
 }
 
 void
-glTexCoord1iv (const GLint * v)
+glTexCoord1iv (const GLint * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 1, (const GLfloat[4]) { (GLfloat) v[0], 0, 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 1, (const GLfloat[4]) { (GLfloat) v_[0], 0, 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord1iv, 2);
   if (!a)
     return;
   a[0] = 4;
-  memcpy (a + 1, v, 4);
+  memcpy (a + 1, v_, 4);
 }
 
 void
@@ -1513,16 +1517,16 @@ glTexCoord1s (GLshort s)
 }
 
 void
-glTexCoord1sv (const GLshort * v)
+glTexCoord1sv (const GLshort * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 1, (const GLfloat[4]) { (GLfloat) v[0], 0, 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 1, (const GLfloat[4]) { (GLfloat) v_[0], 0, 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord1sv, 2);
   if (!a)
     return;
   a[0] = 2;
   a[1] = 0;
-  memcpy (a + 1, v, 2);
+  memcpy (a + 1, v_, 2);
 }
 
 void
@@ -1538,15 +1542,15 @@ glTexCoord2d (GLdouble s, GLdouble t)
 }
 
 void
-glTexCoord2dv (const GLdouble * v)
+glTexCoord2dv (const GLdouble * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 2, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 2, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord2dv, 5);
   if (!a)
     return;
   a[0] = 16;
-  memcpy (a + 1, v, 16);
+  memcpy (a + 1, v_, 16);
 }
 
 void
@@ -1562,15 +1566,15 @@ glTexCoord2f (GLfloat s, GLfloat t)
 }
 
 void
-glTexCoord2fv (const GLfloat * v)
+glTexCoord2fv (const GLfloat * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 2, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 2, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord2fv, 3);
   if (!a)
     return;
   a[0] = 8;
-  memcpy (a + 1, v, 8);
+  memcpy (a + 1, v_, 8);
 }
 
 void
@@ -1586,15 +1590,15 @@ glTexCoord2i (GLint s, GLint t)
 }
 
 void
-glTexCoord2iv (const GLint * v)
+glTexCoord2iv (const GLint * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 2, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 2, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord2iv, 3);
   if (!a)
     return;
   a[0] = 8;
-  memcpy (a + 1, v, 8);
+  memcpy (a + 1, v_, 8);
 }
 
 void
@@ -1610,15 +1614,15 @@ glTexCoord2s (GLshort s, GLshort t)
 }
 
 void
-glTexCoord2sv (const GLshort * v)
+glTexCoord2sv (const GLshort * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 2, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 2, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord2sv, 2);
   if (!a)
     return;
   a[0] = 4;
-  memcpy (a + 1, v, 4);
+  memcpy (a + 1, v_, 4);
 }
 
 void
@@ -1635,15 +1639,15 @@ glTexCoord3d (GLdouble s, GLdouble t, GLdouble r)
 }
 
 void
-glTexCoord3dv (const GLdouble * v)
+glTexCoord3dv (const GLdouble * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord3dv, 7);
   if (!a)
     return;
   a[0] = 24;
-  memcpy (a + 1, v, 24);
+  memcpy (a + 1, v_, 24);
 }
 
 void
@@ -1660,15 +1664,15 @@ glTexCoord3f (GLfloat s, GLfloat t, GLfloat r)
 }
 
 void
-glTexCoord3fv (const GLfloat * v)
+glTexCoord3fv (const GLfloat * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord3fv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -1685,15 +1689,15 @@ glTexCoord3i (GLint s, GLint t, GLint r)
 }
 
 void
-glTexCoord3iv (const GLint * v)
+glTexCoord3iv (const GLint * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord3iv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -1710,16 +1714,16 @@ glTexCoord3s (GLshort s, GLshort t, GLshort r)
 }
 
 void
-glTexCoord3sv (const GLshort * v)
+glTexCoord3sv (const GLshort * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord3sv, 3);
   if (!a)
     return;
   a[0] = 6;
   a[2] = 0;
-  memcpy (a + 1, v, 6);
+  memcpy (a + 1, v_, 6);
 }
 
 void
@@ -1737,15 +1741,15 @@ glTexCoord4d (GLdouble s, GLdouble t, GLdouble r, GLdouble q)
 }
 
 void
-glTexCoord4dv (const GLdouble * v)
+glTexCoord4dv (const GLdouble * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 4, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], (GLfloat) v[3] }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 4, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], (GLfloat) v_[3] }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord4dv, 9);
   if (!a)
     return;
   a[0] = 32;
-  memcpy (a + 1, v, 32);
+  memcpy (a + 1, v_, 32);
 }
 
 void
@@ -1763,15 +1767,15 @@ glTexCoord4f (GLfloat s, GLfloat t, GLfloat r, GLfloat q)
 }
 
 void
-glTexCoord4fv (const GLfloat * v)
+glTexCoord4fv (const GLfloat * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 4, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], (GLfloat) v[3] }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 4, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], (GLfloat) v_[3] }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord4fv, 5);
   if (!a)
     return;
   a[0] = 16;
-  memcpy (a + 1, v, 16);
+  memcpy (a + 1, v_, 16);
 }
 
 void
@@ -1789,15 +1793,15 @@ glTexCoord4i (GLint s, GLint t, GLint r, GLint q)
 }
 
 void
-glTexCoord4iv (const GLint * v)
+glTexCoord4iv (const GLint * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 4, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], (GLfloat) v[3] }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 4, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], (GLfloat) v_[3] }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord4iv, 5);
   if (!a)
     return;
   a[0] = 16;
-  memcpy (a + 1, v, 16);
+  memcpy (a + 1, v_, 16);
 }
 
 void
@@ -1815,15 +1819,15 @@ glTexCoord4s (GLshort s, GLshort t, GLshort r, GLshort q)
 }
 
 void
-glTexCoord4sv (const GLshort * v)
+glTexCoord4sv (const GLshort * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 4, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], (GLfloat) v[3] }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, 0, 4, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], (GLfloat) v_[3] }))
     return;
   uint32_t *a = r3d_put (OP_glTexCoord4sv, 3);
   if (!a)
     return;
   a[0] = 8;
-  memcpy (a + 1, v, 8);
+  memcpy (a + 1, v_, 8);
 }
 
 void
@@ -1839,15 +1843,15 @@ glVertex2d (GLdouble x, GLdouble y)
 }
 
 void
-glVertex2dv (const GLdouble * v)
+glVertex2dv (const GLdouble * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 2, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 2, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glVertex2dv, 5);
   if (!a)
     return;
   a[0] = 16;
-  memcpy (a + 1, v, 16);
+  memcpy (a + 1, v_, 16);
 }
 
 void
@@ -1863,15 +1867,15 @@ glVertex2f (GLfloat x, GLfloat y)
 }
 
 void
-glVertex2fv (const GLfloat * v)
+glVertex2fv (const GLfloat * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 2, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 2, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glVertex2fv, 3);
   if (!a)
     return;
   a[0] = 8;
-  memcpy (a + 1, v, 8);
+  memcpy (a + 1, v_, 8);
 }
 
 void
@@ -1887,15 +1891,15 @@ glVertex2i (GLint x, GLint y)
 }
 
 void
-glVertex2iv (const GLint * v)
+glVertex2iv (const GLint * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 2, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 2, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glVertex2iv, 3);
   if (!a)
     return;
   a[0] = 8;
-  memcpy (a + 1, v, 8);
+  memcpy (a + 1, v_, 8);
 }
 
 void
@@ -1911,15 +1915,15 @@ glVertex2s (GLshort x, GLshort y)
 }
 
 void
-glVertex2sv (const GLshort * v)
+glVertex2sv (const GLshort * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 2, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 2, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glVertex2sv, 2);
   if (!a)
     return;
   a[0] = 4;
-  memcpy (a + 1, v, 4);
+  memcpy (a + 1, v_, 4);
 }
 
 void
@@ -1936,15 +1940,15 @@ glVertex3d (GLdouble x, GLdouble y, GLdouble z)
 }
 
 void
-glVertex3dv (const GLdouble * v)
+glVertex3dv (const GLdouble * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glVertex3dv, 7);
   if (!a)
     return;
   a[0] = 24;
-  memcpy (a + 1, v, 24);
+  memcpy (a + 1, v_, 24);
 }
 
 void
@@ -1961,15 +1965,15 @@ glVertex3f (GLfloat x, GLfloat y, GLfloat z)
 }
 
 void
-glVertex3fv (const GLfloat * v)
+glVertex3fv (const GLfloat * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glVertex3fv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -1986,15 +1990,15 @@ glVertex3i (GLint x, GLint y, GLint z)
 }
 
 void
-glVertex3iv (const GLint * v)
+glVertex3iv (const GLint * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glVertex3iv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -2011,16 +2015,16 @@ glVertex3s (GLshort x, GLshort y, GLshort z)
 }
 
 void
-glVertex3sv (const GLshort * v)
+glVertex3sv (const GLshort * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glVertex3sv, 3);
   if (!a)
     return;
   a[0] = 6;
   a[2] = 0;
-  memcpy (a + 1, v, 6);
+  memcpy (a + 1, v_, 6);
 }
 
 void
@@ -2038,15 +2042,15 @@ glVertex4d (GLdouble x, GLdouble y, GLdouble z, GLdouble w)
 }
 
 void
-glVertex4dv (const GLdouble * v)
+glVertex4dv (const GLdouble * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 4, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], (GLfloat) v[3] }))
+  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 4, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], (GLfloat) v_[3] }))
     return;
   uint32_t *a = r3d_put (OP_glVertex4dv, 9);
   if (!a)
     return;
   a[0] = 32;
-  memcpy (a + 1, v, 32);
+  memcpy (a + 1, v_, 32);
 }
 
 void
@@ -2064,15 +2068,15 @@ glVertex4f (GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 }
 
 void
-glVertex4fv (const GLfloat * v)
+glVertex4fv (const GLfloat * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 4, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], (GLfloat) v[3] }))
+  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 4, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], (GLfloat) v_[3] }))
     return;
   uint32_t *a = r3d_put (OP_glVertex4fv, 5);
   if (!a)
     return;
   a[0] = 16;
-  memcpy (a + 1, v, 16);
+  memcpy (a + 1, v_, 16);
 }
 
 void
@@ -2090,15 +2094,15 @@ glVertex4i (GLint x, GLint y, GLint z, GLint w)
 }
 
 void
-glVertex4iv (const GLint * v)
+glVertex4iv (const GLint * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 4, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], (GLfloat) v[3] }))
+  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 4, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], (GLfloat) v_[3] }))
     return;
   uint32_t *a = r3d_put (OP_glVertex4iv, 5);
   if (!a)
     return;
   a[0] = 16;
-  memcpy (a + 1, v, 16);
+  memcpy (a + 1, v_, 16);
 }
 
 void
@@ -2116,15 +2120,15 @@ glVertex4s (GLshort x, GLshort y, GLshort z, GLshort w)
 }
 
 void
-glVertex4sv (const GLshort * v)
+glVertex4sv (const GLshort * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 4, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], (GLfloat) v[3] }))
+  if (cur->imm_on && r3d_imm (IMM_VERTEX, 0, 4, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], (GLfloat) v_[3] }))
     return;
   uint32_t *a = r3d_put (OP_glVertex4sv, 3);
   if (!a)
     return;
   a[0] = 8;
-  memcpy (a + 1, v, 8);
+  memcpy (a + 1, v_, 8);
 }
 
 void
@@ -2646,13 +2650,13 @@ glEvalCoord1fv (const GLfloat * u)
 }
 
 void
-glEvalCoord2d (GLdouble u, GLdouble v)
+glEvalCoord2d (GLdouble u, GLdouble v_)
 {
   uint32_t *a = r3d_put (OP_glEvalCoord2d, 4);
   if (!a)
     return;
   r3d_d2w (a + 0, u);
-  r3d_d2w (a + 2, v);
+  r3d_d2w (a + 2, v_);
 }
 
 void
@@ -2666,13 +2670,13 @@ glEvalCoord2dv (const GLdouble * u)
 }
 
 void
-glEvalCoord2f (GLfloat u, GLfloat v)
+glEvalCoord2f (GLfloat u, GLfloat v_)
 {
   uint32_t *a = r3d_put (OP_glEvalCoord2f, 2);
   if (!a)
     return;
   a[0] = r3d_f2u (u);
-  a[1] = r3d_f2u (v);
+  a[1] = r3d_f2u (v_);
 }
 
 void
@@ -2871,7 +2875,7 @@ glGetLightiv (GLenum light, GLenum pname, GLint * params)
 }
 
 void
-glGetMapdv (GLenum target, GLenum query, GLdouble * v)
+glGetMapdv (GLenum target, GLenum query, GLdouble * v_)
 {
   uint32_t *a = r3d_put (OP_glGetMapdv, 2);
   if (!a)
@@ -2883,13 +2887,13 @@ glGetMapdv (GLenum target, GLenum query, GLdouble * v)
     return;
   r[0] = 0;
   r3d_sync (r, 4 + 4096 * 8);
-  if (v && r[0] <= 4096)
-    memcpy (v, r + 1, r[0] * 8);
+  if (v_ && r[0] <= 4096)
+    memcpy (v_, r + 1, r[0] * 8);
   free (r);
 }
 
 void
-glGetMapfv (GLenum target, GLenum query, GLfloat * v)
+glGetMapfv (GLenum target, GLenum query, GLfloat * v_)
 {
   uint32_t *a = r3d_put (OP_glGetMapfv, 2);
   if (!a)
@@ -2901,13 +2905,13 @@ glGetMapfv (GLenum target, GLenum query, GLfloat * v)
     return;
   r[0] = 0;
   r3d_sync (r, 4 + 4096 * 4);
-  if (v && r[0] <= 4096)
-    memcpy (v, r + 1, r[0] * 4);
+  if (v_ && r[0] <= 4096)
+    memcpy (v_, r + 1, r[0] * 4);
   free (r);
 }
 
 void
-glGetMapiv (GLenum target, GLenum query, GLint * v)
+glGetMapiv (GLenum target, GLenum query, GLint * v_)
 {
   uint32_t *a = r3d_put (OP_glGetMapiv, 2);
   if (!a)
@@ -2919,8 +2923,8 @@ glGetMapiv (GLenum target, GLenum query, GLint * v)
     return;
   r[0] = 0;
   r3d_sync (r, 4 + 4096 * 4);
-  if (v && r[0] <= 4096)
-    memcpy (v, r + 1, r[0] * 4);
+  if (v_ && r[0] <= 4096)
+    memcpy (v_, r + 1, r[0] * 4);
   free (r);
 }
 
@@ -3496,16 +3500,16 @@ glMultiTexCoord1d (GLenum target, GLdouble s)
 }
 
 void
-glMultiTexCoord1dv (GLenum target, const GLdouble * v)
+glMultiTexCoord1dv (GLenum target, const GLdouble * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 1, (const GLfloat[4]) { (GLfloat) v[0], 0, 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 1, (const GLfloat[4]) { (GLfloat) v_[0], 0, 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord1dv, 4);
   if (!a)
     return;
   a[0] = (uint32_t) target;
   a[1] = 8;
-  memcpy (a + 2, v, 8);
+  memcpy (a + 2, v_, 8);
 }
 
 void
@@ -3521,16 +3525,16 @@ glMultiTexCoord1f (GLenum target, GLfloat s)
 }
 
 void
-glMultiTexCoord1fv (GLenum target, const GLfloat * v)
+glMultiTexCoord1fv (GLenum target, const GLfloat * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 1, (const GLfloat[4]) { (GLfloat) v[0], 0, 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 1, (const GLfloat[4]) { (GLfloat) v_[0], 0, 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord1fv, 3);
   if (!a)
     return;
   a[0] = (uint32_t) target;
   a[1] = 4;
-  memcpy (a + 2, v, 4);
+  memcpy (a + 2, v_, 4);
 }
 
 void
@@ -3546,16 +3550,16 @@ glMultiTexCoord1i (GLenum target, GLint s)
 }
 
 void
-glMultiTexCoord1iv (GLenum target, const GLint * v)
+glMultiTexCoord1iv (GLenum target, const GLint * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 1, (const GLfloat[4]) { (GLfloat) v[0], 0, 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 1, (const GLfloat[4]) { (GLfloat) v_[0], 0, 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord1iv, 3);
   if (!a)
     return;
   a[0] = (uint32_t) target;
   a[1] = 4;
-  memcpy (a + 2, v, 4);
+  memcpy (a + 2, v_, 4);
 }
 
 void
@@ -3571,9 +3575,9 @@ glMultiTexCoord1s (GLenum target, GLshort s)
 }
 
 void
-glMultiTexCoord1sv (GLenum target, const GLshort * v)
+glMultiTexCoord1sv (GLenum target, const GLshort * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 1, (const GLfloat[4]) { (GLfloat) v[0], 0, 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 1, (const GLfloat[4]) { (GLfloat) v_[0], 0, 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord1sv, 3);
   if (!a)
@@ -3581,7 +3585,7 @@ glMultiTexCoord1sv (GLenum target, const GLshort * v)
   a[0] = (uint32_t) target;
   a[1] = 2;
   a[2] = 0;
-  memcpy (a + 2, v, 2);
+  memcpy (a + 2, v_, 2);
 }
 
 void
@@ -3598,16 +3602,16 @@ glMultiTexCoord2d (GLenum target, GLdouble s, GLdouble t)
 }
 
 void
-glMultiTexCoord2dv (GLenum target, const GLdouble * v)
+glMultiTexCoord2dv (GLenum target, const GLdouble * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 2, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 2, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord2dv, 6);
   if (!a)
     return;
   a[0] = (uint32_t) target;
   a[1] = 16;
-  memcpy (a + 2, v, 16);
+  memcpy (a + 2, v_, 16);
 }
 
 void
@@ -3624,16 +3628,16 @@ glMultiTexCoord2f (GLenum target, GLfloat s, GLfloat t)
 }
 
 void
-glMultiTexCoord2fv (GLenum target, const GLfloat * v)
+glMultiTexCoord2fv (GLenum target, const GLfloat * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 2, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 2, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord2fv, 4);
   if (!a)
     return;
   a[0] = (uint32_t) target;
   a[1] = 8;
-  memcpy (a + 2, v, 8);
+  memcpy (a + 2, v_, 8);
 }
 
 void
@@ -3650,16 +3654,16 @@ glMultiTexCoord2i (GLenum target, GLint s, GLint t)
 }
 
 void
-glMultiTexCoord2iv (GLenum target, const GLint * v)
+glMultiTexCoord2iv (GLenum target, const GLint * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 2, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 2, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord2iv, 4);
   if (!a)
     return;
   a[0] = (uint32_t) target;
   a[1] = 8;
-  memcpy (a + 2, v, 8);
+  memcpy (a + 2, v_, 8);
 }
 
 void
@@ -3676,16 +3680,16 @@ glMultiTexCoord2s (GLenum target, GLshort s, GLshort t)
 }
 
 void
-glMultiTexCoord2sv (GLenum target, const GLshort * v)
+glMultiTexCoord2sv (GLenum target, const GLshort * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 2, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], 0, 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 2, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], 0, 0 }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord2sv, 3);
   if (!a)
     return;
   a[0] = (uint32_t) target;
   a[1] = 4;
-  memcpy (a + 2, v, 4);
+  memcpy (a + 2, v_, 4);
 }
 
 void
@@ -3703,16 +3707,16 @@ glMultiTexCoord3d (GLenum target, GLdouble s, GLdouble t, GLdouble r)
 }
 
 void
-glMultiTexCoord3dv (GLenum target, const GLdouble * v)
+glMultiTexCoord3dv (GLenum target, const GLdouble * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord3dv, 8);
   if (!a)
     return;
   a[0] = (uint32_t) target;
   a[1] = 24;
-  memcpy (a + 2, v, 24);
+  memcpy (a + 2, v_, 24);
 }
 
 void
@@ -3730,16 +3734,16 @@ glMultiTexCoord3f (GLenum target, GLfloat s, GLfloat t, GLfloat r)
 }
 
 void
-glMultiTexCoord3fv (GLenum target, const GLfloat * v)
+glMultiTexCoord3fv (GLenum target, const GLfloat * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord3fv, 5);
   if (!a)
     return;
   a[0] = (uint32_t) target;
   a[1] = 12;
-  memcpy (a + 2, v, 12);
+  memcpy (a + 2, v_, 12);
 }
 
 void
@@ -3757,16 +3761,16 @@ glMultiTexCoord3i (GLenum target, GLint s, GLint t, GLint r)
 }
 
 void
-glMultiTexCoord3iv (GLenum target, const GLint * v)
+glMultiTexCoord3iv (GLenum target, const GLint * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord3iv, 5);
   if (!a)
     return;
   a[0] = (uint32_t) target;
   a[1] = 12;
-  memcpy (a + 2, v, 12);
+  memcpy (a + 2, v_, 12);
 }
 
 void
@@ -3784,9 +3788,9 @@ glMultiTexCoord3s (GLenum target, GLshort s, GLshort t, GLshort r)
 }
 
 void
-glMultiTexCoord3sv (GLenum target, const GLshort * v)
+glMultiTexCoord3sv (GLenum target, const GLshort * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 3, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], 0 }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 3, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], 0 }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord3sv, 4);
   if (!a)
@@ -3794,7 +3798,7 @@ glMultiTexCoord3sv (GLenum target, const GLshort * v)
   a[0] = (uint32_t) target;
   a[1] = 6;
   a[3] = 0;
-  memcpy (a + 2, v, 6);
+  memcpy (a + 2, v_, 6);
 }
 
 void
@@ -3813,16 +3817,16 @@ glMultiTexCoord4d (GLenum target, GLdouble s, GLdouble t, GLdouble r, GLdouble q
 }
 
 void
-glMultiTexCoord4dv (GLenum target, const GLdouble * v)
+glMultiTexCoord4dv (GLenum target, const GLdouble * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 4, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], (GLfloat) v[3] }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 4, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], (GLfloat) v_[3] }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord4dv, 10);
   if (!a)
     return;
   a[0] = (uint32_t) target;
   a[1] = 32;
-  memcpy (a + 2, v, 32);
+  memcpy (a + 2, v_, 32);
 }
 
 void
@@ -3841,16 +3845,16 @@ glMultiTexCoord4f (GLenum target, GLfloat s, GLfloat t, GLfloat r, GLfloat q)
 }
 
 void
-glMultiTexCoord4fv (GLenum target, const GLfloat * v)
+glMultiTexCoord4fv (GLenum target, const GLfloat * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 4, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], (GLfloat) v[3] }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 4, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], (GLfloat) v_[3] }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord4fv, 6);
   if (!a)
     return;
   a[0] = (uint32_t) target;
   a[1] = 16;
-  memcpy (a + 2, v, 16);
+  memcpy (a + 2, v_, 16);
 }
 
 void
@@ -3869,16 +3873,16 @@ glMultiTexCoord4i (GLenum target, GLint s, GLint t, GLint r, GLint q)
 }
 
 void
-glMultiTexCoord4iv (GLenum target, const GLint * v)
+glMultiTexCoord4iv (GLenum target, const GLint * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 4, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], (GLfloat) v[3] }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 4, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], (GLfloat) v_[3] }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord4iv, 6);
   if (!a)
     return;
   a[0] = (uint32_t) target;
   a[1] = 16;
-  memcpy (a + 2, v, 16);
+  memcpy (a + 2, v_, 16);
 }
 
 void
@@ -3897,16 +3901,16 @@ glMultiTexCoord4s (GLenum target, GLshort s, GLshort t, GLshort r, GLshort q)
 }
 
 void
-glMultiTexCoord4sv (GLenum target, const GLshort * v)
+glMultiTexCoord4sv (GLenum target, const GLshort * v_)
 {
-  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 4, (const GLfloat[4]) { (GLfloat) v[0], (GLfloat) v[1], (GLfloat) v[2], (GLfloat) v[3] }))
+  if (cur->imm_on && r3d_imm (IMM_TEX, (int) (target - GL_TEXTURE0), 4, (const GLfloat[4]) { (GLfloat) v_[0], (GLfloat) v_[1], (GLfloat) v_[2], (GLfloat) v_[3] }))
     return;
   uint32_t *a = r3d_put (OP_glMultiTexCoord4sv, 4);
   if (!a)
     return;
   a[0] = (uint32_t) target;
   a[1] = 8;
-  memcpy (a + 2, v, 8);
+  memcpy (a + 2, v_, 8);
 }
 
 void
@@ -4057,14 +4061,14 @@ glSecondaryColor3b (GLbyte red, GLbyte green, GLbyte blue)
 }
 
 void
-glSecondaryColor3bv (const GLbyte * v)
+glSecondaryColor3bv (const GLbyte * v_)
 {
   uint32_t *a = r3d_put (OP_glSecondaryColor3bv, 2);
   if (!a)
     return;
   a[0] = 3;
   a[1] = 0;
-  memcpy (a + 1, v, 3);
+  memcpy (a + 1, v_, 3);
 }
 
 void
@@ -4079,13 +4083,13 @@ glSecondaryColor3d (GLdouble red, GLdouble green, GLdouble blue)
 }
 
 void
-glSecondaryColor3dv (const GLdouble * v)
+glSecondaryColor3dv (const GLdouble * v_)
 {
   uint32_t *a = r3d_put (OP_glSecondaryColor3dv, 7);
   if (!a)
     return;
   a[0] = 24;
-  memcpy (a + 1, v, 24);
+  memcpy (a + 1, v_, 24);
 }
 
 void
@@ -4100,13 +4104,13 @@ glSecondaryColor3f (GLfloat red, GLfloat green, GLfloat blue)
 }
 
 void
-glSecondaryColor3fv (const GLfloat * v)
+glSecondaryColor3fv (const GLfloat * v_)
 {
   uint32_t *a = r3d_put (OP_glSecondaryColor3fv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -4121,13 +4125,13 @@ glSecondaryColor3i (GLint red, GLint green, GLint blue)
 }
 
 void
-glSecondaryColor3iv (const GLint * v)
+glSecondaryColor3iv (const GLint * v_)
 {
   uint32_t *a = r3d_put (OP_glSecondaryColor3iv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -4142,14 +4146,14 @@ glSecondaryColor3s (GLshort red, GLshort green, GLshort blue)
 }
 
 void
-glSecondaryColor3sv (const GLshort * v)
+glSecondaryColor3sv (const GLshort * v_)
 {
   uint32_t *a = r3d_put (OP_glSecondaryColor3sv, 3);
   if (!a)
     return;
   a[0] = 6;
   a[2] = 0;
-  memcpy (a + 1, v, 6);
+  memcpy (a + 1, v_, 6);
 }
 
 void
@@ -4164,14 +4168,14 @@ glSecondaryColor3ub (GLubyte red, GLubyte green, GLubyte blue)
 }
 
 void
-glSecondaryColor3ubv (const GLubyte * v)
+glSecondaryColor3ubv (const GLubyte * v_)
 {
   uint32_t *a = r3d_put (OP_glSecondaryColor3ubv, 2);
   if (!a)
     return;
   a[0] = 3;
   a[1] = 0;
-  memcpy (a + 1, v, 3);
+  memcpy (a + 1, v_, 3);
 }
 
 void
@@ -4186,13 +4190,13 @@ glSecondaryColor3ui (GLuint red, GLuint green, GLuint blue)
 }
 
 void
-glSecondaryColor3uiv (const GLuint * v)
+glSecondaryColor3uiv (const GLuint * v_)
 {
   uint32_t *a = r3d_put (OP_glSecondaryColor3uiv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -4207,14 +4211,14 @@ glSecondaryColor3us (GLushort red, GLushort green, GLushort blue)
 }
 
 void
-glSecondaryColor3usv (const GLushort * v)
+glSecondaryColor3usv (const GLushort * v_)
 {
   uint32_t *a = r3d_put (OP_glSecondaryColor3usv, 3);
   if (!a)
     return;
   a[0] = 6;
   a[2] = 0;
-  memcpy (a + 1, v, 6);
+  memcpy (a + 1, v_, 6);
 }
 
 void
@@ -4228,13 +4232,13 @@ glWindowPos2d (GLdouble x, GLdouble y)
 }
 
 void
-glWindowPos2dv (const GLdouble * v)
+glWindowPos2dv (const GLdouble * v_)
 {
   uint32_t *a = r3d_put (OP_glWindowPos2dv, 5);
   if (!a)
     return;
   a[0] = 16;
-  memcpy (a + 1, v, 16);
+  memcpy (a + 1, v_, 16);
 }
 
 void
@@ -4248,13 +4252,13 @@ glWindowPos2f (GLfloat x, GLfloat y)
 }
 
 void
-glWindowPos2fv (const GLfloat * v)
+glWindowPos2fv (const GLfloat * v_)
 {
   uint32_t *a = r3d_put (OP_glWindowPos2fv, 3);
   if (!a)
     return;
   a[0] = 8;
-  memcpy (a + 1, v, 8);
+  memcpy (a + 1, v_, 8);
 }
 
 void
@@ -4268,13 +4272,13 @@ glWindowPos2i (GLint x, GLint y)
 }
 
 void
-glWindowPos2iv (const GLint * v)
+glWindowPos2iv (const GLint * v_)
 {
   uint32_t *a = r3d_put (OP_glWindowPos2iv, 3);
   if (!a)
     return;
   a[0] = 8;
-  memcpy (a + 1, v, 8);
+  memcpy (a + 1, v_, 8);
 }
 
 void
@@ -4288,13 +4292,13 @@ glWindowPos2s (GLshort x, GLshort y)
 }
 
 void
-glWindowPos2sv (const GLshort * v)
+glWindowPos2sv (const GLshort * v_)
 {
   uint32_t *a = r3d_put (OP_glWindowPos2sv, 2);
   if (!a)
     return;
   a[0] = 4;
-  memcpy (a + 1, v, 4);
+  memcpy (a + 1, v_, 4);
 }
 
 void
@@ -4309,13 +4313,13 @@ glWindowPos3d (GLdouble x, GLdouble y, GLdouble z)
 }
 
 void
-glWindowPos3dv (const GLdouble * v)
+glWindowPos3dv (const GLdouble * v_)
 {
   uint32_t *a = r3d_put (OP_glWindowPos3dv, 7);
   if (!a)
     return;
   a[0] = 24;
-  memcpy (a + 1, v, 24);
+  memcpy (a + 1, v_, 24);
 }
 
 void
@@ -4330,13 +4334,13 @@ glWindowPos3f (GLfloat x, GLfloat y, GLfloat z)
 }
 
 void
-glWindowPos3fv (const GLfloat * v)
+glWindowPos3fv (const GLfloat * v_)
 {
   uint32_t *a = r3d_put (OP_glWindowPos3fv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -4351,13 +4355,13 @@ glWindowPos3i (GLint x, GLint y, GLint z)
 }
 
 void
-glWindowPos3iv (const GLint * v)
+glWindowPos3iv (const GLint * v_)
 {
   uint32_t *a = r3d_put (OP_glWindowPos3iv, 4);
   if (!a)
     return;
   a[0] = 12;
-  memcpy (a + 1, v, 12);
+  memcpy (a + 1, v_, 12);
 }
 
 void
@@ -4372,14 +4376,14 @@ glWindowPos3s (GLshort x, GLshort y, GLshort z)
 }
 
 void
-glWindowPos3sv (const GLshort * v)
+glWindowPos3sv (const GLshort * v_)
 {
   uint32_t *a = r3d_put (OP_glWindowPos3sv, 3);
   if (!a)
     return;
   a[0] = 6;
   a[2] = 0;
-  memcpy (a + 1, v, 6);
+  memcpy (a + 1, v_, 6);
 }
 
 void
@@ -5128,14 +5132,14 @@ glVertexAttrib1d (GLuint index, GLdouble x)
 }
 
 void
-glVertexAttrib1dv (GLuint index, const GLdouble * v)
+glVertexAttrib1dv (GLuint index, const GLdouble * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib1dv, 4);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 8;
-  memcpy (a + 2, v, 8);
+  memcpy (a + 2, v_, 8);
 }
 
 void
@@ -5149,14 +5153,14 @@ glVertexAttrib1f (GLuint index, GLfloat x)
 }
 
 void
-glVertexAttrib1fv (GLuint index, const GLfloat * v)
+glVertexAttrib1fv (GLuint index, const GLfloat * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib1fv, 3);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 4;
-  memcpy (a + 2, v, 4);
+  memcpy (a + 2, v_, 4);
 }
 
 void
@@ -5170,7 +5174,7 @@ glVertexAttrib1s (GLuint index, GLshort x)
 }
 
 void
-glVertexAttrib1sv (GLuint index, const GLshort * v)
+glVertexAttrib1sv (GLuint index, const GLshort * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib1sv, 3);
   if (!a)
@@ -5178,7 +5182,7 @@ glVertexAttrib1sv (GLuint index, const GLshort * v)
   a[0] = (uint32_t) index;
   a[1] = 2;
   a[2] = 0;
-  memcpy (a + 2, v, 2);
+  memcpy (a + 2, v_, 2);
 }
 
 void
@@ -5193,14 +5197,14 @@ glVertexAttrib2d (GLuint index, GLdouble x, GLdouble y)
 }
 
 void
-glVertexAttrib2dv (GLuint index, const GLdouble * v)
+glVertexAttrib2dv (GLuint index, const GLdouble * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib2dv, 6);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 16;
-  memcpy (a + 2, v, 16);
+  memcpy (a + 2, v_, 16);
 }
 
 void
@@ -5215,14 +5219,14 @@ glVertexAttrib2f (GLuint index, GLfloat x, GLfloat y)
 }
 
 void
-glVertexAttrib2fv (GLuint index, const GLfloat * v)
+glVertexAttrib2fv (GLuint index, const GLfloat * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib2fv, 4);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 8;
-  memcpy (a + 2, v, 8);
+  memcpy (a + 2, v_, 8);
 }
 
 void
@@ -5237,14 +5241,14 @@ glVertexAttrib2s (GLuint index, GLshort x, GLshort y)
 }
 
 void
-glVertexAttrib2sv (GLuint index, const GLshort * v)
+glVertexAttrib2sv (GLuint index, const GLshort * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib2sv, 3);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 4;
-  memcpy (a + 2, v, 4);
+  memcpy (a + 2, v_, 4);
 }
 
 void
@@ -5260,14 +5264,14 @@ glVertexAttrib3d (GLuint index, GLdouble x, GLdouble y, GLdouble z)
 }
 
 void
-glVertexAttrib3dv (GLuint index, const GLdouble * v)
+glVertexAttrib3dv (GLuint index, const GLdouble * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib3dv, 8);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 24;
-  memcpy (a + 2, v, 24);
+  memcpy (a + 2, v_, 24);
 }
 
 void
@@ -5283,14 +5287,14 @@ glVertexAttrib3f (GLuint index, GLfloat x, GLfloat y, GLfloat z)
 }
 
 void
-glVertexAttrib3fv (GLuint index, const GLfloat * v)
+glVertexAttrib3fv (GLuint index, const GLfloat * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib3fv, 5);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 12;
-  memcpy (a + 2, v, 12);
+  memcpy (a + 2, v_, 12);
 }
 
 void
@@ -5306,7 +5310,7 @@ glVertexAttrib3s (GLuint index, GLshort x, GLshort y, GLshort z)
 }
 
 void
-glVertexAttrib3sv (GLuint index, const GLshort * v)
+glVertexAttrib3sv (GLuint index, const GLshort * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib3sv, 4);
   if (!a)
@@ -5314,40 +5318,40 @@ glVertexAttrib3sv (GLuint index, const GLshort * v)
   a[0] = (uint32_t) index;
   a[1] = 6;
   a[3] = 0;
-  memcpy (a + 2, v, 6);
+  memcpy (a + 2, v_, 6);
 }
 
 void
-glVertexAttrib4Nbv (GLuint index, const GLbyte * v)
+glVertexAttrib4Nbv (GLuint index, const GLbyte * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib4Nbv, 3);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 4;
-  memcpy (a + 2, v, 4);
+  memcpy (a + 2, v_, 4);
 }
 
 void
-glVertexAttrib4Niv (GLuint index, const GLint * v)
+glVertexAttrib4Niv (GLuint index, const GLint * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib4Niv, 6);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 16;
-  memcpy (a + 2, v, 16);
+  memcpy (a + 2, v_, 16);
 }
 
 void
-glVertexAttrib4Nsv (GLuint index, const GLshort * v)
+glVertexAttrib4Nsv (GLuint index, const GLshort * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib4Nsv, 4);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 8;
-  memcpy (a + 2, v, 8);
+  memcpy (a + 2, v_, 8);
 }
 
 void
@@ -5364,47 +5368,47 @@ glVertexAttrib4Nub (GLuint index, GLubyte x, GLubyte y, GLubyte z, GLubyte w)
 }
 
 void
-glVertexAttrib4Nubv (GLuint index, const GLubyte * v)
+glVertexAttrib4Nubv (GLuint index, const GLubyte * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib4Nubv, 3);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 4;
-  memcpy (a + 2, v, 4);
+  memcpy (a + 2, v_, 4);
 }
 
 void
-glVertexAttrib4Nuiv (GLuint index, const GLuint * v)
+glVertexAttrib4Nuiv (GLuint index, const GLuint * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib4Nuiv, 6);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 16;
-  memcpy (a + 2, v, 16);
+  memcpy (a + 2, v_, 16);
 }
 
 void
-glVertexAttrib4Nusv (GLuint index, const GLushort * v)
+glVertexAttrib4Nusv (GLuint index, const GLushort * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib4Nusv, 4);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 8;
-  memcpy (a + 2, v, 8);
+  memcpy (a + 2, v_, 8);
 }
 
 void
-glVertexAttrib4bv (GLuint index, const GLbyte * v)
+glVertexAttrib4bv (GLuint index, const GLbyte * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib4bv, 3);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 4;
-  memcpy (a + 2, v, 4);
+  memcpy (a + 2, v_, 4);
 }
 
 void
@@ -5421,14 +5425,14 @@ glVertexAttrib4d (GLuint index, GLdouble x, GLdouble y, GLdouble z, GLdouble w)
 }
 
 void
-glVertexAttrib4dv (GLuint index, const GLdouble * v)
+glVertexAttrib4dv (GLuint index, const GLdouble * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib4dv, 10);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 32;
-  memcpy (a + 2, v, 32);
+  memcpy (a + 2, v_, 32);
 }
 
 void
@@ -5445,25 +5449,25 @@ glVertexAttrib4f (GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 }
 
 void
-glVertexAttrib4fv (GLuint index, const GLfloat * v)
+glVertexAttrib4fv (GLuint index, const GLfloat * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib4fv, 6);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 16;
-  memcpy (a + 2, v, 16);
+  memcpy (a + 2, v_, 16);
 }
 
 void
-glVertexAttrib4iv (GLuint index, const GLint * v)
+glVertexAttrib4iv (GLuint index, const GLint * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib4iv, 6);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 16;
-  memcpy (a + 2, v, 16);
+  memcpy (a + 2, v_, 16);
 }
 
 void
@@ -5480,47 +5484,47 @@ glVertexAttrib4s (GLuint index, GLshort x, GLshort y, GLshort z, GLshort w)
 }
 
 void
-glVertexAttrib4sv (GLuint index, const GLshort * v)
+glVertexAttrib4sv (GLuint index, const GLshort * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib4sv, 4);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 8;
-  memcpy (a + 2, v, 8);
+  memcpy (a + 2, v_, 8);
 }
 
 void
-glVertexAttrib4ubv (GLuint index, const GLubyte * v)
+glVertexAttrib4ubv (GLuint index, const GLubyte * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib4ubv, 3);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 4;
-  memcpy (a + 2, v, 4);
+  memcpy (a + 2, v_, 4);
 }
 
 void
-glVertexAttrib4uiv (GLuint index, const GLuint * v)
+glVertexAttrib4uiv (GLuint index, const GLuint * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib4uiv, 6);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 16;
-  memcpy (a + 2, v, 16);
+  memcpy (a + 2, v_, 16);
 }
 
 void
-glVertexAttrib4usv (GLuint index, const GLushort * v)
+glVertexAttrib4usv (GLuint index, const GLushort * v_)
 {
   uint32_t *a = r3d_put (OP_glVertexAttrib4usv, 4);
   if (!a)
     return;
   a[0] = (uint32_t) index;
   a[1] = 8;
-  memcpy (a + 2, v, 8);
+  memcpy (a + 2, v_, 8);
 }
 
 void
@@ -5624,12 +5628,12 @@ glCheckFramebufferStatus (GLenum target)
 }
 
 void
-glClearDepthf (GLfloat d)
+glClearDepthf (GLfloat d_)
 {
   uint32_t *a = r3d_put (OP_glClearDepthf, 1);
   if (!a)
     return;
-  a[0] = r3d_f2u (d);
+  a[0] = r3d_f2u (d_);
 }
 
 void
@@ -5655,13 +5659,13 @@ glDeleteRenderbuffers (GLsizei n, const GLuint * renderbuffers)
 }
 
 void
-glDepthRangef (GLfloat n, GLfloat f)
+glDepthRangef (GLfloat n, GLfloat f_)
 {
   uint32_t *a = r3d_put (OP_glDepthRangef, 2);
   if (!a)
     return;
   a[0] = r3d_f2u (n);
-  a[1] = r3d_f2u (f);
+  a[1] = r3d_f2u (f_);
 }
 
 void
@@ -5895,9 +5899,9 @@ glClipPlanef (GLenum p, const GLfloat * eqn)
 }
 
 void
-glFrustumf (GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f)
+glFrustumf (GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f_)
 {
-  r3d_track_glFrustumf (l, r, b, t, n, f);
+  r3d_track_glFrustumf (l, r, b, t, n, f_);
   uint32_t *a = r3d_put (OP_glFrustumf, 6);
   if (!a)
     return;
@@ -5906,7 +5910,7 @@ glFrustumf (GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f)
   a[2] = r3d_f2u (b);
   a[3] = r3d_f2u (t);
   a[4] = r3d_f2u (n);
-  a[5] = r3d_f2u (f);
+  a[5] = r3d_f2u (f_);
 }
 
 void
@@ -5927,9 +5931,9 @@ glGetClipPlanef (GLenum plane, GLfloat * equation)
 }
 
 void
-glOrthof (GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f)
+glOrthof (GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f_)
 {
-  r3d_track_glOrthof (l, r, b, t, n, f);
+  r3d_track_glOrthof (l, r, b, t, n, f_);
   uint32_t *a = r3d_put (OP_glOrthof, 6);
   if (!a)
     return;
@@ -5938,7 +5942,7 @@ glOrthof (GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f)
   a[2] = r3d_f2u (b);
   a[3] = r3d_f2u (t);
   a[4] = r3d_f2u (n);
-  a[5] = r3d_f2u (f);
+  a[5] = r3d_f2u (f_);
 }
 
 void
@@ -5996,13 +6000,13 @@ glColor4x (GLfixed red, GLfixed green, GLfixed blue, GLfixed alpha)
 }
 
 void
-glDepthRangex (GLfixed n, GLfixed f)
+glDepthRangex (GLfixed n, GLfixed f_)
 {
   uint32_t *a = r3d_put (OP_glDepthRangex, 2);
   if (!a)
     return;
   a[0] = (uint32_t) n;
-  a[1] = (uint32_t) f;
+  a[1] = (uint32_t) f_;
 }
 
 void
@@ -6027,9 +6031,9 @@ glFogxv (GLenum pname, const GLfixed * param)
 }
 
 void
-glFrustumx (GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f)
+glFrustumx (GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f_)
 {
-  r3d_track_glFrustumx (l, r, b, t, n, f);
+  r3d_track_glFrustumx (l, r, b, t, n, f_);
   uint32_t *a = r3d_put (OP_glFrustumx, 6);
   if (!a)
     return;
@@ -6038,7 +6042,7 @@ glFrustumx (GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f)
   a[2] = (uint32_t) b;
   a[3] = (uint32_t) t;
   a[4] = (uint32_t) n;
-  a[5] = (uint32_t) f;
+  a[5] = (uint32_t) f_;
 }
 
 void
@@ -6253,9 +6257,9 @@ glNormal3x (GLfixed nx, GLfixed ny, GLfixed nz)
 }
 
 void
-glOrthox (GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f)
+glOrthox (GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f_)
 {
-  r3d_track_glOrthox (l, r, b, t, n, f);
+  r3d_track_glOrthox (l, r, b, t, n, f_);
   uint32_t *a = r3d_put (OP_glOrthox, 6);
   if (!a)
     return;
@@ -6264,7 +6268,7 @@ glOrthox (GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f)
   a[2] = (uint32_t) b;
   a[3] = (uint32_t) t;
   a[4] = (uint32_t) n;
-  a[5] = (uint32_t) f;
+  a[5] = (uint32_t) f_;
 }
 
 void
@@ -7225,6 +7229,5369 @@ glProgramBinary (GLuint program, GLenum binaryFormat, const void * binary, GLsiz
   r3d_put_data (OP_glProgramBinary, f, 4, binary, b0);
 }
 
+void
+glColorMaski (GLuint index, GLboolean r, GLboolean g_, GLboolean b, GLboolean a_)
+{
+  uint32_t *a = r3d_put (OP_glColorMaski, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) r;
+  a[2] = (uint32_t) g_;
+  a[3] = (uint32_t) b;
+  a[4] = (uint32_t) a_;
+}
+
+void
+glGetBooleani_v (GLenum target, GLuint index, GLboolean * data)
+{
+  uint32_t *a = r3d_put (OP_glGetBooleani_v, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (target));
+  if (cnt * 1 > sizeof r)
+    cnt = sizeof r / 1;
+  if (data)
+    memcpy (data, r, cnt * 1);
+}
+
+void
+glGetIntegeri_v (GLenum target, GLuint index, GLint * data)
+{
+  uint32_t *a = r3d_put (OP_glGetIntegeri_v, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (target));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (data)
+    memcpy (data, r, cnt * 4);
+}
+
+void
+glEnablei (GLenum target, GLuint index)
+{
+  uint32_t *a = r3d_put (OP_glEnablei, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+}
+
+void
+glDisablei (GLenum target, GLuint index)
+{
+  uint32_t *a = r3d_put (OP_glDisablei, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+}
+
+GLboolean
+glIsEnabledi (GLenum target, GLuint index)
+{
+  uint32_t *a = r3d_put (OP_glIsEnabledi, 2);
+  if (!a)
+    return 0;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLboolean) r;
+}
+
+void
+glBeginTransformFeedback (GLenum primitiveMode)
+{
+  uint32_t *a = r3d_put (OP_glBeginTransformFeedback, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) primitiveMode;
+}
+
+void
+glEndTransformFeedback (void)
+{
+  if (!r3d_put (OP_glEndTransformFeedback, 0))
+    return;
+}
+
+void
+glBindBufferRange (GLenum target, GLuint index, GLuint buffer, GLintptr offset, GLsizeiptr size)
+{
+  uint32_t *a = r3d_put (OP_glBindBufferRange, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  a[2] = (uint32_t) buffer;
+  a[3] = (uint32_t) offset;
+  a[4] = (uint32_t) size;
+}
+
+void
+glBindBufferBase (GLenum target, GLuint index, GLuint buffer)
+{
+  uint32_t *a = r3d_put (OP_glBindBufferBase, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  a[2] = (uint32_t) buffer;
+}
+
+void
+glTransformFeedbackVaryings (GLuint program, GLsizei count, const GLchar *const* varyings, GLenum bufferMode)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) count;
+  a[2] = (uint32_t) bufferMode;
+  size_t b0 = varyings ? r3d_strs (0, varyings, count, 0) : 0;
+  f[3] = (uint32_t) b0;
+  size_t at = 0, all = (b0 + 3) / 4 * 4;
+  char *g = malloc (all + 4);
+  if (!g)
+    return;
+  memset (g + at, 0, (b0 + 3) / 4 * 4);
+  if (b0)
+    r3d_strs (g + at, varyings, count, 0);
+  at += (b0 + 3) / 4 * 4;
+  r3d_put_data (OP_glTransformFeedbackVaryings, f, 4, g, all);
+  free (g);
+}
+
+void
+glGetTransformFeedbackVarying (GLuint program, GLuint index, GLsizei bufSize, GLsizei * length, GLsizei * size, GLenum * type, GLchar * name)
+{
+  uint32_t f[7];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) index;
+  a[2] = (uint32_t) bufSize;
+  size_t b0 = length ? (size_t) r3d_nonneg (1) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  size_t b1 = size ? (size_t) r3d_nonneg (1) * 4 : 0;
+  f[4] = (uint32_t) b1;
+  size_t b2 = type ? (size_t) r3d_nonneg (1) * 4 : 0;
+  f[5] = (uint32_t) b2;
+  size_t b3 = name ? (size_t) r3d_nonneg ((bufSize)) * 1 : 0;
+  f[6] = (uint32_t) b3;
+  r3d_put_data (OP_glGetTransformFeedbackVarying, f, 7, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4 + 4 + (b1 + 3) / 4 * 4 + 4 + (b2 + 3) / 4 * 4 + 4 + (b3 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (length && got)
+    memcpy (length, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (size && got)
+    memcpy (size, d, got < b1 ? got : b1);
+  d += (b1 + 3) / 4 * 4;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (type && got)
+    memcpy (type, d, got < b2 ? got : b2);
+  d += (b2 + 3) / 4 * 4;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (name && got)
+    memcpy (name, d, got < b3 ? got : b3);
+  d += (b3 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glClampColor (GLenum target, GLenum clamp)
+{
+  uint32_t *a = r3d_put (OP_glClampColor, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) clamp;
+}
+
+void
+glGetVertexAttribIiv (GLuint index, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetVertexAttribIiv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (1);
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetVertexAttribIuiv (GLuint index, GLenum pname, GLuint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetVertexAttribIuiv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (1);
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glVertexAttribI1i (GLuint index, GLint x)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI1i, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) x;
+}
+
+void
+glVertexAttribI2i (GLuint index, GLint x, GLint y)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI2i, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) x;
+  a[2] = (uint32_t) y;
+}
+
+void
+glVertexAttribI3i (GLuint index, GLint x, GLint y, GLint z)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI3i, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) x;
+  a[2] = (uint32_t) y;
+  a[3] = (uint32_t) z;
+}
+
+void
+glVertexAttribI4i (GLuint index, GLint x, GLint y, GLint z, GLint w)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI4i, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) x;
+  a[2] = (uint32_t) y;
+  a[3] = (uint32_t) z;
+  a[4] = (uint32_t) w;
+}
+
+void
+glVertexAttribI1ui (GLuint index, GLuint x)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI1ui, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) x;
+}
+
+void
+glVertexAttribI2ui (GLuint index, GLuint x, GLuint y)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI2ui, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) x;
+  a[2] = (uint32_t) y;
+}
+
+void
+glVertexAttribI3ui (GLuint index, GLuint x, GLuint y, GLuint z)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI3ui, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) x;
+  a[2] = (uint32_t) y;
+  a[3] = (uint32_t) z;
+}
+
+void
+glVertexAttribI4ui (GLuint index, GLuint x, GLuint y, GLuint z, GLuint w)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI4ui, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) x;
+  a[2] = (uint32_t) y;
+  a[3] = (uint32_t) z;
+  a[4] = (uint32_t) w;
+}
+
+void
+glVertexAttribI1iv (GLuint index, const GLint * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI1iv, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 4;
+  memcpy (a + 2, v_, 4);
+}
+
+void
+glVertexAttribI2iv (GLuint index, const GLint * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI2iv, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 8;
+  memcpy (a + 2, v_, 8);
+}
+
+void
+glVertexAttribI3iv (GLuint index, const GLint * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI3iv, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 12;
+  memcpy (a + 2, v_, 12);
+}
+
+void
+glVertexAttribI4iv (GLuint index, const GLint * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI4iv, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 16;
+  memcpy (a + 2, v_, 16);
+}
+
+void
+glVertexAttribI1uiv (GLuint index, const GLuint * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI1uiv, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 4;
+  memcpy (a + 2, v_, 4);
+}
+
+void
+glVertexAttribI2uiv (GLuint index, const GLuint * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI2uiv, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 8;
+  memcpy (a + 2, v_, 8);
+}
+
+void
+glVertexAttribI3uiv (GLuint index, const GLuint * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI3uiv, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 12;
+  memcpy (a + 2, v_, 12);
+}
+
+void
+glVertexAttribI4uiv (GLuint index, const GLuint * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI4uiv, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 16;
+  memcpy (a + 2, v_, 16);
+}
+
+void
+glVertexAttribI4bv (GLuint index, const GLbyte * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI4bv, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 4;
+  memcpy (a + 2, v_, 4);
+}
+
+void
+glVertexAttribI4sv (GLuint index, const GLshort * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI4sv, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 8;
+  memcpy (a + 2, v_, 8);
+}
+
+void
+glVertexAttribI4ubv (GLuint index, const GLubyte * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI4ubv, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 4;
+  memcpy (a + 2, v_, 4);
+}
+
+void
+glVertexAttribI4usv (GLuint index, const GLushort * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribI4usv, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 8;
+  memcpy (a + 2, v_, 8);
+}
+
+void
+glGetUniformuiv (GLuint program, GLint location, GLuint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetUniformuiv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  uint32_t *r = malloc (4 + 4096 * 4);
+  if (!r)
+    return;
+  r[0] = 0;
+  r3d_sync (r, 4 + 4096 * 4);
+  if (params && r[0] <= 4096)
+    memcpy (params, r + 1, r[0] * 4);
+  free (r);
+}
+
+void
+glBindFragDataLocation (GLuint program, GLuint color, const GLchar * name)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) color;
+  size_t b0 = name ? (size_t) r3d_nonneg ((strlen (name) + 1)) * 1 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glBindFragDataLocation, f, 3, name, b0);
+}
+
+GLint
+glGetFragDataLocation (GLuint program, const GLchar * name)
+{
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  size_t b0 = name ? (size_t) r3d_nonneg ((strlen (name) + 1)) * 1 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glGetFragDataLocation, f, 2, name, b0);
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLint) r;
+}
+
+void
+glUniform1ui (GLint location, GLuint v0)
+{
+  uint32_t *a = r3d_put (OP_glUniform1ui, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) location;
+  a[1] = (uint32_t) v0;
+}
+
+void
+glUniform2ui (GLint location, GLuint v0, GLuint v1)
+{
+  uint32_t *a = r3d_put (OP_glUniform2ui, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) location;
+  a[1] = (uint32_t) v0;
+  a[2] = (uint32_t) v1;
+}
+
+void
+glUniform3ui (GLint location, GLuint v0, GLuint v1, GLuint v2)
+{
+  uint32_t *a = r3d_put (OP_glUniform3ui, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) location;
+  a[1] = (uint32_t) v0;
+  a[2] = (uint32_t) v1;
+  a[3] = (uint32_t) v2;
+}
+
+void
+glUniform4ui (GLint location, GLuint v0, GLuint v1, GLuint v2, GLuint v3)
+{
+  uint32_t *a = r3d_put (OP_glUniform4ui, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) location;
+  a[1] = (uint32_t) v0;
+  a[2] = (uint32_t) v1;
+  a[3] = (uint32_t) v2;
+  a[4] = (uint32_t) v3;
+}
+
+void
+glUniform1uiv (GLint location, GLsizei count, const GLuint * value)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) location;
+  a[1] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*1)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glUniform1uiv, f, 3, value, b0);
+}
+
+void
+glUniform2uiv (GLint location, GLsizei count, const GLuint * value)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) location;
+  a[1] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*2)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glUniform2uiv, f, 3, value, b0);
+}
+
+void
+glUniform3uiv (GLint location, GLsizei count, const GLuint * value)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) location;
+  a[1] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*3)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glUniform3uiv, f, 3, value, b0);
+}
+
+void
+glUniform4uiv (GLint location, GLsizei count, const GLuint * value)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) location;
+  a[1] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*4)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glUniform4uiv, f, 3, value, b0);
+}
+
+void
+glClearBufferiv (GLenum buffer, GLint drawbuffer, const GLint * value)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) buffer;
+  a[1] = (uint32_t) drawbuffer;
+  size_t b0 = value ? (size_t) r3d_nonneg ((buffer == GL_COLOR ? 4 : 1)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glClearBufferiv, f, 3, value, b0);
+}
+
+void
+glClearBufferuiv (GLenum buffer, GLint drawbuffer, const GLuint * value)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) buffer;
+  a[1] = (uint32_t) drawbuffer;
+  size_t b0 = value ? (size_t) r3d_nonneg ((buffer == GL_COLOR ? 4 : 1)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glClearBufferuiv, f, 3, value, b0);
+}
+
+void
+glClearBufferfv (GLenum buffer, GLint drawbuffer, const GLfloat * value)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) buffer;
+  a[1] = (uint32_t) drawbuffer;
+  size_t b0 = value ? (size_t) r3d_nonneg ((buffer == GL_COLOR ? 4 : 1)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glClearBufferfv, f, 3, value, b0);
+}
+
+void
+glClearBufferfi (GLenum buffer, GLint drawbuffer, GLfloat depth, GLint stencil)
+{
+  uint32_t *a = r3d_put (OP_glClearBufferfi, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) buffer;
+  a[1] = (uint32_t) drawbuffer;
+  a[2] = r3d_f2u (depth);
+  a[3] = (uint32_t) stencil;
+}
+
+void
+glTexBuffer (GLenum target, GLenum internalformat, GLuint buffer)
+{
+  uint32_t *a = r3d_put (OP_glTexBuffer, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) internalformat;
+  a[2] = (uint32_t) buffer;
+}
+
+void
+glPrimitiveRestartIndex (GLuint index)
+{
+  r3d_track_glPrimitiveRestartIndex (index);
+  uint32_t *a = r3d_put (OP_glPrimitiveRestartIndex, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+}
+
+void
+glCopyBufferSubData (GLenum readTarget, GLenum writeTarget, GLintptr readOffset, GLintptr writeOffset, GLsizeiptr size)
+{
+  uint32_t *a = r3d_put (OP_glCopyBufferSubData, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) readTarget;
+  a[1] = (uint32_t) writeTarget;
+  a[2] = (uint32_t) readOffset;
+  a[3] = (uint32_t) writeOffset;
+  a[4] = (uint32_t) size;
+}
+
+void
+glGetUniformIndices (GLuint program, GLsizei uniformCount, const GLchar *const* uniformNames, GLuint * uniformIndices)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) uniformCount;
+  size_t b0 = uniformNames ? r3d_strs (0, uniformNames, uniformCount, 0) : 0;
+  f[2] = (uint32_t) b0;
+  size_t b1 = uniformIndices ? (size_t) r3d_nonneg (uniformCount) * 4 : 0;
+  f[3] = (uint32_t) b1;
+  size_t at = 0, all = (b0 + 3) / 4 * 4;
+  char *g = malloc (all + 4);
+  if (!g)
+    return;
+  memset (g + at, 0, (b0 + 3) / 4 * 4);
+  if (b0)
+    r3d_strs (g + at, uniformNames, uniformCount, 0);
+  at += (b0 + 3) / 4 * 4;
+  r3d_put_data (OP_glGetUniformIndices, f, 4, g, all);
+  free (g);
+  size_t room = 4 + 4 + (b1 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (uniformIndices && got)
+    memcpy (uniformIndices, d, got < b1 ? got : b1);
+  d += (b1 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glGetActiveUniformsiv (GLuint program, GLsizei uniformCount, const GLuint * uniformIndices, GLenum pname, GLint * params)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) uniformCount;
+  a[2] = (uint32_t) pname;
+  size_t b0 = uniformIndices ? (size_t) r3d_nonneg ((uniformCount)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  size_t b1 = params ? (size_t) r3d_nonneg (uniformCount) * 4 : 0;
+  f[4] = (uint32_t) b1;
+  size_t at = 0, all = (b0 + 3) / 4 * 4;
+  char *g = malloc (all + 4);
+  if (!g)
+    return;
+  memset (g + at, 0, (b0 + 3) / 4 * 4);
+  if (b0)
+    memcpy (g + at, uniformIndices, b0);
+  at += (b0 + 3) / 4 * 4;
+  r3d_put_data (OP_glGetActiveUniformsiv, f, 5, g, all);
+  free (g);
+  size_t room = 4 + 4 + (b1 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (params && got)
+    memcpy (params, d, got < b1 ? got : b1);
+  d += (b1 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glGetActiveUniformName (GLuint program, GLuint uniformIndex, GLsizei bufSize, GLsizei * length, GLchar * uniformName)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) uniformIndex;
+  a[2] = (uint32_t) bufSize;
+  size_t b0 = length ? (size_t) r3d_nonneg (1) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  size_t b1 = uniformName ? (size_t) r3d_nonneg ((bufSize)) * 1 : 0;
+  f[4] = (uint32_t) b1;
+  r3d_put_data (OP_glGetActiveUniformName, f, 5, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4 + 4 + (b1 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (length && got)
+    memcpy (length, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (uniformName && got)
+    memcpy (uniformName, d, got < b1 ? got : b1);
+  d += (b1 + 3) / 4 * 4;
+  free (r);
+}
+
+GLuint
+glGetUniformBlockIndex (GLuint program, const GLchar * uniformBlockName)
+{
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  size_t b0 = uniformBlockName ? (size_t) r3d_nonneg ((strlen (uniformBlockName) + 1)) * 1 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glGetUniformBlockIndex, f, 2, uniformBlockName, b0);
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLuint) r;
+}
+
+void
+glGetActiveUniformBlockiv (GLuint program, GLuint uniformBlockIndex, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetActiveUniformBlockiv, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) uniformBlockIndex;
+  a[2] = (uint32_t) pname;
+  uint32_t *r = malloc (4 + 4096 * 4);
+  if (!r)
+    return;
+  r[0] = 0;
+  r3d_sync (r, 4 + 4096 * 4);
+  if (params && r[0] <= 4096)
+    memcpy (params, r + 1, r[0] * 4);
+  free (r);
+}
+
+void
+glGetActiveUniformBlockName (GLuint program, GLuint uniformBlockIndex, GLsizei bufSize, GLsizei * length, GLchar * uniformBlockName)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) uniformBlockIndex;
+  a[2] = (uint32_t) bufSize;
+  size_t b0 = length ? (size_t) r3d_nonneg (1) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  size_t b1 = uniformBlockName ? (size_t) r3d_nonneg ((bufSize)) * 1 : 0;
+  f[4] = (uint32_t) b1;
+  r3d_put_data (OP_glGetActiveUniformBlockName, f, 5, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4 + 4 + (b1 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (length && got)
+    memcpy (length, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (uniformBlockName && got)
+    memcpy (uniformBlockName, d, got < b1 ? got : b1);
+  d += (b1 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glUniformBlockBinding (GLuint program, GLuint uniformBlockIndex, GLuint uniformBlockBinding)
+{
+  uint32_t *a = r3d_put (OP_glUniformBlockBinding, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) uniformBlockIndex;
+  a[2] = (uint32_t) uniformBlockBinding;
+}
+
+void
+glGetInteger64i_v (GLenum target, GLuint index, GLint64 * data)
+{
+  uint32_t *a = r3d_put (OP_glGetInteger64i_v, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (target));
+  if (cnt * 8 > sizeof r)
+    cnt = sizeof r / 8;
+  if (data)
+    memcpy (data, r, cnt * 8);
+}
+
+void
+glGetBufferParameteri64v (GLenum target, GLenum pname, GLint64 * params)
+{
+  uint32_t *a = r3d_put (OP_glGetBufferParameteri64v, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 8 > sizeof r)
+    cnt = sizeof r / 8;
+  if (params)
+    memcpy (params, r, cnt * 8);
+}
+
+void
+glGenSamplers (GLsizei count, GLuint * samplers)
+{
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) count;
+  size_t b0 = samplers ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glGenSamplers, f, 2, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (samplers && got)
+    memcpy (samplers, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glDeleteSamplers (GLsizei count, const GLuint * samplers)
+{
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) count;
+  size_t b0 = samplers ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glDeleteSamplers, f, 2, samplers, b0);
+}
+
+GLboolean
+glIsSampler (GLuint sampler)
+{
+  uint32_t *a = r3d_put (OP_glIsSampler, 1);
+  if (!a)
+    return 0;
+  a[0] = (uint32_t) sampler;
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLboolean) r;
+}
+
+void
+glBindSampler (GLuint unit, GLuint sampler)
+{
+  uint32_t *a = r3d_put (OP_glBindSampler, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) unit;
+  a[1] = (uint32_t) sampler;
+}
+
+void
+glSamplerParameteri (GLuint sampler, GLenum pname, GLint param)
+{
+  uint32_t *a = r3d_put (OP_glSamplerParameteri, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) sampler;
+  a[1] = (uint32_t) pname;
+  a[2] = (uint32_t) param;
+}
+
+void
+glSamplerParameteriv (GLuint sampler, GLenum pname, const GLint * param)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) sampler;
+  a[1] = (uint32_t) pname;
+  size_t b0 = param ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glSamplerParameteriv, f, 3, param, b0);
+}
+
+void
+glSamplerParameterf (GLuint sampler, GLenum pname, GLfloat param)
+{
+  uint32_t *a = r3d_put (OP_glSamplerParameterf, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) sampler;
+  a[1] = (uint32_t) pname;
+  a[2] = r3d_f2u (param);
+}
+
+void
+glSamplerParameterfv (GLuint sampler, GLenum pname, const GLfloat * param)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) sampler;
+  a[1] = (uint32_t) pname;
+  size_t b0 = param ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glSamplerParameterfv, f, 3, param, b0);
+}
+
+void
+glGetSamplerParameteriv (GLuint sampler, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetSamplerParameteriv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) sampler;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetSamplerParameterfv (GLuint sampler, GLenum pname, GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glGetSamplerParameterfv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) sampler;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glVertexAttribDivisor (GLuint index, GLuint divisor)
+{
+  r3d_track_glVertexAttribDivisor (index, divisor);
+  uint32_t *a = r3d_put (OP_glVertexAttribDivisor, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) divisor;
+}
+
+void
+glBindTransformFeedback (GLenum target, GLuint id)
+{
+  uint32_t *a = r3d_put (OP_glBindTransformFeedback, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) id;
+}
+
+void
+glDeleteTransformFeedbacks (GLsizei n, const GLuint * ids)
+{
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) n;
+  size_t b0 = ids ? (size_t) r3d_nonneg ((n)) * 4 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glDeleteTransformFeedbacks, f, 2, ids, b0);
+}
+
+void
+glGenTransformFeedbacks (GLsizei n, GLuint * ids)
+{
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) n;
+  size_t b0 = ids ? (size_t) r3d_nonneg ((n)) * 4 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glGenTransformFeedbacks, f, 2, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (ids && got)
+    memcpy (ids, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  free (r);
+}
+
+GLboolean
+glIsTransformFeedback (GLuint id)
+{
+  uint32_t *a = r3d_put (OP_glIsTransformFeedback, 1);
+  if (!a)
+    return 0;
+  a[0] = (uint32_t) id;
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLboolean) r;
+}
+
+void
+glPauseTransformFeedback (void)
+{
+  if (!r3d_put (OP_glPauseTransformFeedback, 0))
+    return;
+}
+
+void
+glResumeTransformFeedback (void)
+{
+  if (!r3d_put (OP_glResumeTransformFeedback, 0))
+    return;
+}
+
+void
+glInvalidateFramebuffer (GLenum target, GLsizei numAttachments, const GLenum * attachments)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) numAttachments;
+  size_t b0 = attachments ? (size_t) r3d_nonneg ((numAttachments)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glInvalidateFramebuffer, f, 3, attachments, b0);
+}
+
+void
+glInvalidateSubFramebuffer (GLenum target, GLsizei numAttachments, const GLenum * attachments, GLint x, GLint y, GLsizei width, GLsizei height)
+{
+  uint32_t f[7];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) numAttachments;
+  a[2] = (uint32_t) x;
+  a[3] = (uint32_t) y;
+  a[4] = (uint32_t) width;
+  a[5] = (uint32_t) height;
+  size_t b0 = attachments ? (size_t) r3d_nonneg ((numAttachments)) * 4 : 0;
+  f[6] = (uint32_t) b0;
+  r3d_put_data (OP_glInvalidateSubFramebuffer, f, 7, attachments, b0);
+}
+
+void
+glTexStorage2D (GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height)
+{
+  uint32_t *a = r3d_put (OP_glTexStorage2D, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) levels;
+  a[2] = (uint32_t) internalformat;
+  a[3] = (uint32_t) width;
+  a[4] = (uint32_t) height;
+}
+
+void
+glTexStorage3D (GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth)
+{
+  uint32_t *a = r3d_put (OP_glTexStorage3D, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) levels;
+  a[2] = (uint32_t) internalformat;
+  a[3] = (uint32_t) width;
+  a[4] = (uint32_t) height;
+  a[5] = (uint32_t) depth;
+}
+
+void
+glGetInternalformativ (GLenum target, GLenum internalformat, GLenum pname, GLsizei count, GLint * params)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) internalformat;
+  a[2] = (uint32_t) pname;
+  a[3] = (uint32_t) count;
+  size_t b0 = params ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glGetInternalformativ, f, 5, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (params && got)
+    memcpy (params, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glDispatchCompute (GLuint num_groups_x, GLuint num_groups_y, GLuint num_groups_z)
+{
+  uint32_t *a = r3d_put (OP_glDispatchCompute, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) num_groups_x;
+  a[1] = (uint32_t) num_groups_y;
+  a[2] = (uint32_t) num_groups_z;
+}
+
+void
+glDispatchComputeIndirect (GLintptr indirect)
+{
+  uint32_t *a = r3d_put (OP_glDispatchComputeIndirect, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) indirect;
+}
+
+void
+glFramebufferParameteri (GLenum target, GLenum pname, GLint param)
+{
+  uint32_t *a = r3d_put (OP_glFramebufferParameteri, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) pname;
+  a[2] = (uint32_t) param;
+}
+
+void
+glGetFramebufferParameteriv (GLenum target, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetFramebufferParameteriv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetProgramInterfaceiv (GLuint program, GLenum programInterface, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetProgramInterfaceiv, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) programInterface;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+GLuint
+glGetProgramResourceIndex (GLuint program, GLenum programInterface, const GLchar * name)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) programInterface;
+  size_t b0 = name ? (size_t) r3d_nonneg ((strlen (name) + 1)) * 1 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glGetProgramResourceIndex, f, 3, name, b0);
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLuint) r;
+}
+
+void
+glGetProgramResourceName (GLuint program, GLenum programInterface, GLuint index, GLsizei bufSize, GLsizei * length, GLchar * name)
+{
+  uint32_t f[6];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) programInterface;
+  a[2] = (uint32_t) index;
+  a[3] = (uint32_t) bufSize;
+  size_t b0 = length ? (size_t) r3d_nonneg (1) * 4 : 0;
+  f[4] = (uint32_t) b0;
+  size_t b1 = name ? (size_t) r3d_nonneg ((bufSize)) * 1 : 0;
+  f[5] = (uint32_t) b1;
+  r3d_put_data (OP_glGetProgramResourceName, f, 6, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4 + 4 + (b1 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (length && got)
+    memcpy (length, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (name && got)
+    memcpy (name, d, got < b1 ? got : b1);
+  d += (b1 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glGetProgramResourceiv (GLuint program, GLenum programInterface, GLuint index, GLsizei propCount, const GLenum * props, GLsizei count, GLsizei * length, GLint * params)
+{
+  uint32_t f[8];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) programInterface;
+  a[2] = (uint32_t) index;
+  a[3] = (uint32_t) propCount;
+  a[4] = (uint32_t) count;
+  size_t b0 = props ? (size_t) r3d_nonneg ((propCount)) * 4 : 0;
+  f[5] = (uint32_t) b0;
+  size_t b1 = length ? (size_t) r3d_nonneg (1) * 4 : 0;
+  f[6] = (uint32_t) b1;
+  size_t b2 = params ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[7] = (uint32_t) b2;
+  size_t at = 0, all = (b0 + 3) / 4 * 4;
+  char *g = malloc (all + 4);
+  if (!g)
+    return;
+  memset (g + at, 0, (b0 + 3) / 4 * 4);
+  if (b0)
+    memcpy (g + at, props, b0);
+  at += (b0 + 3) / 4 * 4;
+  r3d_put_data (OP_glGetProgramResourceiv, f, 8, g, all);
+  free (g);
+  size_t room = 4 + 4 + (b1 + 3) / 4 * 4 + 4 + (b2 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (length && got)
+    memcpy (length, d, got < b1 ? got : b1);
+  d += (b1 + 3) / 4 * 4;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (params && got)
+    memcpy (params, d, got < b2 ? got : b2);
+  d += (b2 + 3) / 4 * 4;
+  free (r);
+}
+
+GLint
+glGetProgramResourceLocation (GLuint program, GLenum programInterface, const GLchar * name)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) programInterface;
+  size_t b0 = name ? (size_t) r3d_nonneg ((strlen (name) + 1)) * 1 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glGetProgramResourceLocation, f, 3, name, b0);
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLint) r;
+}
+
+void
+glBindImageTexture (GLuint unit, GLuint texture, GLint level, GLboolean layered, GLint layer, GLenum access, GLenum format)
+{
+  uint32_t *a = r3d_put (OP_glBindImageTexture, 7);
+  if (!a)
+    return;
+  a[0] = (uint32_t) unit;
+  a[1] = (uint32_t) texture;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) layered;
+  a[4] = (uint32_t) layer;
+  a[5] = (uint32_t) access;
+  a[6] = (uint32_t) format;
+}
+
+void
+glMemoryBarrier (GLbitfield barriers)
+{
+  uint32_t *a = r3d_put (OP_glMemoryBarrier, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) barriers;
+}
+
+void
+glMemoryBarrierByRegion (GLbitfield barriers)
+{
+  uint32_t *a = r3d_put (OP_glMemoryBarrierByRegion, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) barriers;
+}
+
+void
+glTexStorage2DMultisample (GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations)
+{
+  uint32_t *a = r3d_put (OP_glTexStorage2DMultisample, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) samples;
+  a[2] = (uint32_t) internalformat;
+  a[3] = (uint32_t) width;
+  a[4] = (uint32_t) height;
+  a[5] = (uint32_t) fixedsamplelocations;
+}
+
+void
+glGetMultisamplefv (GLenum pname, GLuint index, GLfloat * val)
+{
+  uint32_t *a = r3d_put (OP_glGetMultisamplefv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) pname;
+  a[1] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (val)
+    memcpy (val, r, cnt * 4);
+}
+
+void
+glSampleMaski (GLuint maskNumber, GLbitfield mask)
+{
+  uint32_t *a = r3d_put (OP_glSampleMaski, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) maskNumber;
+  a[1] = (uint32_t) mask;
+}
+
+void
+glBindVertexBuffer (GLuint bindingindex, GLuint buffer, GLintptr offset, GLsizei stride)
+{
+  uint32_t *a = r3d_put (OP_glBindVertexBuffer, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) bindingindex;
+  a[1] = (uint32_t) buffer;
+  a[2] = (uint32_t) offset;
+  a[3] = (uint32_t) stride;
+}
+
+void
+glVertexAttribFormat (GLuint attribindex, GLint size, GLenum type, GLboolean normalized, GLuint relativeoffset)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribFormat, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) attribindex;
+  a[1] = (uint32_t) size;
+  a[2] = (uint32_t) type;
+  a[3] = (uint32_t) normalized;
+  a[4] = (uint32_t) relativeoffset;
+}
+
+void
+glVertexAttribIFormat (GLuint attribindex, GLint size, GLenum type, GLuint relativeoffset)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribIFormat, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) attribindex;
+  a[1] = (uint32_t) size;
+  a[2] = (uint32_t) type;
+  a[3] = (uint32_t) relativeoffset;
+}
+
+void
+glVertexAttribBinding (GLuint attribindex, GLuint bindingindex)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribBinding, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) attribindex;
+  a[1] = (uint32_t) bindingindex;
+}
+
+void
+glVertexBindingDivisor (GLuint bindingindex, GLuint divisor)
+{
+  uint32_t *a = r3d_put (OP_glVertexBindingDivisor, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) bindingindex;
+  a[1] = (uint32_t) divisor;
+}
+
+GLenum
+glObjectPurgeableAPPLE (GLenum objectType, GLuint name, GLenum option)
+{
+  uint32_t *a = r3d_put (OP_glObjectPurgeableAPPLE, 3);
+  if (!a)
+    return 0;
+  a[0] = (uint32_t) objectType;
+  a[1] = (uint32_t) name;
+  a[2] = (uint32_t) option;
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLenum) r;
+}
+
+GLenum
+glObjectUnpurgeableAPPLE (GLenum objectType, GLuint name, GLenum option)
+{
+  uint32_t *a = r3d_put (OP_glObjectUnpurgeableAPPLE, 3);
+  if (!a)
+    return 0;
+  a[0] = (uint32_t) objectType;
+  a[1] = (uint32_t) name;
+  a[2] = (uint32_t) option;
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLenum) r;
+}
+
+void
+glGetObjectParameterivAPPLE (GLenum objectType, GLuint name, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetObjectParameterivAPPLE, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) objectType;
+  a[1] = (uint32_t) name;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glClearBufferData (GLenum target, GLenum internalformat, GLenum format, GLenum type, const void * data)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) internalformat;
+  a[2] = (uint32_t) format;
+  a[3] = (uint32_t) type;
+  size_t b0 = data ? (size_t) r3d_nonneg (r3d_texel_bytes (format, type)) * 1 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glClearBufferData, f, 5, data, b0);
+}
+
+void
+glClearBufferSubData (GLenum target, GLenum internalformat, GLintptr offset, GLsizeiptr size, GLenum format, GLenum type, const void * data)
+{
+  uint32_t f[7];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) internalformat;
+  a[2] = (uint32_t) offset;
+  a[3] = (uint32_t) size;
+  a[4] = (uint32_t) format;
+  a[5] = (uint32_t) type;
+  size_t b0 = data ? (size_t) r3d_nonneg (r3d_texel_bytes (format, type)) * 1 : 0;
+  f[6] = (uint32_t) b0;
+  r3d_put_data (OP_glClearBufferSubData, f, 7, data, b0);
+}
+
+void
+glProgramStringARB (GLenum target, GLenum format, GLsizei len, const void * string)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) format;
+  a[2] = (uint32_t) len;
+  size_t b0 = string ? (size_t) r3d_nonneg ((len)) * 1 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramStringARB, f, 4, string, b0);
+}
+
+void
+glBindProgramARB (GLenum target, GLuint program)
+{
+  uint32_t *a = r3d_put (OP_glBindProgramARB, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) program;
+}
+
+void
+glDeleteProgramsARB (GLsizei n, const GLuint * programs)
+{
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) n;
+  size_t b0 = programs ? (size_t) r3d_nonneg ((n)) * 4 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glDeleteProgramsARB, f, 2, programs, b0);
+}
+
+void
+glGenProgramsARB (GLsizei n, GLuint * programs)
+{
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) n;
+  size_t b0 = programs ? (size_t) r3d_nonneg ((n)) * 4 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glGenProgramsARB, f, 2, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (programs && got)
+    memcpy (programs, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glProgramEnvParameter4dARB (GLenum target, GLuint index, GLdouble x, GLdouble y, GLdouble z, GLdouble w)
+{
+  uint32_t *a = r3d_put (OP_glProgramEnvParameter4dARB, 10);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  r3d_d2w (a + 2, x);
+  r3d_d2w (a + 4, y);
+  r3d_d2w (a + 6, z);
+  r3d_d2w (a + 8, w);
+}
+
+void
+glProgramEnvParameter4dvARB (GLenum target, GLuint index, const GLdouble * params)
+{
+  uint32_t *a = r3d_put (OP_glProgramEnvParameter4dvARB, 11);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  a[2] = 32;
+  memcpy (a + 3, params, 32);
+}
+
+void
+glProgramEnvParameter4fARB (GLenum target, GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w)
+{
+  uint32_t *a = r3d_put (OP_glProgramEnvParameter4fARB, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  a[2] = r3d_f2u (x);
+  a[3] = r3d_f2u (y);
+  a[4] = r3d_f2u (z);
+  a[5] = r3d_f2u (w);
+}
+
+void
+glProgramEnvParameter4fvARB (GLenum target, GLuint index, const GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glProgramEnvParameter4fvARB, 7);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  a[2] = 16;
+  memcpy (a + 3, params, 16);
+}
+
+void
+glProgramLocalParameter4dARB (GLenum target, GLuint index, GLdouble x, GLdouble y, GLdouble z, GLdouble w)
+{
+  uint32_t *a = r3d_put (OP_glProgramLocalParameter4dARB, 10);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  r3d_d2w (a + 2, x);
+  r3d_d2w (a + 4, y);
+  r3d_d2w (a + 6, z);
+  r3d_d2w (a + 8, w);
+}
+
+void
+glProgramLocalParameter4dvARB (GLenum target, GLuint index, const GLdouble * params)
+{
+  uint32_t *a = r3d_put (OP_glProgramLocalParameter4dvARB, 11);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  a[2] = 32;
+  memcpy (a + 3, params, 32);
+}
+
+void
+glProgramLocalParameter4fARB (GLenum target, GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w)
+{
+  uint32_t *a = r3d_put (OP_glProgramLocalParameter4fARB, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  a[2] = r3d_f2u (x);
+  a[3] = r3d_f2u (y);
+  a[4] = r3d_f2u (z);
+  a[5] = r3d_f2u (w);
+}
+
+void
+glProgramLocalParameter4fvARB (GLenum target, GLuint index, const GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glProgramLocalParameter4fvARB, 7);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  a[2] = 16;
+  memcpy (a + 3, params, 16);
+}
+
+void
+glGetProgramEnvParameterdvARB (GLenum target, GLuint index, GLdouble * params)
+{
+  uint32_t *a = r3d_put (OP_glGetProgramEnvParameterdvARB, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (4);
+  if (cnt * 8 > sizeof r)
+    cnt = sizeof r / 8;
+  if (params)
+    memcpy (params, r, cnt * 8);
+}
+
+void
+glGetProgramEnvParameterfvARB (GLenum target, GLuint index, GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glGetProgramEnvParameterfvARB, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (4);
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetProgramLocalParameterdvARB (GLenum target, GLuint index, GLdouble * params)
+{
+  uint32_t *a = r3d_put (OP_glGetProgramLocalParameterdvARB, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (4);
+  if (cnt * 8 > sizeof r)
+    cnt = sizeof r / 8;
+  if (params)
+    memcpy (params, r, cnt * 8);
+}
+
+void
+glGetProgramLocalParameterfvARB (GLenum target, GLuint index, GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glGetProgramLocalParameterfvARB, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (4);
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetProgramivARB (GLenum target, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetProgramivARB, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (1);
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetTextureSubImage (GLuint texture, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, GLsizei bufSize, void * pixels)
+{
+  uint32_t f[12];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) level;
+  a[2] = (uint32_t) xoffset;
+  a[3] = (uint32_t) yoffset;
+  a[4] = (uint32_t) zoffset;
+  a[5] = (uint32_t) width;
+  a[6] = (uint32_t) height;
+  a[7] = (uint32_t) depth;
+  a[8] = (uint32_t) format;
+  a[9] = (uint32_t) type;
+  a[10] = (uint32_t) bufSize;
+  size_t b0 = pixels ? (size_t) r3d_nonneg ((bufSize)) * 1 : 0;
+  f[11] = (uint32_t) b0;
+  r3d_put_data (OP_glGetTextureSubImage, f, 12, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (pixels && got)
+    memcpy (pixels, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glGetCompressedTextureSubImage (GLuint texture, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLsizei bufSize, void * pixels)
+{
+  uint32_t f[10];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) level;
+  a[2] = (uint32_t) xoffset;
+  a[3] = (uint32_t) yoffset;
+  a[4] = (uint32_t) zoffset;
+  a[5] = (uint32_t) width;
+  a[6] = (uint32_t) height;
+  a[7] = (uint32_t) depth;
+  a[8] = (uint32_t) bufSize;
+  size_t b0 = pixels ? (size_t) r3d_nonneg ((bufSize)) * 1 : 0;
+  f[9] = (uint32_t) b0;
+  r3d_put_data (OP_glGetCompressedTextureSubImage, f, 10, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (pixels && got)
+    memcpy (pixels, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glInvalidateTexSubImage (GLuint texture, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth)
+{
+  uint32_t *a = r3d_put (OP_glInvalidateTexSubImage, 8);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) level;
+  a[2] = (uint32_t) xoffset;
+  a[3] = (uint32_t) yoffset;
+  a[4] = (uint32_t) zoffset;
+  a[5] = (uint32_t) width;
+  a[6] = (uint32_t) height;
+  a[7] = (uint32_t) depth;
+}
+
+void
+glInvalidateTexImage (GLuint texture, GLint level)
+{
+  uint32_t *a = r3d_put (OP_glInvalidateTexImage, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) level;
+}
+
+void
+glInvalidateBufferSubData (GLuint buffer, GLintptr offset, GLsizeiptr length)
+{
+  uint32_t *a = r3d_put (OP_glInvalidateBufferSubData, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) buffer;
+  a[1] = (uint32_t) offset;
+  a[2] = (uint32_t) length;
+}
+
+void
+glInvalidateBufferData (GLuint buffer)
+{
+  uint32_t *a = r3d_put (OP_glInvalidateBufferData, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) buffer;
+}
+
+void
+glBindBuffersBase (GLenum target, GLuint first, GLsizei count, const GLuint * buffers)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) first;
+  a[2] = (uint32_t) count;
+  size_t b0 = buffers ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glBindBuffersBase, f, 4, buffers, b0);
+}
+
+void
+glBindBuffersRange (GLenum target, GLuint first, GLsizei count, const GLuint * buffers, const GLintptr * offsets, const GLsizeiptr * sizes)
+{
+  uint32_t f[6];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) first;
+  a[2] = (uint32_t) count;
+  size_t b0 = buffers ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  size_t b1 = offsets ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[4] = (uint32_t) b1;
+  size_t b2 = sizes ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[5] = (uint32_t) b2;
+  size_t at = 0, all = (b0 + 3) / 4 * 4 + (b1 + 3) / 4 * 4 + (b2 + 3) / 4 * 4;
+  char *g = malloc (all + 4);
+  if (!g)
+    return;
+  memset (g + at, 0, (b0 + 3) / 4 * 4);
+  if (b0)
+    memcpy (g + at, buffers, b0);
+  at += (b0 + 3) / 4 * 4;
+  memset (g + at, 0, (b1 + 3) / 4 * 4);
+  for (size_t k = 0; k < b1 / 4; k++)
+    ((int32_t *) (void *) (g + at))[k] = (int32_t) offsets[k];
+  at += (b1 + 3) / 4 * 4;
+  memset (g + at, 0, (b2 + 3) / 4 * 4);
+  for (size_t k = 0; k < b2 / 4; k++)
+    ((int32_t *) (void *) (g + at))[k] = (int32_t) sizes[k];
+  at += (b2 + 3) / 4 * 4;
+  r3d_put_data (OP_glBindBuffersRange, f, 6, g, all);
+  free (g);
+}
+
+void
+glBindTextures (GLuint first, GLsizei count, const GLuint * textures)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) first;
+  a[1] = (uint32_t) count;
+  size_t b0 = textures ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glBindTextures, f, 3, textures, b0);
+}
+
+void
+glBindSamplers (GLuint first, GLsizei count, const GLuint * samplers)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) first;
+  a[1] = (uint32_t) count;
+  size_t b0 = samplers ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glBindSamplers, f, 3, samplers, b0);
+}
+
+void
+glBindImageTextures (GLuint first, GLsizei count, const GLuint * textures)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) first;
+  a[1] = (uint32_t) count;
+  size_t b0 = textures ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glBindImageTextures, f, 3, textures, b0);
+}
+
+void
+glBindVertexBuffers (GLuint first, GLsizei count, const GLuint * buffers, const GLintptr * offsets, const GLsizei * strides)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) first;
+  a[1] = (uint32_t) count;
+  size_t b0 = buffers ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  size_t b1 = offsets ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[3] = (uint32_t) b1;
+  size_t b2 = strides ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[4] = (uint32_t) b2;
+  size_t at = 0, all = (b0 + 3) / 4 * 4 + (b1 + 3) / 4 * 4 + (b2 + 3) / 4 * 4;
+  char *g = malloc (all + 4);
+  if (!g)
+    return;
+  memset (g + at, 0, (b0 + 3) / 4 * 4);
+  if (b0)
+    memcpy (g + at, buffers, b0);
+  at += (b0 + 3) / 4 * 4;
+  memset (g + at, 0, (b1 + 3) / 4 * 4);
+  for (size_t k = 0; k < b1 / 4; k++)
+    ((int32_t *) (void *) (g + at))[k] = (int32_t) offsets[k];
+  at += (b1 + 3) / 4 * 4;
+  memset (g + at, 0, (b2 + 3) / 4 * 4);
+  if (b2)
+    memcpy (g + at, strides, b2);
+  at += (b2 + 3) / 4 * 4;
+  r3d_put_data (OP_glBindVertexBuffers, f, 5, g, all);
+  free (g);
+}
+
+GLint
+glGetProgramResourceLocationIndex (GLuint program, GLenum programInterface, const GLchar * name)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) programInterface;
+  size_t b0 = name ? (size_t) r3d_nonneg ((strlen (name) + 1)) * 1 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glGetProgramResourceLocationIndex, f, 3, name, b0);
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLint) r;
+}
+
+void
+glProvokingVertex (GLenum mode)
+{
+  uint32_t *a = r3d_put (OP_glProvokingVertex, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) mode;
+}
+
+GLenum
+glGetGraphicsResetStatus (void)
+{
+  if (!r3d_put (OP_glGetGraphicsResetStatus, 0))
+    return 0;
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLenum) r;
+}
+
+void
+glGetnColorTable (GLenum target, GLenum format, GLenum type, GLsizei bufSize, void * table)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) format;
+  a[2] = (uint32_t) type;
+  a[3] = (uint32_t) bufSize;
+  size_t b0 = table ? (size_t) r3d_nonneg ((bufSize)) * 1 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glGetnColorTable, f, 5, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (table && got)
+    memcpy (table, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glGetnConvolutionFilter (GLenum target, GLenum format, GLenum type, GLsizei bufSize, void * image)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) format;
+  a[2] = (uint32_t) type;
+  a[3] = (uint32_t) bufSize;
+  size_t b0 = image ? (size_t) r3d_nonneg ((bufSize)) * 1 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glGetnConvolutionFilter, f, 5, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (image && got)
+    memcpy (image, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glGetnSeparableFilter (GLenum target, GLenum format, GLenum type, GLsizei rowBufSize, void * row, GLsizei columnBufSize, void * column, void * span)
+{
+  uint32_t f[8];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) format;
+  a[2] = (uint32_t) type;
+  a[3] = (uint32_t) rowBufSize;
+  a[4] = (uint32_t) columnBufSize;
+  size_t b0 = row ? (size_t) r3d_nonneg ((rowBufSize)) * 1 : 0;
+  f[5] = (uint32_t) b0;
+  size_t b1 = column ? (size_t) r3d_nonneg ((columnBufSize)) * 1 : 0;
+  f[6] = (uint32_t) b1;
+  size_t b2 = span ? (size_t) r3d_nonneg (0) * 1 : 0;
+  f[7] = (uint32_t) b2;
+  r3d_put_data (OP_glGetnSeparableFilter, f, 8, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4 + 4 + (b1 + 3) / 4 * 4 + 4 + (b2 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (row && got)
+    memcpy (row, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (column && got)
+    memcpy (column, d, got < b1 ? got : b1);
+  d += (b1 + 3) / 4 * 4;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (span && got)
+    memcpy (span, d, got < b2 ? got : b2);
+  d += (b2 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glGetnHistogram (GLenum target, GLboolean reset, GLenum format, GLenum type, GLsizei bufSize, void * values)
+{
+  uint32_t f[6];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) reset;
+  a[2] = (uint32_t) format;
+  a[3] = (uint32_t) type;
+  a[4] = (uint32_t) bufSize;
+  size_t b0 = values ? (size_t) r3d_nonneg ((bufSize)) * 1 : 0;
+  f[5] = (uint32_t) b0;
+  r3d_put_data (OP_glGetnHistogram, f, 6, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (values && got)
+    memcpy (values, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glGetnMinmax (GLenum target, GLboolean reset, GLenum format, GLenum type, GLsizei bufSize, void * values)
+{
+  uint32_t f[6];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) reset;
+  a[2] = (uint32_t) format;
+  a[3] = (uint32_t) type;
+  a[4] = (uint32_t) bufSize;
+  size_t b0 = values ? (size_t) r3d_nonneg ((bufSize)) * 1 : 0;
+  f[5] = (uint32_t) b0;
+  r3d_put_data (OP_glGetnMinmax, f, 6, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (values && got)
+    memcpy (values, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glProgramUniform1d (GLuint program, GLint location, GLdouble v0)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform1d, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  r3d_d2w (a + 2, v0);
+}
+
+void
+glProgramUniform1dv (GLuint program, GLint location, GLsizei count, const GLdouble * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count)) * 8 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform1dv, f, 4, value, b0);
+}
+
+void
+glProgramUniform2d (GLuint program, GLint location, GLdouble v0, GLdouble v1)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform2d, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  r3d_d2w (a + 2, v0);
+  r3d_d2w (a + 4, v1);
+}
+
+void
+glProgramUniform2dv (GLuint program, GLint location, GLsizei count, const GLdouble * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*2)) * 8 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform2dv, f, 4, value, b0);
+}
+
+void
+glProgramUniform3d (GLuint program, GLint location, GLdouble v0, GLdouble v1, GLdouble v2)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform3d, 8);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  r3d_d2w (a + 2, v0);
+  r3d_d2w (a + 4, v1);
+  r3d_d2w (a + 6, v2);
+}
+
+void
+glProgramUniform3dv (GLuint program, GLint location, GLsizei count, const GLdouble * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*3)) * 8 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform3dv, f, 4, value, b0);
+}
+
+void
+glProgramUniform4d (GLuint program, GLint location, GLdouble v0, GLdouble v1, GLdouble v2, GLdouble v3)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform4d, 10);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  r3d_d2w (a + 2, v0);
+  r3d_d2w (a + 4, v1);
+  r3d_d2w (a + 6, v2);
+  r3d_d2w (a + 8, v3);
+}
+
+void
+glProgramUniform4dv (GLuint program, GLint location, GLsizei count, const GLdouble * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*4)) * 8 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform4dv, f, 4, value, b0);
+}
+
+void
+glProgramUniformMatrix2dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*4)) * 8 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix2dv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix3dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*9)) * 8 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix3dv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix4dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*16)) * 8 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix4dv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix2x3dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*6)) * 8 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix2x3dv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix3x2dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*6)) * 8 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix3x2dv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix2x4dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*8)) * 8 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix2x4dv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix4x2dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*8)) * 8 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix4x2dv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix3x4dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*12)) * 8 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix3x4dv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix4x3dv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLdouble * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*12)) * 8 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix4x3dv, f, 5, value, b0);
+}
+
+void
+glDeleteObjectARB (GLhandleARB obj)
+{
+  uint32_t *a = r3d_put (OP_glDeleteObjectARB, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) obj;
+}
+
+GLhandleARB
+glGetHandleARB (GLenum pname)
+{
+  uint32_t *a = r3d_put (OP_glGetHandleARB, 1);
+  if (!a)
+    return 0;
+  a[0] = (uint32_t) pname;
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLhandleARB) r;
+}
+
+void
+glGetObjectParameterfvARB (GLhandleARB obj, GLenum pname, GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glGetObjectParameterfvARB, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) obj;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetObjectParameterivARB (GLhandleARB obj, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetObjectParameterivARB, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) obj;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetInfoLogARB (GLhandleARB obj, GLsizei maxLength, GLsizei * length, GLcharARB * infoLog)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) obj;
+  a[1] = (uint32_t) maxLength;
+  size_t b0 = length ? (size_t) r3d_nonneg (1) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  size_t b1 = infoLog ? (size_t) r3d_nonneg ((maxLength)) * 1 : 0;
+  f[3] = (uint32_t) b1;
+  r3d_put_data (OP_glGetInfoLogARB, f, 4, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4 + 4 + (b1 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (length && got)
+    memcpy (length, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (infoLog && got)
+    memcpy (infoLog, d, got < b1 ? got : b1);
+  d += (b1 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glGetAttachedObjectsARB (GLhandleARB containerObj, GLsizei maxCount, GLsizei * count, GLhandleARB * obj)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) containerObj;
+  a[1] = (uint32_t) maxCount;
+  size_t b0 = count ? (size_t) r3d_nonneg (1) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  size_t b1 = obj ? (size_t) r3d_nonneg ((maxCount)) * 4 : 0;
+  f[3] = (uint32_t) b1;
+  r3d_put_data (OP_glGetAttachedObjectsARB, f, 4, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4 + 4 + (b1 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (count && got)
+    memcpy (count, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (obj && got)
+    memcpy (obj, d, got < b1 ? got : b1);
+  d += (b1 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glNamedStringARB (GLenum type, GLint namelen, const GLchar * name, GLint stringlen, const GLchar * string)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) type;
+  a[1] = (uint32_t) namelen;
+  a[2] = (uint32_t) stringlen;
+  size_t b0 = name ? (size_t) r3d_nonneg ((namelen)) * 1 : 0;
+  f[3] = (uint32_t) b0;
+  size_t b1 = string ? (size_t) r3d_nonneg ((stringlen)) * 1 : 0;
+  f[4] = (uint32_t) b1;
+  size_t at = 0, all = (b0 + 3) / 4 * 4 + (b1 + 3) / 4 * 4;
+  char *g = malloc (all + 4);
+  if (!g)
+    return;
+  memset (g + at, 0, (b0 + 3) / 4 * 4);
+  if (b0)
+    memcpy (g + at, name, b0);
+  at += (b0 + 3) / 4 * 4;
+  memset (g + at, 0, (b1 + 3) / 4 * 4);
+  if (b1)
+    memcpy (g + at, string, b1);
+  at += (b1 + 3) / 4 * 4;
+  r3d_put_data (OP_glNamedStringARB, f, 5, g, all);
+  free (g);
+}
+
+void
+glDeleteNamedStringARB (GLint namelen, const GLchar * name)
+{
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) namelen;
+  size_t b0 = name ? (size_t) r3d_nonneg ((namelen)) * 1 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glDeleteNamedStringARB, f, 2, name, b0);
+}
+
+void
+glCompileShaderIncludeARB (GLuint shader, GLsizei count, const GLchar *const* path, const GLint * length)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) shader;
+  a[1] = (uint32_t) count;
+  size_t b0 = path ? r3d_strs (0, path, count, length) : 0;
+  f[2] = (uint32_t) b0;
+  size_t b1 = 0;
+  f[3] = (uint32_t) b1;
+  size_t at = 0, all = (b0 + 3) / 4 * 4;
+  char *g = malloc (all + 4);
+  if (!g)
+    return;
+  memset (g + at, 0, (b0 + 3) / 4 * 4);
+  if (b0)
+    r3d_strs (g + at, path, count, length);
+  at += (b0 + 3) / 4 * 4;
+  r3d_put_data (OP_glCompileShaderIncludeARB, f, 4, g, all);
+  free (g);
+}
+
+GLboolean
+glIsNamedStringARB (GLint namelen, const GLchar * name)
+{
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) namelen;
+  size_t b0 = name ? (size_t) r3d_nonneg ((namelen)) * 1 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glIsNamedStringARB, f, 2, name, b0);
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLboolean) r;
+}
+
+void
+glGetNamedStringARB (GLint namelen, const GLchar * name, GLsizei bufSize, GLint * stringlen, GLchar * string)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) namelen;
+  a[1] = (uint32_t) bufSize;
+  size_t b0 = name ? (size_t) r3d_nonneg ((namelen)) * 1 : 0;
+  f[2] = (uint32_t) b0;
+  size_t b1 = stringlen ? (size_t) r3d_nonneg (1) * 4 : 0;
+  f[3] = (uint32_t) b1;
+  size_t b2 = string ? (size_t) r3d_nonneg ((bufSize)) * 1 : 0;
+  f[4] = (uint32_t) b2;
+  size_t at = 0, all = (b0 + 3) / 4 * 4;
+  char *g = malloc (all + 4);
+  if (!g)
+    return;
+  memset (g + at, 0, (b0 + 3) / 4 * 4);
+  if (b0)
+    memcpy (g + at, name, b0);
+  at += (b0 + 3) / 4 * 4;
+  r3d_put_data (OP_glGetNamedStringARB, f, 5, g, all);
+  free (g);
+  size_t room = 4 + 4 + (b1 + 3) / 4 * 4 + 4 + (b2 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (stringlen && got)
+    memcpy (stringlen, d, got < b1 ? got : b1);
+  d += (b1 + 3) / 4 * 4;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (string && got)
+    memcpy (string, d, got < b2 ? got : b2);
+  d += (b2 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glGetNamedStringivARB (GLint namelen, const GLchar * name, GLenum pname, GLint * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) namelen;
+  a[1] = (uint32_t) pname;
+  size_t b0 = name ? (size_t) r3d_nonneg ((namelen)) * 1 : 0;
+  f[2] = (uint32_t) b0;
+  size_t b1 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[3] = (uint32_t) b1;
+  size_t at = 0, all = (b0 + 3) / 4 * 4;
+  char *g = malloc (all + 4);
+  if (!g)
+    return;
+  memset (g + at, 0, (b0 + 3) / 4 * 4);
+  if (b0)
+    memcpy (g + at, name, b0);
+  at += (b0 + 3) / 4 * 4;
+  r3d_put_data (OP_glGetNamedStringivARB, f, 4, g, all);
+  free (g);
+  size_t room = 4 + 4 + (b1 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (params && got)
+    memcpy (params, d, got < b1 ? got : b1);
+  d += (b1 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glTexStorage1D (GLenum target, GLsizei levels, GLenum internalformat, GLsizei width)
+{
+  uint32_t *a = r3d_put (OP_glTexStorage1D, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) levels;
+  a[2] = (uint32_t) internalformat;
+  a[3] = (uint32_t) width;
+}
+
+void
+glVertexAttribLFormat (GLuint attribindex, GLint size, GLenum type, GLuint relativeoffset)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttribLFormat, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) attribindex;
+  a[1] = (uint32_t) size;
+  a[2] = (uint32_t) type;
+  a[3] = (uint32_t) relativeoffset;
+}
+
+GLuint
+glGenFragmentShadersATI (GLuint range)
+{
+  uint32_t *a = r3d_put (OP_glGenFragmentShadersATI, 1);
+  if (!a)
+    return 0;
+  a[0] = (uint32_t) range;
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLuint) r;
+}
+
+void
+glBindFragmentShaderATI (GLuint id)
+{
+  uint32_t *a = r3d_put (OP_glBindFragmentShaderATI, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) id;
+}
+
+void
+glDeleteFragmentShaderATI (GLuint id)
+{
+  uint32_t *a = r3d_put (OP_glDeleteFragmentShaderATI, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) id;
+}
+
+void
+glBeginFragmentShaderATI (void)
+{
+  if (!r3d_put (OP_glBeginFragmentShaderATI, 0))
+    return;
+}
+
+void
+glEndFragmentShaderATI (void)
+{
+  if (!r3d_put (OP_glEndFragmentShaderATI, 0))
+    return;
+}
+
+void
+glPassTexCoordATI (GLuint dst, GLuint coord, GLenum swizzle)
+{
+  uint32_t *a = r3d_put (OP_glPassTexCoordATI, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) dst;
+  a[1] = (uint32_t) coord;
+  a[2] = (uint32_t) swizzle;
+}
+
+void
+glSampleMapATI (GLuint dst, GLuint interp, GLenum swizzle)
+{
+  uint32_t *a = r3d_put (OP_glSampleMapATI, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) dst;
+  a[1] = (uint32_t) interp;
+  a[2] = (uint32_t) swizzle;
+}
+
+void
+glColorFragmentOp1ATI (GLenum op, GLuint dst, GLuint dstMask, GLuint dstMod, GLuint arg1, GLuint arg1Rep, GLuint arg1Mod)
+{
+  uint32_t *a = r3d_put (OP_glColorFragmentOp1ATI, 7);
+  if (!a)
+    return;
+  a[0] = (uint32_t) op;
+  a[1] = (uint32_t) dst;
+  a[2] = (uint32_t) dstMask;
+  a[3] = (uint32_t) dstMod;
+  a[4] = (uint32_t) arg1;
+  a[5] = (uint32_t) arg1Rep;
+  a[6] = (uint32_t) arg1Mod;
+}
+
+void
+glColorFragmentOp2ATI (GLenum op, GLuint dst, GLuint dstMask, GLuint dstMod, GLuint arg1, GLuint arg1Rep, GLuint arg1Mod, GLuint arg2, GLuint arg2Rep, GLuint arg2Mod)
+{
+  uint32_t *a = r3d_put (OP_glColorFragmentOp2ATI, 10);
+  if (!a)
+    return;
+  a[0] = (uint32_t) op;
+  a[1] = (uint32_t) dst;
+  a[2] = (uint32_t) dstMask;
+  a[3] = (uint32_t) dstMod;
+  a[4] = (uint32_t) arg1;
+  a[5] = (uint32_t) arg1Rep;
+  a[6] = (uint32_t) arg1Mod;
+  a[7] = (uint32_t) arg2;
+  a[8] = (uint32_t) arg2Rep;
+  a[9] = (uint32_t) arg2Mod;
+}
+
+void
+glColorFragmentOp3ATI (GLenum op, GLuint dst, GLuint dstMask, GLuint dstMod, GLuint arg1, GLuint arg1Rep, GLuint arg1Mod, GLuint arg2, GLuint arg2Rep, GLuint arg2Mod, GLuint arg3, GLuint arg3Rep, GLuint arg3Mod)
+{
+  uint32_t *a = r3d_put (OP_glColorFragmentOp3ATI, 13);
+  if (!a)
+    return;
+  a[0] = (uint32_t) op;
+  a[1] = (uint32_t) dst;
+  a[2] = (uint32_t) dstMask;
+  a[3] = (uint32_t) dstMod;
+  a[4] = (uint32_t) arg1;
+  a[5] = (uint32_t) arg1Rep;
+  a[6] = (uint32_t) arg1Mod;
+  a[7] = (uint32_t) arg2;
+  a[8] = (uint32_t) arg2Rep;
+  a[9] = (uint32_t) arg2Mod;
+  a[10] = (uint32_t) arg3;
+  a[11] = (uint32_t) arg3Rep;
+  a[12] = (uint32_t) arg3Mod;
+}
+
+void
+glAlphaFragmentOp1ATI (GLenum op, GLuint dst, GLuint dstMod, GLuint arg1, GLuint arg1Rep, GLuint arg1Mod)
+{
+  uint32_t *a = r3d_put (OP_glAlphaFragmentOp1ATI, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) op;
+  a[1] = (uint32_t) dst;
+  a[2] = (uint32_t) dstMod;
+  a[3] = (uint32_t) arg1;
+  a[4] = (uint32_t) arg1Rep;
+  a[5] = (uint32_t) arg1Mod;
+}
+
+void
+glAlphaFragmentOp2ATI (GLenum op, GLuint dst, GLuint dstMod, GLuint arg1, GLuint arg1Rep, GLuint arg1Mod, GLuint arg2, GLuint arg2Rep, GLuint arg2Mod)
+{
+  uint32_t *a = r3d_put (OP_glAlphaFragmentOp2ATI, 9);
+  if (!a)
+    return;
+  a[0] = (uint32_t) op;
+  a[1] = (uint32_t) dst;
+  a[2] = (uint32_t) dstMod;
+  a[3] = (uint32_t) arg1;
+  a[4] = (uint32_t) arg1Rep;
+  a[5] = (uint32_t) arg1Mod;
+  a[6] = (uint32_t) arg2;
+  a[7] = (uint32_t) arg2Rep;
+  a[8] = (uint32_t) arg2Mod;
+}
+
+void
+glAlphaFragmentOp3ATI (GLenum op, GLuint dst, GLuint dstMod, GLuint arg1, GLuint arg1Rep, GLuint arg1Mod, GLuint arg2, GLuint arg2Rep, GLuint arg2Mod, GLuint arg3, GLuint arg3Rep, GLuint arg3Mod)
+{
+  uint32_t *a = r3d_put (OP_glAlphaFragmentOp3ATI, 12);
+  if (!a)
+    return;
+  a[0] = (uint32_t) op;
+  a[1] = (uint32_t) dst;
+  a[2] = (uint32_t) dstMod;
+  a[3] = (uint32_t) arg1;
+  a[4] = (uint32_t) arg1Rep;
+  a[5] = (uint32_t) arg1Mod;
+  a[6] = (uint32_t) arg2;
+  a[7] = (uint32_t) arg2Rep;
+  a[8] = (uint32_t) arg2Mod;
+  a[9] = (uint32_t) arg3;
+  a[10] = (uint32_t) arg3Rep;
+  a[11] = (uint32_t) arg3Mod;
+}
+
+void
+glSetFragmentShaderConstantATI (GLuint dst, const GLfloat * value)
+{
+  uint32_t *a = r3d_put (OP_glSetFragmentShaderConstantATI, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) dst;
+  a[1] = 16;
+  memcpy (a + 2, value, 16);
+}
+
+void
+glLockArraysEXT (GLint first, GLsizei count)
+{
+  uint32_t *a = r3d_put (OP_glLockArraysEXT, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) first;
+  a[1] = (uint32_t) count;
+}
+
+void
+glUnlockArraysEXT (void)
+{
+  if (!r3d_put (OP_glUnlockArraysEXT, 0))
+    return;
+}
+
+void
+glDepthBoundsEXT (GLclampd zmin, GLclampd zmax)
+{
+  uint32_t *a = r3d_put (OP_glDepthBoundsEXT, 4);
+  if (!a)
+    return;
+  r3d_d2w (a + 0, zmin);
+  r3d_d2w (a + 2, zmax);
+}
+
+void
+glProgramEnvParameters4fvEXT (GLenum target, GLuint index, GLsizei count, const GLfloat * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  a[2] = (uint32_t) count;
+  size_t b0 = params ? (size_t) r3d_nonneg ((count*4)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramEnvParameters4fvEXT, f, 4, params, b0);
+}
+
+void
+glProgramLocalParameters4fvEXT (GLenum target, GLuint index, GLsizei count, const GLfloat * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  a[2] = (uint32_t) count;
+  size_t b0 = params ? (size_t) r3d_nonneg ((count*4)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramLocalParameters4fvEXT, f, 4, params, b0);
+}
+
+void
+glActiveStencilFaceEXT (GLenum face)
+{
+  uint32_t *a = r3d_put (OP_glActiveStencilFaceEXT, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) face;
+}
+
+void
+glWindowPos4dMESA (GLdouble x, GLdouble y, GLdouble z, GLdouble w)
+{
+  uint32_t *a = r3d_put (OP_glWindowPos4dMESA, 8);
+  if (!a)
+    return;
+  r3d_d2w (a + 0, x);
+  r3d_d2w (a + 2, y);
+  r3d_d2w (a + 4, z);
+  r3d_d2w (a + 6, w);
+}
+
+void
+glWindowPos4dvMESA (const GLdouble * v_)
+{
+  uint32_t *a = r3d_put (OP_glWindowPos4dvMESA, 9);
+  if (!a)
+    return;
+  a[0] = 32;
+  memcpy (a + 1, v_, 32);
+}
+
+void
+glWindowPos4fMESA (GLfloat x, GLfloat y, GLfloat z, GLfloat w)
+{
+  uint32_t *a = r3d_put (OP_glWindowPos4fMESA, 4);
+  if (!a)
+    return;
+  a[0] = r3d_f2u (x);
+  a[1] = r3d_f2u (y);
+  a[2] = r3d_f2u (z);
+  a[3] = r3d_f2u (w);
+}
+
+void
+glWindowPos4fvMESA (const GLfloat * v_)
+{
+  uint32_t *a = r3d_put (OP_glWindowPos4fvMESA, 5);
+  if (!a)
+    return;
+  a[0] = 16;
+  memcpy (a + 1, v_, 16);
+}
+
+void
+glWindowPos4iMESA (GLint x, GLint y, GLint z, GLint w)
+{
+  uint32_t *a = r3d_put (OP_glWindowPos4iMESA, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) x;
+  a[1] = (uint32_t) y;
+  a[2] = (uint32_t) z;
+  a[3] = (uint32_t) w;
+}
+
+void
+glWindowPos4ivMESA (const GLint * v_)
+{
+  uint32_t *a = r3d_put (OP_glWindowPos4ivMESA, 5);
+  if (!a)
+    return;
+  a[0] = 16;
+  memcpy (a + 1, v_, 16);
+}
+
+void
+glWindowPos4sMESA (GLshort x, GLshort y, GLshort z, GLshort w)
+{
+  uint32_t *a = r3d_put (OP_glWindowPos4sMESA, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) x;
+  a[1] = (uint32_t) y;
+  a[2] = (uint32_t) z;
+  a[3] = (uint32_t) w;
+}
+
+void
+glWindowPos4svMESA (const GLshort * v_)
+{
+  uint32_t *a = r3d_put (OP_glWindowPos4svMESA, 3);
+  if (!a)
+    return;
+  a[0] = 8;
+  memcpy (a + 1, v_, 8);
+}
+
+void
+glVertex2hNV (GLhalfNV x, GLhalfNV y)
+{
+  uint32_t *a = r3d_put (OP_glVertex2hNV, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) x;
+  a[1] = (uint32_t) y;
+}
+
+void
+glVertex2hvNV (const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertex2hvNV, 2);
+  if (!a)
+    return;
+  a[0] = 4;
+  memcpy (a + 1, v_, 4);
+}
+
+void
+glVertex3hNV (GLhalfNV x, GLhalfNV y, GLhalfNV z)
+{
+  uint32_t *a = r3d_put (OP_glVertex3hNV, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) x;
+  a[1] = (uint32_t) y;
+  a[2] = (uint32_t) z;
+}
+
+void
+glVertex3hvNV (const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertex3hvNV, 3);
+  if (!a)
+    return;
+  a[0] = 6;
+  a[2] = 0;
+  memcpy (a + 1, v_, 6);
+}
+
+void
+glVertex4hNV (GLhalfNV x, GLhalfNV y, GLhalfNV z, GLhalfNV w)
+{
+  uint32_t *a = r3d_put (OP_glVertex4hNV, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) x;
+  a[1] = (uint32_t) y;
+  a[2] = (uint32_t) z;
+  a[3] = (uint32_t) w;
+}
+
+void
+glVertex4hvNV (const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertex4hvNV, 3);
+  if (!a)
+    return;
+  a[0] = 8;
+  memcpy (a + 1, v_, 8);
+}
+
+void
+glNormal3hNV (GLhalfNV nx, GLhalfNV ny, GLhalfNV nz)
+{
+  uint32_t *a = r3d_put (OP_glNormal3hNV, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) nx;
+  a[1] = (uint32_t) ny;
+  a[2] = (uint32_t) nz;
+}
+
+void
+glNormal3hvNV (const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glNormal3hvNV, 3);
+  if (!a)
+    return;
+  a[0] = 6;
+  a[2] = 0;
+  memcpy (a + 1, v_, 6);
+}
+
+void
+glColor3hNV (GLhalfNV red, GLhalfNV green, GLhalfNV blue)
+{
+  uint32_t *a = r3d_put (OP_glColor3hNV, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) red;
+  a[1] = (uint32_t) green;
+  a[2] = (uint32_t) blue;
+}
+
+void
+glColor3hvNV (const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glColor3hvNV, 3);
+  if (!a)
+    return;
+  a[0] = 6;
+  a[2] = 0;
+  memcpy (a + 1, v_, 6);
+}
+
+void
+glColor4hNV (GLhalfNV red, GLhalfNV green, GLhalfNV blue, GLhalfNV alpha)
+{
+  uint32_t *a = r3d_put (OP_glColor4hNV, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) red;
+  a[1] = (uint32_t) green;
+  a[2] = (uint32_t) blue;
+  a[3] = (uint32_t) alpha;
+}
+
+void
+glColor4hvNV (const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glColor4hvNV, 3);
+  if (!a)
+    return;
+  a[0] = 8;
+  memcpy (a + 1, v_, 8);
+}
+
+void
+glTexCoord1hNV (GLhalfNV s)
+{
+  uint32_t *a = r3d_put (OP_glTexCoord1hNV, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) s;
+}
+
+void
+glTexCoord1hvNV (const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glTexCoord1hvNV, 2);
+  if (!a)
+    return;
+  a[0] = 2;
+  a[1] = 0;
+  memcpy (a + 1, v_, 2);
+}
+
+void
+glTexCoord2hNV (GLhalfNV s, GLhalfNV t)
+{
+  uint32_t *a = r3d_put (OP_glTexCoord2hNV, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) s;
+  a[1] = (uint32_t) t;
+}
+
+void
+glTexCoord2hvNV (const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glTexCoord2hvNV, 2);
+  if (!a)
+    return;
+  a[0] = 4;
+  memcpy (a + 1, v_, 4);
+}
+
+void
+glTexCoord3hNV (GLhalfNV s, GLhalfNV t, GLhalfNV r)
+{
+  uint32_t *a = r3d_put (OP_glTexCoord3hNV, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) s;
+  a[1] = (uint32_t) t;
+  a[2] = (uint32_t) r;
+}
+
+void
+glTexCoord3hvNV (const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glTexCoord3hvNV, 3);
+  if (!a)
+    return;
+  a[0] = 6;
+  a[2] = 0;
+  memcpy (a + 1, v_, 6);
+}
+
+void
+glTexCoord4hNV (GLhalfNV s, GLhalfNV t, GLhalfNV r, GLhalfNV q)
+{
+  uint32_t *a = r3d_put (OP_glTexCoord4hNV, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) s;
+  a[1] = (uint32_t) t;
+  a[2] = (uint32_t) r;
+  a[3] = (uint32_t) q;
+}
+
+void
+glTexCoord4hvNV (const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glTexCoord4hvNV, 3);
+  if (!a)
+    return;
+  a[0] = 8;
+  memcpy (a + 1, v_, 8);
+}
+
+void
+glMultiTexCoord1hNV (GLenum target, GLhalfNV s)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexCoord1hNV, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) s;
+}
+
+void
+glMultiTexCoord1hvNV (GLenum target, const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexCoord1hvNV, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = 2;
+  a[2] = 0;
+  memcpy (a + 2, v_, 2);
+}
+
+void
+glMultiTexCoord2hNV (GLenum target, GLhalfNV s, GLhalfNV t)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexCoord2hNV, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) s;
+  a[2] = (uint32_t) t;
+}
+
+void
+glMultiTexCoord2hvNV (GLenum target, const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexCoord2hvNV, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = 4;
+  memcpy (a + 2, v_, 4);
+}
+
+void
+glMultiTexCoord3hNV (GLenum target, GLhalfNV s, GLhalfNV t, GLhalfNV r)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexCoord3hNV, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) s;
+  a[2] = (uint32_t) t;
+  a[3] = (uint32_t) r;
+}
+
+void
+glMultiTexCoord3hvNV (GLenum target, const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexCoord3hvNV, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = 6;
+  a[3] = 0;
+  memcpy (a + 2, v_, 6);
+}
+
+void
+glMultiTexCoord4hNV (GLenum target, GLhalfNV s, GLhalfNV t, GLhalfNV r, GLhalfNV q)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexCoord4hNV, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) s;
+  a[2] = (uint32_t) t;
+  a[3] = (uint32_t) r;
+  a[4] = (uint32_t) q;
+}
+
+void
+glMultiTexCoord4hvNV (GLenum target, const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexCoord4hvNV, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = 8;
+  memcpy (a + 2, v_, 8);
+}
+
+void
+glVertexAttrib1hNV (GLuint index, GLhalfNV x)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttrib1hNV, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) x;
+}
+
+void
+glVertexAttrib1hvNV (GLuint index, const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttrib1hvNV, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 2;
+  a[2] = 0;
+  memcpy (a + 2, v_, 2);
+}
+
+void
+glVertexAttrib2hNV (GLuint index, GLhalfNV x, GLhalfNV y)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttrib2hNV, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) x;
+  a[2] = (uint32_t) y;
+}
+
+void
+glVertexAttrib2hvNV (GLuint index, const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttrib2hvNV, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 4;
+  memcpy (a + 2, v_, 4);
+}
+
+void
+glVertexAttrib3hNV (GLuint index, GLhalfNV x, GLhalfNV y, GLhalfNV z)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttrib3hNV, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) x;
+  a[2] = (uint32_t) y;
+  a[3] = (uint32_t) z;
+}
+
+void
+glVertexAttrib3hvNV (GLuint index, const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttrib3hvNV, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 6;
+  a[3] = 0;
+  memcpy (a + 2, v_, 6);
+}
+
+void
+glVertexAttrib4hNV (GLuint index, GLhalfNV x, GLhalfNV y, GLhalfNV z, GLhalfNV w)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttrib4hNV, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) x;
+  a[2] = (uint32_t) y;
+  a[3] = (uint32_t) z;
+  a[4] = (uint32_t) w;
+}
+
+void
+glVertexAttrib4hvNV (GLuint index, const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glVertexAttrib4hvNV, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) index;
+  a[1] = 8;
+  memcpy (a + 2, v_, 8);
+}
+
+void
+glVertexAttribs1hvNV (GLuint index, GLsizei n, const GLhalfNV * v_)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) n;
+  size_t b0 = v_ ? (size_t) r3d_nonneg ((n)) * 2 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glVertexAttribs1hvNV, f, 3, v_, b0);
+}
+
+void
+glVertexAttribs2hvNV (GLuint index, GLsizei n, const GLhalfNV * v_)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) n;
+  size_t b0 = v_ ? (size_t) r3d_nonneg ((n)) * 2 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glVertexAttribs2hvNV, f, 3, v_, b0);
+}
+
+void
+glVertexAttribs3hvNV (GLuint index, GLsizei n, const GLhalfNV * v_)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) n;
+  size_t b0 = v_ ? (size_t) r3d_nonneg ((n)) * 2 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glVertexAttribs3hvNV, f, 3, v_, b0);
+}
+
+void
+glVertexAttribs4hvNV (GLuint index, GLsizei n, const GLhalfNV * v_)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) index;
+  a[1] = (uint32_t) n;
+  size_t b0 = v_ ? (size_t) r3d_nonneg ((n)) * 2 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glVertexAttribs4hvNV, f, 3, v_, b0);
+}
+
+void
+glFogCoordhNV (GLhalfNV fog)
+{
+  uint32_t *a = r3d_put (OP_glFogCoordhNV, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) fog;
+}
+
+void
+glFogCoordhvNV (const GLhalfNV * fog)
+{
+  uint32_t *a = r3d_put (OP_glFogCoordhvNV, 2);
+  if (!a)
+    return;
+  a[0] = 2;
+  a[1] = 0;
+  memcpy (a + 1, fog, 2);
+}
+
+void
+glSecondaryColor3hNV (GLhalfNV red, GLhalfNV green, GLhalfNV blue)
+{
+  uint32_t *a = r3d_put (OP_glSecondaryColor3hNV, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) red;
+  a[1] = (uint32_t) green;
+  a[2] = (uint32_t) blue;
+}
+
+void
+glSecondaryColor3hvNV (const GLhalfNV * v_)
+{
+  uint32_t *a = r3d_put (OP_glSecondaryColor3hvNV, 3);
+  if (!a)
+    return;
+  a[0] = 6;
+  a[2] = 0;
+  memcpy (a + 1, v_, 6);
+}
+
+void
+glVertexWeighthNV (GLhalfNV weight)
+{
+  uint32_t *a = r3d_put (OP_glVertexWeighthNV, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) weight;
+}
+
+void
+glVertexWeighthvNV (const GLhalfNV * weight)
+{
+  uint32_t *a = r3d_put (OP_glVertexWeighthvNV, 2);
+  if (!a)
+    return;
+  a[0] = 2;
+  a[1] = 0;
+  memcpy (a + 1, weight, 2);
+}
+
+void
+glClientAttribDefaultEXT (GLbitfield mask)
+{
+  r3d_track_glClientAttribDefaultEXT (mask);
+  uint32_t *a = r3d_put (OP_glClientAttribDefaultEXT, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) mask;
+}
+
+void
+glTextureParameterfEXT (GLuint texture, GLenum target, GLenum pname, GLfloat param)
+{
+  uint32_t *a = r3d_put (OP_glTextureParameterfEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  a[3] = r3d_f2u (param);
+}
+
+void
+glTextureParameterfvEXT (GLuint texture, GLenum target, GLenum pname, const GLfloat * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glTextureParameterfvEXT, f, 4, params, b0);
+}
+
+void
+glTextureParameteriEXT (GLuint texture, GLenum target, GLenum pname, GLint param)
+{
+  uint32_t *a = r3d_put (OP_glTextureParameteriEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  a[3] = (uint32_t) param;
+}
+
+void
+glTextureParameterivEXT (GLuint texture, GLenum target, GLenum pname, const GLint * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glTextureParameterivEXT, f, 4, params, b0);
+}
+
+void
+glCopyTextureImage1DEXT (GLuint texture, GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLint border)
+{
+  uint32_t *a = r3d_put (OP_glCopyTextureImage1DEXT, 8);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) internalformat;
+  a[4] = (uint32_t) x;
+  a[5] = (uint32_t) y;
+  a[6] = (uint32_t) width;
+  a[7] = (uint32_t) border;
+}
+
+void
+glCopyTextureImage2DEXT (GLuint texture, GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border)
+{
+  uint32_t *a = r3d_put (OP_glCopyTextureImage2DEXT, 9);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) internalformat;
+  a[4] = (uint32_t) x;
+  a[5] = (uint32_t) y;
+  a[6] = (uint32_t) width;
+  a[7] = (uint32_t) height;
+  a[8] = (uint32_t) border;
+}
+
+void
+glCopyTextureSubImage1DEXT (GLuint texture, GLenum target, GLint level, GLint xoffset, GLint x, GLint y, GLsizei width)
+{
+  uint32_t *a = r3d_put (OP_glCopyTextureSubImage1DEXT, 7);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) xoffset;
+  a[4] = (uint32_t) x;
+  a[5] = (uint32_t) y;
+  a[6] = (uint32_t) width;
+}
+
+void
+glCopyTextureSubImage2DEXT (GLuint texture, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height)
+{
+  uint32_t *a = r3d_put (OP_glCopyTextureSubImage2DEXT, 9);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) xoffset;
+  a[4] = (uint32_t) yoffset;
+  a[5] = (uint32_t) x;
+  a[6] = (uint32_t) y;
+  a[7] = (uint32_t) width;
+  a[8] = (uint32_t) height;
+}
+
+void
+glGetTextureParameterfvEXT (GLuint texture, GLenum target, GLenum pname, GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glGetTextureParameterfvEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetTextureParameterivEXT (GLuint texture, GLenum target, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetTextureParameterivEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetTextureLevelParameterfvEXT (GLuint texture, GLenum target, GLint level, GLenum pname, GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glGetTextureLevelParameterfvEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetTextureLevelParameterivEXT (GLuint texture, GLenum target, GLint level, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetTextureLevelParameterivEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glCopyTextureSubImage3DEXT (GLuint texture, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLint x, GLint y, GLsizei width, GLsizei height)
+{
+  uint32_t *a = r3d_put (OP_glCopyTextureSubImage3DEXT, 10);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) xoffset;
+  a[4] = (uint32_t) yoffset;
+  a[5] = (uint32_t) zoffset;
+  a[6] = (uint32_t) x;
+  a[7] = (uint32_t) y;
+  a[8] = (uint32_t) width;
+  a[9] = (uint32_t) height;
+}
+
+void
+glBindMultiTextureEXT (GLenum texunit, GLenum target, GLuint texture)
+{
+  uint32_t *a = r3d_put (OP_glBindMultiTextureEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) texture;
+}
+
+void
+glMultiTexEnvfEXT (GLenum texunit, GLenum target, GLenum pname, GLfloat param)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexEnvfEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  a[3] = r3d_f2u (param);
+}
+
+void
+glMultiTexEnvfvEXT (GLenum texunit, GLenum target, GLenum pname, const GLfloat * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glMultiTexEnvfvEXT, f, 4, params, b0);
+}
+
+void
+glMultiTexEnviEXT (GLenum texunit, GLenum target, GLenum pname, GLint param)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexEnviEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  a[3] = (uint32_t) param;
+}
+
+void
+glMultiTexEnvivEXT (GLenum texunit, GLenum target, GLenum pname, const GLint * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glMultiTexEnvivEXT, f, 4, params, b0);
+}
+
+void
+glMultiTexGendEXT (GLenum texunit, GLenum coord, GLenum pname, GLdouble param)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexGendEXT, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) coord;
+  a[2] = (uint32_t) pname;
+  r3d_d2w (a + 3, param);
+}
+
+void
+glMultiTexGendvEXT (GLenum texunit, GLenum coord, GLenum pname, const GLdouble * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) coord;
+  a[2] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 8 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glMultiTexGendvEXT, f, 4, params, b0);
+}
+
+void
+glMultiTexGenfEXT (GLenum texunit, GLenum coord, GLenum pname, GLfloat param)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexGenfEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) coord;
+  a[2] = (uint32_t) pname;
+  a[3] = r3d_f2u (param);
+}
+
+void
+glMultiTexGenfvEXT (GLenum texunit, GLenum coord, GLenum pname, const GLfloat * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) coord;
+  a[2] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glMultiTexGenfvEXT, f, 4, params, b0);
+}
+
+void
+glMultiTexGeniEXT (GLenum texunit, GLenum coord, GLenum pname, GLint param)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexGeniEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) coord;
+  a[2] = (uint32_t) pname;
+  a[3] = (uint32_t) param;
+}
+
+void
+glMultiTexGenivEXT (GLenum texunit, GLenum coord, GLenum pname, const GLint * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) coord;
+  a[2] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glMultiTexGenivEXT, f, 4, params, b0);
+}
+
+void
+glGetMultiTexEnvfvEXT (GLenum texunit, GLenum target, GLenum pname, GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glGetMultiTexEnvfvEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetMultiTexEnvivEXT (GLenum texunit, GLenum target, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetMultiTexEnvivEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetMultiTexGendvEXT (GLenum texunit, GLenum coord, GLenum pname, GLdouble * params)
+{
+  uint32_t *a = r3d_put (OP_glGetMultiTexGendvEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) coord;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 8 > sizeof r)
+    cnt = sizeof r / 8;
+  if (params)
+    memcpy (params, r, cnt * 8);
+}
+
+void
+glGetMultiTexGenfvEXT (GLenum texunit, GLenum coord, GLenum pname, GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glGetMultiTexGenfvEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) coord;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetMultiTexGenivEXT (GLenum texunit, GLenum coord, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetMultiTexGenivEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) coord;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glMultiTexParameteriEXT (GLenum texunit, GLenum target, GLenum pname, GLint param)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexParameteriEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  a[3] = (uint32_t) param;
+}
+
+void
+glMultiTexParameterivEXT (GLenum texunit, GLenum target, GLenum pname, const GLint * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glMultiTexParameterivEXT, f, 4, params, b0);
+}
+
+void
+glMultiTexParameterfEXT (GLenum texunit, GLenum target, GLenum pname, GLfloat param)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexParameterfEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  a[3] = r3d_f2u (param);
+}
+
+void
+glMultiTexParameterfvEXT (GLenum texunit, GLenum target, GLenum pname, const GLfloat * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glMultiTexParameterfvEXT, f, 4, params, b0);
+}
+
+void
+glCopyMultiTexImage1DEXT (GLenum texunit, GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLint border)
+{
+  uint32_t *a = r3d_put (OP_glCopyMultiTexImage1DEXT, 8);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) internalformat;
+  a[4] = (uint32_t) x;
+  a[5] = (uint32_t) y;
+  a[6] = (uint32_t) width;
+  a[7] = (uint32_t) border;
+}
+
+void
+glCopyMultiTexImage2DEXT (GLenum texunit, GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border)
+{
+  uint32_t *a = r3d_put (OP_glCopyMultiTexImage2DEXT, 9);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) internalformat;
+  a[4] = (uint32_t) x;
+  a[5] = (uint32_t) y;
+  a[6] = (uint32_t) width;
+  a[7] = (uint32_t) height;
+  a[8] = (uint32_t) border;
+}
+
+void
+glCopyMultiTexSubImage1DEXT (GLenum texunit, GLenum target, GLint level, GLint xoffset, GLint x, GLint y, GLsizei width)
+{
+  uint32_t *a = r3d_put (OP_glCopyMultiTexSubImage1DEXT, 7);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) xoffset;
+  a[4] = (uint32_t) x;
+  a[5] = (uint32_t) y;
+  a[6] = (uint32_t) width;
+}
+
+void
+glCopyMultiTexSubImage2DEXT (GLenum texunit, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height)
+{
+  uint32_t *a = r3d_put (OP_glCopyMultiTexSubImage2DEXT, 9);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) xoffset;
+  a[4] = (uint32_t) yoffset;
+  a[5] = (uint32_t) x;
+  a[6] = (uint32_t) y;
+  a[7] = (uint32_t) width;
+  a[8] = (uint32_t) height;
+}
+
+void
+glGetMultiTexParameterfvEXT (GLenum texunit, GLenum target, GLenum pname, GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glGetMultiTexParameterfvEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetMultiTexParameterivEXT (GLenum texunit, GLenum target, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetMultiTexParameterivEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetMultiTexLevelParameterfvEXT (GLenum texunit, GLenum target, GLint level, GLenum pname, GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glGetMultiTexLevelParameterfvEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetMultiTexLevelParameterivEXT (GLenum texunit, GLenum target, GLint level, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetMultiTexLevelParameterivEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glCopyMultiTexSubImage3DEXT (GLenum texunit, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLint x, GLint y, GLsizei width, GLsizei height)
+{
+  uint32_t *a = r3d_put (OP_glCopyMultiTexSubImage3DEXT, 10);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) level;
+  a[3] = (uint32_t) xoffset;
+  a[4] = (uint32_t) yoffset;
+  a[5] = (uint32_t) zoffset;
+  a[6] = (uint32_t) x;
+  a[7] = (uint32_t) y;
+  a[8] = (uint32_t) width;
+  a[9] = (uint32_t) height;
+}
+
+void
+glGetFloatIndexedvEXT (GLenum target, GLuint index, GLfloat * data)
+{
+  uint32_t *a = r3d_put (OP_glGetFloatIndexedvEXT, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (target));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (data)
+    memcpy (data, r, cnt * 4);
+}
+
+void
+glGetDoubleIndexedvEXT (GLenum target, GLuint index, GLdouble * data)
+{
+  uint32_t *a = r3d_put (OP_glGetDoubleIndexedvEXT, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (target));
+  if (cnt * 8 > sizeof r)
+    cnt = sizeof r / 8;
+  if (data)
+    memcpy (data, r, cnt * 8);
+}
+
+void
+glGetNamedBufferParameterivEXT (GLuint buffer, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetNamedBufferParameterivEXT, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) buffer;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glTextureBufferEXT (GLuint texture, GLenum target, GLenum internalformat, GLuint buffer)
+{
+  uint32_t *a = r3d_put (OP_glTextureBufferEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) internalformat;
+  a[3] = (uint32_t) buffer;
+}
+
+void
+glMultiTexBufferEXT (GLenum texunit, GLenum target, GLenum internalformat, GLuint buffer)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexBufferEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) internalformat;
+  a[3] = (uint32_t) buffer;
+}
+
+void
+glTextureParameterIivEXT (GLuint texture, GLenum target, GLenum pname, const GLint * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glTextureParameterIivEXT, f, 4, params, b0);
+}
+
+void
+glTextureParameterIuivEXT (GLuint texture, GLenum target, GLenum pname, const GLuint * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glTextureParameterIuivEXT, f, 4, params, b0);
+}
+
+void
+glGetTextureParameterIivEXT (GLuint texture, GLenum target, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetTextureParameterIivEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetTextureParameterIuivEXT (GLuint texture, GLenum target, GLenum pname, GLuint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetTextureParameterIuivEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glMultiTexParameterIivEXT (GLenum texunit, GLenum target, GLenum pname, const GLint * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glMultiTexParameterIivEXT, f, 4, params, b0);
+}
+
+void
+glMultiTexParameterIuivEXT (GLenum texunit, GLenum target, GLenum pname, const GLuint * params)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glMultiTexParameterIuivEXT, f, 4, params, b0);
+}
+
+void
+glGetMultiTexParameterIivEXT (GLenum texunit, GLenum target, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetMultiTexParameterIivEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetMultiTexParameterIuivEXT (GLenum texunit, GLenum target, GLenum pname, GLuint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetMultiTexParameterIuivEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glNamedProgramLocalParameters4fvEXT (GLuint program, GLenum target, GLuint index, GLsizei count, const GLfloat * params)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  a[3] = (uint32_t) count;
+  size_t b0 = params ? (size_t) r3d_nonneg ((count*4)) * 4 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glNamedProgramLocalParameters4fvEXT, f, 5, params, b0);
+}
+
+void
+glNamedProgramLocalParameterI4iEXT (GLuint program, GLenum target, GLuint index, GLint x, GLint y, GLint z, GLint w)
+{
+  uint32_t *a = r3d_put (OP_glNamedProgramLocalParameterI4iEXT, 7);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  a[3] = (uint32_t) x;
+  a[4] = (uint32_t) y;
+  a[5] = (uint32_t) z;
+  a[6] = (uint32_t) w;
+}
+
+void
+glNamedProgramLocalParameterI4ivEXT (GLuint program, GLenum target, GLuint index, const GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glNamedProgramLocalParameterI4ivEXT, 8);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  a[3] = 16;
+  memcpy (a + 4, params, 16);
+}
+
+void
+glNamedProgramLocalParametersI4ivEXT (GLuint program, GLenum target, GLuint index, GLsizei count, const GLint * params)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  a[3] = (uint32_t) count;
+  size_t b0 = params ? (size_t) r3d_nonneg ((count*4)) * 4 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glNamedProgramLocalParametersI4ivEXT, f, 5, params, b0);
+}
+
+void
+glNamedProgramLocalParameterI4uiEXT (GLuint program, GLenum target, GLuint index, GLuint x, GLuint y, GLuint z, GLuint w)
+{
+  uint32_t *a = r3d_put (OP_glNamedProgramLocalParameterI4uiEXT, 7);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  a[3] = (uint32_t) x;
+  a[4] = (uint32_t) y;
+  a[5] = (uint32_t) z;
+  a[6] = (uint32_t) w;
+}
+
+void
+glNamedProgramLocalParameterI4uivEXT (GLuint program, GLenum target, GLuint index, const GLuint * params)
+{
+  uint32_t *a = r3d_put (OP_glNamedProgramLocalParameterI4uivEXT, 8);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  a[3] = 16;
+  memcpy (a + 4, params, 16);
+}
+
+void
+glNamedProgramLocalParametersI4uivEXT (GLuint program, GLenum target, GLuint index, GLsizei count, const GLuint * params)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  a[3] = (uint32_t) count;
+  size_t b0 = params ? (size_t) r3d_nonneg ((count*4)) * 4 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glNamedProgramLocalParametersI4uivEXT, f, 5, params, b0);
+}
+
+void
+glGetNamedProgramLocalParameterIivEXT (GLuint program, GLenum target, GLuint index, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetNamedProgramLocalParameterIivEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (4);
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetNamedProgramLocalParameterIuivEXT (GLuint program, GLenum target, GLuint index, GLuint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetNamedProgramLocalParameterIuivEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (4);
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetFloati_vEXT (GLenum pname, GLuint index, GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glGetFloati_vEXT, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) pname;
+  a[1] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetDoublei_vEXT (GLenum pname, GLuint index, GLdouble * params)
+{
+  uint32_t *a = r3d_put (OP_glGetDoublei_vEXT, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) pname;
+  a[1] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 8 > sizeof r)
+    cnt = sizeof r / 8;
+  if (params)
+    memcpy (params, r, cnt * 8);
+}
+
+void
+glNamedProgramStringEXT (GLuint program, GLenum target, GLenum format, GLsizei len, const void * string)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) format;
+  a[3] = (uint32_t) len;
+  size_t b0 = string ? (size_t) r3d_nonneg ((len)) * 1 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glNamedProgramStringEXT, f, 5, string, b0);
+}
+
+void
+glNamedProgramLocalParameter4dEXT (GLuint program, GLenum target, GLuint index, GLdouble x, GLdouble y, GLdouble z, GLdouble w)
+{
+  uint32_t *a = r3d_put (OP_glNamedProgramLocalParameter4dEXT, 11);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  r3d_d2w (a + 3, x);
+  r3d_d2w (a + 5, y);
+  r3d_d2w (a + 7, z);
+  r3d_d2w (a + 9, w);
+}
+
+void
+glNamedProgramLocalParameter4dvEXT (GLuint program, GLenum target, GLuint index, const GLdouble * params)
+{
+  uint32_t *a = r3d_put (OP_glNamedProgramLocalParameter4dvEXT, 12);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  a[3] = 32;
+  memcpy (a + 4, params, 32);
+}
+
+void
+glNamedProgramLocalParameter4fEXT (GLuint program, GLenum target, GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w)
+{
+  uint32_t *a = r3d_put (OP_glNamedProgramLocalParameter4fEXT, 7);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  a[3] = r3d_f2u (x);
+  a[4] = r3d_f2u (y);
+  a[5] = r3d_f2u (z);
+  a[6] = r3d_f2u (w);
+}
+
+void
+glNamedProgramLocalParameter4fvEXT (GLuint program, GLenum target, GLuint index, const GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glNamedProgramLocalParameter4fvEXT, 8);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  a[3] = 16;
+  memcpy (a + 4, params, 16);
+}
+
+void
+glGetNamedProgramLocalParameterdvEXT (GLuint program, GLenum target, GLuint index, GLdouble * params)
+{
+  uint32_t *a = r3d_put (OP_glGetNamedProgramLocalParameterdvEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (4);
+  if (cnt * 8 > sizeof r)
+    cnt = sizeof r / 8;
+  if (params)
+    memcpy (params, r, cnt * 8);
+}
+
+void
+glGetNamedProgramLocalParameterfvEXT (GLuint program, GLenum target, GLuint index, GLfloat * params)
+{
+  uint32_t *a = r3d_put (OP_glGetNamedProgramLocalParameterfvEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) index;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (4);
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetNamedProgramivEXT (GLuint program, GLenum target, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetNamedProgramivEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (1);
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glNamedRenderbufferStorageEXT (GLuint renderbuffer, GLenum internalformat, GLsizei width, GLsizei height)
+{
+  uint32_t *a = r3d_put (OP_glNamedRenderbufferStorageEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) renderbuffer;
+  a[1] = (uint32_t) internalformat;
+  a[2] = (uint32_t) width;
+  a[3] = (uint32_t) height;
+}
+
+void
+glGetNamedRenderbufferParameterivEXT (GLuint renderbuffer, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetNamedRenderbufferParameterivEXT, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) renderbuffer;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glNamedRenderbufferStorageMultisampleEXT (GLuint renderbuffer, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height)
+{
+  uint32_t *a = r3d_put (OP_glNamedRenderbufferStorageMultisampleEXT, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) renderbuffer;
+  a[1] = (uint32_t) samples;
+  a[2] = (uint32_t) internalformat;
+  a[3] = (uint32_t) width;
+  a[4] = (uint32_t) height;
+}
+
+void
+glNamedRenderbufferStorageMultisampleCoverageEXT (GLuint renderbuffer, GLsizei coverageSamples, GLsizei colorSamples, GLenum internalformat, GLsizei width, GLsizei height)
+{
+  uint32_t *a = r3d_put (OP_glNamedRenderbufferStorageMultisampleCoverageEXT, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) renderbuffer;
+  a[1] = (uint32_t) coverageSamples;
+  a[2] = (uint32_t) colorSamples;
+  a[3] = (uint32_t) internalformat;
+  a[4] = (uint32_t) width;
+  a[5] = (uint32_t) height;
+}
+
+GLenum
+glCheckNamedFramebufferStatusEXT (GLuint framebuffer, GLenum target)
+{
+  uint32_t *a = r3d_put (OP_glCheckNamedFramebufferStatusEXT, 2);
+  if (!a)
+    return 0;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) target;
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLenum) r;
+}
+
+void
+glNamedFramebufferTexture1DEXT (GLuint framebuffer, GLenum attachment, GLenum textarget, GLuint texture, GLint level)
+{
+  uint32_t *a = r3d_put (OP_glNamedFramebufferTexture1DEXT, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) attachment;
+  a[2] = (uint32_t) textarget;
+  a[3] = (uint32_t) texture;
+  a[4] = (uint32_t) level;
+}
+
+void
+glNamedFramebufferTexture2DEXT (GLuint framebuffer, GLenum attachment, GLenum textarget, GLuint texture, GLint level)
+{
+  uint32_t *a = r3d_put (OP_glNamedFramebufferTexture2DEXT, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) attachment;
+  a[2] = (uint32_t) textarget;
+  a[3] = (uint32_t) texture;
+  a[4] = (uint32_t) level;
+}
+
+void
+glNamedFramebufferTexture3DEXT (GLuint framebuffer, GLenum attachment, GLenum textarget, GLuint texture, GLint level, GLint zoffset)
+{
+  uint32_t *a = r3d_put (OP_glNamedFramebufferTexture3DEXT, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) attachment;
+  a[2] = (uint32_t) textarget;
+  a[3] = (uint32_t) texture;
+  a[4] = (uint32_t) level;
+  a[5] = (uint32_t) zoffset;
+}
+
+void
+glNamedFramebufferRenderbufferEXT (GLuint framebuffer, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer)
+{
+  uint32_t *a = r3d_put (OP_glNamedFramebufferRenderbufferEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) attachment;
+  a[2] = (uint32_t) renderbuffertarget;
+  a[3] = (uint32_t) renderbuffer;
+}
+
+void
+glGetNamedFramebufferAttachmentParameterivEXT (GLuint framebuffer, GLenum attachment, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetNamedFramebufferAttachmentParameterivEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) attachment;
+  a[2] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGenerateTextureMipmapEXT (GLuint texture, GLenum target)
+{
+  uint32_t *a = r3d_put (OP_glGenerateTextureMipmapEXT, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+}
+
+void
+glGenerateMultiTexMipmapEXT (GLenum texunit, GLenum target)
+{
+  uint32_t *a = r3d_put (OP_glGenerateMultiTexMipmapEXT, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+}
+
+void
+glFramebufferDrawBufferEXT (GLuint framebuffer, GLenum mode)
+{
+  uint32_t *a = r3d_put (OP_glFramebufferDrawBufferEXT, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) mode;
+}
+
+void
+glFramebufferDrawBuffersEXT (GLuint framebuffer, GLsizei n, const GLenum * bufs)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) n;
+  size_t b0 = bufs ? (size_t) r3d_nonneg ((n)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glFramebufferDrawBuffersEXT, f, 3, bufs, b0);
+}
+
+void
+glFramebufferReadBufferEXT (GLuint framebuffer, GLenum mode)
+{
+  uint32_t *a = r3d_put (OP_glFramebufferReadBufferEXT, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) mode;
+}
+
+void
+glGetFramebufferParameterivEXT (GLuint framebuffer, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetFramebufferParameterivEXT, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glNamedCopyBufferSubDataEXT (GLuint readBuffer, GLuint writeBuffer, GLintptr readOffset, GLintptr writeOffset, GLsizeiptr size)
+{
+  uint32_t *a = r3d_put (OP_glNamedCopyBufferSubDataEXT, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) readBuffer;
+  a[1] = (uint32_t) writeBuffer;
+  a[2] = (uint32_t) readOffset;
+  a[3] = (uint32_t) writeOffset;
+  a[4] = (uint32_t) size;
+}
+
+void
+glNamedFramebufferTextureEXT (GLuint framebuffer, GLenum attachment, GLuint texture, GLint level)
+{
+  uint32_t *a = r3d_put (OP_glNamedFramebufferTextureEXT, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) attachment;
+  a[2] = (uint32_t) texture;
+  a[3] = (uint32_t) level;
+}
+
+void
+glNamedFramebufferTextureLayerEXT (GLuint framebuffer, GLenum attachment, GLuint texture, GLint level, GLint layer)
+{
+  uint32_t *a = r3d_put (OP_glNamedFramebufferTextureLayerEXT, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) attachment;
+  a[2] = (uint32_t) texture;
+  a[3] = (uint32_t) level;
+  a[4] = (uint32_t) layer;
+}
+
+void
+glNamedFramebufferTextureFaceEXT (GLuint framebuffer, GLenum attachment, GLuint texture, GLint level, GLenum face)
+{
+  uint32_t *a = r3d_put (OP_glNamedFramebufferTextureFaceEXT, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) attachment;
+  a[2] = (uint32_t) texture;
+  a[3] = (uint32_t) level;
+  a[4] = (uint32_t) face;
+}
+
+void
+glTextureRenderbufferEXT (GLuint texture, GLenum target, GLuint renderbuffer)
+{
+  uint32_t *a = r3d_put (OP_glTextureRenderbufferEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) renderbuffer;
+}
+
+void
+glMultiTexRenderbufferEXT (GLenum texunit, GLenum target, GLuint renderbuffer)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexRenderbufferEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texunit;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) renderbuffer;
+}
+
+void
+glGetVertexArrayIntegervEXT (GLuint vaobj, GLenum pname, GLint * param)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) vaobj;
+  a[1] = (uint32_t) pname;
+  size_t b0 = param ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glGetVertexArrayIntegervEXT, f, 3, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (param && got)
+    memcpy (param, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glGetVertexArrayIntegeri_vEXT (GLuint vaobj, GLuint index, GLenum pname, GLint * param)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) vaobj;
+  a[1] = (uint32_t) index;
+  a[2] = (uint32_t) pname;
+  size_t b0 = param ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glGetVertexArrayIntegeri_vEXT, f, 4, 0, 0);
+  size_t room = 4 + 4 + (b0 + 3) / 4 * 4;
+  uint32_t *r = calloc (1, room);
+  if (!r)
+    return;
+  r3d_sync (r, room);
+  const char *d = (const char *) (r + 1);
+  uint32_t got;
+  memcpy (&got, d, 4);
+  d += 4;
+  if (param && got)
+    memcpy (param, d, got < b0 ? got : b0);
+  d += (b0 + 3) / 4 * 4;
+  free (r);
+}
+
+void
+glNamedBufferStorageEXT (GLuint buffer, GLsizeiptr size, const void * data, GLbitfield flags)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) buffer;
+  a[1] = (uint32_t) size;
+  a[2] = (uint32_t) flags;
+  size_t b0 = data ? (size_t) r3d_nonneg ((size)) * 1 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glNamedBufferStorageEXT, f, 4, data, b0);
+}
+
+void
+glNamedFramebufferParameteriEXT (GLuint framebuffer, GLenum pname, GLint param)
+{
+  uint32_t *a = r3d_put (OP_glNamedFramebufferParameteriEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) pname;
+  a[2] = (uint32_t) param;
+}
+
+void
+glGetNamedFramebufferParameterivEXT (GLuint framebuffer, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetNamedFramebufferParameterivEXT, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) framebuffer;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glTextureBufferRangeEXT (GLuint texture, GLenum target, GLenum internalformat, GLuint buffer, GLintptr offset, GLsizeiptr size)
+{
+  uint32_t *a = r3d_put (OP_glTextureBufferRangeEXT, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) internalformat;
+  a[3] = (uint32_t) buffer;
+  a[4] = (uint32_t) offset;
+  a[5] = (uint32_t) size;
+}
+
+void
+glTextureStorage1DEXT (GLuint texture, GLenum target, GLsizei levels, GLenum internalformat, GLsizei width)
+{
+  uint32_t *a = r3d_put (OP_glTextureStorage1DEXT, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) levels;
+  a[3] = (uint32_t) internalformat;
+  a[4] = (uint32_t) width;
+}
+
+void
+glTextureStorage2DEXT (GLuint texture, GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height)
+{
+  uint32_t *a = r3d_put (OP_glTextureStorage2DEXT, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) levels;
+  a[3] = (uint32_t) internalformat;
+  a[4] = (uint32_t) width;
+  a[5] = (uint32_t) height;
+}
+
+void
+glTextureStorage3DEXT (GLuint texture, GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth)
+{
+  uint32_t *a = r3d_put (OP_glTextureStorage3DEXT, 7);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) levels;
+  a[3] = (uint32_t) internalformat;
+  a[4] = (uint32_t) width;
+  a[5] = (uint32_t) height;
+  a[6] = (uint32_t) depth;
+}
+
+void
+glTextureStorage2DMultisampleEXT (GLuint texture, GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations)
+{
+  uint32_t *a = r3d_put (OP_glTextureStorage2DMultisampleEXT, 7);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) samples;
+  a[3] = (uint32_t) internalformat;
+  a[4] = (uint32_t) width;
+  a[5] = (uint32_t) height;
+  a[6] = (uint32_t) fixedsamplelocations;
+}
+
+void
+glTextureStorage3DMultisampleEXT (GLuint texture, GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLboolean fixedsamplelocations)
+{
+  uint32_t *a = r3d_put (OP_glTextureStorage3DMultisampleEXT, 8);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) target;
+  a[2] = (uint32_t) samples;
+  a[3] = (uint32_t) internalformat;
+  a[4] = (uint32_t) width;
+  a[5] = (uint32_t) height;
+  a[6] = (uint32_t) depth;
+  a[7] = (uint32_t) fixedsamplelocations;
+}
+
+void
+glVertexArrayBindVertexBufferEXT (GLuint vaobj, GLuint bindingindex, GLuint buffer, GLintptr offset, GLsizei stride)
+{
+  uint32_t *a = r3d_put (OP_glVertexArrayBindVertexBufferEXT, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) vaobj;
+  a[1] = (uint32_t) bindingindex;
+  a[2] = (uint32_t) buffer;
+  a[3] = (uint32_t) offset;
+  a[4] = (uint32_t) stride;
+}
+
+void
+glVertexArrayVertexAttribFormatEXT (GLuint vaobj, GLuint attribindex, GLint size, GLenum type, GLboolean normalized, GLuint relativeoffset)
+{
+  uint32_t *a = r3d_put (OP_glVertexArrayVertexAttribFormatEXT, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) vaobj;
+  a[1] = (uint32_t) attribindex;
+  a[2] = (uint32_t) size;
+  a[3] = (uint32_t) type;
+  a[4] = (uint32_t) normalized;
+  a[5] = (uint32_t) relativeoffset;
+}
+
+void
+glVertexArrayVertexAttribIFormatEXT (GLuint vaobj, GLuint attribindex, GLint size, GLenum type, GLuint relativeoffset)
+{
+  uint32_t *a = r3d_put (OP_glVertexArrayVertexAttribIFormatEXT, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) vaobj;
+  a[1] = (uint32_t) attribindex;
+  a[2] = (uint32_t) size;
+  a[3] = (uint32_t) type;
+  a[4] = (uint32_t) relativeoffset;
+}
+
+void
+glVertexArrayVertexAttribLFormatEXT (GLuint vaobj, GLuint attribindex, GLint size, GLenum type, GLuint relativeoffset)
+{
+  uint32_t *a = r3d_put (OP_glVertexArrayVertexAttribLFormatEXT, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) vaobj;
+  a[1] = (uint32_t) attribindex;
+  a[2] = (uint32_t) size;
+  a[3] = (uint32_t) type;
+  a[4] = (uint32_t) relativeoffset;
+}
+
+void
+glVertexArrayVertexAttribBindingEXT (GLuint vaobj, GLuint attribindex, GLuint bindingindex)
+{
+  uint32_t *a = r3d_put (OP_glVertexArrayVertexAttribBindingEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) vaobj;
+  a[1] = (uint32_t) attribindex;
+  a[2] = (uint32_t) bindingindex;
+}
+
+void
+glVertexArrayVertexBindingDivisorEXT (GLuint vaobj, GLuint bindingindex, GLuint divisor)
+{
+  uint32_t *a = r3d_put (OP_glVertexArrayVertexBindingDivisorEXT, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) vaobj;
+  a[1] = (uint32_t) bindingindex;
+  a[2] = (uint32_t) divisor;
+}
+
+void
+glVertexArrayVertexAttribLOffsetEXT (GLuint vaobj, GLuint buffer, GLuint index, GLint size, GLenum type, GLsizei stride, GLintptr offset)
+{
+  uint32_t *a = r3d_put (OP_glVertexArrayVertexAttribLOffsetEXT, 7);
+  if (!a)
+    return;
+  a[0] = (uint32_t) vaobj;
+  a[1] = (uint32_t) buffer;
+  a[2] = (uint32_t) index;
+  a[3] = (uint32_t) size;
+  a[4] = (uint32_t) type;
+  a[5] = (uint32_t) stride;
+  a[6] = (uint32_t) offset;
+}
+
+void
+glTexturePageCommitmentEXT (GLuint texture, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLboolean commit)
+{
+  uint32_t *a = r3d_put (OP_glTexturePageCommitmentEXT, 9);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) level;
+  a[2] = (uint32_t) xoffset;
+  a[3] = (uint32_t) yoffset;
+  a[4] = (uint32_t) zoffset;
+  a[5] = (uint32_t) width;
+  a[6] = (uint32_t) height;
+  a[7] = (uint32_t) depth;
+  a[8] = (uint32_t) commit;
+}
+
 const struct r3d_gl_function r3d_gl_functions[] = {
   { "glCullFace", (void (*) (void)) glCullFace },
   { "glFrontFace", (void (*) (void)) glFrontFace },
@@ -7930,6 +13297,491 @@ const struct r3d_gl_function r3d_gl_functions[] = {
   { "glEndConditionalRender", (void (*) (void)) glEndConditionalRender },
   { "glGetProgramBinary", (void (*) (void)) glGetProgramBinary },
   { "glProgramBinary", (void (*) (void)) glProgramBinary },
+  { "glColorMaski", (void (*) (void)) glColorMaski },
+  { "glGetBooleani_v", (void (*) (void)) glGetBooleani_v },
+  { "glGetIntegeri_v", (void (*) (void)) glGetIntegeri_v },
+  { "glEnablei", (void (*) (void)) glEnablei },
+  { "glDisablei", (void (*) (void)) glDisablei },
+  { "glIsEnabledi", (void (*) (void)) glIsEnabledi },
+  { "glBeginTransformFeedback", (void (*) (void)) glBeginTransformFeedback },
+  { "glEndTransformFeedback", (void (*) (void)) glEndTransformFeedback },
+  { "glBindBufferRange", (void (*) (void)) glBindBufferRange },
+  { "glBindBufferBase", (void (*) (void)) glBindBufferBase },
+  { "glTransformFeedbackVaryings", (void (*) (void)) glTransformFeedbackVaryings },
+  { "glGetTransformFeedbackVarying", (void (*) (void)) glGetTransformFeedbackVarying },
+  { "glClampColor", (void (*) (void)) glClampColor },
+  { "glVertexAttribIPointer", (void (*) (void)) glVertexAttribIPointer },
+  { "glGetVertexAttribIiv", (void (*) (void)) glGetVertexAttribIiv },
+  { "glGetVertexAttribIuiv", (void (*) (void)) glGetVertexAttribIuiv },
+  { "glVertexAttribI1i", (void (*) (void)) glVertexAttribI1i },
+  { "glVertexAttribI2i", (void (*) (void)) glVertexAttribI2i },
+  { "glVertexAttribI3i", (void (*) (void)) glVertexAttribI3i },
+  { "glVertexAttribI4i", (void (*) (void)) glVertexAttribI4i },
+  { "glVertexAttribI1ui", (void (*) (void)) glVertexAttribI1ui },
+  { "glVertexAttribI2ui", (void (*) (void)) glVertexAttribI2ui },
+  { "glVertexAttribI3ui", (void (*) (void)) glVertexAttribI3ui },
+  { "glVertexAttribI4ui", (void (*) (void)) glVertexAttribI4ui },
+  { "glVertexAttribI1iv", (void (*) (void)) glVertexAttribI1iv },
+  { "glVertexAttribI2iv", (void (*) (void)) glVertexAttribI2iv },
+  { "glVertexAttribI3iv", (void (*) (void)) glVertexAttribI3iv },
+  { "glVertexAttribI4iv", (void (*) (void)) glVertexAttribI4iv },
+  { "glVertexAttribI1uiv", (void (*) (void)) glVertexAttribI1uiv },
+  { "glVertexAttribI2uiv", (void (*) (void)) glVertexAttribI2uiv },
+  { "glVertexAttribI3uiv", (void (*) (void)) glVertexAttribI3uiv },
+  { "glVertexAttribI4uiv", (void (*) (void)) glVertexAttribI4uiv },
+  { "glVertexAttribI4bv", (void (*) (void)) glVertexAttribI4bv },
+  { "glVertexAttribI4sv", (void (*) (void)) glVertexAttribI4sv },
+  { "glVertexAttribI4ubv", (void (*) (void)) glVertexAttribI4ubv },
+  { "glVertexAttribI4usv", (void (*) (void)) glVertexAttribI4usv },
+  { "glGetUniformuiv", (void (*) (void)) glGetUniformuiv },
+  { "glBindFragDataLocation", (void (*) (void)) glBindFragDataLocation },
+  { "glGetFragDataLocation", (void (*) (void)) glGetFragDataLocation },
+  { "glUniform1ui", (void (*) (void)) glUniform1ui },
+  { "glUniform2ui", (void (*) (void)) glUniform2ui },
+  { "glUniform3ui", (void (*) (void)) glUniform3ui },
+  { "glUniform4ui", (void (*) (void)) glUniform4ui },
+  { "glUniform1uiv", (void (*) (void)) glUniform1uiv },
+  { "glUniform2uiv", (void (*) (void)) glUniform2uiv },
+  { "glUniform3uiv", (void (*) (void)) glUniform3uiv },
+  { "glUniform4uiv", (void (*) (void)) glUniform4uiv },
+  { "glClearBufferiv", (void (*) (void)) glClearBufferiv },
+  { "glClearBufferuiv", (void (*) (void)) glClearBufferuiv },
+  { "glClearBufferfv", (void (*) (void)) glClearBufferfv },
+  { "glClearBufferfi", (void (*) (void)) glClearBufferfi },
+  { "glGetStringi", (void (*) (void)) glGetStringi },
+  { "glTexBuffer", (void (*) (void)) glTexBuffer },
+  { "glPrimitiveRestartIndex", (void (*) (void)) glPrimitiveRestartIndex },
+  { "glCopyBufferSubData", (void (*) (void)) glCopyBufferSubData },
+  { "glGetUniformIndices", (void (*) (void)) glGetUniformIndices },
+  { "glGetActiveUniformsiv", (void (*) (void)) glGetActiveUniformsiv },
+  { "glGetActiveUniformName", (void (*) (void)) glGetActiveUniformName },
+  { "glGetUniformBlockIndex", (void (*) (void)) glGetUniformBlockIndex },
+  { "glGetActiveUniformBlockiv", (void (*) (void)) glGetActiveUniformBlockiv },
+  { "glGetActiveUniformBlockName", (void (*) (void)) glGetActiveUniformBlockName },
+  { "glUniformBlockBinding", (void (*) (void)) glUniformBlockBinding },
+  { "glFenceSync", (void (*) (void)) glFenceSync },
+  { "glIsSync", (void (*) (void)) glIsSync },
+  { "glDeleteSync", (void (*) (void)) glDeleteSync },
+  { "glClientWaitSync", (void (*) (void)) glClientWaitSync },
+  { "glWaitSync", (void (*) (void)) glWaitSync },
+  { "glGetInteger64v", (void (*) (void)) glGetInteger64v },
+  { "glGetSynciv", (void (*) (void)) glGetSynciv },
+  { "glGetInteger64i_v", (void (*) (void)) glGetInteger64i_v },
+  { "glGetBufferParameteri64v", (void (*) (void)) glGetBufferParameteri64v },
+  { "glGenSamplers", (void (*) (void)) glGenSamplers },
+  { "glDeleteSamplers", (void (*) (void)) glDeleteSamplers },
+  { "glIsSampler", (void (*) (void)) glIsSampler },
+  { "glBindSampler", (void (*) (void)) glBindSampler },
+  { "glSamplerParameteri", (void (*) (void)) glSamplerParameteri },
+  { "glSamplerParameteriv", (void (*) (void)) glSamplerParameteriv },
+  { "glSamplerParameterf", (void (*) (void)) glSamplerParameterf },
+  { "glSamplerParameterfv", (void (*) (void)) glSamplerParameterfv },
+  { "glGetSamplerParameteriv", (void (*) (void)) glGetSamplerParameteriv },
+  { "glGetSamplerParameterfv", (void (*) (void)) glGetSamplerParameterfv },
+  { "glVertexAttribDivisor", (void (*) (void)) glVertexAttribDivisor },
+  { "glBindTransformFeedback", (void (*) (void)) glBindTransformFeedback },
+  { "glDeleteTransformFeedbacks", (void (*) (void)) glDeleteTransformFeedbacks },
+  { "glGenTransformFeedbacks", (void (*) (void)) glGenTransformFeedbacks },
+  { "glIsTransformFeedback", (void (*) (void)) glIsTransformFeedback },
+  { "glPauseTransformFeedback", (void (*) (void)) glPauseTransformFeedback },
+  { "glResumeTransformFeedback", (void (*) (void)) glResumeTransformFeedback },
+  { "glInvalidateFramebuffer", (void (*) (void)) glInvalidateFramebuffer },
+  { "glInvalidateSubFramebuffer", (void (*) (void)) glInvalidateSubFramebuffer },
+  { "glTexStorage2D", (void (*) (void)) glTexStorage2D },
+  { "glTexStorage3D", (void (*) (void)) glTexStorage3D },
+  { "glGetInternalformativ", (void (*) (void)) glGetInternalformativ },
+  { "glDispatchCompute", (void (*) (void)) glDispatchCompute },
+  { "glDispatchComputeIndirect", (void (*) (void)) glDispatchComputeIndirect },
+  { "glDrawArraysIndirect", (void (*) (void)) glDrawArraysIndirect },
+  { "glDrawElementsIndirect", (void (*) (void)) glDrawElementsIndirect },
+  { "glFramebufferParameteri", (void (*) (void)) glFramebufferParameteri },
+  { "glGetFramebufferParameteriv", (void (*) (void)) glGetFramebufferParameteriv },
+  { "glGetProgramInterfaceiv", (void (*) (void)) glGetProgramInterfaceiv },
+  { "glGetProgramResourceIndex", (void (*) (void)) glGetProgramResourceIndex },
+  { "glGetProgramResourceName", (void (*) (void)) glGetProgramResourceName },
+  { "glGetProgramResourceiv", (void (*) (void)) glGetProgramResourceiv },
+  { "glGetProgramResourceLocation", (void (*) (void)) glGetProgramResourceLocation },
+  { "glBindImageTexture", (void (*) (void)) glBindImageTexture },
+  { "glMemoryBarrier", (void (*) (void)) glMemoryBarrier },
+  { "glMemoryBarrierByRegion", (void (*) (void)) glMemoryBarrierByRegion },
+  { "glTexStorage2DMultisample", (void (*) (void)) glTexStorage2DMultisample },
+  { "glGetMultisamplefv", (void (*) (void)) glGetMultisamplefv },
+  { "glSampleMaski", (void (*) (void)) glSampleMaski },
+  { "glBindVertexBuffer", (void (*) (void)) glBindVertexBuffer },
+  { "glVertexAttribFormat", (void (*) (void)) glVertexAttribFormat },
+  { "glVertexAttribIFormat", (void (*) (void)) glVertexAttribIFormat },
+  { "glVertexAttribBinding", (void (*) (void)) glVertexAttribBinding },
+  { "glVertexBindingDivisor", (void (*) (void)) glVertexBindingDivisor },
+  { "glObjectPurgeableAPPLE", (void (*) (void)) glObjectPurgeableAPPLE },
+  { "glObjectUnpurgeableAPPLE", (void (*) (void)) glObjectUnpurgeableAPPLE },
+  { "glGetObjectParameterivAPPLE", (void (*) (void)) glGetObjectParameterivAPPLE },
+  { "glClearBufferData", (void (*) (void)) glClearBufferData },
+  { "glClearBufferSubData", (void (*) (void)) glClearBufferSubData },
+  { "glProgramStringARB", (void (*) (void)) glProgramStringARB },
+  { "glBindProgramARB", (void (*) (void)) glBindProgramARB },
+  { "glDeleteProgramsARB", (void (*) (void)) glDeleteProgramsARB },
+  { "glGenProgramsARB", (void (*) (void)) glGenProgramsARB },
+  { "glProgramEnvParameter4dARB", (void (*) (void)) glProgramEnvParameter4dARB },
+  { "glProgramEnvParameter4dvARB", (void (*) (void)) glProgramEnvParameter4dvARB },
+  { "glProgramEnvParameter4fARB", (void (*) (void)) glProgramEnvParameter4fARB },
+  { "glProgramEnvParameter4fvARB", (void (*) (void)) glProgramEnvParameter4fvARB },
+  { "glProgramLocalParameter4dARB", (void (*) (void)) glProgramLocalParameter4dARB },
+  { "glProgramLocalParameter4dvARB", (void (*) (void)) glProgramLocalParameter4dvARB },
+  { "glProgramLocalParameter4fARB", (void (*) (void)) glProgramLocalParameter4fARB },
+  { "glProgramLocalParameter4fvARB", (void (*) (void)) glProgramLocalParameter4fvARB },
+  { "glGetProgramEnvParameterdvARB", (void (*) (void)) glGetProgramEnvParameterdvARB },
+  { "glGetProgramEnvParameterfvARB", (void (*) (void)) glGetProgramEnvParameterfvARB },
+  { "glGetProgramLocalParameterdvARB", (void (*) (void)) glGetProgramLocalParameterdvARB },
+  { "glGetProgramLocalParameterfvARB", (void (*) (void)) glGetProgramLocalParameterfvARB },
+  { "glGetProgramivARB", (void (*) (void)) glGetProgramivARB },
+  { "glGetProgramStringARB", (void (*) (void)) glGetProgramStringARB },
+  { "glGetTextureSubImage", (void (*) (void)) glGetTextureSubImage },
+  { "glGetCompressedTextureSubImage", (void (*) (void)) glGetCompressedTextureSubImage },
+  { "glInvalidateTexSubImage", (void (*) (void)) glInvalidateTexSubImage },
+  { "glInvalidateTexImage", (void (*) (void)) glInvalidateTexImage },
+  { "glInvalidateBufferSubData", (void (*) (void)) glInvalidateBufferSubData },
+  { "glInvalidateBufferData", (void (*) (void)) glInvalidateBufferData },
+  { "glBindBuffersBase", (void (*) (void)) glBindBuffersBase },
+  { "glBindBuffersRange", (void (*) (void)) glBindBuffersRange },
+  { "glBindTextures", (void (*) (void)) glBindTextures },
+  { "glBindSamplers", (void (*) (void)) glBindSamplers },
+  { "glBindImageTextures", (void (*) (void)) glBindImageTextures },
+  { "glBindVertexBuffers", (void (*) (void)) glBindVertexBuffers },
+  { "glGetProgramResourceLocationIndex", (void (*) (void)) glGetProgramResourceLocationIndex },
+  { "glProvokingVertex", (void (*) (void)) glProvokingVertex },
+  { "glGetGraphicsResetStatus", (void (*) (void)) glGetGraphicsResetStatus },
+  { "glGetnTexImage", (void (*) (void)) glGetnTexImage },
+  { "glReadnPixels", (void (*) (void)) glReadnPixels },
+  { "glGetnCompressedTexImage", (void (*) (void)) glGetnCompressedTexImage },
+  { "glGetnUniformfv", (void (*) (void)) glGetnUniformfv },
+  { "glGetnUniformiv", (void (*) (void)) glGetnUniformiv },
+  { "glGetnUniformuiv", (void (*) (void)) glGetnUniformuiv },
+  { "glGetnUniformdv", (void (*) (void)) glGetnUniformdv },
+  { "glGetnMapdv", (void (*) (void)) glGetnMapdv },
+  { "glGetnMapfv", (void (*) (void)) glGetnMapfv },
+  { "glGetnMapiv", (void (*) (void)) glGetnMapiv },
+  { "glGetnPixelMapfv", (void (*) (void)) glGetnPixelMapfv },
+  { "glGetnPixelMapuiv", (void (*) (void)) glGetnPixelMapuiv },
+  { "glGetnPixelMapusv", (void (*) (void)) glGetnPixelMapusv },
+  { "glGetnPolygonStipple", (void (*) (void)) glGetnPolygonStipple },
+  { "glGetnColorTable", (void (*) (void)) glGetnColorTable },
+  { "glGetnConvolutionFilter", (void (*) (void)) glGetnConvolutionFilter },
+  { "glGetnSeparableFilter", (void (*) (void)) glGetnSeparableFilter },
+  { "glGetnHistogram", (void (*) (void)) glGetnHistogram },
+  { "glGetnMinmax", (void (*) (void)) glGetnMinmax },
+  { "glProgramUniform1d", (void (*) (void)) glProgramUniform1d },
+  { "glProgramUniform1dv", (void (*) (void)) glProgramUniform1dv },
+  { "glProgramUniform2d", (void (*) (void)) glProgramUniform2d },
+  { "glProgramUniform2dv", (void (*) (void)) glProgramUniform2dv },
+  { "glProgramUniform3d", (void (*) (void)) glProgramUniform3d },
+  { "glProgramUniform3dv", (void (*) (void)) glProgramUniform3dv },
+  { "glProgramUniform4d", (void (*) (void)) glProgramUniform4d },
+  { "glProgramUniform4dv", (void (*) (void)) glProgramUniform4dv },
+  { "glProgramUniformMatrix2dv", (void (*) (void)) glProgramUniformMatrix2dv },
+  { "glProgramUniformMatrix3dv", (void (*) (void)) glProgramUniformMatrix3dv },
+  { "glProgramUniformMatrix4dv", (void (*) (void)) glProgramUniformMatrix4dv },
+  { "glProgramUniformMatrix2x3dv", (void (*) (void)) glProgramUniformMatrix2x3dv },
+  { "glProgramUniformMatrix3x2dv", (void (*) (void)) glProgramUniformMatrix3x2dv },
+  { "glProgramUniformMatrix2x4dv", (void (*) (void)) glProgramUniformMatrix2x4dv },
+  { "glProgramUniformMatrix4x2dv", (void (*) (void)) glProgramUniformMatrix4x2dv },
+  { "glProgramUniformMatrix3x4dv", (void (*) (void)) glProgramUniformMatrix3x4dv },
+  { "glProgramUniformMatrix4x3dv", (void (*) (void)) glProgramUniformMatrix4x3dv },
+  { "glDeleteObjectARB", (void (*) (void)) glDeleteObjectARB },
+  { "glGetHandleARB", (void (*) (void)) glGetHandleARB },
+  { "glGetObjectParameterfvARB", (void (*) (void)) glGetObjectParameterfvARB },
+  { "glGetObjectParameterivARB", (void (*) (void)) glGetObjectParameterivARB },
+  { "glGetInfoLogARB", (void (*) (void)) glGetInfoLogARB },
+  { "glGetAttachedObjectsARB", (void (*) (void)) glGetAttachedObjectsARB },
+  { "glNamedStringARB", (void (*) (void)) glNamedStringARB },
+  { "glDeleteNamedStringARB", (void (*) (void)) glDeleteNamedStringARB },
+  { "glCompileShaderIncludeARB", (void (*) (void)) glCompileShaderIncludeARB },
+  { "glIsNamedStringARB", (void (*) (void)) glIsNamedStringARB },
+  { "glGetNamedStringARB", (void (*) (void)) glGetNamedStringARB },
+  { "glGetNamedStringivARB", (void (*) (void)) glGetNamedStringivARB },
+  { "glTexStorage1D", (void (*) (void)) glTexStorage1D },
+  { "glVertexAttribLFormat", (void (*) (void)) glVertexAttribLFormat },
+  { "glGenFragmentShadersATI", (void (*) (void)) glGenFragmentShadersATI },
+  { "glBindFragmentShaderATI", (void (*) (void)) glBindFragmentShaderATI },
+  { "glDeleteFragmentShaderATI", (void (*) (void)) glDeleteFragmentShaderATI },
+  { "glBeginFragmentShaderATI", (void (*) (void)) glBeginFragmentShaderATI },
+  { "glEndFragmentShaderATI", (void (*) (void)) glEndFragmentShaderATI },
+  { "glPassTexCoordATI", (void (*) (void)) glPassTexCoordATI },
+  { "glSampleMapATI", (void (*) (void)) glSampleMapATI },
+  { "glColorFragmentOp1ATI", (void (*) (void)) glColorFragmentOp1ATI },
+  { "glColorFragmentOp2ATI", (void (*) (void)) glColorFragmentOp2ATI },
+  { "glColorFragmentOp3ATI", (void (*) (void)) glColorFragmentOp3ATI },
+  { "glAlphaFragmentOp1ATI", (void (*) (void)) glAlphaFragmentOp1ATI },
+  { "glAlphaFragmentOp2ATI", (void (*) (void)) glAlphaFragmentOp2ATI },
+  { "glAlphaFragmentOp3ATI", (void (*) (void)) glAlphaFragmentOp3ATI },
+  { "glSetFragmentShaderConstantATI", (void (*) (void)) glSetFragmentShaderConstantATI },
+  { "glLockArraysEXT", (void (*) (void)) glLockArraysEXT },
+  { "glUnlockArraysEXT", (void (*) (void)) glUnlockArraysEXT },
+  { "glDepthBoundsEXT", (void (*) (void)) glDepthBoundsEXT },
+  { "glProgramEnvParameters4fvEXT", (void (*) (void)) glProgramEnvParameters4fvEXT },
+  { "glProgramLocalParameters4fvEXT", (void (*) (void)) glProgramLocalParameters4fvEXT },
+  { "glActiveStencilFaceEXT", (void (*) (void)) glActiveStencilFaceEXT },
+  { "glColorPointerEXT", (void (*) (void)) glColorPointerEXT },
+  { "glEdgeFlagPointerEXT", (void (*) (void)) glEdgeFlagPointerEXT },
+  { "glIndexPointerEXT", (void (*) (void)) glIndexPointerEXT },
+  { "glNormalPointerEXT", (void (*) (void)) glNormalPointerEXT },
+  { "glTexCoordPointerEXT", (void (*) (void)) glTexCoordPointerEXT },
+  { "glVertexPointerEXT", (void (*) (void)) glVertexPointerEXT },
+  { "glMultiModeDrawArraysIBM", (void (*) (void)) glMultiModeDrawArraysIBM },
+  { "glMultiModeDrawElementsIBM", (void (*) (void)) glMultiModeDrawElementsIBM },
+  { "glWindowPos4dMESA", (void (*) (void)) glWindowPos4dMESA },
+  { "glWindowPos4dvMESA", (void (*) (void)) glWindowPos4dvMESA },
+  { "glWindowPos4fMESA", (void (*) (void)) glWindowPos4fMESA },
+  { "glWindowPos4fvMESA", (void (*) (void)) glWindowPos4fvMESA },
+  { "glWindowPos4iMESA", (void (*) (void)) glWindowPos4iMESA },
+  { "glWindowPos4ivMESA", (void (*) (void)) glWindowPos4ivMESA },
+  { "glWindowPos4sMESA", (void (*) (void)) glWindowPos4sMESA },
+  { "glWindowPos4svMESA", (void (*) (void)) glWindowPos4svMESA },
+  { "glVertex2hNV", (void (*) (void)) glVertex2hNV },
+  { "glVertex2hvNV", (void (*) (void)) glVertex2hvNV },
+  { "glVertex3hNV", (void (*) (void)) glVertex3hNV },
+  { "glVertex3hvNV", (void (*) (void)) glVertex3hvNV },
+  { "glVertex4hNV", (void (*) (void)) glVertex4hNV },
+  { "glVertex4hvNV", (void (*) (void)) glVertex4hvNV },
+  { "glNormal3hNV", (void (*) (void)) glNormal3hNV },
+  { "glNormal3hvNV", (void (*) (void)) glNormal3hvNV },
+  { "glColor3hNV", (void (*) (void)) glColor3hNV },
+  { "glColor3hvNV", (void (*) (void)) glColor3hvNV },
+  { "glColor4hNV", (void (*) (void)) glColor4hNV },
+  { "glColor4hvNV", (void (*) (void)) glColor4hvNV },
+  { "glTexCoord1hNV", (void (*) (void)) glTexCoord1hNV },
+  { "glTexCoord1hvNV", (void (*) (void)) glTexCoord1hvNV },
+  { "glTexCoord2hNV", (void (*) (void)) glTexCoord2hNV },
+  { "glTexCoord2hvNV", (void (*) (void)) glTexCoord2hvNV },
+  { "glTexCoord3hNV", (void (*) (void)) glTexCoord3hNV },
+  { "glTexCoord3hvNV", (void (*) (void)) glTexCoord3hvNV },
+  { "glTexCoord4hNV", (void (*) (void)) glTexCoord4hNV },
+  { "glTexCoord4hvNV", (void (*) (void)) glTexCoord4hvNV },
+  { "glMultiTexCoord1hNV", (void (*) (void)) glMultiTexCoord1hNV },
+  { "glMultiTexCoord1hvNV", (void (*) (void)) glMultiTexCoord1hvNV },
+  { "glMultiTexCoord2hNV", (void (*) (void)) glMultiTexCoord2hNV },
+  { "glMultiTexCoord2hvNV", (void (*) (void)) glMultiTexCoord2hvNV },
+  { "glMultiTexCoord3hNV", (void (*) (void)) glMultiTexCoord3hNV },
+  { "glMultiTexCoord3hvNV", (void (*) (void)) glMultiTexCoord3hvNV },
+  { "glMultiTexCoord4hNV", (void (*) (void)) glMultiTexCoord4hNV },
+  { "glMultiTexCoord4hvNV", (void (*) (void)) glMultiTexCoord4hvNV },
+  { "glVertexAttrib1hNV", (void (*) (void)) glVertexAttrib1hNV },
+  { "glVertexAttrib1hvNV", (void (*) (void)) glVertexAttrib1hvNV },
+  { "glVertexAttrib2hNV", (void (*) (void)) glVertexAttrib2hNV },
+  { "glVertexAttrib2hvNV", (void (*) (void)) glVertexAttrib2hvNV },
+  { "glVertexAttrib3hNV", (void (*) (void)) glVertexAttrib3hNV },
+  { "glVertexAttrib3hvNV", (void (*) (void)) glVertexAttrib3hvNV },
+  { "glVertexAttrib4hNV", (void (*) (void)) glVertexAttrib4hNV },
+  { "glVertexAttrib4hvNV", (void (*) (void)) glVertexAttrib4hvNV },
+  { "glVertexAttribs1hvNV", (void (*) (void)) glVertexAttribs1hvNV },
+  { "glVertexAttribs2hvNV", (void (*) (void)) glVertexAttribs2hvNV },
+  { "glVertexAttribs3hvNV", (void (*) (void)) glVertexAttribs3hvNV },
+  { "glVertexAttribs4hvNV", (void (*) (void)) glVertexAttribs4hvNV },
+  { "glFogCoordhNV", (void (*) (void)) glFogCoordhNV },
+  { "glFogCoordhvNV", (void (*) (void)) glFogCoordhvNV },
+  { "glSecondaryColor3hNV", (void (*) (void)) glSecondaryColor3hNV },
+  { "glSecondaryColor3hvNV", (void (*) (void)) glSecondaryColor3hvNV },
+  { "glVertexWeighthNV", (void (*) (void)) glVertexWeighthNV },
+  { "glVertexWeighthvNV", (void (*) (void)) glVertexWeighthvNV },
+  { "glMatrixLoadfEXT", (void (*) (void)) glMatrixLoadfEXT },
+  { "glMatrixLoaddEXT", (void (*) (void)) glMatrixLoaddEXT },
+  { "glMatrixMultfEXT", (void (*) (void)) glMatrixMultfEXT },
+  { "glMatrixMultdEXT", (void (*) (void)) glMatrixMultdEXT },
+  { "glMatrixLoadIdentityEXT", (void (*) (void)) glMatrixLoadIdentityEXT },
+  { "glMatrixRotatefEXT", (void (*) (void)) glMatrixRotatefEXT },
+  { "glMatrixRotatedEXT", (void (*) (void)) glMatrixRotatedEXT },
+  { "glMatrixScalefEXT", (void (*) (void)) glMatrixScalefEXT },
+  { "glMatrixScaledEXT", (void (*) (void)) glMatrixScaledEXT },
+  { "glMatrixTranslatefEXT", (void (*) (void)) glMatrixTranslatefEXT },
+  { "glMatrixTranslatedEXT", (void (*) (void)) glMatrixTranslatedEXT },
+  { "glMatrixFrustumEXT", (void (*) (void)) glMatrixFrustumEXT },
+  { "glMatrixOrthoEXT", (void (*) (void)) glMatrixOrthoEXT },
+  { "glMatrixPopEXT", (void (*) (void)) glMatrixPopEXT },
+  { "glMatrixPushEXT", (void (*) (void)) glMatrixPushEXT },
+  { "glClientAttribDefaultEXT", (void (*) (void)) glClientAttribDefaultEXT },
+  { "glPushClientAttribDefaultEXT", (void (*) (void)) glPushClientAttribDefaultEXT },
+  { "glTextureParameterfEXT", (void (*) (void)) glTextureParameterfEXT },
+  { "glTextureParameterfvEXT", (void (*) (void)) glTextureParameterfvEXT },
+  { "glTextureParameteriEXT", (void (*) (void)) glTextureParameteriEXT },
+  { "glTextureParameterivEXT", (void (*) (void)) glTextureParameterivEXT },
+  { "glTextureImage1DEXT", (void (*) (void)) glTextureImage1DEXT },
+  { "glTextureImage2DEXT", (void (*) (void)) glTextureImage2DEXT },
+  { "glTextureSubImage1DEXT", (void (*) (void)) glTextureSubImage1DEXT },
+  { "glTextureSubImage2DEXT", (void (*) (void)) glTextureSubImage2DEXT },
+  { "glCopyTextureImage1DEXT", (void (*) (void)) glCopyTextureImage1DEXT },
+  { "glCopyTextureImage2DEXT", (void (*) (void)) glCopyTextureImage2DEXT },
+  { "glCopyTextureSubImage1DEXT", (void (*) (void)) glCopyTextureSubImage1DEXT },
+  { "glCopyTextureSubImage2DEXT", (void (*) (void)) glCopyTextureSubImage2DEXT },
+  { "glGetTextureImageEXT", (void (*) (void)) glGetTextureImageEXT },
+  { "glGetTextureParameterfvEXT", (void (*) (void)) glGetTextureParameterfvEXT },
+  { "glGetTextureParameterivEXT", (void (*) (void)) glGetTextureParameterivEXT },
+  { "glGetTextureLevelParameterfvEXT", (void (*) (void)) glGetTextureLevelParameterfvEXT },
+  { "glGetTextureLevelParameterivEXT", (void (*) (void)) glGetTextureLevelParameterivEXT },
+  { "glTextureImage3DEXT", (void (*) (void)) glTextureImage3DEXT },
+  { "glTextureSubImage3DEXT", (void (*) (void)) glTextureSubImage3DEXT },
+  { "glCopyTextureSubImage3DEXT", (void (*) (void)) glCopyTextureSubImage3DEXT },
+  { "glBindMultiTextureEXT", (void (*) (void)) glBindMultiTextureEXT },
+  { "glMultiTexCoordPointerEXT", (void (*) (void)) glMultiTexCoordPointerEXT },
+  { "glMultiTexEnvfEXT", (void (*) (void)) glMultiTexEnvfEXT },
+  { "glMultiTexEnvfvEXT", (void (*) (void)) glMultiTexEnvfvEXT },
+  { "glMultiTexEnviEXT", (void (*) (void)) glMultiTexEnviEXT },
+  { "glMultiTexEnvivEXT", (void (*) (void)) glMultiTexEnvivEXT },
+  { "glMultiTexGendEXT", (void (*) (void)) glMultiTexGendEXT },
+  { "glMultiTexGendvEXT", (void (*) (void)) glMultiTexGendvEXT },
+  { "glMultiTexGenfEXT", (void (*) (void)) glMultiTexGenfEXT },
+  { "glMultiTexGenfvEXT", (void (*) (void)) glMultiTexGenfvEXT },
+  { "glMultiTexGeniEXT", (void (*) (void)) glMultiTexGeniEXT },
+  { "glMultiTexGenivEXT", (void (*) (void)) glMultiTexGenivEXT },
+  { "glGetMultiTexEnvfvEXT", (void (*) (void)) glGetMultiTexEnvfvEXT },
+  { "glGetMultiTexEnvivEXT", (void (*) (void)) glGetMultiTexEnvivEXT },
+  { "glGetMultiTexGendvEXT", (void (*) (void)) glGetMultiTexGendvEXT },
+  { "glGetMultiTexGenfvEXT", (void (*) (void)) glGetMultiTexGenfvEXT },
+  { "glGetMultiTexGenivEXT", (void (*) (void)) glGetMultiTexGenivEXT },
+  { "glMultiTexParameteriEXT", (void (*) (void)) glMultiTexParameteriEXT },
+  { "glMultiTexParameterivEXT", (void (*) (void)) glMultiTexParameterivEXT },
+  { "glMultiTexParameterfEXT", (void (*) (void)) glMultiTexParameterfEXT },
+  { "glMultiTexParameterfvEXT", (void (*) (void)) glMultiTexParameterfvEXT },
+  { "glMultiTexImage1DEXT", (void (*) (void)) glMultiTexImage1DEXT },
+  { "glMultiTexImage2DEXT", (void (*) (void)) glMultiTexImage2DEXT },
+  { "glMultiTexSubImage1DEXT", (void (*) (void)) glMultiTexSubImage1DEXT },
+  { "glMultiTexSubImage2DEXT", (void (*) (void)) glMultiTexSubImage2DEXT },
+  { "glCopyMultiTexImage1DEXT", (void (*) (void)) glCopyMultiTexImage1DEXT },
+  { "glCopyMultiTexImage2DEXT", (void (*) (void)) glCopyMultiTexImage2DEXT },
+  { "glCopyMultiTexSubImage1DEXT", (void (*) (void)) glCopyMultiTexSubImage1DEXT },
+  { "glCopyMultiTexSubImage2DEXT", (void (*) (void)) glCopyMultiTexSubImage2DEXT },
+  { "glGetMultiTexImageEXT", (void (*) (void)) glGetMultiTexImageEXT },
+  { "glGetMultiTexParameterfvEXT", (void (*) (void)) glGetMultiTexParameterfvEXT },
+  { "glGetMultiTexParameterivEXT", (void (*) (void)) glGetMultiTexParameterivEXT },
+  { "glGetMultiTexLevelParameterfvEXT", (void (*) (void)) glGetMultiTexLevelParameterfvEXT },
+  { "glGetMultiTexLevelParameterivEXT", (void (*) (void)) glGetMultiTexLevelParameterivEXT },
+  { "glMultiTexImage3DEXT", (void (*) (void)) glMultiTexImage3DEXT },
+  { "glMultiTexSubImage3DEXT", (void (*) (void)) glMultiTexSubImage3DEXT },
+  { "glCopyMultiTexSubImage3DEXT", (void (*) (void)) glCopyMultiTexSubImage3DEXT },
+  { "glEnableClientStateIndexedEXT", (void (*) (void)) glEnableClientStateIndexedEXT },
+  { "glDisableClientStateIndexedEXT", (void (*) (void)) glDisableClientStateIndexedEXT },
+  { "glGetFloatIndexedvEXT", (void (*) (void)) glGetFloatIndexedvEXT },
+  { "glGetDoubleIndexedvEXT", (void (*) (void)) glGetDoubleIndexedvEXT },
+  { "glGetPointerIndexedvEXT", (void (*) (void)) glGetPointerIndexedvEXT },
+  { "glCompressedTextureImage3DEXT", (void (*) (void)) glCompressedTextureImage3DEXT },
+  { "glCompressedTextureImage2DEXT", (void (*) (void)) glCompressedTextureImage2DEXT },
+  { "glCompressedTextureImage1DEXT", (void (*) (void)) glCompressedTextureImage1DEXT },
+  { "glCompressedTextureSubImage3DEXT", (void (*) (void)) glCompressedTextureSubImage3DEXT },
+  { "glCompressedTextureSubImage2DEXT", (void (*) (void)) glCompressedTextureSubImage2DEXT },
+  { "glCompressedTextureSubImage1DEXT", (void (*) (void)) glCompressedTextureSubImage1DEXT },
+  { "glGetCompressedTextureImageEXT", (void (*) (void)) glGetCompressedTextureImageEXT },
+  { "glCompressedMultiTexImage3DEXT", (void (*) (void)) glCompressedMultiTexImage3DEXT },
+  { "glCompressedMultiTexImage2DEXT", (void (*) (void)) glCompressedMultiTexImage2DEXT },
+  { "glCompressedMultiTexImage1DEXT", (void (*) (void)) glCompressedMultiTexImage1DEXT },
+  { "glCompressedMultiTexSubImage3DEXT", (void (*) (void)) glCompressedMultiTexSubImage3DEXT },
+  { "glCompressedMultiTexSubImage2DEXT", (void (*) (void)) glCompressedMultiTexSubImage2DEXT },
+  { "glCompressedMultiTexSubImage1DEXT", (void (*) (void)) glCompressedMultiTexSubImage1DEXT },
+  { "glGetCompressedMultiTexImageEXT", (void (*) (void)) glGetCompressedMultiTexImageEXT },
+  { "glMatrixLoadTransposefEXT", (void (*) (void)) glMatrixLoadTransposefEXT },
+  { "glMatrixLoadTransposedEXT", (void (*) (void)) glMatrixLoadTransposedEXT },
+  { "glMatrixMultTransposefEXT", (void (*) (void)) glMatrixMultTransposefEXT },
+  { "glMatrixMultTransposedEXT", (void (*) (void)) glMatrixMultTransposedEXT },
+  { "glNamedBufferDataEXT", (void (*) (void)) glNamedBufferDataEXT },
+  { "glNamedBufferSubDataEXT", (void (*) (void)) glNamedBufferSubDataEXT },
+  { "glMapNamedBufferEXT", (void (*) (void)) glMapNamedBufferEXT },
+  { "glUnmapNamedBufferEXT", (void (*) (void)) glUnmapNamedBufferEXT },
+  { "glGetNamedBufferParameterivEXT", (void (*) (void)) glGetNamedBufferParameterivEXT },
+  { "glGetNamedBufferPointervEXT", (void (*) (void)) glGetNamedBufferPointervEXT },
+  { "glGetNamedBufferSubDataEXT", (void (*) (void)) glGetNamedBufferSubDataEXT },
+  { "glTextureBufferEXT", (void (*) (void)) glTextureBufferEXT },
+  { "glMultiTexBufferEXT", (void (*) (void)) glMultiTexBufferEXT },
+  { "glTextureParameterIivEXT", (void (*) (void)) glTextureParameterIivEXT },
+  { "glTextureParameterIuivEXT", (void (*) (void)) glTextureParameterIuivEXT },
+  { "glGetTextureParameterIivEXT", (void (*) (void)) glGetTextureParameterIivEXT },
+  { "glGetTextureParameterIuivEXT", (void (*) (void)) glGetTextureParameterIuivEXT },
+  { "glMultiTexParameterIivEXT", (void (*) (void)) glMultiTexParameterIivEXT },
+  { "glMultiTexParameterIuivEXT", (void (*) (void)) glMultiTexParameterIuivEXT },
+  { "glGetMultiTexParameterIivEXT", (void (*) (void)) glGetMultiTexParameterIivEXT },
+  { "glGetMultiTexParameterIuivEXT", (void (*) (void)) glGetMultiTexParameterIuivEXT },
+  { "glNamedProgramLocalParameters4fvEXT", (void (*) (void)) glNamedProgramLocalParameters4fvEXT },
+  { "glNamedProgramLocalParameterI4iEXT", (void (*) (void)) glNamedProgramLocalParameterI4iEXT },
+  { "glNamedProgramLocalParameterI4ivEXT", (void (*) (void)) glNamedProgramLocalParameterI4ivEXT },
+  { "glNamedProgramLocalParametersI4ivEXT", (void (*) (void)) glNamedProgramLocalParametersI4ivEXT },
+  { "glNamedProgramLocalParameterI4uiEXT", (void (*) (void)) glNamedProgramLocalParameterI4uiEXT },
+  { "glNamedProgramLocalParameterI4uivEXT", (void (*) (void)) glNamedProgramLocalParameterI4uivEXT },
+  { "glNamedProgramLocalParametersI4uivEXT", (void (*) (void)) glNamedProgramLocalParametersI4uivEXT },
+  { "glGetNamedProgramLocalParameterIivEXT", (void (*) (void)) glGetNamedProgramLocalParameterIivEXT },
+  { "glGetNamedProgramLocalParameterIuivEXT", (void (*) (void)) glGetNamedProgramLocalParameterIuivEXT },
+  { "glEnableClientStateiEXT", (void (*) (void)) glEnableClientStateiEXT },
+  { "glDisableClientStateiEXT", (void (*) (void)) glDisableClientStateiEXT },
+  { "glGetFloati_vEXT", (void (*) (void)) glGetFloati_vEXT },
+  { "glGetDoublei_vEXT", (void (*) (void)) glGetDoublei_vEXT },
+  { "glGetPointeri_vEXT", (void (*) (void)) glGetPointeri_vEXT },
+  { "glNamedProgramStringEXT", (void (*) (void)) glNamedProgramStringEXT },
+  { "glNamedProgramLocalParameter4dEXT", (void (*) (void)) glNamedProgramLocalParameter4dEXT },
+  { "glNamedProgramLocalParameter4dvEXT", (void (*) (void)) glNamedProgramLocalParameter4dvEXT },
+  { "glNamedProgramLocalParameter4fEXT", (void (*) (void)) glNamedProgramLocalParameter4fEXT },
+  { "glNamedProgramLocalParameter4fvEXT", (void (*) (void)) glNamedProgramLocalParameter4fvEXT },
+  { "glGetNamedProgramLocalParameterdvEXT", (void (*) (void)) glGetNamedProgramLocalParameterdvEXT },
+  { "glGetNamedProgramLocalParameterfvEXT", (void (*) (void)) glGetNamedProgramLocalParameterfvEXT },
+  { "glGetNamedProgramivEXT", (void (*) (void)) glGetNamedProgramivEXT },
+  { "glGetNamedProgramStringEXT", (void (*) (void)) glGetNamedProgramStringEXT },
+  { "glNamedRenderbufferStorageEXT", (void (*) (void)) glNamedRenderbufferStorageEXT },
+  { "glGetNamedRenderbufferParameterivEXT", (void (*) (void)) glGetNamedRenderbufferParameterivEXT },
+  { "glNamedRenderbufferStorageMultisampleEXT", (void (*) (void)) glNamedRenderbufferStorageMultisampleEXT },
+  { "glNamedRenderbufferStorageMultisampleCoverageEXT", (void (*) (void)) glNamedRenderbufferStorageMultisampleCoverageEXT },
+  { "glCheckNamedFramebufferStatusEXT", (void (*) (void)) glCheckNamedFramebufferStatusEXT },
+  { "glNamedFramebufferTexture1DEXT", (void (*) (void)) glNamedFramebufferTexture1DEXT },
+  { "glNamedFramebufferTexture2DEXT", (void (*) (void)) glNamedFramebufferTexture2DEXT },
+  { "glNamedFramebufferTexture3DEXT", (void (*) (void)) glNamedFramebufferTexture3DEXT },
+  { "glNamedFramebufferRenderbufferEXT", (void (*) (void)) glNamedFramebufferRenderbufferEXT },
+  { "glGetNamedFramebufferAttachmentParameterivEXT", (void (*) (void)) glGetNamedFramebufferAttachmentParameterivEXT },
+  { "glGenerateTextureMipmapEXT", (void (*) (void)) glGenerateTextureMipmapEXT },
+  { "glGenerateMultiTexMipmapEXT", (void (*) (void)) glGenerateMultiTexMipmapEXT },
+  { "glFramebufferDrawBufferEXT", (void (*) (void)) glFramebufferDrawBufferEXT },
+  { "glFramebufferDrawBuffersEXT", (void (*) (void)) glFramebufferDrawBuffersEXT },
+  { "glFramebufferReadBufferEXT", (void (*) (void)) glFramebufferReadBufferEXT },
+  { "glGetFramebufferParameterivEXT", (void (*) (void)) glGetFramebufferParameterivEXT },
+  { "glNamedCopyBufferSubDataEXT", (void (*) (void)) glNamedCopyBufferSubDataEXT },
+  { "glNamedFramebufferTextureEXT", (void (*) (void)) glNamedFramebufferTextureEXT },
+  { "glNamedFramebufferTextureLayerEXT", (void (*) (void)) glNamedFramebufferTextureLayerEXT },
+  { "glNamedFramebufferTextureFaceEXT", (void (*) (void)) glNamedFramebufferTextureFaceEXT },
+  { "glTextureRenderbufferEXT", (void (*) (void)) glTextureRenderbufferEXT },
+  { "glMultiTexRenderbufferEXT", (void (*) (void)) glMultiTexRenderbufferEXT },
+  { "glVertexArrayVertexOffsetEXT", (void (*) (void)) glVertexArrayVertexOffsetEXT },
+  { "glVertexArrayColorOffsetEXT", (void (*) (void)) glVertexArrayColorOffsetEXT },
+  { "glVertexArrayEdgeFlagOffsetEXT", (void (*) (void)) glVertexArrayEdgeFlagOffsetEXT },
+  { "glVertexArrayIndexOffsetEXT", (void (*) (void)) glVertexArrayIndexOffsetEXT },
+  { "glVertexArrayNormalOffsetEXT", (void (*) (void)) glVertexArrayNormalOffsetEXT },
+  { "glVertexArrayTexCoordOffsetEXT", (void (*) (void)) glVertexArrayTexCoordOffsetEXT },
+  { "glVertexArrayMultiTexCoordOffsetEXT", (void (*) (void)) glVertexArrayMultiTexCoordOffsetEXT },
+  { "glVertexArrayFogCoordOffsetEXT", (void (*) (void)) glVertexArrayFogCoordOffsetEXT },
+  { "glVertexArraySecondaryColorOffsetEXT", (void (*) (void)) glVertexArraySecondaryColorOffsetEXT },
+  { "glVertexArrayVertexAttribOffsetEXT", (void (*) (void)) glVertexArrayVertexAttribOffsetEXT },
+  { "glVertexArrayVertexAttribIOffsetEXT", (void (*) (void)) glVertexArrayVertexAttribIOffsetEXT },
+  { "glEnableVertexArrayEXT", (void (*) (void)) glEnableVertexArrayEXT },
+  { "glDisableVertexArrayEXT", (void (*) (void)) glDisableVertexArrayEXT },
+  { "glEnableVertexArrayAttribEXT", (void (*) (void)) glEnableVertexArrayAttribEXT },
+  { "glDisableVertexArrayAttribEXT", (void (*) (void)) glDisableVertexArrayAttribEXT },
+  { "glGetVertexArrayIntegervEXT", (void (*) (void)) glGetVertexArrayIntegervEXT },
+  { "glGetVertexArrayPointervEXT", (void (*) (void)) glGetVertexArrayPointervEXT },
+  { "glGetVertexArrayIntegeri_vEXT", (void (*) (void)) glGetVertexArrayIntegeri_vEXT },
+  { "glGetVertexArrayPointeri_vEXT", (void (*) (void)) glGetVertexArrayPointeri_vEXT },
+  { "glMapNamedBufferRangeEXT", (void (*) (void)) glMapNamedBufferRangeEXT },
+  { "glFlushMappedNamedBufferRangeEXT", (void (*) (void)) glFlushMappedNamedBufferRangeEXT },
+  { "glNamedBufferStorageEXT", (void (*) (void)) glNamedBufferStorageEXT },
+  { "glClearNamedBufferDataEXT", (void (*) (void)) glClearNamedBufferDataEXT },
+  { "glClearNamedBufferSubDataEXT", (void (*) (void)) glClearNamedBufferSubDataEXT },
+  { "glNamedFramebufferParameteriEXT", (void (*) (void)) glNamedFramebufferParameteriEXT },
+  { "glGetNamedFramebufferParameterivEXT", (void (*) (void)) glGetNamedFramebufferParameterivEXT },
+  { "glTextureBufferRangeEXT", (void (*) (void)) glTextureBufferRangeEXT },
+  { "glTextureStorage1DEXT", (void (*) (void)) glTextureStorage1DEXT },
+  { "glTextureStorage2DEXT", (void (*) (void)) glTextureStorage2DEXT },
+  { "glTextureStorage3DEXT", (void (*) (void)) glTextureStorage3DEXT },
+  { "glTextureStorage2DMultisampleEXT", (void (*) (void)) glTextureStorage2DMultisampleEXT },
+  { "glTextureStorage3DMultisampleEXT", (void (*) (void)) glTextureStorage3DMultisampleEXT },
+  { "glVertexArrayBindVertexBufferEXT", (void (*) (void)) glVertexArrayBindVertexBufferEXT },
+  { "glVertexArrayVertexAttribFormatEXT", (void (*) (void)) glVertexArrayVertexAttribFormatEXT },
+  { "glVertexArrayVertexAttribIFormatEXT", (void (*) (void)) glVertexArrayVertexAttribIFormatEXT },
+  { "glVertexArrayVertexAttribLFormatEXT", (void (*) (void)) glVertexArrayVertexAttribLFormatEXT },
+  { "glVertexArrayVertexAttribBindingEXT", (void (*) (void)) glVertexArrayVertexAttribBindingEXT },
+  { "glVertexArrayVertexBindingDivisorEXT", (void (*) (void)) glVertexArrayVertexBindingDivisorEXT },
+  { "glVertexArrayVertexAttribLOffsetEXT", (void (*) (void)) glVertexArrayVertexAttribLOffsetEXT },
+  { "glTexturePageCommitmentEXT", (void (*) (void)) glTexturePageCommitmentEXT },
+  { "glVertexArrayVertexAttribDivisorEXT", (void (*) (void)) glVertexArrayVertexAttribDivisorEXT },
   { "glActiveTextureARB", (void (*) (void)) glActiveTexture },
   { "glClientActiveTextureARB", (void (*) (void)) glClientActiveTexture },
   { "glMultiTexCoord1dARB", (void (*) (void)) glMultiTexCoord1d },
@@ -8330,4 +14182,88 @@ const struct r3d_gl_function r3d_gl_functions[] = {
   { "glSamplerParameterIuivOES", (void (*) (void)) glSamplerParameterIuiv },
   { "glGetSamplerParameterIivOES", (void (*) (void)) glGetSamplerParameterIiv },
   { "glGetSamplerParameterIuivOES", (void (*) (void)) glGetSamplerParameterIuiv },
+  { "glDebugMessageControlARB", (void (*) (void)) glDebugMessageControl },
+  { "glDebugMessageInsertARB", (void (*) (void)) glDebugMessageInsert },
+  { "glDebugMessageCallbackARB", (void (*) (void)) glDebugMessageCallback },
+  { "glGetDebugMessageLogARB", (void (*) (void)) glGetDebugMessageLog },
+  { "glDrawArraysInstancedARB", (void (*) (void)) glDrawArraysInstanced },
+  { "glDrawElementsInstancedARB", (void (*) (void)) glDrawElementsInstanced },
+  { "glIsProgramARB", (void (*) (void)) glIsProgram },
+  { "glSampleCoverageARB", (void (*) (void)) glSampleCoverage },
+  { "glMaxShaderCompilerThreadsARB", (void (*) (void)) glMaxShaderCompilerThreadsKHR },
+  { "glGetGraphicsResetStatusARB", (void (*) (void)) glGetGraphicsResetStatus },
+  { "glGetnTexImageARB", (void (*) (void)) glGetnTexImage },
+  { "glReadnPixelsARB", (void (*) (void)) glReadnPixels },
+  { "glGetnCompressedTexImageARB", (void (*) (void)) glGetnCompressedTexImage },
+  { "glGetnUniformfvARB", (void (*) (void)) glGetnUniformfv },
+  { "glGetnUniformivARB", (void (*) (void)) glGetnUniformiv },
+  { "glGetnUniformuivARB", (void (*) (void)) glGetnUniformuiv },
+  { "glGetnUniformdvARB", (void (*) (void)) glGetnUniformdv },
+  { "glGetnMapdvARB", (void (*) (void)) glGetnMapdv },
+  { "glGetnMapfvARB", (void (*) (void)) glGetnMapfv },
+  { "glGetnMapivARB", (void (*) (void)) glGetnMapiv },
+  { "glGetnPixelMapfvARB", (void (*) (void)) glGetnPixelMapfv },
+  { "glGetnPixelMapuivARB", (void (*) (void)) glGetnPixelMapuiv },
+  { "glGetnPixelMapusvARB", (void (*) (void)) glGetnPixelMapusv },
+  { "glGetnPolygonStippleARB", (void (*) (void)) glGetnPolygonStipple },
+  { "glGetnColorTableARB", (void (*) (void)) glGetnColorTable },
+  { "glGetnConvolutionFilterARB", (void (*) (void)) glGetnConvolutionFilter },
+  { "glGetnSeparableFilterARB", (void (*) (void)) glGetnSeparableFilter },
+  { "glGetnHistogramARB", (void (*) (void)) glGetnHistogram },
+  { "glGetnMinmaxARB", (void (*) (void)) glGetnMinmax },
+  { "glShaderSourceARB", (void (*) (void)) glShaderSource },
+  { "glDrawBuffersATI", (void (*) (void)) glDrawBuffers },
+  { "glStencilOpSeparateATI", (void (*) (void)) glStencilOpSeparate },
+  { "glStencilFuncSeparateATI", (void (*) (void)) glStencilFuncSeparate },
+  { "glColorMaskIndexedEXT", (void (*) (void)) glColorMaski },
+  { "glGetBooleanIndexedvEXT", (void (*) (void)) glGetBooleani_v },
+  { "glGetIntegerIndexedvEXT", (void (*) (void)) glGetIntegeri_v },
+  { "glEnableIndexedEXT", (void (*) (void)) glEnablei },
+  { "glDisableIndexedEXT", (void (*) (void)) glDisablei },
+  { "glIsEnabledIndexedEXT", (void (*) (void)) glIsEnabledi },
+  { "glPointParameterfEXT", (void (*) (void)) glPointParameterf },
+  { "glPointParameterfvEXT", (void (*) (void)) glPointParameterfv },
+  { "glProvokingVertexEXT", (void (*) (void)) glProvokingVertex },
+  { "glTexImage3DEXT", (void (*) (void)) glTexImage3D },
+  { "glFramebufferTextureLayerEXT", (void (*) (void)) glFramebufferTextureLayer },
+  { "glPrioritizeTexturesEXT", (void (*) (void)) glPrioritizeTextures },
+  { "glArrayElementEXT", (void (*) (void)) glArrayElement },
+  { "glDrawArraysEXT", (void (*) (void)) glDrawArrays },
+  { "glGetPointervEXT", (void (*) (void)) glGetPointerv },
+  { "glBlendFuncSeparateINGR", (void (*) (void)) glBlendFuncSeparate },
+  { "glWindowPos2dMESA", (void (*) (void)) glWindowPos2d },
+  { "glWindowPos2dvMESA", (void (*) (void)) glWindowPos2dv },
+  { "glWindowPos2fMESA", (void (*) (void)) glWindowPos2f },
+  { "glWindowPos2fvMESA", (void (*) (void)) glWindowPos2fv },
+  { "glWindowPos2iMESA", (void (*) (void)) glWindowPos2i },
+  { "glWindowPos2ivMESA", (void (*) (void)) glWindowPos2iv },
+  { "glWindowPos2sMESA", (void (*) (void)) glWindowPos2s },
+  { "glWindowPos2svMESA", (void (*) (void)) glWindowPos2sv },
+  { "glWindowPos3dMESA", (void (*) (void)) glWindowPos3d },
+  { "glWindowPos3dvMESA", (void (*) (void)) glWindowPos3dv },
+  { "glWindowPos3fMESA", (void (*) (void)) glWindowPos3f },
+  { "glWindowPos3fvMESA", (void (*) (void)) glWindowPos3fv },
+  { "glWindowPos3iMESA", (void (*) (void)) glWindowPos3i },
+  { "glWindowPos3ivMESA", (void (*) (void)) glWindowPos3iv },
+  { "glWindowPos3sMESA", (void (*) (void)) glWindowPos3s },
+  { "glWindowPos3svMESA", (void (*) (void)) glWindowPos3sv },
+  { "glPointParameteriNV", (void (*) (void)) glPointParameteri },
+  { "glPointParameterivNV", (void (*) (void)) glPointParameteriv },
+  { "glProgramUniform1dEXT", (void (*) (void)) glProgramUniform1d },
+  { "glProgramUniform2dEXT", (void (*) (void)) glProgramUniform2d },
+  { "glProgramUniform3dEXT", (void (*) (void)) glProgramUniform3d },
+  { "glProgramUniform4dEXT", (void (*) (void)) glProgramUniform4d },
+  { "glProgramUniform1dvEXT", (void (*) (void)) glProgramUniform1dv },
+  { "glProgramUniform2dvEXT", (void (*) (void)) glProgramUniform2dv },
+  { "glProgramUniform3dvEXT", (void (*) (void)) glProgramUniform3dv },
+  { "glProgramUniform4dvEXT", (void (*) (void)) glProgramUniform4dv },
+  { "glProgramUniformMatrix2dvEXT", (void (*) (void)) glProgramUniformMatrix2dv },
+  { "glProgramUniformMatrix3dvEXT", (void (*) (void)) glProgramUniformMatrix3dv },
+  { "glProgramUniformMatrix4dvEXT", (void (*) (void)) glProgramUniformMatrix4dv },
+  { "glProgramUniformMatrix2x3dvEXT", (void (*) (void)) glProgramUniformMatrix2x3dv },
+  { "glProgramUniformMatrix2x4dvEXT", (void (*) (void)) glProgramUniformMatrix2x4dv },
+  { "glProgramUniformMatrix3x2dvEXT", (void (*) (void)) glProgramUniformMatrix3x2dv },
+  { "glProgramUniformMatrix3x4dvEXT", (void (*) (void)) glProgramUniformMatrix3x4dv },
+  { "glProgramUniformMatrix4x2dvEXT", (void (*) (void)) glProgramUniformMatrix4x2dv },
+  { "glProgramUniformMatrix4x3dvEXT", (void (*) (void)) glProgramUniformMatrix4x3dv },
   { 0, 0 } };

@@ -42,7 +42,7 @@ static int config_attrib(const egl_config *c, EGLint attrib, EGLint *value)
         v = (c->layout == LAYOUT_TRGB) ? EGL_RISCOS_VISUAL_TRGB : EGL_RISCOS_VISUAL_TBGR;
         break;
     case EGL_NATIVE_VISUAL_TYPE:       v = EGL_NONE; break;
-    case EGL_RENDERABLE_TYPE:          v = RENDERABLE_BITS; break;
+    case EGL_RENDERABLE_TYPE:          v = RENDERABLE_BITS | (r3dw_es3() ? EGL_OPENGL_ES3_BIT_KHR : 0); break;
     case EGL_SAMPLE_BUFFERS:
     case EGL_SAMPLES:                  v = 0; break;
     case EGL_STENCIL_SIZE:             v = c->stencil; break;

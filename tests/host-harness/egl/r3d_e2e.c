@@ -138,7 +138,8 @@ static void *run(void *arg)
     r = (const char *) glGetString(GL_RENDERER);
     CHECK(r && strstr(r, "RISC3D"), "drawn by RISC3D: %s", r ? r : "(none)");
     r = (const char *) glGetString(GL_VERSION);
-    CHECK(r && !strncmp(r, "2.1 RISC3D", 10), "GL_VERSION what the stream carries: %s", r ? r : "(none)");
+    CHECK(r && (!strncmp(r, "2.1 RISC3D", 10) || !strncmp(r, "3.0 RISC3D", 10) || !strncmp(r, "3.1 RISC3D", 10)),
+          "GL_VERSION what the stream carries (2.1 to 3.1): %s", r ? r : "(none)");
     scene();
     CHECK(eglSwapBuffers(dpy, ws), "swap");
     grab(a);
@@ -227,6 +228,28 @@ static void *run(void *arg)
         eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         eglDestroyContext(dpy, ctx);
         eglBindAPI(EGL_OPENGL_API);
+    }
+
+    /* OpenGL ES 3.0 and OpenGL 3.1 (RISC3D 0.5): asked for by version */
+    {
+        EGLint es30[] = { EGL_CONTEXT_MAJOR_VERSION_KHR, 3, EGL_CONTEXT_MINOR_VERSION_KHR, 0, EGL_NONE };
+        EGLint gl31[] = { EGL_CONTEXT_MAJOR_VERSION_KHR, 3, EGL_CONTEXT_MINOR_VERSION_KHR, 1, EGL_NONE };
+        EGLint rt = 0;
+        CHECK(eglGetConfigAttrib(dpy, cfg, EGL_RENDERABLE_TYPE, &rt) && (rt & 0x40), "configs offer GLES 3 (%x)", rt);
+        eglBindAPI(EGL_OPENGL_ES_API);
+        ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, es30);
+        CHECK(ctx != EGL_NO_CONTEXT && eglMakeCurrent(dpy, ws, ws, ctx), "GLES 3.0 context current");
+        r = (const char *) glGetString(GL_VERSION);
+        CHECK(r && !strncmp(r, "OpenGL ES 3.", 12) && strstr(r, "RISC3D"), "GLES 3 drawn by RISC3D: %s", r ? r : "(none)");
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroyContext(dpy, ctx);
+        eglBindAPI(EGL_OPENGL_API);
+        ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, gl31);
+        CHECK(ctx != EGL_NO_CONTEXT && eglMakeCurrent(dpy, ws, ws, ctx), "GL 3.1 context current");
+        r = (const char *) glGetString(GL_VERSION);
+        CHECK(r && !strncmp(r, "3.1 RISC3D", 10), "GL 3.1 drawn by RISC3D: %s", r ? r : "(none)");
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroyContext(dpy, ctx);
     }
 
     /* A pixmap: glFinish brings the sprite up to date */

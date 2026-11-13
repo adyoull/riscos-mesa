@@ -2,7 +2,7 @@ diff --git src/video/riscos/SDL_riscosopengl.c src/video/riscos/SDL_riscosopengl
 new file mode 100644
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.c
-@@ -0,0 +1,1092 @@
+@@ -0,0 +1,1107 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -386,29 +386,39 @@ new file mode 100644
 +static int EGL_MakeCurrent(_THIS, SDL_Window *window, RISCOS_GLContext *ctx);
 +static int SPR_MakeCurrent(_THIS, SDL_Window *window, RISCOS_GLContext *ctx);
 +
++static SDL_bool RISCOS_GL_RISC3D(_THIS);
++
 +static SDL_GLContext
 +EGL_CreateContext(_THIS, SDL_Window *window)
 +{
 +    RISCOS_GLContext *ctx, *share = NULL;
-+    EGLint cattrs[4], sattrs[12];
++    EGLint cattrs[6], sattrs[12];
 +    EGLConfig configs[32];
 +    EGLint n = 0, i, v, visual;
-+    int es = 0;
++    int es = 0, gl3 = 0;
++    const int major = _this->gl_config.major_version, minor = _this->gl_config.minor_version;
++    /* RISC3D (riscos_mesa_pick_renderer) also gives GL 3.0/3.1
++       (compatibility) and ES 3.0/3.1; OSMesa gives 2.1, ES 1.1 and 2.0 */
++    const SDL_bool r3d = RISCOS_GL_RISC3D(_this);
 +
 +    if (_this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_ES) {
-+        if (_this->gl_config.major_version == 1 ||
-+            (_this->gl_config.major_version == 2 && _this->gl_config.minor_version == 0)) {
-+            es = _this->gl_config.major_version;
++        if (major == 1 || (major == 2 && minor == 0)) {
++            es = major;
++        } else if (r3d && major == 3 && minor <= 1) {
++            es = 3;
 +        } else {
-+            SDL_SetError("OpenGL ES %d.%d isn't available (OSMesa provides ES 1.1 and 2.0)",
-+                         _this->gl_config.major_version, _this->gl_config.minor_version);
++            SDL_SetError("OpenGL ES %d.%d isn't available (%s)", major, minor,
++                         r3d ? "RISC3D provides ES 1.1 to 3.1" : "OSMesa provides ES 1.1 and 2.0");
 +            return NULL;
 +        }
-+    } else if (_this->gl_config.major_version > 2 ||
-+               _this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_CORE) {
-+        SDL_SetError("OpenGL %d.%d%s isn't available (this Mesa provides 2.1, ES 1.1 and ES 2.0)",
-+                     _this->gl_config.major_version, _this->gl_config.minor_version,
-+                     _this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_CORE ? " core" : "");
++    } else if (r3d && major == 3 && minor <= 1 &&
++               _this->gl_config.profile_mask != SDL_GL_CONTEXT_PROFILE_CORE) {
++        gl3 = 1;
++    } else if (major > 2 || _this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_CORE) {
++        SDL_SetError("OpenGL %d.%d%s isn't available (%s)", major, minor,
++                     _this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_CORE ? " core" : "",
++                     r3d ? "RISC3D provides up to 3.1, compatibility profile"
++                         : "this Mesa provides 2.1, ES 1.1 and ES 2.0");
 +        return NULL;
 +    }
 +    if (RISCOS_GL_Display() < 0)
@@ -428,7 +438,8 @@ new file mode 100644
 +       screen's colour order. (No accumulation buffers with EGL.) */
 +    i = 0;
 +    sattrs[i++] = EGL_RENDERABLE_TYPE;
-+    sattrs[i++] = es == 1 ? EGL_OPENGL_ES_BIT : es == 2 ? EGL_OPENGL_ES2_BIT : EGL_OPENGL_BIT;
++    sattrs[i++] = es == 1 ? EGL_OPENGL_ES_BIT : es == 2 ? EGL_OPENGL_ES2_BIT :
++                  es == 3 ? EGL_OPENGL_ES3_BIT_KHR : EGL_OPENGL_BIT;
 +    sattrs[i++] = EGL_SURFACE_TYPE;   sattrs[i++] = EGL_WINDOW_BIT;
 +    sattrs[i++] = EGL_DEPTH_SIZE;     sattrs[i++] = _this->gl_config.depth_size;
 +    sattrs[i++] = EGL_STENCIL_SIZE;   sattrs[i++] = _this->gl_config.stencil_size;
@@ -450,9 +461,13 @@ new file mode 100644
 +
 +    eglBindAPI(es ? EGL_OPENGL_ES_API : EGL_OPENGL_API);
 +    i = 0;
-+    if (es) {
-+        cattrs[i++] = EGL_CONTEXT_CLIENT_VERSION;
-+        cattrs[i++] = es;
++    if (es || gl3) {
++        cattrs[i++] = EGL_CONTEXT_MAJOR_VERSION_KHR;    /* = EGL_CONTEXT_CLIENT_VERSION */
++        cattrs[i++] = es ? es : major;
++    }
++    if (es == 3 || gl3) {
++        cattrs[i++] = EGL_CONTEXT_MINOR_VERSION_KHR;
++        cattrs[i++] = minor;
 +    }
 +    cattrs[i] = EGL_NONE;
 +    ctx->eglctx = eglCreateContext(gl_dpy, ctx->config,

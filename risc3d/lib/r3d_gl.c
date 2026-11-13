@@ -57,6 +57,8 @@ struct attrib
   GLboolean normalized;
   GLsizei stride;
   const void *pointer;
+  int integer;				/* glVertexAttribIPointer */
+  GLuint divisor;			/* glVertexAttribDivisor */
 };
 
 /* fixed-function arrays: vertex 0, normal 1, colour 2, index 3, edge
@@ -137,6 +139,10 @@ struct r3d_context
   int desktop;				/* OpenGL (compatibility), not GLES */
   int es1;				/* OpenGL ES 1.1 */
   int ff;				/* fixed function (OpenGL or GLES 1.1): matrices kept here */
+  int version;				/* the version it gives: major * 10 + minor */
+  int old_renderer;			/* rol-3d before 0.5: the functions before OpenGL 3 */
+  int level;				/* rol-3d's commands: 4 (0.4), 5 (0.5), 6 (0.6 on) */
+  int strict;				/* OpenGL 3.1 without the compatibility profile */
 
   struct attrib attribs[MAX_ATTRIBS];
   struct attrib fixed[FIXED_SLOTS];
@@ -189,6 +195,20 @@ struct r3d_context
   const void *debug_user;
   char *strings[6];
 
+  /* OpenGL 3 and GLES 3 */
+  GLuint indirect_buffer;		/* GL_DRAW_INDIRECT_BUFFER */
+  int restart, restart_fixed;		/* primitive restart, and its index */
+  GLuint restart_index;
+  uint32_t next_sync;			/* sync objects: numbers, the renderer's table */
+  const char **ext_list;		/* glGetStringi's: GL_EXTENSIONS split */
+  GLuint ext_count;
+
+  /* the program's own buffer as framebuffer 0 (r3d_target: OSMesa's way) */
+  unsigned char *target;
+  int target_w, target_h, target_format, target_row, target_up;
+  uint32_t target_head;			/* the ring's head when last copied (+ its glFinish) */
+  unsigned char *target_tmp;
+
   /* overlapped frames: the surface's size, the last frame sent */
   int surface_w, surface_h;
   uint32_t frame;
@@ -216,6 +236,24 @@ static uint32_t r3d_f2u (float f) { union { float f; uint32_t u; } v = { f }; re
 static float r3d_u2f (uint32_t u) { union { uint32_t u; float f; } v = { u }; return v.f; }
 static void r3d_d2w (uint32_t *w, double d) { memcpy (w, &d, 8); }
 static long r3d_nonneg (long n) { return n < 0 ? 0 : n; }
+
+/* the arrays' state as OpenGL starts it (nothing enabled, no pointers) */
+static void
+array_defaults (struct attrib *attribs, struct attrib *fixed)
+{
+  memset (attribs, 0, sizeof (struct attrib) * MAX_ATTRIBS);
+  memset (fixed, 0, sizeof (struct attrib) * FIXED_SLOTS);
+  for (int i = 0; i < MAX_ATTRIBS; i++)
+    {
+      attribs[i].size = 4;
+      attribs[i].type = GL_FLOAT;
+    }
+  for (int s = 0; s < FIXED_SLOTS; s++)
+    {
+      fixed[s].size = s == 6 ? 3 : 4;	/* (the secondary colour's is 3) */
+      fixed[s].type = s == 4 ? GL_BOOL : GL_FLOAT;
+    }
+}
 
 /* the module: 0 wakes the renderer, 1 waits until it has done everything */
 static int
@@ -779,6 +817,7 @@ r3d_track_glBindBuffer (GLenum target, GLuint buffer)
     case GL_ELEMENT_ARRAY_BUFFER: cur->element_buffer = buffer; break;
     case GL_PIXEL_PACK_BUFFER: cur->pack_buffer = buffer; break;
     case GL_PIXEL_UNPACK_BUFFER: cur->unpack_buffer = buffer; break;
+    case GL_DRAW_INDIRECT_BUFFER: cur->indirect_buffer = buffer; break;
     }
 }
 
@@ -802,8 +841,31 @@ r3d_track_glDeleteBuffers (GLsizei n, const GLuint *buffers)
 	cur->pack_buffer = 0;
       if (buffers[i] == cur->unpack_buffer)
 	cur->unpack_buffer = 0;
+      if (buffers[i] == cur->indirect_buffer)
+	cur->indirect_buffer = 0;
     }
 }
+
+/* OpenGL 3 / GLES 3: what sizes the arrays in the program's memory */
+static void
+r3d_track_glVertexAttribDivisor (GLuint index, GLuint divisor)
+{
+  if (index < MAX_ATTRIBS)
+    cur->attribs[index].divisor = divisor;
+}
+
+static void
+restart_cap (GLenum cap, int on)
+{
+  if (cap == GL_PRIMITIVE_RESTART)
+    cur->restart = on;
+  else if (cap == GL_PRIMITIVE_RESTART_FIXED_INDEX)
+    cur->restart_fixed = on;
+}
+
+static void r3d_track_glEnable (GLenum cap) { restart_cap (cap, 1); }
+static void r3d_track_glDisable (GLenum cap) { restart_cap (cap, 0); }
+static void r3d_track_glPrimitiveRestartIndex (GLuint index) { cur->restart_index = index; }
 
 static void
 r3d_track_glEnableVertexAttribArray (GLuint index)
@@ -1065,9 +1127,9 @@ components (GLenum format)
 {
   switch (format)
     {
-    case GL_RGBA: case GL_BGRA: return 4;
-    case GL_RGB: case GL_BGR: return 3;
-    case GL_LUMINANCE_ALPHA: return 2;
+    case GL_RGBA: case GL_BGRA: case GL_RGBA_INTEGER: case GL_BGRA_INTEGER: return 4;
+    case GL_RGB: case GL_BGR: case GL_RGB_INTEGER: case GL_BGR_INTEGER: return 3;
+    case GL_LUMINANCE_ALPHA: case GL_RG: case GL_RG_INTEGER: return 2;
     }
   return 1;
 }
@@ -1089,9 +1151,13 @@ pixel_bytes (GLenum format, GLenum type, size_t *elem)
       return 2;
     case GL_UNSIGNED_INT_8_8_8_8: case GL_UNSIGNED_INT_8_8_8_8_REV:
     case GL_UNSIGNED_INT_10_10_10_2: case GL_UNSIGNED_INT_2_10_10_10_REV:
-    case GL_UNSIGNED_INT_24_8:
+    case GL_UNSIGNED_INT_24_8: case GL_UNSIGNED_INT_10F_11F_11F_REV:
+    case GL_UNSIGNED_INT_5_9_9_9_REV:
       *elem = 4;
       return 4;
+    case GL_FLOAT_32_UNSIGNED_INT_24_8_REV:
+      *elem = 4;
+      return 8;
     case 0x140B: case 0x8D61:		/* GL_HALF_FLOAT, GL_HALF_FLOAT_OES */
       e = 2;
       break;
@@ -1554,9 +1620,10 @@ ext_cmp (const void *k, const void *e)
   return strcmp ((const char *) k, *(const char *const *) e);
 }
 
-/* What the context is, not what Linux made: the stream carries OpenGL 2.1
-   (compatibility) or GLES 2.0, whatever version the renderer's context
-   has, so a program that saw 4.6 would call functions that aren't here.
+/* What the context is, not what Linux made: the stream carries up to
+   OpenGL 3.1 (compatibility) and GLES 3.1, whatever version the
+   renderer's context has, so a program that saw 4.6 would call functions
+   that aren't here (cur->version: the lower of the two).
    The renderer's own version is kept in brackets (its "Mesa x.y.z" part
    where it has one). GL_EXTENSIONS: only those whose functions the stream
    carries. */
@@ -1571,18 +1638,42 @@ own_string (int slot, const char *linux_s)
       const char *v = m ? m : linux_s;
       if (!m && !strncmp (v, "OpenGL ES ", 10))
 	v += 10;
-      s = malloc (strlen (v) + 32);
+      s = malloc (strlen (v) + 40);
       if (s)
-	sprintf (s, "%s RISC3D (%s)", cur->desktop ? "2.1" : cur->es1 ? "OpenGL ES-CM 1.1" : "OpenGL ES 2.0", v);
+	{
+	  if (cur->es1)
+	    sprintf (s, "OpenGL ES-CM 1.1 RISC3D (%s)", v);
+	  else
+	    sprintf (s, "%s%d.%d RISC3D (%s)", cur->desktop ? "" : "OpenGL ES ", cur->version / 10, cur->version % 10, v);
+	}
       return s;
     }
   if (slot == 3)
-    return cur->es1 ? 0 : strdup (cur->desktop ? "1.20" : "OpenGL ES GLSL ES 1.00");
+    {
+      if (cur->es1)
+	return 0;
+      if (cur->desktop)
+	return strdup (cur->version >= 31 ? "1.40" : cur->version >= 30 ? "1.30" : "1.20");
+      return strdup (cur->version >= 31 ? "OpenGL ES GLSL ES 3.10" : cur->version >= 30 ? "OpenGL ES GLSL ES 3.00"
+		     : "OpenGL ES GLSL ES 1.00");
+    }
   /* slot 4 */
   const char *const *list = cur->desktop ? r3d_exts_gl : cur->es1 ? r3d_exts_gles1 : r3d_exts_gles2;
   size_t count = cur->desktop ? sizeof r3d_exts_gl / sizeof *r3d_exts_gl
 		 : cur->es1 ? sizeof r3d_exts_gles1 / sizeof *r3d_exts_gles1
 			    : sizeof r3d_exts_gles2 / sizeof *r3d_exts_gles2;
+  if (cur->old_renderer && !cur->es1)
+    {
+      list = cur->desktop ? r3d_exts_gl_04 : r3d_exts_gles2_04;
+      count = cur->desktop ? sizeof r3d_exts_gl_04 / sizeof *r3d_exts_gl_04
+			   : sizeof r3d_exts_gles2_04 / sizeof *r3d_exts_gles2_04;
+    }
+  else if (cur->level < 6 && cur->desktop)
+    {
+      /* (rol-3d 0.5: not GL_EXT_direct_state_access) */
+      list = r3d_exts_gl_05;
+      count = sizeof r3d_exts_gl_05 / sizeof *r3d_exts_gl_05;
+    }
   if (cur->es1)
     {
       /* (desktop OpenGL's list names others: riscos-mesa's own, carried) */
@@ -1628,8 +1719,8 @@ own_string (int slot, const char *linux_s)
   return s;
 }
 
-const GLubyte *
-glGetString (GLenum name)
+static const GLubyte *
+get_string (GLenum name)
 {
   int slot = name == GL_VENDOR ? 0 : name == GL_RENDERER ? 1 : name == GL_VERSION ? 2
 	     : name == GL_SHADING_LANGUAGE_VERSION ? 3 : name == GL_EXTENSIONS ? 4 : 5;
@@ -1664,6 +1755,74 @@ glGetString (GLenum name)
   return (const GLubyte *) s;
 }
 
+/* OpenGL 3.1 without GL_ARB_compatibility has no
+   GL_EXTENSIONS string, only glGetStringi's */
+static int
+core_31 (void)
+{
+  if (!cur->desktop || cur->version < 31)
+    return 0;
+  const char *e = (const char *) get_string (GL_EXTENSIONS);
+  for (const char *p = e; p && (p = strstr (p, "GL_ARB_compatibility")) != 0; p += 20)
+    if ((p == e || p[-1] == ' ') && (p[20] == ' ' || !p[20]))
+      return 0;
+  return 1;
+}
+
+const GLubyte *
+glGetString (GLenum name)
+{
+  if (name == GL_EXTENSIONS && core_31 ())
+    return 0;				/* (GL_INVALID_ENUM, the renderer's own) */
+  return get_string (name);
+}
+
+/* GL_EXTENSIONS one at a time (glGetStringi): the list above, split */
+static GLuint
+ext_split (void)
+{
+  if (cur->ext_list)
+    return cur->ext_count;
+  const char *e = (const char *) get_string (GL_EXTENSIONS);
+  if (!e)
+    return 0;
+  size_t words = 0, len = strlen (e);
+  for (const char *p = e; *p; p++)
+    if (*p != ' ' && (p == e || p[-1] == ' '))
+      words++;
+  const char **l = malloc ((words + 1) * sizeof *l + len + 1);
+  if (!l)
+    return 0;
+  char *t = (char *) (l + words + 1);
+  memcpy (t, e, len + 1);
+  /* (split by hand: no new C library functions, for riscos-mesa's
+     shared library) */
+  GLuint n = 0;
+  for (char *p = t; *p;)
+    {
+      while (*p == ' ')
+	*p++ = 0;
+      if (!*p)
+	break;
+      l[n++] = p;
+      while (*p && *p != ' ')
+	p++;
+    }
+  l[n] = 0;
+  cur->ext_list = l;
+  cur->ext_count = n;
+  return n;
+}
+
+const GLubyte *
+glGetStringi (GLenum name, GLuint index)
+{
+  if (name != GL_EXTENSIONS || cur->version < 30)
+    return 0;
+  GLuint n = ext_split ();
+  return index < n ? (const GLubyte *) cur->ext_list[index] : 0;
+}
+
 /* --- gets: from the kept state where it can ---------------------------- */
 
 /* 1 and the values (as doubles, n of them), if kept here; float: the
@@ -1675,6 +1834,29 @@ kept (GLenum pname, double *v, int *n, int *is_float)
   int transpose = 0;
   *is_float = 0;
   *n = 1;
+  /* the fixed-function arrays' pointers' state: kept here (an array in the
+     program's memory reaches the renderer only with each draw) */
+  static const struct { GLenum pname; signed char slot, what; } arr[] = {
+    { GL_VERTEX_ARRAY_SIZE, 0, 0 }, { GL_VERTEX_ARRAY_TYPE, 0, 1 }, { GL_VERTEX_ARRAY_STRIDE, 0, 2 },
+    { GL_NORMAL_ARRAY_TYPE, 1, 1 }, { GL_NORMAL_ARRAY_STRIDE, 1, 2 },
+    { GL_COLOR_ARRAY_SIZE, 2, 0 }, { GL_COLOR_ARRAY_TYPE, 2, 1 }, { GL_COLOR_ARRAY_STRIDE, 2, 2 },
+    { GL_INDEX_ARRAY_TYPE, 3, 1 }, { GL_INDEX_ARRAY_STRIDE, 3, 2 }, { GL_EDGE_FLAG_ARRAY_STRIDE, 4, 2 },
+    { GL_FOG_COORD_ARRAY_TYPE, 5, 1 }, { GL_FOG_COORD_ARRAY_STRIDE, 5, 2 },
+    { GL_SECONDARY_COLOR_ARRAY_SIZE, 6, 0 }, { GL_SECONDARY_COLOR_ARRAY_TYPE, 6, 1 },
+    { GL_SECONDARY_COLOR_ARRAY_STRIDE, 6, 2 },
+    { GL_TEXTURE_COORD_ARRAY_SIZE, -1, 0 }, { GL_TEXTURE_COORD_ARRAY_TYPE, -1, 1 },
+    { GL_TEXTURE_COORD_ARRAY_STRIDE, -1, 2 },
+  };
+  for (size_t i = 0; cur->ff && i < sizeof arr / sizeof *arr; i++)
+    if (arr[i].pname == pname)
+      {
+	int slot = arr[i].slot >= 0 ? arr[i].slot : 8 + cur->client_unit;
+	if (slot >= FIXED_SLOTS)
+	  return 0;
+	const struct attrib *t = &cur->fixed[slot];
+	v[0] = arr[i].what == 0 ? t->size : arr[i].what == 1 ? (double) t->type : t->stride;
+	return 1;
+      }
   switch (pname)
     {
     case GL_TRANSPOSE_MODELVIEW_MATRIX: transpose = 1; /* fall through */
@@ -1701,6 +1883,11 @@ kept (GLenum pname, double *v, int *n, int *is_float)
     case GL_LIST_INDEX: if (!cur->desktop) return 0; v[0] = cur->compiling; return 1;
     case GL_LIST_MODE: if (!cur->desktop) return 0; v[0] = cur->compiling ? cur->compile_mode : 0; return 1;
     case GL_ACTIVE_TEXTURE: v[0] = GL_TEXTURE0 + cur->active; return 1;
+    case GL_MAJOR_VERSION: if (cur->version < 30) return 0; v[0] = cur->version / 10; return 1;
+    case GL_MINOR_VERSION: if (cur->version < 30) return 0; v[0] = cur->version % 10; return 1;
+    case GL_NUM_EXTENSIONS: if (cur->version < 30) return 0; v[0] = ext_split (); return 1;
+    case GL_DRAW_INDIRECT_BUFFER_BINDING: if (cur->version < 31) return 0; v[0] = cur->indirect_buffer; return 1;
+    case GL_PRIMITIVE_RESTART_INDEX: if (!cur->desktop || cur->version < 31) return 0; v[0] = cur->restart_index; return 1;
     case GL_CLIENT_ACTIVE_TEXTURE: if (!cur->ff) return 0; v[0] = GL_TEXTURE0 + cur->client_unit; return 1;
     case GL_ARRAY_BUFFER_BINDING: v[0] = cur->array_buffer; return 1;
     case GL_ELEMENT_ARRAY_BUFFER_BINDING: v[0] = cur->element_buffer; return 1;
@@ -1841,8 +2028,46 @@ gen_names (GLuint *next, GLsizei n, GLuint *names)
     names[i] = (*next)++;
 }
 
-void glGenTextures (GLsizei n, GLuint *textures) { gen_names (&cur->next_texture, n, textures); }
-void glGenBuffers (GLsizei n, GLuint *buffers) { gen_names (&cur->next_buffer, n, buffers); }
+/* OpenGL 3.1 without the compatibility profile takes only names it gave:
+   the renderer's (a wait), kept above the ones given here */
+static void
+gen_core (uint32_t op, GLuint *next, GLsizei n, GLuint *names)
+{
+  if (n <= 0 || !names)
+    return;
+  uint32_t *a = r3d_put (op, 1);
+  uint32_t *r = calloc ((size_t) n, 4);
+  if (!a || !r)
+    {
+      free (r);
+      return;
+    }
+  a[0] = (uint32_t) n;
+  r3d_sync (r, (size_t) n * 4);
+  for (GLsizei i = 0; i < n; i++)
+    {
+      names[i] = r[i];
+      used_name (next, r[i]);
+    }
+  free (r);
+}
+
+void
+glGenTextures (GLsizei n, GLuint *textures)
+{
+  if (cur->strict)
+    gen_core (OP_glGenTextures, &cur->next_texture, n, textures);
+  else
+    gen_names (&cur->next_texture, n, textures);
+}
+void
+glGenBuffers (GLsizei n, GLuint *buffers)
+{
+  if (cur->strict)
+    gen_core (OP_glGenBuffers, &cur->next_buffer, n, buffers);
+  else
+    gen_names (&cur->next_buffer, n, buffers);
+}
 
 GLuint
 glGenLists (GLsizei range)
@@ -2158,6 +2383,7 @@ glVertexAttribPointer (GLuint index, GLint size, GLenum type, GLboolean normaliz
   t->normalized = normalized;
   t->stride = stride;
   t->pointer = pointer;
+  t->integer = 0;
   t->client = cur->array_buffer == 0;
   t->in_buffer = !t->client;
   if (t->client)
@@ -2347,8 +2573,9 @@ array_elem (const struct attrib *t)
   return (size_t) size * type_bytes (t->type);
 }
 
+/* instances: an array with a divisor has one value for each that many */
 static void
-send_client_arrays (size_t vertices)
+send_client_arrays_n (size_t vertices, size_t instances)
 {
   if (!vertices)
     return;
@@ -2359,8 +2586,13 @@ send_client_arrays (size_t vertices)
 	continue;
       size_t elem = array_elem (t);
       size_t stride = t->stride ? (size_t) t->stride : elem;
-      size_t bytes = stride * (vertices - 1) + elem;
-      uint32_t f[6] = { i, (uint32_t) t->size, t->type, t->normalized, (uint32_t) stride, (uint32_t) bytes };
+      size_t n = t->divisor ? (instances + t->divisor - 1) / t->divisor : vertices;
+      if (!n)
+	n = 1;
+      size_t bytes = stride * (n - 1) + elem;
+      /* (word 3: normalised, and 2 for integers: glVertexAttribIPointer) */
+      uint32_t f[6] = { i, (uint32_t) t->size, t->type, (uint32_t) t->normalized | (t->integer ? 2u : 0u),
+			(uint32_t) stride, (uint32_t) bytes };
       r3d_put_data (OP_CLIENT_ARRAY, f, 6, t->pointer, bytes);
     }
   for (int s = 0; s < FIXED_SLOTS; s++)
@@ -2397,6 +2629,12 @@ send_client_arrays (size_t vertices)
 	}
       r3d_put_data (OP_FIXED_ARRAY, f, 6, t->pointer, bytes);
     }
+}
+
+static void
+send_client_arrays (size_t vertices)
+{
+  send_client_arrays_n (vertices, 1);
 }
 
 static int
@@ -2501,15 +2739,33 @@ static size_t
 max_index (GLenum type, const void *indices, GLsizei count)
 {
   size_t max = 0;
+  /* (primitive restart: its index isn't a vertex) */
+  size_t skip = cur->restart_fixed ? (type == GL_UNSIGNED_BYTE ? 0xFF : type == GL_UNSIGNED_SHORT ? 0xFFFF : 0xFFFFFFFF)
+		: cur->restart ? cur->restart_index : (size_t) -1;
   for (GLsizei i = 0; i < count; i++)
     {
       size_t v = type == GL_UNSIGNED_BYTE ? ((const uint8_t *) indices)[i]
 		 : type == GL_UNSIGNED_SHORT ? ((const uint16_t *) indices)[i]
 		 : ((const uint32_t *) indices)[i];
+      if (v == skip)
+	continue;
       if (v > max)
 	max = v;
     }
   return max;
+}
+
+/* bytes of a buffer object, from the renderer: 1 if all came */
+static int
+read_buffer (GLenum target, GLintptr offset, size_t bytes, void *out)
+{
+  uint32_t *a = r3d_put (OP_READ_BUFFER_RANGE, 3);
+  if (!a || offset < 0)
+    return 0;
+  a[0] = target;
+  a[1] = (uint32_t) offset;
+  a[2] = (uint32_t) bytes;
+  return r3d_sync (out, bytes) >= (int) bytes;
 }
 
 /* range: the last vertex the draw needs, if known (else (size_t) -1) */
@@ -2525,13 +2781,13 @@ draw_elements (GLenum mode, GLsizei count, GLenum type, const void *indices, siz
 	 sized from the indices, read back (OpenGL) */
       if (any_client_arrays ())
 	{
-	  if (last == (size_t) -1 && cur->desktop)
+	  if (last == (size_t) -1)
 	    {
 	      void *ix = malloc ((size_t) count * eb);
 	      if (ix)
 		{
-		  glGetBufferSubData (GL_ELEMENT_ARRAY_BUFFER, (GLintptr) (uintptr_t) indices, (GLsizeiptr) ((size_t) count * eb), ix);
-		  last = max_index (type, ix, count);
+		  if (read_buffer (GL_ELEMENT_ARRAY_BUFFER, (GLintptr) (uintptr_t) indices, (size_t) count * eb, ix))
+		    last = max_index (type, ix, count);
 		  free (ix);
 		}
 	    }
@@ -2987,13 +3243,16 @@ free_context (struct r3d_context *c)
   for (int i = 0; i < 4; i++)
     free (c->maps[i].ptr);
   free (c->imm_v);
+  free (c->ext_list);
+  free (c->target_tmp);
   free (c);
 }
 
-/* a context of OpenGL (desktop: the compatibility profile) or GLES 2:
-   the renderer makes it now, so that a failure is seen here */
+/* a context of OpenGL (desktop: the compatibility profile), GLES 1.1 or
+   GLES 2/3: the renderer makes it now, so that a failure is seen here.
+   want: the version asked for (major * 10 + minor), or 0 */
 static struct r3d_context *
-create (int api)
+create_version (int api, int want)
 {
   int desktop = api == R3D_API_GL;
   struct r3d_context *c = calloc (1, sizeof *c);
@@ -3023,6 +3282,7 @@ create (int api)
   c->local_head = c->published = c->tail_seen = c->area->head;
   c->unpack.alignment = c->pack.alignment = 4;
   c->next_texture = c->next_buffer = c->next_list = 1;
+  array_defaults (c->attribs, c->fixed);
   c->matrix_mode = GL_MODELVIEW;
 
   struct r3d_context *was = cur;
@@ -3030,19 +3290,43 @@ create (int api)
     publish ();
   cur = c;
   int ok = 0;
-  uint32_t *a = r3d_put (OP_CONTEXT, 1);
+  uint32_t *a = r3d_put (OP_CONTEXT, 2);
   if (a)
     {
       a[0] = (uint32_t) api;
+      a[1] = (uint32_t) want;
       int n = r3d_sync (0, 0);
       const uint32_t *r = reply_area ();
       if (n >= 8 && r[0])
-	ok = 1;
+	{
+	  /* the version: the renderer's (rol-3d 0.5 on: word 2), at most
+	     what the stream carries */
+	  int top = api == R3D_API_GLES1 ? 11 : 31;
+	  int has = n >= 12 && r[2] ? (int) r[2] : api == R3D_API_GL ? 21 : 20;
+	  c->old_renderer = n < 12;
+	  c->level = n >= 16 ? (int) r[3] : n >= 12 ? 5 : 4;
+	  if (api == R3D_API_GLES2 && r[1])
+	    has = 20;			/* (GLES on desktop OpenGL) */
+	  c->version = api == R3D_API_GLES1 ? 11 : has < top ? has : top;
+	  ok = 1;
+	  if (want > c->version)
+	    {
+	      ok = 0;
+	      snprintf (error_text, sizeof error_text, "RISC3D's renderer gives %s %d.%d", api == R3D_API_GL ? "OpenGL" : "OpenGL ES",
+			c->version / 10, c->version % 10);
+	      last_error = error_text;
+	    }
+	}
       else
 	{
 	  snprintf (error_text, sizeof error_text, "%s", n > 8 ? (const char *) (r + 2) : "the renderer made no context");
 	  last_error = error_text;
 	}
+    }
+  if (ok && api == R3D_API_GL && c->version >= 31)
+    {
+      c->desktop = 1;
+      c->strict = core_31 ();
     }
   if (ok && api != R3D_API_GLES2)
     {
@@ -3072,6 +3356,8 @@ create (int api)
   return c;
 }
 
+static struct r3d_context *create (int api) { return create_version (api, 0); }
+struct r3d_context *r3d_create_version (int api, int major, int minor) { return create_version (api, major * 10 + minor); }
 struct r3d_context *r3d_create (void) { return create (R3D_API_GLES2); }
 struct r3d_context *r3d_create_gl (void) { return create (R3D_API_GL); }
 struct r3d_context *r3d_create_es1 (void) { return create (R3D_API_GLES1); }
@@ -3257,6 +3543,163 @@ r3d_swap (void *pixels, size_t bytes)
   return r3d_sync (pixels, bytes);
 }
 
+/* --- the program's own buffer as framebuffer 0 (OSMesa's way) -----------
+
+   r3d_target: the frame is copied into the program's buffer, in its
+   format, at glFinish and glFlush when anything was sent since the last
+   copy, and at r3d_target_copy. The renderer keeps drawing into its own
+   framebuffer, which isn't cleared by the copy (OSMesa's single buffer). */
+
+#define R3D_FMT_BGRA 0x1
+#define R3D_FMT_ARGB 0x2
+#define R3D_FMT_BGR 0x4
+#define R3D_FMT_RGB_565 0x5
+
+static int
+target_bytes (int format)
+{
+  switch (format)
+    {
+    case GL_RGBA: case R3D_FMT_BGRA: case R3D_FMT_ARGB: return 4;
+    case GL_RGB: case R3D_FMT_BGR: return 3;
+    case R3D_FMT_RGB_565: return 2;
+    }
+  return 0;
+}
+
+const char *
+r3d_target (struct r3d_context *c, void *buffer, int width, int height, int format, int row_length, int y_up)
+{
+  if (!c)
+    return "No RISC3D context";
+  if (!buffer)
+    {
+      c->target = 0;
+      return 0;
+    }
+  if (width < 1 || height < 1 || width > 8192 || height > 8192 || !target_bytes (format)
+      || (row_length && row_length < width))
+    return "RISC3D can't draw into that buffer";
+  struct r3d_context *was = cur;
+  if (was != c)
+    {
+      if (was != &none)
+	publish ();
+      cur = c;
+    }
+  if (width != c->surface_w || height != c->surface_h)
+    {
+      free (c->target_tmp);
+      c->target_tmp = 0;
+      r3d_surface (width, height);
+    }
+  if (was != c)
+    {
+      publish ();
+      cur = was;
+    }
+  c->target = buffer;
+  c->target_w = width;
+  c->target_h = height;
+  c->target_format = format;
+  c->target_row = row_length ? row_length : width;
+  c->target_up = y_up;
+  c->target_head = c->local_head - 1;	/* (the first glFinish copies) */
+  return 0;
+}
+
+/* the frame into the program's buffer now (the current context's) */
+static int
+target_copy (void)
+{
+  struct r3d_context *c = cur;
+  int w = c->target_w, h = c->target_h, bpp = target_bytes (c->target_format);
+  size_t row = (size_t) w * 4, n = row * (size_t) h;
+  unsigned char *dst = c->target;
+  if (c->target_format == GL_RGBA && !c->target_up && c->target_row == w)
+    return r3d_swap (dst, n) == (int) n ? 0 : -1;
+  if (!c->target_tmp && !(c->target_tmp = malloc (n)))
+    return -1;
+  if (r3d_swap (c->target_tmp, n) != (int) n)
+    return -1;
+  for (int y = 0; y < h; y++)
+    {
+      const unsigned char *s = c->target_tmp + row * (size_t) y;
+      unsigned char *d = dst + (size_t) c->target_row * (size_t) bpp * (size_t) (c->target_up ? h - 1 - y : y);
+      switch (c->target_format)
+	{
+	case GL_RGBA:
+	  memcpy (d, s, row);
+	  break;
+	case R3D_FMT_BGRA:
+	  for (int x = 0; x < w; x++, s += 4, d += 4)
+	    {
+	      d[0] = s[2]; d[1] = s[1]; d[2] = s[0]; d[3] = s[3];
+	    }
+	  break;
+	case R3D_FMT_ARGB:
+	  for (int x = 0; x < w; x++, s += 4, d += 4)
+	    {
+	      d[0] = s[3]; d[1] = s[0]; d[2] = s[1]; d[3] = s[2];
+	    }
+	  break;
+	/* (OSMESA_RGB and OSMESA_BGR as riscos-mesa's OSMesa has them, Mesa
+	   20.3.5's: RGB is blue, green, red in memory and BGR red first) */
+	case GL_RGB:
+	  for (int x = 0; x < w; x++, s += 4, d += 3)
+	    {
+	      d[0] = s[2]; d[1] = s[1]; d[2] = s[0];
+	    }
+	  break;
+	case R3D_FMT_BGR:
+	  for (int x = 0; x < w; x++, s += 4, d += 3)
+	    {
+	      d[0] = s[0]; d[1] = s[1]; d[2] = s[2];
+	    }
+	  break;
+	case R3D_FMT_RGB_565:
+	  /* (rounded, as Mesa does) */
+	  for (int x = 0; x < w; x++, s += 4, d += 2)
+	    {
+	      unsigned v = (((unsigned) s[0] * 31 + 127) / 255 << 11) | (((unsigned) s[1] * 63 + 127) / 255 << 5)
+			   | ((unsigned) s[2] * 31 + 127) / 255;
+	      d[0] = (unsigned char) v;
+	      d[1] = (unsigned char) (v >> 8);
+	    }
+	  break;
+	}
+    }
+  return 0;
+}
+
+int
+r3d_target_copy (struct r3d_context *c)
+{
+  if (!c || !c->target)
+    return -1;
+  struct r3d_context *was = cur;
+  cur = c;
+  int r = target_copy ();
+  c->target_head = c->local_head;
+  cur = was;
+  return r;
+}
+
+/* glFinish and glFlush: the copy first, if anything was sent since the
+   last (the command itself, two words, follows: counted as copied) */
+static void
+target_finish (void)
+{
+  if (!cur->target)
+    return;
+  if (cur->local_head != cur->target_head)
+    target_copy ();
+  cur->target_head = cur->local_head + 2;
+}
+
+static void r3d_track_glFinish (void) { target_finish (); }
+static void r3d_track_glFlush (void) { target_finish (); }
+
 
 /* --- GLES 1.1 ------------------------------------------------------------
 
@@ -3400,8 +3843,7 @@ vao_load (const struct vao *v)
   else
     {
       /* a new object: nothing enabled, no element buffer */
-      memset (cur->attribs, 0, sizeof cur->attribs);
-      memset (cur->fixed, 0, sizeof cur->fixed);
+      array_defaults (cur->attribs, cur->fixed);
       cur->element_buffer = 0;
     }
 }
@@ -3490,18 +3932,18 @@ draw_elements_ex (int how, GLenum mode, GLsizei count, GLenum type, const void *
     {
       if (any_client_arrays ())
 	{
-	  if (last == (size_t) -1 && cur->desktop)
+	  if (last == (size_t) -1)
 	    {
 	      void *ix = malloc ((size_t) count * eb);
 	      if (ix)
 		{
-		  glGetBufferSubData (GL_ELEMENT_ARRAY_BUFFER, (GLintptr) (uintptr_t) indices, (GLsizeiptr) ((size_t) count * eb), ix);
-		  last = max_index (type, ix, count);
+		  if (read_buffer (GL_ELEMENT_ARRAY_BUFFER, (GLintptr) (uintptr_t) indices, (size_t) count * eb, ix))
+		    last = max_index (type, ix, count);
 		  free (ix);
 		}
 	    }
 	  if (last != (size_t) -1 && (long) last + base >= 0)
-	    send_client_arrays ((size_t) ((long) last + base) + 1);
+	    send_client_arrays_n ((size_t) ((long) last + base) + 1, (size_t) instances);
 	}
       uint32_t *a = r3d_put (OP_DRAW_ELEMENTS_EX, 9);
       if (!a)
@@ -3522,7 +3964,7 @@ draw_elements_ex (int how, GLenum mode, GLsizei count, GLenum type, const void *
   if (last == (size_t) -1)
     last = max_index (type, indices, count);
   if ((long) last + base >= 0)
-    send_client_arrays ((size_t) ((long) last + base) + 1);
+    send_client_arrays_n ((size_t) ((long) last + base) + 1, (size_t) instances);
   uint32_t f[9] = { (uint32_t) how | 0x100, mode, (uint32_t) count, type, (uint32_t) instances,
 		    (uint32_t) base, start, end, (uint32_t) ((size_t) count * eb) };
   r3d_put_data (OP_DRAW_ELEMENTS_EX, f, 9, indices, (size_t) count * eb);
@@ -3533,7 +3975,7 @@ glDrawArraysInstanced (GLenum mode, GLint first, GLsizei count, GLsizei instance
 {
   if (count <= 0 || first < 0 || instancecount <= 0)
     return;
-  send_client_arrays ((size_t) first + (size_t) count);
+  send_client_arrays_n ((size_t) first + (size_t) count, (size_t) instancecount);
   uint32_t *a = r3d_put (OP_glDrawArraysInstanced, 4);
   if (!a)
     return;
@@ -3698,24 +4140,18 @@ glGetObjectLabel (GLenum identifier, GLuint name, GLsizei bufSize, GLsizei *leng
   free (r);
 }
 
-/* labels on sync objects: those come with OpenGL 3 / GLES 3's sync
-   objects, which RISC3D doesn't carry yet */
+/* labels on sync objects (the only pointers labelled): as glObjectLabel's,
+   with the sync object's number */
 void
 glObjectPtrLabel (const void *ptr, GLsizei length, const GLchar *label)
 {
-  (void) ptr;
-  (void) length;
-  (void) label;
+  put_text3 (OP_glObjectLabel, R3D_SYNC_LABEL, (uint32_t) (uintptr_t) ptr, 0, 0, 2, length, label);
 }
 
 void
 glGetObjectPtrLabel (const void *ptr, GLsizei bufSize, GLsizei *length, GLchar *label)
 {
-  (void) ptr;
-  if (length)
-    *length = 0;
-  if (label && bufSize > 0)
-    label[0] = 0;
+  glGetObjectLabel (R3D_SYNC_LABEL, (GLuint) (uintptr_t) ptr, bufSize, length, label);
 }
 
 /* the renderer's messages: [0] count, then for each source, type, id,
@@ -3800,4 +4236,309 @@ debug_deliver (void)
   in = 0;
 }
 
+
+/* --- OpenGL 3.0/3.1 and GLES 3.0/3.1 ------------------------------------ */
+
+/* strings for the stream: [count] then each one's length and bytes,
+   padded to a word (out 0: only the size) */
+static size_t
+r3d_strs (char *out, const GLchar *const *strs, GLsizei count, const GLint *lengths)
+{
+  size_t at = 4;
+  if (count < 0)
+    count = 0;
+  if (out)
+    {
+      uint32_t c = (uint32_t) count;
+      memcpy (out, &c, 4);
+    }
+  for (GLsizei i = 0; i < count; i++)
+    {
+      uint32_t l = !strs[i] ? 0 : lengths && lengths[i] >= 0 ? (uint32_t) lengths[i] : (uint32_t) strlen (strs[i]);
+      if (out)
+	{
+	  memcpy (out + at, &l, 4);
+	  memset (out + at + 4, 0, (l + 3) / 4 * 4);
+	  if (l)
+	    memcpy (out + at + 4, strs[i], l);
+	}
+      at += 4 + (l + 3) / 4 * 4;
+    }
+  return at;
+}
+
+/* one texel's bytes (glClearBufferData) */
+static size_t
+r3d_texel_bytes (GLenum format, GLenum type)
+{
+  size_t e;
+  return pixel_bytes (format, type, &e);
+}
+
+void
+glGetInteger64v (GLenum pname, GLint64 *data)
+{
+  double v[16];
+  int n, f;
+  if (kept (pname, v, &n, &f))
+    {
+      /* (as glGetIntegerv's: a double to a 64-bit integer would bring in
+	 libgcc's __fixdfdi) */
+      for (int i = 0; i < n; i++)
+	{
+	  double x = f ? 2147483647.0 * v[i] : v[i];
+	  data[i] = x >= 2147483647.0 ? 2147483647 : x <= -2147483648.0 ? (GLint) -2147483647 - 1 : (GLint) x;
+	}
+      return;
+    }
+  size_t c = values_of (pname);
+  const uint32_t *r = asked (OP_glGetInteger64v, pname);
+  if (r && data)
+    memcpy (data, r, 8 * (c > 32 ? 32 : c));
+}
+
+void
+glVertexAttribIPointer (GLuint index, GLint size, GLenum type, GLsizei stride, const void *pointer)
+{
+  if (index >= MAX_ATTRIBS)
+    return;
+  struct attrib *t = &cur->attribs[index];
+  t->size = size;
+  t->type = type;
+  t->normalized = 0;
+  t->stride = stride;
+  t->pointer = pointer;
+  t->integer = 1;
+  t->client = cur->array_buffer == 0;
+  t->in_buffer = !t->client;
+  if (t->client)
+    return;
+  uint32_t *a = r3d_put (OP_glVertexAttribIPointer, 5);
+  if (!a)
+    return;
+  a[0] = index;
+  a[1] = (uint32_t) size;
+  a[2] = type;
+  a[3] = (uint32_t) stride;
+  a[4] = (uint32_t) (uintptr_t) pointer;
+}
+
+/* sync objects: a number here, the renderer's GLsync in its table (a
+   RISC OS address can't hold Linux's pointer) */
+GLsync
+glFenceSync (GLenum condition, GLbitfield flags)
+{
+  uint32_t *a = r3d_put (OP_glFenceSync, 3);
+  if (!a)
+    return 0;
+  uint32_t id = ++cur->next_sync;
+  a[0] = id;
+  a[1] = condition;
+  a[2] = flags;
+  return (GLsync) (uintptr_t) id;
+}
+
+static uint32_t
+sync_ask (uint32_t op, GLsync sync, uint32_t w1, GLuint64 timeout)
+{
+  uint32_t *a = r3d_put (op, 4);
+  if (!a)
+    return 0;
+  a[0] = (uint32_t) (uintptr_t) sync;
+  a[1] = w1;
+  memcpy (a + 2, &timeout, 8);
+  uint32_t r = 0;
+  if (op != OP_glWaitSync && op != OP_glDeleteSync)
+    r3d_sync (&r, 4);
+  return r;
+}
+
+GLboolean glIsSync (GLsync sync) { return sync ? (GLboolean) sync_ask (OP_glIsSync, sync, 0, 0) : GL_FALSE; }
+void glDeleteSync (GLsync sync) { if (sync) sync_ask (OP_glDeleteSync, sync, 0, 0); }
+GLenum glClientWaitSync (GLsync sync, GLbitfield flags, GLuint64 timeout) { return sync_ask (OP_glClientWaitSync, sync, flags, timeout); }
+void glWaitSync (GLsync sync, GLbitfield flags, GLuint64 timeout) { sync_ask (OP_glWaitSync, sync, flags, timeout); }
+
+void
+glGetSynciv (GLsync sync, GLenum pname, GLsizei count, GLsizei *length, GLint *values)
+{
+  if (length)
+    *length = 0;
+  if (count <= 0)
+    return;
+  if (count > 64)
+    count = 64;
+  uint32_t *a = r3d_put (OP_glGetSynciv, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) (uintptr_t) sync;
+  a[1] = pname;
+  a[2] = (uint32_t) count;
+  uint32_t r[65];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  GLsizei got = (GLsizei) r[0] < count ? (GLsizei) r[0] : count;
+  if (values)
+    memcpy (values, r + 1, 4 * (size_t) got);
+  if (length)
+    *length = got;
+}
+
+/* indirect draws: from a buffer object by the renderer; with arrays in the
+   program's memory (whose size the command gives), the command is read
+   and drawn as the direct call */
+static int
+read_indirect (const void *indirect, void *cmd, size_t bytes)
+{
+  if (cur->indirect_buffer)
+    return read_buffer (GL_DRAW_INDIRECT_BUFFER, (GLintptr) (uintptr_t) indirect, bytes, cmd);
+  if (!indirect)
+    return 0;
+  memcpy (cmd, indirect, bytes);
+  return 1;
+}
+
+void
+glDrawArraysIndirect (GLenum mode, const void *indirect)
+{
+  if (cur->indirect_buffer && !any_client_arrays ())
+    {
+      uint32_t *a = r3d_put (OP_glDrawArraysIndirect, 2);
+      if (a)
+	{
+	  a[0] = mode;
+	  a[1] = (uint32_t) (uintptr_t) indirect;
+	}
+      return;
+    }
+  GLuint cmd[4];			/* count, instances, first, base instance */
+  if (read_indirect (indirect, cmd, sizeof cmd) && cmd[1])
+    glDrawArraysInstanced (mode, (GLint) cmd[2], (GLsizei) cmd[0], (GLsizei) cmd[1]);
+}
+
+void
+glDrawElementsIndirect (GLenum mode, GLenum type, const void *indirect)
+{
+  if (!cur->element_buffer)
+    return;				/* GL_INVALID_OPERATION */
+  if (cur->indirect_buffer && !any_client_arrays ())
+    {
+      uint32_t *a = r3d_put (OP_glDrawElementsIndirect, 3);
+      if (a)
+	{
+	  a[0] = mode;
+	  a[1] = type;
+	  a[2] = (uint32_t) (uintptr_t) indirect;
+	}
+      return;
+    }
+  GLuint cmd[5];			/* count, instances, first index, base vertex, base instance */
+  if (read_indirect (indirect, cmd, sizeof cmd) && cmd[1])
+    draw_elements_ex (DRAW_INSTANCED | DRAW_BASE, mode, (GLsizei) cmd[0], type,
+		      (const void *) (uintptr_t) (cmd[2] * type_bytes (type)), (size_t) -1, (GLsizei) cmd[1],
+		      (GLint) cmd[3], 0, 0);
+}
+
+/* GL_ARB_robustness's sized gets: the same as the unsized ones, into a
+   buffer of ours first where the answer's size is the renderer's */
+void glReadnPixels (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLsizei bufSize, void *data)
+{ (void) bufSize; glReadPixels (x, y, width, height, format, type, data); }
+void glGetnTexImage (GLenum target, GLint level, GLenum format, GLenum type, GLsizei bufSize, void *pixels)
+{ (void) bufSize; glGetTexImage (target, level, format, type, pixels); }
+void glGetnCompressedTexImage (GLenum target, GLint lod, GLsizei bufSize, void *pixels)
+{ (void) bufSize; glGetCompressedTexImage (target, lod, pixels); }
+void glGetnPolygonStipple (GLsizei bufSize, GLubyte *pattern)
+{
+  GLubyte p[128];
+  glGetPolygonStipple (p);
+  if (pattern && bufSize > 0)
+    memcpy (pattern, p, bufSize < 128 ? (size_t) bufSize : 128);
+}
+
+#define SIZED(name, type, call)						\
+  {									\
+    type *t_ = calloc (4096, sizeof *t_);				\
+    if (!t_)								\
+      return;								\
+    call;								\
+    if (out_ && bufSize > 0)						\
+      memcpy (out_, t_, (size_t) bufSize < 4096 * sizeof *t_ ? (size_t) bufSize : 4096 * sizeof *t_); \
+    free (t_);								\
+  }
+void glGetnUniformfv (GLuint program, GLint location, GLsizei bufSize, GLfloat *out_)
+SIZED (glGetnUniformfv, GLfloat, glGetUniformfv (program, location, t_))
+void glGetnUniformiv (GLuint program, GLint location, GLsizei bufSize, GLint *out_)
+SIZED (glGetnUniformiv, GLint, glGetUniformiv (program, location, t_))
+void glGetnUniformuiv (GLuint program, GLint location, GLsizei bufSize, GLuint *out_)
+SIZED (glGetnUniformuiv, GLuint, glGetUniformuiv (program, location, t_))
+void glGetnUniformdv (GLuint program, GLint location, GLsizei bufSize, GLdouble *out_)
+{
+  /* (double uniforms are OpenGL 4's: these are floats) */
+  GLfloat f[4096];
+  memset (f, 0, sizeof f);
+  glGetUniformfv (program, location, f);
+  for (GLsizei i = 0; out_ && i < bufSize / 8 && i < 4096; i++)
+    out_[i] = f[i];
+}
+void glGetnMapdv (GLenum target, GLenum query, GLsizei bufSize, GLdouble *out_)
+SIZED (glGetnMapdv, GLdouble, glGetMapdv (target, query, t_))
+void glGetnMapfv (GLenum target, GLenum query, GLsizei bufSize, GLfloat *out_)
+SIZED (glGetnMapfv, GLfloat, glGetMapfv (target, query, t_))
+void glGetnMapiv (GLenum target, GLenum query, GLsizei bufSize, GLint *out_)
+SIZED (glGetnMapiv, GLint, glGetMapiv (target, query, t_))
+void glGetnPixelMapfv (GLenum map, GLsizei bufSize, GLfloat *out_)
+SIZED (glGetnPixelMapfv, GLfloat, glGetPixelMapfv (map, t_))
+void glGetnPixelMapuiv (GLenum map, GLsizei bufSize, GLuint *out_)
+SIZED (glGetnPixelMapuiv, GLuint, glGetPixelMapuiv (map, t_))
+void glGetnPixelMapusv (GLenum map, GLsizei bufSize, GLushort *out_)
+SIZED (glGetnPixelMapusv, GLushort, glGetPixelMapusv (map, t_))
+#undef SIZED
+
+/* GL_EXT_vertex_array: OpenGL 1.1's with a count, which isn't needed */
+void glColorPointerEXT (GLint size, GLenum type, GLsizei stride, GLsizei count, const void *pointer)
+{ (void) count; glColorPointer (size, type, stride, pointer); }
+void glEdgeFlagPointerEXT (GLsizei stride, GLsizei count, const GLboolean *pointer)
+{ (void) count; glEdgeFlagPointer (stride, pointer); }
+void glIndexPointerEXT (GLenum type, GLsizei stride, GLsizei count, const void *pointer)
+{ (void) count; glIndexPointer (type, stride, pointer); }
+void glNormalPointerEXT (GLenum type, GLsizei stride, GLsizei count, const void *pointer)
+{ (void) count; glNormalPointer (type, stride, pointer); }
+void glTexCoordPointerEXT (GLint size, GLenum type, GLsizei stride, GLsizei count, const void *pointer)
+{ (void) count; glTexCoordPointer (size, type, stride, pointer); }
+void glVertexPointerEXT (GLint size, GLenum type, GLsizei stride, GLsizei count, const void *pointer)
+{ (void) count; glVertexPointer (size, type, stride, pointer); }
+
+/* GL_IBM_multimode_draw_arrays: one draw at a time */
+void
+glMultiModeDrawArraysIBM (const GLenum *mode, const GLint *first, const GLsizei *count, GLsizei primcount, GLint modestride)
+{
+  for (GLsizei i = 0; mode && first && count && i < primcount; i++)
+    glDrawArrays (*(const GLenum *) (const void *) ((const char *) mode + (long) i * modestride), first[i], count[i]);
+}
+
+void
+glMultiModeDrawElementsIBM (const GLenum *mode, const GLsizei *count, GLenum type, const void *const *indices,
+			    GLsizei primcount, GLint modestride)
+{
+  for (GLsizei i = 0; mode && count && indices && i < primcount; i++)
+    glDrawElements (*(const GLenum *) (const void *) ((const char *) mode + (long) i * modestride), count[i], type, indices[i]);
+}
+
+/* GL_ARB_fragment_program: the program's text, as long as it says */
+void
+glGetProgramStringARB (GLenum target, GLenum pname, void *string)
+{
+  GLint n = 0;
+  glGetProgramivARB (target, 0x8627 /* GL_PROGRAM_LENGTH_ARB */, &n);
+  if (n <= 0 || !string)
+    return;
+  uint32_t *a = r3d_put (OP_glGetProgramStringARB, 3);
+  if (!a)
+    return;
+  a[0] = target;
+  a[1] = pname;
+  a[2] = (uint32_t) n;
+  r3d_sync (string, (size_t) n);
+}
+
+#include "r3d_dsa.c"
 #include "client_gen.c"

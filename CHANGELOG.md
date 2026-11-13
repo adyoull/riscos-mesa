@@ -51,6 +51,24 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     and with `SDL_RISCOS_GL_EGL` 0 "Mesa OffScreen". There RISC3D is
     Linux's Mesa in software with frames read back (about 55 fps against
     OSMesa's 340 at 320x240), so it says nothing about speed on a GPU.
+- **RISC3D 0.7: OpenGL 3.0/3.1 and OpenGL ES 3.0/3.1 through RISC3D.**
+  libEGL has RISC3D's client 0.7 (tag v0.7; 0.5 added GL 3.x and GLES
+  3.x, 0.6 EXT_direct_state_access, so RISC3D now carries every function
+  riscos-mesa's own renderer offers). With RISC3D:
+  - `EGL_CONTEXT_MAJOR/MINOR_VERSION` 3.0 or 3.1 (OpenGL, compatibility
+    profile) and GLES 3.0 or 3.1 contexts are RISC3D's, made with
+    `r3d_create_version`; configs list `EGL_OPENGL_ES3_BIT` when RISC3D's
+    renderer gives ES 3 (it makes a context once to find out). Without
+    RISC3D, or if its renderer is lower, they are refused as before
+    (OSMesa is GL 2.1 and GLES 2.0). GL 3.2 and core profiles: refused.
+  - A context with no version asked for gets the highest RISC3D has (GL
+    3.1 compatibility, GLES 3.1 for a GLES 2 request on a Pi 4), as Mesa's
+    own EGL does.
+  - SDL takes GL 3.0/3.1 and GLES 3.0/3.1 requests through EGL when
+    RISC3D draws.
+  - Checked: host harness (572 EGL checks) and SDL harness; r3d_e2e with
+    RISC3D's 0.7 client and helper (26 checks: GLES 3 and GL 3.1 contexts
+    among them).
 - **RISC3D 0.4: OpenGL ES 1.1 through RISC3D too.** libEGL has RISC3D's
   client 0.4 (tag v0.4): ES 1.1 contexts go to RISC3D where its rol-3d is
   0.4 or later (otherwise OSMesa, as before), and its function list now

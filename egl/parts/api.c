@@ -796,8 +796,10 @@ static int read_context_attribs(const EGLint *attrib_list, EGLenum api, context_
             q->es = 1;
         else if (q->major == 2 && q->minor == 0)
             q->es = 2;
+        else if (q->major == 3 && (q->minor == 0 || q->minor == 1))
+            q->es = 3;                          /* RISC3D only (OSMesa has no ES 3) */
         else
-            return fail(EGL_BAD_MATCH);         /* ES 3.x: not with this renderer */
+            return fail(EGL_BAD_MATCH);
     }
     return 1;
 }
@@ -864,11 +866,11 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
     ctx->r3d = r3dw_create(api, &q, share);
     if (ctx->r3d)
         ctx->r3d_overlapped = r3dw_want_overlapped();
-    else
+    else if (q.es != 3)
         ctx->om = OSMesaCreateContextAttribs(attribs, share ? share->om : NULL);
     if (!ctx->om && !ctx->r3d) {
         free(ctx);
-        fail(EGL_BAD_MATCH);            /* e.g. GL 3.x asked for: this is 2.1 / ES 2.0 */
+        fail(EGL_BAD_MATCH);            /* e.g. GL 3.x or ES 3 asked for, no RISC3D: OSMesa is 2.1 / ES 2.0 */
         return EGL_NO_CONTEXT;
     }
     ctx->magic = MAGIC_CONTEXT;
