@@ -4,139 +4,75 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## Unreleased
+## 20.3.5-19: the GPU through RISC3D, shared libraries for mixed programs
 
-- **RISC3D: a hardware path behind EGL** (after 20.3.5-19). Where the
-  RISC3D module has a driver (on RISC OS on Linux, Linux's graphics driver
-  through Linux3D), OpenGL (up to 2.1) and OpenGL ES 2 contexts are drawn
-  by it instead of OSMesa; programs don't change. Without a driver, or
-  with `RISC3D$Disable` set, OSMesa draws as before.
-  - New Mesa patch `riscos-dispatch`: `OSMesaMakeDispatchRISCOS` and
-    `OSMesaSetDispatchRISCOS`, so EGL can point the gl* entry points at
-    RISC3D's functions (built by name, no cost per call).
-  - libEGL contains RISC3D's client library 0.2 (`risc3d/`, MIT): about
-    300 KB more in a program that links EGL.
-  - eglSwapBuffers takes each frame from RISC3D into the surface;
-    glFinish fills pbuffers and pixmaps; `EGL$Overlapped` 1 overlaps
-    frames; EGLImage textures are copied on RISC3D contexts.
-  - **Zero-copy windows (RISC3D 0.2):** where RISC3D can put frames on a
-    display plane (rol-fb's overlays), a window surface's frames go
-    there, under the desktop's key colour, which EGL paints in the
-    window: nothing read back, paced by the display. RISC3D measured
-    59 fps (60 Hz display) on a Pi 4 against 196 unpaced with read-back.
-    `EGL$Overlay` off, `EGL_OVERLAY_RISCOS` false or a swap interval of 0
-    keep read-back.
-  - **New extension `EGL_RISCOS_renderer`:** `EGL_CONTEXT_SOFTWARE_RISCOS`
-    asks for an OSMesa context (for EGLImage textures that follow their
-    sprite, as riscos-ffmpeg's ffegl needs), and `eglQueryContext` says
-    which a context got. `EGL_VERSION` says when RISC3D draws, and
-    `GL_EXTENSIONS` on a RISC3D context lists `GL_OES_EGL_image`.
-  - Host checks: the harness against a fake RISC3D (559 checks, seven
-    mutations caught), and `r3d_e2e` end to end with RISC3D's own client
-    and Linux helper (the picture through RISC3D matches OSMesa's,
-    overlapped swaps too).
-  - Run on RISC OS on Linux under QEMU (ROM 5.31-24, RISC3D test kit 12's
-    modules, Linux's Mesa in software): egltest and glestest (OpenGL ES 2)
-    in windows, the mixed egltest through !MesaLibs, and egltest's checks
-    (42 of 43 with RISC3D 0.2: the EGLImage texture is a copy, so
-    "sprite changed" fails as expected). `RISC3D$Disable` gives OSMesa.
-    No display planes there, so windows were read back. Not yet run on a
-    Pi's GPU.
-  - **SDL 2 GL games get RISC3D too:** where EGL gives contexts to
-    RISC3D, SDL's GL windows go through EGL by default (before, only with
-    a render size or overlay), so they need only relinking. The hint (or
-    variable) `SDL_RISCOS_GL_EGL` `0` keeps OSMesa's sprite path. Checked
-    in the host harness against the fake RISC3D, and in QEMU's RISC OS on
-    Linux: sdlgltest (static and mixed, no hints) reports "2.1 RISC3D",
-    and with `SDL_RISCOS_GL_EGL` 0 "Mesa OffScreen". There RISC3D is
-    Linux's Mesa in software with frames read back (about 55 fps against
-    OSMesa's 340 at 320x240), so it says nothing about speed on a GPU.
-- **No RISC3D where its driver draws in software.** Where RISC3D_Info
-  says the driver draws in software (r4 bit 1: Linux's Mesa with no GPU
-  driver, as under QEMU; from riscos-risc3d 0.7-1), OpenGL up to 2.1 and
-  OpenGL ES 1.1 and 2.0 stay in riscos-mesa's own renderer, which is much
-  faster there than a software renderer whose frames are read back (QEMU:
-  osmesatest's cube 1000 fps against 22). GL 3 and GLES 3, which only
-  RISC3D gives, still go to it. `RISC3D$Force` set sends everything to
-  RISC3D anyway. On a Pi with its GPU nothing changes. RISC3D's client
-  is now 0.8 (tag v0.8), whose `r3d_driver_flags` reads the flag. Checked: host
-  harness (575 EGL checks) and QEMU with riscos-risc3d 0.7-1 (`*RISC3D`:
-  "drawing in software"; osmesatest and egltest in software, 43 of 43;
-  RISC3D$Force: "3.1 RISC3D").
-- **Programs that use OSMesa directly draw through RISC3D too** (the
-  owner: apps should use RISC3D automatically where it's available).
-  OSMesaCreateContext gets a RISC3D context beside the software one when
-  `riscos_mesa_pick_renderer` says so, and OSMesaMakeCurrent on the
-  program's buffer draws through it (`r3d_target`, RISC3D 0.7): the frame
-  is copied into the buffer at glFinish and glFlush, another MakeCurrent
-  and OSMesaGetColorBuffer. Software draws what RISC3D can't (accumulation
-  buffers, colour index, core profiles, share lists, GL_FLOAT and 16-bit
-  component buffers) and anything with `LIBGL_ALWAYS_SOFTWARE` or
-  `RISC3D$Disable` set. Mixed programs get it with the new !MesaLibs;
-  static ones when relinked. SDL's sprite path (`SDL_RISCOS_GL_EGL` 0) is
-  OSMesa too, so it follows.
-  - RISC3D's client and `riscos_mesa_pick_renderer` moved from libEGL to
-    libOSMesa (`osmesa/`), which EGL and SDL sit on; EGL's own OSMesa
-    contexts ask for software (`OSMESA_SOFTWARE_RISCOS`). New Mesa patch
-    `riscos-osmesa-risc3d`.
-  - egltest: "ES 2.0 version string" also takes ES 3.x, and ES 3.0
-    contexts are expected where the config lists ES 3.
-  - Checked: host (EGL 572 checks; r3d_e2e's new OSMesa part with RISC3D's
-    0.7 client and helper, 23 checks: pictures identical to software's,
-    the queries, Y_UP, colour and depth buffers, BGR, and the cases that
-    stay in software); QEMU's RISC OS on Linux with rol-3d 0.6:
-    osmesatest (static) and glbench (mixed) "3.1 RISC3D", SDL's sprite
-    path through RISC3D, LIBGL_ALWAYS_SOFTWARE back to Mesa OffScreen,
-    egltest 42 of 43 static and mixed.
-- **RISC3D 0.7: OpenGL 3.0/3.1 and OpenGL ES 3.0/3.1 through RISC3D.**
-  libEGL has RISC3D's client 0.7 (tag v0.7; 0.5 added GL 3.x and GLES
-  3.x, 0.6 EXT_direct_state_access, so RISC3D now carries every function
-  riscos-mesa's own renderer offers). With RISC3D:
-  - `EGL_CONTEXT_MAJOR/MINOR_VERSION` 3.0 or 3.1 (OpenGL, compatibility
-    profile) and GLES 3.0 or 3.1 contexts are RISC3D's, made with
-    `r3d_create_version`; configs list `EGL_OPENGL_ES3_BIT` when RISC3D's
-    renderer gives ES 3 (it makes a context once to find out). Without
-    RISC3D, or if its renderer is lower, they are refused as before
-    (OSMesa is GL 2.1 and GLES 2.0). GL 3.2 and core profiles: refused.
-  - A context with no version asked for gets the highest RISC3D has (GL
-    3.1 compatibility, GLES 3.1 for a GLES 2 request on a Pi 4), as Mesa's
-    own EGL does.
-  - SDL takes GL 3.0/3.1 and GLES 3.0/3.1 requests through EGL when
-    RISC3D draws.
-  - Checked: host harness (572 EGL checks) and SDL harness; r3d_e2e with
-    RISC3D's 0.7 client and helper (26 checks: GLES 3 and GL 3.1 contexts
-    among them).
-- **RISC3D 0.4: OpenGL ES 1.1 through RISC3D too.** libEGL has RISC3D's
-  client 0.4 (tag v0.4): ES 1.1 contexts go to RISC3D where its rol-3d is
-  0.4 or later (otherwise OSMesa, as before), and its function list now
-  covers GLES 1.1 and every GLES 1.1 and 2.0 extension of riscos-mesa's.
-  `EGL_VERSION` says "RISC3D for GL 2.1, GLES 1.1 and GLES 2".
-  - **One choice of renderer:** `riscos_mesa_pick_renderer(api, major,
-    minor)` in `EGL/eglext_riscos.h`, which eglCreateContext, EGL_VERSION
-    and SDL's GL windows all follow (SDL now asks it for the version the
-    program wants instead of reading EGL's strings).
-    `LIBGL_ALWAYS_SOFTWARE` (a system variable, as Mesa's) set keeps
-    everything on OSMesa, like `RISC3D$Disable`.
-  - Checked: host harness (565 EGL checks; SDL), r3d_e2e with RISC3D's own
-    0.4 client and helper (21 checks, a GLES 1.1 triangle among them), and
-    QEMU's RISC OS on Linux with riscos-risc3d 0.4-1's rol-3d and modules:
-    glestest "OpenGL ES-CM 1.1 RISC3D", egltest's checks 42 of 43 static
-    and mixed (only the expected "sprite changed").
+- **RISC3D: the GPU behind the same OpenGL.** Where the RISC3D module has
+  a driver (on RISC OS on Linux: Linux3D, which has Linux's graphics
+  driver draw, the Pi 4's V3D GPU), programs draw with the GPU instead of
+  riscos-mesa's software renderer, unchanged. Anywhere else, OpenGL is
+  drawn in software exactly as before.
+  - **What goes to RISC3D:** OpenGL up to 3.1 (compatibility profile) and
+    OpenGL ES 1.1 to 3.1, through EGL, SDL 2, freeglut and DispmanX, and
+    programs that use OSMesa directly on their own buffer. A context with
+    no version asked for gets the highest RISC3D has (GL 3.1, ES 3.1 for
+    an ES 2 request on a Pi 4), as Mesa's own EGL does. OpenGL 3 and
+    OpenGL ES 3 exist only through RISC3D: without it they are refused as
+    before. GL 3.2 and core profiles: refused.
+  - **One choice:** `riscos_mesa_pick_renderer(api, major, minor)`
+    (`EGL/eglext_riscos.h`), which eglCreateContext, SDL's GL windows and
+    OSMesa all follow. Stays in software: `LIBGL_ALWAYS_SOFTWARE` or
+    `RISC3D$Disable` set (system variables); a RISC3D driver that itself
+    draws in software (RISC3D_Info's flag, riscos-risc3d 0.7-1 and later:
+    Linux with no GPU driver, as under QEMU), for anything riscos-mesa
+    can draw (`RISC3D$Force` overrides); and what RISC3D can't do:
+    contexts sharing objects, accumulation buffers, colour index, OSMesa
+    buffers of float or 16-bit components.
+  - **SDL 2:** GL windows go through EGL by default where RISC3D draws
+    (before, only with a render size or overlay). `SDL_RISCOS_GL_EGL` `0`
+    keeps the sprite path, which is OSMesa and so follows the same choice.
+  - **OSMesa programs:** OSMesaMakeCurrent on the program's buffer draws
+    through RISC3D, and the frame is copied into the buffer at glFinish
+    and glFlush, another MakeCurrent and OSMesaGetColorBuffer;
+    OSMesaGetDepthBuffer reads the depth back. A program that writes into
+    its buffer between frames itself would see that overwritten: set
+    `LIBGL_ALWAYS_SOFTWARE` for it.
+  - **Frames:** eglSwapBuffers takes each frame from RISC3D into the
+    window (or screen bank) and shows it as before; glFinish fills
+    pbuffers and pixmaps; `EGL$Overlapped` 1 overlaps frames (a frame of
+    latency). Where RISC3D can put frames on a display plane (rol-fb's
+    overlays), a window's frames go there instead, under the desktop's key
+    colour, with nothing read back (not yet seen on a Pi: see below).
+  - **EGLImage textures** are copies on a RISC3D context: a later change
+    to the sprite needs glEGLImageTargetTexture2DOES again. A program that
+    relies on the texture following the sprite asks for software with the
+    new `EGL_RISCOS_renderer` extension's `EGL_CONTEXT_SOFTWARE_RISCOS`;
+    `eglQueryContext` with it says which renderer a context got.
+    `EGL_VERSION` mentions RISC3D when it draws.
+  - **Inside:** RISC3D's client library 0.8 (`risc3d/`, MIT, tag v0.8) and
+    the choice are in libOSMesa (`osmesa/`), which EGL and SDL sit on.
+    New Mesa patches: `riscos-dispatch` (`OSMesaMakeDispatchRISCOS`,
+    `OSMesaSetDispatchRISCOS`: the gl* entry points call RISC3D's
+    functions at no cost per call) and `riscos-osmesa-risc3d` (OSMesa's
+    routing; `OSMESA_SOFTWARE_RISCOS`, which EGL's own contexts use).
+    About 300 KB more in a static program.
+  - **Tried on a Pi 4** (RISC OS on Linux, riscos-risc3d 0.7-1, V3D):
+    egltest's checks "V3D 4.2.14.0 (RISC3D, Linux GPU)", 42 of 43 (only
+    "sprite changed": the EGLImage texture is a copy); egltest in a
+    window at the display's 58 fps; ClassiCube (mixed) 41 fps (4 to 7 in software) and
+    OpenLara with shaders (mixed) 50 fps through RISC3D (12 to 16 in
+    software). Display-plane frames have not yet been seen on the Pi:
+    windows were read back and plotted. OpenGL 3, OpenGL ES 3 and ES 1.1
+    through RISC3D were checked on the build machine and under QEMU, and
+    on the Pi by RISC3D's own kits.
+  - **Host checks:** the harness against a fake RISC3D (575 checks), and
+    `r3d_e2e` with RISC3D's own client and Linux helper (26 EGL and 23
+    OSMesa checks; the pictures match software's).
+  - After replacing !MesaLibs, restart: libraries already loaded stay in
+    use until then.
 - **GLES 1.1: GL_OES_vertex_array_object works** (new Mesa patch
   `riscos-es1-vao`). The extension was listed for ES 1.1 but its functions
   were only in ES 2's dispatch, so glGenVertexArraysOES and the others
   were "unsupported function called". Found by RISC3D's estest.
-- **Older mixed programs work with the new !MesaLibs, RISC3D too.** A
-  mixed program exports only the UnixLib functions the libraries it was
-  linked against needed. RISC3D's client in libEGL used six that 19's
-  libraries didn't (strcspn, _swix, clock, sin, cos, sqrtf), so a program
-  linked against 19 (ClassiCube 0.1-test13) quit without a word the
-  moment EGL gave it a RISC3D context. libEGL now has its own copies
-  (egl/r3d_compat.c: SWIs, VFP's square root, sinf/cosf), and
-  build-shared.sh fails if any library needs a name from outside
-  !MesaLibs that the same library didn't need in 20.3.5-19 (lists in
-  build/mixed-imports/). Checked in QEMU's RISC OS on Linux: test13 with
-  RISC3D now starts; a mixed SDL GL test still reports "2.1 RISC3D".
 - **Built with riscos-crossdev 1.11: UnixLib 5.0.3.7**, PThreadTicker
   0.04 (its "in use" error has its own number; the devkit and tests ship
   it). No struct or argument changes.
@@ -173,6 +109,11 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     (GCC 10 stops with an internal error otherwise). `-fno-gcse`, tried
     first, made glbench's tris scene 29% slower than static on a Pi 4.
     The static library's code is the same.
+  - Programs linked mixed against the 20.3.5-19 test builds (19j) keep
+    working: no library needs anything more from UnixLib than then, which
+    `build-shared.sh` checks (`build/mixed-imports/`), since a mixed program
+    exports only the UnixLib functions its libraries needed when it was
+    linked.
   - New `riscos-mesa-tests-mixed` zip: glbench, egltest, glestest,
     sdlgltest, sdlfbtest, glutest and altest linked mixed, with Obey files
     and a copy of !MesaLibs, to compare with the static ones. They pass

@@ -231,7 +231,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS (EGLDisplay dpy, EGLSurface
 #endif /* EGL_RISCOS_renderer */
 
 /*
- * riscos_mesa_pick_renderer (riscos-mesa 20.3.5-20 and later)
+ * riscos_mesa_pick_renderer (riscos-mesa 20.3.5-19 and later)
  *   riscos-mesa's one choice of renderer, which eglCreateContext and SDL's
  *   GL windows both follow: for api EGL_OPENGL_API or EGL_OPENGL_ES_API
  *   and the version asked for (0, 0: none), RISCOS_MESA_SOFTWARE (OSMesa)

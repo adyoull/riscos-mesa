@@ -69,7 +69,7 @@ rm -f libOSMesa-full.a
 # riscos_mesa_pick_renderer, and the routing of OSMesa's own contexts to it
 # (patch riscos-osmesa-risc3d calls osmesa/risc3d_route.c). EGL and SDL use
 # the same client and choice from here. osmesa/r3d_compat.h gives the client
-# its own copies of the few C library functions it uses beyond 20.3.5-19's
+# its own copies of the few C library functions it uses beyond the 20.3.5-19j test build's
 # libraries, so older mixed programs still work.
 R3=$HERE/risc3d OM=$HERE/osmesa
 $CC $RO_CFLAGS -O2 -include "$OM/r3d_compat.h" -I"$R3/include" -I"$R3/lib" -I"$R3/gen" -I"$R3/proto" \

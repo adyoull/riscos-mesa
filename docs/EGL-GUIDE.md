@@ -1,6 +1,6 @@
 # RISC OS EGL programming guide
 
-For riscos-mesa v20.3.5-18 (November 2026). Andrew Youll.
+For riscos-mesa v20.3.5-19 (November 2026). Andrew Youll.
 
 > **New to OpenGL, EGL or cross-compiling?** Start with the devkit's
 > beginner's guide (`README.md` at the top of the devkit, `devkit/README.md`
@@ -13,9 +13,10 @@ For riscos-mesa v20.3.5-18 (November 2026). Andrew Youll.
 
 `libEGL` gives RISC OS programs the standard Khronos way to set up OpenGL: EGL 1.4 on top of Mesa's software renderer (OSMesa), with desktop OpenGL 2.1 (GLSL 1.20), OpenGL ES 1.1 and OpenGL ES 2.0. You write ordinary EGL and GL code; the library handles Wimp windows, full screen and sprites. Code written for the Raspberry Pi's Khronos stack can keep its DispmanX window code through a compatibility library.
 
-- **Where it comes from:** riscos-mesa, release v20.3.5-3 or later; the standard extensions need v20.3.5-4, OpenGL ES and DispmanX compatibility v20.3.5-5, images (sprites as textures) v20.3.5-7, and the EGL 1.4 thread and context rules (see [Choosing configs and creating contexts](#choosing-configs-and-creating-contexts)) v20.3.5-8, hardware overlays and the render size (`EGL_RISCOS_overlay`) v20.3.5-9 (first run on a Pi, and the 2048x1200 overlay size limit, in v20.3.5-10). The devkit (`riscos-mesa-devkit-VERSION.tgz`) has `lib/libEGL.a`, `lib/libOSMesa.a`, `lib/libbcm_host.a` and the headers: `include/EGL/`, `include/GL/`, `include/GLES/`, `include/GLES2/`, with this guide and the porting guides in `docs/`.
+- **Where it comes from:** riscos-mesa, release v20.3.5-3 or later; the standard extensions need v20.3.5-4, OpenGL ES and DispmanX compatibility v20.3.5-5, images (sprites as textures) v20.3.5-7, and the EGL 1.4 thread and context rules (see [Choosing configs and creating contexts](#choosing-configs-and-creating-contexts)) v20.3.5-8, hardware overlays and the render size (`EGL_RISCOS_overlay`) v20.3.5-9 (first run on a Pi, and the 2048x1200 overlay size limit, in v20.3.5-10). The GPU through RISC3D (`EGL_RISCOS_renderer`, OpenGL 3 and OpenGL ES 3) and the shared libraries for mixed programs (`lib/shared`, !MesaLibs) need v20.3.5-19. The devkit (`riscos-mesa-devkit-VERSION.tgz`) has `lib/libEGL.a`, `lib/libOSMesa.a`, `lib/libbcm_host.a` and the headers: `include/EGL/`, `include/GL/`, `include/GLES/`, `include/GLES2/`, with this guide and the porting guides in `docs/`.
 - **Runs on:** RISC OS 5 on ARMv7 or later with VFPv3 (Raspberry Pi 2, 3, 4; Cortex-A8/A9/A15 boards such as the BeagleBoard-xM, PandaBoard, ARMini and Titanium), with SharedUnixLibrary and ARMEABISupport loaded. Not the Pi 1 or Zero (ARMv6). Tested on a Pi 4.
 - **Toolchain:** GCCSDK GCC 10 (`arm-riscos-gnueabihf`), static ELF programs.
+- **The GPU:** where the RISC3D module has a driver (RISC OS on Linux with riscos-risc3d: the Pi 4's V3D through Linux), contexts are drawn by the GPU instead of riscos-mesa's software renderer, with nothing to change in the program; `EGL_VERSION` mentions RISC3D when it draws. That adds OpenGL 3.0/3.1 (compatibility) and OpenGL ES 3.0/3.1, which only RISC3D gives. `LIBGL_ALWAYS_SOFTWARE` or `RISC3D$Disable` (system variables) keep everything in software. `egl/README.md` has the details: what stays in software, EGLImage textures being copies, `EGL_CONTEXT_SOFTWARE_RISCOS`.
 
 Compile and link:
 

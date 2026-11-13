@@ -6,7 +6,7 @@
  * was linked against needed. If a newer libEGL needs a function those
  * didn't, an older program doesn't have it and stops as soon as it's
  * called (ClassiCube 0.1-test13 with RISC3D: strcspn). So libOSMesa (and libEGL) need no
- * UnixLib function beyond 20.3.5-19's (build-shared.sh checks every
+ * UnixLib function beyond the 20.3.5-19j test build's (build-shared.sh checks every
  * library against build/mixed-imports/). RISC3D's client uses others;
  * these are its own (SWIs, VFP's square root, sinf/cosf, which libOSMesa
  * already needed, and GCC's isinf/isnan), the same natively and on RISC
