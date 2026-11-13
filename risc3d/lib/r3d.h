@@ -50,6 +50,16 @@ struct r3d_context *r3d_create_version (int api, int major, int minor);
    bottom one (OSMesa's default). buffer 0: no longer. Returns 0, or why
    not (then draw in software). The context's size becomes the buffer's. */
 const char *r3d_target (struct r3d_context *, void *buffer, int width, int height, int format, int row_length, int y_up);
+
+/* (from RISC3D 0.8) the driver a new context would get: RISC3D_Info's
+   flags, or -1 if there is none. R3D_DRIVER_SOFTWARE: it draws in
+   software now (RISC3D module 0.03 and Linux3D 0.02 on, with rol-3d 0.7:
+   Linux's Mesa with no GPU driver), so a renderer of the program's own
+   is faster than its frames copied back. R3D_DRIVER_DRM: a DRM device
+   (V3DRender), which takes no command stream. */
+#define R3D_DRIVER_DRM		1
+#define R3D_DRIVER_SOFTWARE	2
+int r3d_driver_flags (void);
 int r3d_target_copy (struct r3d_context *);	/* now: 0, or -1 */
 void r3d_make_current (struct r3d_context *);
 void r3d_destroy (struct r3d_context *);

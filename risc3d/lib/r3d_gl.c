@@ -458,6 +458,16 @@ r3d_available (void)
   return drv != 0 && !(flags & 1);
 }
 
+int
+r3d_driver_flags (void)
+{
+  const char *drv = 0;
+  unsigned flags = 0;
+  if (_swix (RISC3D_Info, _OUT (3) | _OUT (4), &drv, &flags) || !drv)
+    return -1;
+  return (int) flags;
+}
+
 /* --- kept state: matrices ------------------------------------------------
 
    As Mesa computes them (src/mesa/math/m_matrix.c), in floats, column

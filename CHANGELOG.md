@@ -58,7 +58,8 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   faster there than a software renderer whose frames are read back (QEMU:
   osmesatest's cube 1000 fps against 22). GL 3 and GLES 3, which only
   RISC3D gives, still go to it. `RISC3D$Force` set sends everything to
-  RISC3D anyway. On a Pi with its GPU nothing changes. Checked: host
+  RISC3D anyway. On a Pi with its GPU nothing changes. RISC3D's client
+  is now 0.8 (tag v0.8), whose `r3d_driver_flags` reads the flag. Checked: host
   harness (575 EGL checks) and QEMU with riscos-risc3d 0.7-1 (`*RISC3D`:
   "drawing in software"; osmesatest and egltest in software, 43 of 43;
   RISC3D$Force: "3.1 RISC3D").

@@ -534,15 +534,6 @@ static _kernel_oserror *swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out)
             setenv((const char *) (long) r.r[0], v, 1);
         }
         break;
-#ifndef FAKE_NO_R3D
-    case 0xC3D00: { /* RISC3D_Info: r3 the driver, r4 its flags (bit 1: draws in software) */
-        extern int fake_r3d_on, fake_r3d_flags;
-        if (!fake_r3d_on) { e = error("SWI not known"); break; }
-        r.r[3] = (int) (long) "fake";
-        r.r[4] = fake_r3d_flags;
-        break;
-    }
-#endif
     case 0x42:      /* OS_ReadMonotonicTime: centiseconds */
         r.r[0] = fake_time_us >= 0 ? (int) (fake_time_us / 10000) : fake_wimp_polls * 2;
         break;
@@ -727,6 +718,7 @@ static struct r3d_context *fr_new(int gl)
 }
 struct r3d_context *r3d_create(void) { return fr_new(0); }
 struct r3d_context *r3d_create_gl(void) { return fr_new(1); }
+int r3d_driver_flags(void) { return fake_r3d_on ? fake_r3d_flags : -1; }
 int fake_r3d_no_es1;    /* a rol-3d older than 0.4: no GLES 1.1 */
 struct r3d_context *r3d_create_es1(void) { return fake_r3d_no_es1 ? NULL : fr_new(2); }
 /* RISC3D 0.5: up to 3.1 (fake_r3d_max, as 10 * major + minor: 31) */

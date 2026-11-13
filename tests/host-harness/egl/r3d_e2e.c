@@ -114,6 +114,10 @@ static int differ(unsigned int a, unsigned int b, int tol)
 
 static void *run(void *arg)
 {
+    /* RISC3D whatever the build machine draws with (its llvmpipe would
+       otherwise be a software driver, which riscos_mesa_pick_renderer
+       leaves to our own renderer) */
+    setenv("RISC3D$Force", "1", 1);
     static unsigned int a[W * H], b[W * H];
     EGLConfig cfg;
     EGLContext ctx;

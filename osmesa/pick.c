@@ -40,20 +40,6 @@ static int var_set(const char *name)
     return strcmp(v, "0") && strcmp(v, "false") && strcmp(v, "no");
 }
 
-/* RISC3D_Info's r4 (RISC3D 0.03 with Linux3D 0.02 and rol-3d 0.7 set bit
-   1 when the driver draws in software: Linux's Mesa with no GPU driver),
-   or 0 if it can't be read. Read directly, so any client library works. */
-#define RISC3D_INFO      0xC3D00
-#define DRIVER_SOFTWARE  2
-static unsigned int driver_flags(void)
-{
-    _kernel_swi_regs r;
-    memset(&r, 0, sizeof r);
-    if (_kernel_swi(RISC3D_INFO, &r, &r) != NULL || !r.r[3])
-        return 0;
-    return (unsigned int) r.r[4];
-}
-
 /* api EGL_OPENGL_API or EGL_OPENGL_ES_API, the version asked for (0.0:
    none, GL 2.1 or GLES 1). In order:
    1. LIBGL_ALWAYS_SOFTWARE or RISC3D$Disable set: software.
@@ -69,7 +55,7 @@ static unsigned int driver_flags(void)
    4. Software: OSMesa, which refuses what it can't do, as before. */
 EGLAPI int EGLAPIENTRY riscos_mesa_pick_renderer(unsigned int api, int major, int minor)
 {
-    int ok, only_risc3d;
+    int ok, only_risc3d, flags;
     if (var_set("LIBGL_ALWAYS_SOFTWARE") || !r3d_available())
         return RISCOS_MESA_SOFTWARE;
     if (api == EGL_OPENGL_ES_API) {
@@ -81,7 +67,10 @@ EGLAPI int EGLAPIENTRY riscos_mesa_pick_renderer(unsigned int api, int major, in
     } else {
         ok = only_risc3d = 0;
     }
-    if (ok && !only_risc3d && (driver_flags() & DRIVER_SOFTWARE) && !var_set("RISC3D$Force"))
+    /* r3d_driver_flags (RISC3D 0.8): RISC3D_Info's flags; bit 1 is set by
+       RISC3D 0.03, Linux3D 0.02 and rol-3d 0.7 for a driver drawing in software */
+    if (ok && !only_risc3d && (flags = r3d_driver_flags()) > 0 && (flags & R3D_DRIVER_SOFTWARE) &&
+        !var_set("RISC3D$Force"))
         ok = 0;
     return ok ? RISCOS_MESA_RISC3D : RISCOS_MESA_SOFTWARE;
 }

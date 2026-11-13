@@ -59,6 +59,10 @@ static int draw(const int *attribs, unsigned char *buf, const char **renderer)
 
 static void *run(void *arg)
 {
+    /* RISC3D whatever the build machine draws with (its llvmpipe would
+       otherwise be a software driver, which riscos_mesa_pick_renderer
+       leaves to our own renderer) */
+    setenv("RISC3D$Force", "1", 1);
     static const int rgba[] = { OSMESA_FORMAT, OSMESA_RGBA, OSMESA_DEPTH_BITS, 24, 0 };
     static const int soft[] = { OSMESA_FORMAT, OSMESA_RGBA, OSMESA_DEPTH_BITS, 24, OSMESA_SOFTWARE_RISCOS, 1, 0 };
     static const int accum[] = { OSMESA_FORMAT, OSMESA_RGBA, OSMESA_DEPTH_BITS, 24, OSMESA_ACCUM_BITS, 16, 0 };
