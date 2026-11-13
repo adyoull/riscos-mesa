@@ -51,6 +51,26 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
     and with `SDL_RISCOS_GL_EGL` 0 "Mesa OffScreen". There RISC3D is
     Linux's Mesa in software with frames read back (about 55 fps against
     OSMesa's 340 at 320x240), so it says nothing about speed on a GPU.
+- **RISC3D 0.4: OpenGL ES 1.1 through RISC3D too.** libEGL has RISC3D's
+  client 0.4 (tag v0.4): ES 1.1 contexts go to RISC3D where its rol-3d is
+  0.4 or later (otherwise OSMesa, as before), and its function list now
+  covers GLES 1.1 and every GLES 1.1 and 2.0 extension of riscos-mesa's.
+  `EGL_VERSION` says "RISC3D for GL 2.1, GLES 1.1 and GLES 2".
+  - **One choice of renderer:** `riscos_mesa_pick_renderer(api, major,
+    minor)` in `EGL/eglext_riscos.h`, which eglCreateContext, EGL_VERSION
+    and SDL's GL windows all follow (SDL now asks it for the version the
+    program wants instead of reading EGL's strings).
+    `LIBGL_ALWAYS_SOFTWARE` (a system variable, as Mesa's) set keeps
+    everything on OSMesa, like `RISC3D$Disable`.
+  - Checked: host harness (565 EGL checks; SDL), r3d_e2e with RISC3D's own
+    0.4 client and helper (21 checks, a GLES 1.1 triangle among them), and
+    QEMU's RISC OS on Linux with riscos-risc3d 0.4-1's rol-3d and modules:
+    glestest "OpenGL ES-CM 1.1 RISC3D", egltest's checks 42 of 43 static
+    and mixed (only the expected "sprite changed").
+- **GLES 1.1: GL_OES_vertex_array_object works** (new Mesa patch
+  `riscos-es1-vao`). The extension was listed for ES 1.1 but its functions
+  were only in ES 2's dispatch, so glGenVertexArraysOES and the others
+  were "unsupported function called". Found by RISC3D's estest.
 - **Older mixed programs work with the new !MesaLibs, RISC3D too.** A
   mixed program exports only the UnixLib functions the libraries it was
   linked against needed. RISC3D's client in libEGL used six that 19's

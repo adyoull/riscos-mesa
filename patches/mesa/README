@@ -575,6 +575,14 @@ mesa-20.3.5-riscos-dispatch.patch
     as OSMesaMakeCurrent does OSMesa's. In the shared libOSMesa glapi's own
     functions are hidden, which is why libEGL needs these.
 
+mesa-20.3.5-riscos-es1-vao.patch
+    src/mapi/glapi/gen/es_EXT.xml: GL_OES_vertex_array_object's four
+    functions in OpenGL ES 1.1 contexts' dispatch too. Mesa lists the
+    extension for ES 1 but only put the functions in ES 2's table, so in
+    an ES 1.1 context glGenVertexArraysOES and the others were
+    "unsupported function called" (GL_INVALID_OPERATION). Found by RISC3D's
+    estest; the implementations are the same for both APIs.
+
 Moving to a newer Mesa
     These patches are for Mesa 20.3.5, the last release with the classic
     software renderer (swrast) behind OSMesa. A newer Mesa would mean

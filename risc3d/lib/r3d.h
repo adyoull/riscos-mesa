@@ -28,7 +28,13 @@ extern const struct r3d_gl_function r3d_gl_functions[];	/* ends with a null name
 struct r3d_context;
 int r3d_available (void);		/* a driver is registered, and RISC3D$Disable isn't set */
 struct r3d_context *r3d_create (void);	/* GLES 2. 0: see r3d_error */
+/* the APIs (OP_CONTEXT's word) */
+#define R3D_API_GLES2 0
+#define R3D_API_GL 1
+#define R3D_API_GLES1 2
+
 struct r3d_context *r3d_create_gl (void); /* OpenGL (compatibility profile). 0: see r3d_error */
+struct r3d_context *r3d_create_es1 (void); /* OpenGL ES 1.1 (from RISC3D 0.4). 0: see r3d_error */
 void r3d_make_current (struct r3d_context *);
 void r3d_destroy (struct r3d_context *);
 
@@ -43,6 +49,7 @@ void r3d_destroy (struct r3d_context *);
    no driver, no Linux helper) */
 const char *r3d_open (void);		/* GLES 2 */
 const char *r3d_open_gl (void);		/* OpenGL */
+const char *r3d_open_es1 (void);		/* OpenGL ES 1.1 */
 void r3d_close (void);
 /* the size of what is drawn on, in pixels */
 void r3d_surface (int width, int height);

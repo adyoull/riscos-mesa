@@ -195,6 +195,18 @@ static void *run(void *arg)
         RISCOS_GL_DeleteContext(&dev, ctx); current_ctx = NULL;
         RISCOS_GL_DestroyWindowBuffer(&win);
         hint_egl = NULL;
+        setenv("LIBGL_ALWAYS_SOFTWARE", "1", 1);
+        ctx = RISCOS_GL_CreateContext(&dev, &win); current_ctx = ctx;
+        CHECK(ctx && wd->fb_sprite && !wd->egl_surface, "LIBGL_ALWAYS_SOFTWARE 1: the sprite path");
+        RISCOS_GL_DeleteContext(&dev, ctx); current_ctx = NULL;
+        RISCOS_GL_DestroyWindowBuffer(&win);
+        unsetenv("LIBGL_ALWAYS_SOFTWARE");
+        dev.gl_config.profile_mask = SDL_GL_CONTEXT_PROFILE_ES; dev.gl_config.major_version = 1; dev.gl_config.minor_version = 1;
+        ctx = RISCOS_GL_CreateContext(&dev, &win); current_ctx = ctx;
+        CHECK(ctx && wd->egl_surface, "GLES 1.1 with RISC3D: the EGL path");
+        RISCOS_GL_DeleteContext(&dev, ctx); current_ctx = NULL;
+        RISCOS_GL_DestroyWindowBuffer(&win);
+        dev.gl_config.profile_mask = 0; dev.gl_config.major_version = 2; dev.gl_config.minor_version = 1;
         fake_r3d_on = 0;
         ctx = RISCOS_GL_CreateContext(&dev, &win); current_ctx = ctx;
         CHECK(ctx && wd->fb_sprite && !wd->egl_surface, "no RISC3D: the sprite path again");

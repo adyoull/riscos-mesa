@@ -36,7 +36,8 @@ struct r3d_area
 					   back into its half of the reply area */
   volatile uint32_t overlay_error;	/* zero-copy frames stopped (an error
 					   number): read them back again */
-  uint32_t pad[4];
+  volatile uint32_t debug_pending;	/* debug messages kept for the program's callback */
+  uint32_t pad[3];
 };
 
 /* what the program sends down the context's socket (through RISC3D_Sync) */

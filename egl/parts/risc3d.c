@@ -4,8 +4,8 @@
  *
  * Where the RISC3D module has a driver registered (on RISC OS on Linux:
  * Linux's graphics driver) and RISC3D$Disable isn't set, eglCreateContext
- * gives an OpenGL (up to 2.1, compatibility) or OpenGL ES 2 context to
- * RISC3D; anywhere else, or if RISC3D can't make one, OSMesa draws as
+ * gives an OpenGL (up to 2.1, compatibility), OpenGL ES 1.1 (RISC3D 0.4
+ * and its rol-3d) or OpenGL ES 2 context to RISC3D; anywhere else, or if RISC3D can't make one, OSMesa draws as
  * before. A program sees the same EGL and GL either way.
  *
  * - The gl* entry points are glapi's stubs. For a RISC3D context the
@@ -25,7 +25,7 @@
  *   changes to the sprite need the call again. A program that relies on
  *   the texture following the sprite (zero copy) asks for an OSMesa
  *   context with EGL_CONTEXT_SOFTWARE_RISCOS.
- * - Not given to RISC3D: OpenGL ES 1 and 3, OpenGL 3 and core profiles,
+ * - Not given to RISC3D: OpenGL ES 3, OpenGL 3 and core profiles,
  *   and contexts sharing objects with another context (each RISC3D context
  *   is its own; sharing with a RISC3D context is EGL_BAD_MATCH).
  * - Zero-copy window surfaces: where RISC3D can put frames on a display
@@ -221,22 +221,71 @@ static void *r3dw_dispatch(void)
     return r3dw_table;
 }
 
+/* LIBGL_ALWAYS_SOFTWARE (a system variable, as Mesa's environment
+   variable) set to anything but 0, false or no: always OSMesa.
+   With OS_ReadVarVal, not getenv (see ovl_user_setting). */
+static int r3dw_always_software(void)
+{
+    char v[8];
+    int i;
+    _kernel_swi_regs r;
+    r.r[0] = (int) "LIBGL_ALWAYS_SOFTWARE";
+    r.r[1] = (int) v;
+    r.r[2] = (int) sizeof v - 1;
+    r.r[3] = 0;
+    r.r[4] = 3;
+    if (_kernel_swi(OS_ReadVarVal, &r, &r) != NULL || r.r[2] <= 0 || r.r[2] >= (int) sizeof v)
+        return r.r[2] >= (int) sizeof v;    /* too long to be "0": set */
+    v[r.r[2]] = 0;
+    for (i = 0; v[i]; i++)
+        if (v[i] >= 'A' && v[i] <= 'Z')
+            v[i] += 'a' - 'A';
+    return strcmp(v, "0") && strcmp(v, "false") && strcmp(v, "no");
+}
+
+/* riscos-mesa's one choice of renderer (eglext_riscos.h), for EGL, SDL
+   and later OSMesa: api EGL_OPENGL_API or EGL_OPENGL_ES_API, the version
+   asked for (0.0: none, GL 2.1 or GLES 1). In order:
+   1. LIBGL_ALWAYS_SOFTWARE or RISC3D$Disable set: software.
+   2. RISC3D has a driver and draws this version (GL up to 2.1, GLES 1.1
+      and 2.0): RISC3D. (GLES 1.1 needs RISC3D 0.4's rol-3d too: if it
+      can't make one, EGL uses OSMesa all the same.)
+   3. (Reserved: a GPU driven in the program, RISCOS_MESA_V3D.)
+   4. Software: OSMesa, which refuses what it can't do, as before. */
+EGLAPI int EGLAPIENTRY riscos_mesa_pick_renderer(unsigned int api, int major, int minor)
+{
+    int ok;
+    if (r3dw_always_software() || !r3d_available())
+        return RISCOS_MESA_SOFTWARE;
+    if (api == EGL_OPENGL_ES_API)
+        ok = major <= 1 || (major == 2 && minor == 0);
+    else if (api == EGL_OPENGL_API)
+        ok = major < 2 || (major == 2 && minor <= 1);
+    else
+        ok = 0;
+    return ok ? RISCOS_MESA_RISC3D : RISCOS_MESA_SOFTWARE;
+}
+
 /* eglCreateContext: a RISC3D context for this request, or NULL (OSMesa) */
 static struct r3d_context *r3dw_create(EGLenum api, const context_request *q, const egl_context *share)
 {
     struct r3d_context *r = NULL;
 
-    if (share || q->software || !r3d_available())
+    if (share || q->software)
         return NULL;
     if (api == EGL_OPENGL_ES_API) {
+        if (riscos_mesa_pick_renderer(api, q->es, 0) != RISCOS_MESA_RISC3D)
+            return NULL;
         if (q->es == 2)
             r = r3d_create();
+        else if (q->es == 1)
+            r = r3d_create_es1();       /* RISC3D 0.4 (rol-3d 0.4): else NULL, OSMesa */
     } else if (!q->es) {
-        int core = q->explicit_profile && q->profile == EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR &&
-                   (q->major > 3 || (q->major == 3 && q->minor >= 2));
-        int beyond = q->explicit_version && (q->major > 2 || (q->major == 2 && q->minor > 1));
-        if (!core && !beyond)
-            r = r3d_create_gl();
+        /* core profiles are 3.2 and later, so the version says it all */
+        if (riscos_mesa_pick_renderer(api, q->explicit_version ? q->major : 0,
+                                      q->explicit_version ? q->minor : 0) != RISCOS_MESA_RISC3D)
+            return NULL;
+        r = r3d_create_gl();
     }
     if (r && !r3dw_dispatch()) {
         r3d_destroy(r);
@@ -262,10 +311,11 @@ static int r3dw_want_overlapped(void)
     return strcmp(v, "1") == 0;
 }
 
-/* EGL_VERSION: says when RISC3D draws OpenGL and GLES 2 contexts here */
+/* EGL_VERSION: says when RISC3D draws OpenGL and GLES contexts here */
 static const char *r3dw_version(void)
 {
-    return r3d_available() ? "1.4 riscos-mesa (OSMesa; RISC3D for GL 2.1 and GLES 2)" : EGL_RISCOS_VERSION;
+    return riscos_mesa_pick_renderer(EGL_OPENGL_API, 0, 0) == RISCOS_MESA_RISC3D
+           ? "1.4 riscos-mesa (OSMesa; RISC3D for GL 2.1, GLES 1.1 and GLES 2)" : EGL_RISCOS_VERSION;
 }
 
 /* make c (a RISC3D context) the one drawing, after OSMesa's is released */

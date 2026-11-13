@@ -7,9 +7,10 @@
  * didn't, an older program doesn't have it and stops as soon as it's
  * called (ClassiCube 0.1-test13 with RISC3D: strcspn). So libEGL needs no
  * UnixLib function beyond 20.3.5-19's (build-shared.sh checks every
- * library against build/mixed-imports/). RISC3D's client uses six others;
- * these are its own (SWIs, VFP's square root, and sinf/cosf, which
- * libOSMesa already needed), the same natively and on RISC OS on Linux.
+ * library against build/mixed-imports/). RISC3D's client uses others;
+ * these are its own (SWIs, VFP's square root, sinf/cosf, which libOSMesa
+ * already needed, and GCC's isinf/isnan), the same natively and on RISC
+ * OS on Linux.
  * Hidden, so not exported and no clash with UnixLib's. The headers that
  * declare the real ones come first, so their declarations are untouched.
  */
@@ -29,6 +30,11 @@
 #define sin     r3dc_sin
 #define cos     r3dc_cos
 #define sqrtf   r3dc_sqrtf
+/* UnixLib's isinf and isnan call __isinff etc.: GCC's own, inline */
+#undef isinf
+#define isinf(x) __builtin_isinf(x)
+#undef isnan
+#define isnan(x) __builtin_isnan(x)
 
 __attribute__((visibility("hidden"))) _kernel_oserror *r3dc_swix(int swi, unsigned mask, ...);
 __attribute__((visibility("hidden"))) size_t r3dc_strcspn(const char *s, const char *reject);

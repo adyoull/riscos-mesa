@@ -1,10 +1,10 @@
-RISC3D client library 0.2 (12 November 2026), for riscos-mesa's EGL
+RISC3D client library 0.4 (13 November 2026), for riscos-mesa's EGL
 ====================================================================
 
 RISC3D's front end for RISC OS programs: the GL functions as commands for
 the RISC3D module (r3d_glXxx, listed by name in r3d_gl_functions[]), and
 contexts. Source and a prebuilt static library, from RISC3D's repository
-at tag v0.2 (RiscOS/RISC3D/risc3d.bundle). MIT licence (LICENSE).
+at tag v0.4 (RiscOS/RISC3D/risc3d.bundle). MIT licence (LICENSE).
 
   lib/r3d.h          the interface (all EGL needs)
   lib/r3d_gl.c       the library; it #includes gen/client_gen.c and
@@ -16,7 +16,15 @@ at tag v0.2 (RiscOS/RISC3D/risc3d.bundle). MIT licence (LICENSE).
   libRISC3D.a        built with riscos-crossdev 1.11's GCC 10:
                      -O2 -mfpu=vfpv3 -mfloat-abi=hard (not PIC)
 
-New since 0.1:
+New since 0.2 (0.3 was the riscos-risc3d package only):
+  r3d_create_es1, r3d_open_es1    OpenGL ES 1.1 contexts (rol-3d 0.4 or
+                                  later: riscos-risc3d 0.4-1)
+  704 functions, 400 other names  GLES 1.1's, and the extensions riscos-
+                                  mesa offers in GLES 1.1 and 2.0 (by the
+                                  extensions' names too)
+  r3d_available                   reads RISC3D$Disable with OS_ReadVarVal
+
+New in 0.2:
   r3d_overlay, r3d_swap_overlay   zero-copy frames on a display plane
                                   (see r3d.h; needs rol-3d 0.2 and rol-fb
                                   with several overlays)

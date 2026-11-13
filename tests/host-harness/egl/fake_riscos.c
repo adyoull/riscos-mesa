@@ -717,6 +717,8 @@ static struct r3d_context *fr_new(int gl)
 }
 struct r3d_context *r3d_create(void) { return fr_new(0); }
 struct r3d_context *r3d_create_gl(void) { return fr_new(1); }
+int fake_r3d_no_es1;    /* a rol-3d older than 0.4: no GLES 1.1 */
+struct r3d_context *r3d_create_es1(void) { return fake_r3d_no_es1 ? NULL : fr_new(2); }
 void r3d_make_current(struct r3d_context *c) { fr_cur = c; }
 void r3d_destroy(struct r3d_context *c) { if (fr_cur == c) fr_cur = NULL; free(c); fake_r3d_live--; }
 void r3d_surface(int w, int h) { if (fr_cur) { fr_cur->w = w; fr_cur->h = h; } }

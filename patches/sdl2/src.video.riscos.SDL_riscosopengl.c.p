@@ -2,7 +2,7 @@ diff --git src/video/riscos/SDL_riscosopengl.c src/video/riscos/SDL_riscosopengl
 new file mode 100644
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.c
-@@ -0,0 +1,1093 @@
+@@ -0,0 +1,1092 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -932,24 +932,23 @@ new file mode 100644
 +
 +/* ---- which path, and the entry points ---- */
 +
-+/* Does riscos-mesa's EGL give GL contexts to RISC3D, a hardware path (on
++/* Would riscos-mesa give this context to RISC3D, a hardware path (on
 +   RISC OS on Linux: Linux's graphics driver)? Only the EGL path reaches
-+   it, so then the EGL path is the default. EGL lists EGL_RISCOS_renderer
-+   and says "RISC3D" in EGL_VERSION when a driver is there and
-+   RISC3D$Disable isn't set. */
++   it, so then the EGL path is the default. riscos_mesa_pick_renderer
++   (EGL/eglext_riscos.h) is the same choice eglCreateContext makes: the
++   API and version asked for, LIBGL_ALWAYS_SOFTWARE and RISC3D$Disable. */
 +static SDL_bool
-+RISCOS_GL_RISC3D(void)
++RISCOS_GL_RISC3D(_THIS)
 +{
-+    const char *e, *v;
-+    if (RISCOS_GL_Display() < 0)
-+        return SDL_FALSE;
-+    e = eglQueryString(gl_dpy, EGL_EXTENSIONS);
-+    v = eglQueryString(gl_dpy, EGL_VERSION);
-+    return (e && v && SDL_strstr(e, "EGL_RISCOS_renderer") && SDL_strstr(v, "RISC3D")) ? SDL_TRUE : SDL_FALSE;
++    const SDL_bool es = _this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_ES;
++    return riscos_mesa_pick_renderer(es ? EGL_OPENGL_ES_API : EGL_OPENGL_API,
++                                     _this->gl_config.major_version,
++                                     _this->gl_config.minor_version) == RISCOS_MESA_RISC3D
++           ? SDL_TRUE : SDL_FALSE;
 +}
 +
 +static SDL_bool
-+RISCOS_GL_WantEGL(SDL_Window *window)
++RISCOS_GL_WantEGL(_THIS, SDL_Window *window)
 +{
 +    const SDL_WindowData *d = (const SDL_WindowData *) window->driverdata;
 +    const char *egl = SDL_GetHint(SDL_HINT_RISCOS_GL_EGL);
@@ -959,13 +958,13 @@ new file mode 100644
 +        return SDL_TRUE;
 +    if (egl && *egl)
 +        return SDL_GetStringBoolean(egl, SDL_FALSE);    /* "0" keeps the sprite path */
-+    return RISCOS_GL_RISC3D();
++    return RISCOS_GL_RISC3D(_this);
 +}
 +
 +SDL_GLContext
 +RISCOS_GL_CreateContext(_THIS, SDL_Window *window)
 +{
-+    if (RISCOS_GL_WantEGL(window))
++    if (RISCOS_GL_WantEGL(_this, window))
 +        return EGL_CreateContext(_this, window);
 +    return SPR_CreateContext(_this, window);
 +}

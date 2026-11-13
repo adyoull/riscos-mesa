@@ -5883,6 +5883,1348 @@ glFramebufferTextureLayer (GLenum target, GLenum attachment, GLuint texture, GLi
   a[4] = (uint32_t) layer;
 }
 
+void
+glClipPlanef (GLenum p, const GLfloat * eqn)
+{
+  uint32_t *a = r3d_put (OP_glClipPlanef, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) p;
+  a[1] = 16;
+  memcpy (a + 2, eqn, 16);
+}
+
+void
+glFrustumf (GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f)
+{
+  r3d_track_glFrustumf (l, r, b, t, n, f);
+  uint32_t *a = r3d_put (OP_glFrustumf, 6);
+  if (!a)
+    return;
+  a[0] = r3d_f2u (l);
+  a[1] = r3d_f2u (r);
+  a[2] = r3d_f2u (b);
+  a[3] = r3d_f2u (t);
+  a[4] = r3d_f2u (n);
+  a[5] = r3d_f2u (f);
+}
+
+void
+glGetClipPlanef (GLenum plane, GLfloat * equation)
+{
+  uint32_t *a = r3d_put (OP_glGetClipPlanef, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) plane;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (4);
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (equation)
+    memcpy (equation, r, cnt * 4);
+}
+
+void
+glOrthof (GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f)
+{
+  r3d_track_glOrthof (l, r, b, t, n, f);
+  uint32_t *a = r3d_put (OP_glOrthof, 6);
+  if (!a)
+    return;
+  a[0] = r3d_f2u (l);
+  a[1] = r3d_f2u (r);
+  a[2] = r3d_f2u (b);
+  a[3] = r3d_f2u (t);
+  a[4] = r3d_f2u (n);
+  a[5] = r3d_f2u (f);
+}
+
+void
+glAlphaFuncx (GLenum func, GLfixed ref)
+{
+  uint32_t *a = r3d_put (OP_glAlphaFuncx, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) func;
+  a[1] = (uint32_t) ref;
+}
+
+void
+glClearColorx (GLfixed red, GLfixed green, GLfixed blue, GLfixed alpha)
+{
+  uint32_t *a = r3d_put (OP_glClearColorx, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) red;
+  a[1] = (uint32_t) green;
+  a[2] = (uint32_t) blue;
+  a[3] = (uint32_t) alpha;
+}
+
+void
+glClearDepthx (GLfixed depth)
+{
+  uint32_t *a = r3d_put (OP_glClearDepthx, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) depth;
+}
+
+void
+glClipPlanex (GLenum plane, const GLfixed * equation)
+{
+  uint32_t *a = r3d_put (OP_glClipPlanex, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) plane;
+  a[1] = 16;
+  memcpy (a + 2, equation, 16);
+}
+
+void
+glColor4x (GLfixed red, GLfixed green, GLfixed blue, GLfixed alpha)
+{
+  uint32_t *a = r3d_put (OP_glColor4x, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) red;
+  a[1] = (uint32_t) green;
+  a[2] = (uint32_t) blue;
+  a[3] = (uint32_t) alpha;
+}
+
+void
+glDepthRangex (GLfixed n, GLfixed f)
+{
+  uint32_t *a = r3d_put (OP_glDepthRangex, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) n;
+  a[1] = (uint32_t) f;
+}
+
+void
+glFogx (GLenum pname, GLfixed param)
+{
+  uint32_t *a = r3d_put (OP_glFogx, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) pname;
+  a[1] = (uint32_t) param;
+}
+
+void
+glFogxv (GLenum pname, const GLfixed * param)
+{
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) pname;
+  size_t b0 = param ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glFogxv, f, 2, param, b0);
+}
+
+void
+glFrustumx (GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f)
+{
+  r3d_track_glFrustumx (l, r, b, t, n, f);
+  uint32_t *a = r3d_put (OP_glFrustumx, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) l;
+  a[1] = (uint32_t) r;
+  a[2] = (uint32_t) b;
+  a[3] = (uint32_t) t;
+  a[4] = (uint32_t) n;
+  a[5] = (uint32_t) f;
+}
+
+void
+glGetClipPlanex (GLenum plane, GLfixed * equation)
+{
+  uint32_t *a = r3d_put (OP_glGetClipPlanex, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) plane;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (4);
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (equation)
+    memcpy (equation, r, cnt * 4);
+}
+
+void
+glGetLightxv (GLenum light, GLenum pname, GLfixed * params)
+{
+  uint32_t *a = r3d_put (OP_glGetLightxv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) light;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetMaterialxv (GLenum face, GLenum pname, GLfixed * params)
+{
+  uint32_t *a = r3d_put (OP_glGetMaterialxv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) face;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetTexEnvxv (GLenum target, GLenum pname, GLfixed * params)
+{
+  uint32_t *a = r3d_put (OP_glGetTexEnvxv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetTexParameterxv (GLenum target, GLenum pname, GLfixed * params)
+{
+  uint32_t *a = r3d_put (OP_glGetTexParameterxv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glLightModelx (GLenum pname, GLfixed param)
+{
+  uint32_t *a = r3d_put (OP_glLightModelx, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) pname;
+  a[1] = (uint32_t) param;
+}
+
+void
+glLightModelxv (GLenum pname, const GLfixed * param)
+{
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) pname;
+  size_t b0 = param ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glLightModelxv, f, 2, param, b0);
+}
+
+void
+glLightx (GLenum light, GLenum pname, GLfixed param)
+{
+  uint32_t *a = r3d_put (OP_glLightx, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) light;
+  a[1] = (uint32_t) pname;
+  a[2] = (uint32_t) param;
+}
+
+void
+glLightxv (GLenum light, GLenum pname, const GLfixed * params)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) light;
+  a[1] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glLightxv, f, 3, params, b0);
+}
+
+void
+glLineWidthx (GLfixed width)
+{
+  uint32_t *a = r3d_put (OP_glLineWidthx, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) width;
+}
+
+void
+glLoadMatrixx (const GLfixed * m)
+{
+  r3d_track_glLoadMatrixx (m);
+  uint32_t *a = r3d_put (OP_glLoadMatrixx, 17);
+  if (!a)
+    return;
+  a[0] = 64;
+  memcpy (a + 1, m, 64);
+}
+
+void
+glMaterialx (GLenum face, GLenum pname, GLfixed param)
+{
+  uint32_t *a = r3d_put (OP_glMaterialx, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) face;
+  a[1] = (uint32_t) pname;
+  a[2] = (uint32_t) param;
+}
+
+void
+glMaterialxv (GLenum face, GLenum pname, const GLfixed * param)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) face;
+  a[1] = (uint32_t) pname;
+  size_t b0 = param ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glMaterialxv, f, 3, param, b0);
+}
+
+void
+glMultMatrixx (const GLfixed * m)
+{
+  r3d_track_glMultMatrixx (m);
+  uint32_t *a = r3d_put (OP_glMultMatrixx, 17);
+  if (!a)
+    return;
+  a[0] = 64;
+  memcpy (a + 1, m, 64);
+}
+
+void
+glMultiTexCoord4x (GLenum texture, GLfixed s, GLfixed t, GLfixed r, GLfixed q)
+{
+  uint32_t *a = r3d_put (OP_glMultiTexCoord4x, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) texture;
+  a[1] = (uint32_t) s;
+  a[2] = (uint32_t) t;
+  a[3] = (uint32_t) r;
+  a[4] = (uint32_t) q;
+}
+
+void
+glNormal3x (GLfixed nx, GLfixed ny, GLfixed nz)
+{
+  uint32_t *a = r3d_put (OP_glNormal3x, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) nx;
+  a[1] = (uint32_t) ny;
+  a[2] = (uint32_t) nz;
+}
+
+void
+glOrthox (GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f)
+{
+  r3d_track_glOrthox (l, r, b, t, n, f);
+  uint32_t *a = r3d_put (OP_glOrthox, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) l;
+  a[1] = (uint32_t) r;
+  a[2] = (uint32_t) b;
+  a[3] = (uint32_t) t;
+  a[4] = (uint32_t) n;
+  a[5] = (uint32_t) f;
+}
+
+void
+glPointParameterx (GLenum pname, GLfixed param)
+{
+  uint32_t *a = r3d_put (OP_glPointParameterx, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) pname;
+  a[1] = (uint32_t) param;
+}
+
+void
+glPointParameterxv (GLenum pname, const GLfixed * params)
+{
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glPointParameterxv, f, 2, params, b0);
+}
+
+void
+glPointSizex (GLfixed size)
+{
+  uint32_t *a = r3d_put (OP_glPointSizex, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) size;
+}
+
+void
+glPolygonOffsetx (GLfixed factor, GLfixed units)
+{
+  uint32_t *a = r3d_put (OP_glPolygonOffsetx, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) factor;
+  a[1] = (uint32_t) units;
+}
+
+void
+glRotatex (GLfixed angle, GLfixed x, GLfixed y, GLfixed z)
+{
+  r3d_track_glRotatex (angle, x, y, z);
+  uint32_t *a = r3d_put (OP_glRotatex, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) angle;
+  a[1] = (uint32_t) x;
+  a[2] = (uint32_t) y;
+  a[3] = (uint32_t) z;
+}
+
+void
+glSampleCoveragex (GLclampx value, GLboolean invert)
+{
+  uint32_t *a = r3d_put (OP_glSampleCoveragex, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) value;
+  a[1] = (uint32_t) invert;
+}
+
+void
+glScalex (GLfixed x, GLfixed y, GLfixed z)
+{
+  r3d_track_glScalex (x, y, z);
+  uint32_t *a = r3d_put (OP_glScalex, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) x;
+  a[1] = (uint32_t) y;
+  a[2] = (uint32_t) z;
+}
+
+void
+glTexEnvx (GLenum target, GLenum pname, GLfixed param)
+{
+  uint32_t *a = r3d_put (OP_glTexEnvx, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) pname;
+  a[2] = (uint32_t) param;
+}
+
+void
+glTexEnvxv (GLenum target, GLenum pname, const GLfixed * params)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glTexEnvxv, f, 3, params, b0);
+}
+
+void
+glTexParameterx (GLenum target, GLenum pname, GLfixed param)
+{
+  uint32_t *a = r3d_put (OP_glTexParameterx, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) pname;
+  a[2] = (uint32_t) param;
+}
+
+void
+glTexParameterxv (GLenum target, GLenum pname, const GLfixed * params)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glTexParameterxv, f, 3, params, b0);
+}
+
+void
+glTranslatex (GLfixed x, GLfixed y, GLfixed z)
+{
+  r3d_track_glTranslatex (x, y, z);
+  uint32_t *a = r3d_put (OP_glTranslatex, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) x;
+  a[1] = (uint32_t) y;
+  a[2] = (uint32_t) z;
+}
+
+void
+glDiscardFramebufferEXT (GLenum target, GLsizei numAttachments, const GLenum * attachments)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) numAttachments;
+  size_t b0 = attachments ? (size_t) r3d_nonneg ((numAttachments)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glDiscardFramebufferEXT, f, 3, attachments, b0);
+}
+
+void
+glTexGenxOES (GLenum coord, GLenum pname, GLfixed param)
+{
+  uint32_t *a = r3d_put (OP_glTexGenxOES, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) coord;
+  a[1] = (uint32_t) pname;
+  a[2] = (uint32_t) param;
+}
+
+void
+glTexGenxvOES (GLenum coord, GLenum pname, const GLfixed * params)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) coord;
+  a[1] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glTexGenxvOES, f, 3, params, b0);
+}
+
+void
+glGetTexGenxvOES (GLenum coord, GLenum pname, GLfixed * params)
+{
+  uint32_t *a = r3d_put (OP_glGetTexGenxvOES, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) coord;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glBindVertexArray (GLuint array)
+{
+  r3d_track_glBindVertexArray (array);
+  uint32_t *a = r3d_put (OP_glBindVertexArray, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) array;
+}
+
+void
+glDeleteVertexArrays (GLsizei n, const GLuint * arrays)
+{
+  r3d_track_glDeleteVertexArrays (n, arrays);
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) n;
+  size_t b0 = arrays ? (size_t) r3d_nonneg ((n)) * 4 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glDeleteVertexArrays, f, 2, arrays, b0);
+}
+
+void
+glGenVertexArrays (GLsizei n, GLuint * arrays)
+{
+  uint32_t *a = r3d_put (OP_glGenVertexArrays, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) n;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg ((n));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (arrays)
+    memcpy (arrays, r, cnt * 4);
+}
+
+GLboolean
+glIsVertexArray (GLuint array)
+{
+  uint32_t *a = r3d_put (OP_glIsVertexArray, 1);
+  if (!a)
+    return 0;
+  a[0] = (uint32_t) array;
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLboolean) r;
+}
+
+void
+glActiveShaderProgram (GLuint pipeline, GLuint program)
+{
+  uint32_t *a = r3d_put (OP_glActiveShaderProgram, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) pipeline;
+  a[1] = (uint32_t) program;
+}
+
+void
+glBindProgramPipeline (GLuint pipeline)
+{
+  uint32_t *a = r3d_put (OP_glBindProgramPipeline, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) pipeline;
+}
+
+void
+glDeleteProgramPipelines (GLsizei n, const GLuint * pipelines)
+{
+  uint32_t f[2];
+  uint32_t *a = f;
+  a[0] = (uint32_t) n;
+  size_t b0 = pipelines ? (size_t) r3d_nonneg ((n)) * 4 : 0;
+  f[1] = (uint32_t) b0;
+  r3d_put_data (OP_glDeleteProgramPipelines, f, 2, pipelines, b0);
+}
+
+void
+glGenProgramPipelines (GLsizei n, GLuint * pipelines)
+{
+  uint32_t *a = r3d_put (OP_glGenProgramPipelines, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) n;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg ((n));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (pipelines)
+    memcpy (pipelines, r, cnt * 4);
+}
+
+void
+glGetProgramPipelineiv (GLuint pipeline, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetProgramPipelineiv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) pipeline;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+GLboolean
+glIsProgramPipeline (GLuint pipeline)
+{
+  uint32_t *a = r3d_put (OP_glIsProgramPipeline, 1);
+  if (!a)
+    return 0;
+  a[0] = (uint32_t) pipeline;
+  uint32_t r = 0;
+  r3d_sync (&r, 4);
+  return (GLboolean) r;
+}
+
+void
+glProgramParameteri (GLuint program, GLenum pname, GLint value)
+{
+  uint32_t *a = r3d_put (OP_glProgramParameteri, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) pname;
+  a[2] = (uint32_t) value;
+}
+
+void
+glProgramUniform1f (GLuint program, GLint location, GLfloat v0)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform1f, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = r3d_f2u (v0);
+}
+
+void
+glProgramUniform1fv (GLuint program, GLint location, GLsizei count, const GLfloat * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform1fv, f, 4, value, b0);
+}
+
+void
+glProgramUniform1i (GLuint program, GLint location, GLint v0)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform1i, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) v0;
+}
+
+void
+glProgramUniform1iv (GLuint program, GLint location, GLsizei count, const GLint * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform1iv, f, 4, value, b0);
+}
+
+void
+glProgramUniform2f (GLuint program, GLint location, GLfloat v0, GLfloat v1)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform2f, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = r3d_f2u (v0);
+  a[3] = r3d_f2u (v1);
+}
+
+void
+glProgramUniform2fv (GLuint program, GLint location, GLsizei count, const GLfloat * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*2)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform2fv, f, 4, value, b0);
+}
+
+void
+glProgramUniform2i (GLuint program, GLint location, GLint v0, GLint v1)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform2i, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) v0;
+  a[3] = (uint32_t) v1;
+}
+
+void
+glProgramUniform2iv (GLuint program, GLint location, GLsizei count, const GLint * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*2)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform2iv, f, 4, value, b0);
+}
+
+void
+glProgramUniform3f (GLuint program, GLint location, GLfloat v0, GLfloat v1, GLfloat v2)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform3f, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = r3d_f2u (v0);
+  a[3] = r3d_f2u (v1);
+  a[4] = r3d_f2u (v2);
+}
+
+void
+glProgramUniform3fv (GLuint program, GLint location, GLsizei count, const GLfloat * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*3)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform3fv, f, 4, value, b0);
+}
+
+void
+glProgramUniform3i (GLuint program, GLint location, GLint v0, GLint v1, GLint v2)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform3i, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) v0;
+  a[3] = (uint32_t) v1;
+  a[4] = (uint32_t) v2;
+}
+
+void
+glProgramUniform3iv (GLuint program, GLint location, GLsizei count, const GLint * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*3)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform3iv, f, 4, value, b0);
+}
+
+void
+glProgramUniform4f (GLuint program, GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform4f, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = r3d_f2u (v0);
+  a[3] = r3d_f2u (v1);
+  a[4] = r3d_f2u (v2);
+  a[5] = r3d_f2u (v3);
+}
+
+void
+glProgramUniform4fv (GLuint program, GLint location, GLsizei count, const GLfloat * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*4)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform4fv, f, 4, value, b0);
+}
+
+void
+glProgramUniform4i (GLuint program, GLint location, GLint v0, GLint v1, GLint v2, GLint v3)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform4i, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) v0;
+  a[3] = (uint32_t) v1;
+  a[4] = (uint32_t) v2;
+  a[5] = (uint32_t) v3;
+}
+
+void
+glProgramUniform4iv (GLuint program, GLint location, GLsizei count, const GLint * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*4)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform4iv, f, 4, value, b0);
+}
+
+void
+glProgramUniformMatrix2fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*4)) * 4 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix2fv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix3fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*9)) * 4 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix3fv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix4fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*16)) * 4 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix4fv, f, 5, value, b0);
+}
+
+void
+glUseProgramStages (GLuint pipeline, GLbitfield stages, GLuint program)
+{
+  uint32_t *a = r3d_put (OP_glUseProgramStages, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) pipeline;
+  a[1] = (uint32_t) stages;
+  a[2] = (uint32_t) program;
+}
+
+void
+glValidateProgramPipeline (GLuint pipeline)
+{
+  uint32_t *a = r3d_put (OP_glValidateProgramPipeline, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) pipeline;
+}
+
+void
+glProgramUniform1ui (GLuint program, GLint location, GLuint v0)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform1ui, 3);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) v0;
+}
+
+void
+glProgramUniform2ui (GLuint program, GLint location, GLuint v0, GLuint v1)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform2ui, 4);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) v0;
+  a[3] = (uint32_t) v1;
+}
+
+void
+glProgramUniform3ui (GLuint program, GLint location, GLuint v0, GLuint v1, GLuint v2)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform3ui, 5);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) v0;
+  a[3] = (uint32_t) v1;
+  a[4] = (uint32_t) v2;
+}
+
+void
+glProgramUniform4ui (GLuint program, GLint location, GLuint v0, GLuint v1, GLuint v2, GLuint v3)
+{
+  uint32_t *a = r3d_put (OP_glProgramUniform4ui, 6);
+  if (!a)
+    return;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) v0;
+  a[3] = (uint32_t) v1;
+  a[4] = (uint32_t) v2;
+  a[5] = (uint32_t) v3;
+}
+
+void
+glProgramUniform1uiv (GLuint program, GLint location, GLsizei count, const GLuint * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform1uiv, f, 4, value, b0);
+}
+
+void
+glProgramUniform2uiv (GLuint program, GLint location, GLsizei count, const GLuint * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*2)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform2uiv, f, 4, value, b0);
+}
+
+void
+glProgramUniform3uiv (GLuint program, GLint location, GLsizei count, const GLuint * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*3)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform3uiv, f, 4, value, b0);
+}
+
+void
+glProgramUniform4uiv (GLuint program, GLint location, GLsizei count, const GLuint * value)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*4)) * 4 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniform4uiv, f, 4, value, b0);
+}
+
+void
+glProgramUniformMatrix2x3fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*6)) * 4 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix2x3fv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix3x2fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*6)) * 4 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix3x2fv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix2x4fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*8)) * 4 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix2x4fv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix4x2fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*8)) * 4 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix4x2fv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix3x4fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*12)) * 4 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix3x4fv, f, 5, value, b0);
+}
+
+void
+glProgramUniformMatrix4x3fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value)
+{
+  uint32_t f[5];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) location;
+  a[2] = (uint32_t) count;
+  a[3] = (uint32_t) transpose;
+  size_t b0 = value ? (size_t) r3d_nonneg ((count*12)) * 4 : 0;
+  f[4] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramUniformMatrix4x3fv, f, 5, value, b0);
+}
+
+void
+glTexParameterIiv (GLenum target, GLenum pname, const GLint * params)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glTexParameterIiv, f, 3, params, b0);
+}
+
+void
+glTexParameterIuiv (GLenum target, GLenum pname, const GLuint * params)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) pname;
+  size_t b0 = params ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glTexParameterIuiv, f, 3, params, b0);
+}
+
+void
+glGetTexParameterIiv (GLenum target, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetTexParameterIiv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetTexParameterIuiv (GLenum target, GLenum pname, GLuint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetTexParameterIuiv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) target;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glSamplerParameterIiv (GLuint sampler, GLenum pname, const GLint * param)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) sampler;
+  a[1] = (uint32_t) pname;
+  size_t b0 = param ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glSamplerParameterIiv, f, 3, param, b0);
+}
+
+void
+glSamplerParameterIuiv (GLuint sampler, GLenum pname, const GLuint * param)
+{
+  uint32_t f[3];
+  uint32_t *a = f;
+  a[0] = (uint32_t) sampler;
+  a[1] = (uint32_t) pname;
+  size_t b0 = param ? (size_t) r3d_nonneg (r3d_count (pname)) * 4 : 0;
+  f[2] = (uint32_t) b0;
+  r3d_put_data (OP_glSamplerParameterIuiv, f, 3, param, b0);
+}
+
+void
+glGetSamplerParameterIiv (GLuint sampler, GLenum pname, GLint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetSamplerParameterIiv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) sampler;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glGetSamplerParameterIuiv (GLuint sampler, GLenum pname, GLuint * params)
+{
+  uint32_t *a = r3d_put (OP_glGetSamplerParameterIuiv, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) sampler;
+  a[1] = (uint32_t) pname;
+  uint32_t r[64];
+  memset (r, 0, sizeof r);
+  r3d_sync (r, sizeof r);
+  size_t cnt = (size_t) r3d_nonneg (r3d_count (pname));
+  if (cnt * 4 > sizeof r)
+    cnt = sizeof r / 4;
+  if (params)
+    memcpy (params, r, cnt * 4);
+}
+
+void
+glDebugMessageControl (GLenum source, GLenum type, GLenum severity, GLsizei count, const GLuint * ids, GLboolean enabled)
+{
+  uint32_t f[6];
+  uint32_t *a = f;
+  a[0] = (uint32_t) source;
+  a[1] = (uint32_t) type;
+  a[2] = (uint32_t) severity;
+  a[3] = (uint32_t) count;
+  a[4] = (uint32_t) enabled;
+  size_t b0 = ids ? (size_t) r3d_nonneg ((count)) * 4 : 0;
+  f[5] = (uint32_t) b0;
+  r3d_put_data (OP_glDebugMessageControl, f, 6, ids, b0);
+}
+
+void
+glPopDebugGroup (void)
+{
+  if (!r3d_put (OP_glPopDebugGroup, 0))
+    return;
+}
+
+void
+glMaxShaderCompilerThreadsKHR (GLuint count)
+{
+  uint32_t *a = r3d_put (OP_glMaxShaderCompilerThreadsKHR, 1);
+  if (!a)
+    return;
+  a[0] = (uint32_t) count;
+}
+
+void
+glBeginConditionalRender (GLuint id, GLenum mode)
+{
+  uint32_t *a = r3d_put (OP_glBeginConditionalRender, 2);
+  if (!a)
+    return;
+  a[0] = (uint32_t) id;
+  a[1] = (uint32_t) mode;
+}
+
+void
+glEndConditionalRender (void)
+{
+  if (!r3d_put (OP_glEndConditionalRender, 0))
+    return;
+}
+
+void
+glProgramBinary (GLuint program, GLenum binaryFormat, const void * binary, GLsizei length)
+{
+  uint32_t f[4];
+  uint32_t *a = f;
+  a[0] = (uint32_t) program;
+  a[1] = (uint32_t) binaryFormat;
+  a[2] = (uint32_t) length;
+  size_t b0 = binary ? (size_t) r3d_nonneg ((length)) * 1 : 0;
+  f[3] = (uint32_t) b0;
+  r3d_put_data (OP_glProgramBinary, f, 4, binary, b0);
+}
+
 const struct r3d_gl_function r3d_gl_functions[] = {
   { "glCullFace", (void (*) (void)) glCullFace },
   { "glFrontFace", (void (*) (void)) glFrontFace },
@@ -6460,6 +7802,134 @@ const struct r3d_gl_function r3d_gl_functions[] = {
   { "glBlitFramebuffer", (void (*) (void)) glBlitFramebuffer },
   { "glRenderbufferStorageMultisample", (void (*) (void)) glRenderbufferStorageMultisample },
   { "glFramebufferTextureLayer", (void (*) (void)) glFramebufferTextureLayer },
+  { "glClipPlanef", (void (*) (void)) glClipPlanef },
+  { "glFrustumf", (void (*) (void)) glFrustumf },
+  { "glGetClipPlanef", (void (*) (void)) glGetClipPlanef },
+  { "glOrthof", (void (*) (void)) glOrthof },
+  { "glAlphaFuncx", (void (*) (void)) glAlphaFuncx },
+  { "glClearColorx", (void (*) (void)) glClearColorx },
+  { "glClearDepthx", (void (*) (void)) glClearDepthx },
+  { "glClipPlanex", (void (*) (void)) glClipPlanex },
+  { "glColor4x", (void (*) (void)) glColor4x },
+  { "glDepthRangex", (void (*) (void)) glDepthRangex },
+  { "glFogx", (void (*) (void)) glFogx },
+  { "glFogxv", (void (*) (void)) glFogxv },
+  { "glFrustumx", (void (*) (void)) glFrustumx },
+  { "glGetClipPlanex", (void (*) (void)) glGetClipPlanex },
+  { "glGetFixedv", (void (*) (void)) glGetFixedv },
+  { "glGetLightxv", (void (*) (void)) glGetLightxv },
+  { "glGetMaterialxv", (void (*) (void)) glGetMaterialxv },
+  { "glGetTexEnvxv", (void (*) (void)) glGetTexEnvxv },
+  { "glGetTexParameterxv", (void (*) (void)) glGetTexParameterxv },
+  { "glLightModelx", (void (*) (void)) glLightModelx },
+  { "glLightModelxv", (void (*) (void)) glLightModelxv },
+  { "glLightx", (void (*) (void)) glLightx },
+  { "glLightxv", (void (*) (void)) glLightxv },
+  { "glLineWidthx", (void (*) (void)) glLineWidthx },
+  { "glLoadMatrixx", (void (*) (void)) glLoadMatrixx },
+  { "glMaterialx", (void (*) (void)) glMaterialx },
+  { "glMaterialxv", (void (*) (void)) glMaterialxv },
+  { "glMultMatrixx", (void (*) (void)) glMultMatrixx },
+  { "glMultiTexCoord4x", (void (*) (void)) glMultiTexCoord4x },
+  { "glNormal3x", (void (*) (void)) glNormal3x },
+  { "glOrthox", (void (*) (void)) glOrthox },
+  { "glPointParameterx", (void (*) (void)) glPointParameterx },
+  { "glPointParameterxv", (void (*) (void)) glPointParameterxv },
+  { "glPointSizex", (void (*) (void)) glPointSizex },
+  { "glPolygonOffsetx", (void (*) (void)) glPolygonOffsetx },
+  { "glRotatex", (void (*) (void)) glRotatex },
+  { "glSampleCoveragex", (void (*) (void)) glSampleCoveragex },
+  { "glScalex", (void (*) (void)) glScalex },
+  { "glTexEnvx", (void (*) (void)) glTexEnvx },
+  { "glTexEnvxv", (void (*) (void)) glTexEnvxv },
+  { "glTexParameterx", (void (*) (void)) glTexParameterx },
+  { "glTexParameterxv", (void (*) (void)) glTexParameterxv },
+  { "glTranslatex", (void (*) (void)) glTranslatex },
+  { "glDiscardFramebufferEXT", (void (*) (void)) glDiscardFramebufferEXT },
+  { "glMapBufferRange", (void (*) (void)) glMapBufferRange },
+  { "glFlushMappedBufferRange", (void (*) (void)) glFlushMappedBufferRange },
+  { "glPointSizePointerOES", (void (*) (void)) glPointSizePointerOES },
+  { "glQueryMatrixxOES", (void (*) (void)) glQueryMatrixxOES },
+  { "glTexGenxOES", (void (*) (void)) glTexGenxOES },
+  { "glTexGenxvOES", (void (*) (void)) glTexGenxvOES },
+  { "glGetTexGenxvOES", (void (*) (void)) glGetTexGenxvOES },
+  { "glBindVertexArray", (void (*) (void)) glBindVertexArray },
+  { "glDeleteVertexArrays", (void (*) (void)) glDeleteVertexArrays },
+  { "glGenVertexArrays", (void (*) (void)) glGenVertexArrays },
+  { "glIsVertexArray", (void (*) (void)) glIsVertexArray },
+  { "glDrawElementsBaseVertex", (void (*) (void)) glDrawElementsBaseVertex },
+  { "glDrawRangeElementsBaseVertex", (void (*) (void)) glDrawRangeElementsBaseVertex },
+  { "glDrawElementsInstancedBaseVertex", (void (*) (void)) glDrawElementsInstancedBaseVertex },
+  { "glMultiDrawElementsBaseVertex", (void (*) (void)) glMultiDrawElementsBaseVertex },
+  { "glDrawArraysInstanced", (void (*) (void)) glDrawArraysInstanced },
+  { "glDrawElementsInstanced", (void (*) (void)) glDrawElementsInstanced },
+  { "glActiveShaderProgram", (void (*) (void)) glActiveShaderProgram },
+  { "glBindProgramPipeline", (void (*) (void)) glBindProgramPipeline },
+  { "glCreateShaderProgramv", (void (*) (void)) glCreateShaderProgramv },
+  { "glDeleteProgramPipelines", (void (*) (void)) glDeleteProgramPipelines },
+  { "glGenProgramPipelines", (void (*) (void)) glGenProgramPipelines },
+  { "glGetProgramPipelineInfoLog", (void (*) (void)) glGetProgramPipelineInfoLog },
+  { "glGetProgramPipelineiv", (void (*) (void)) glGetProgramPipelineiv },
+  { "glIsProgramPipeline", (void (*) (void)) glIsProgramPipeline },
+  { "glProgramParameteri", (void (*) (void)) glProgramParameteri },
+  { "glProgramUniform1f", (void (*) (void)) glProgramUniform1f },
+  { "glProgramUniform1fv", (void (*) (void)) glProgramUniform1fv },
+  { "glProgramUniform1i", (void (*) (void)) glProgramUniform1i },
+  { "glProgramUniform1iv", (void (*) (void)) glProgramUniform1iv },
+  { "glProgramUniform2f", (void (*) (void)) glProgramUniform2f },
+  { "glProgramUniform2fv", (void (*) (void)) glProgramUniform2fv },
+  { "glProgramUniform2i", (void (*) (void)) glProgramUniform2i },
+  { "glProgramUniform2iv", (void (*) (void)) glProgramUniform2iv },
+  { "glProgramUniform3f", (void (*) (void)) glProgramUniform3f },
+  { "glProgramUniform3fv", (void (*) (void)) glProgramUniform3fv },
+  { "glProgramUniform3i", (void (*) (void)) glProgramUniform3i },
+  { "glProgramUniform3iv", (void (*) (void)) glProgramUniform3iv },
+  { "glProgramUniform4f", (void (*) (void)) glProgramUniform4f },
+  { "glProgramUniform4fv", (void (*) (void)) glProgramUniform4fv },
+  { "glProgramUniform4i", (void (*) (void)) glProgramUniform4i },
+  { "glProgramUniform4iv", (void (*) (void)) glProgramUniform4iv },
+  { "glProgramUniformMatrix2fv", (void (*) (void)) glProgramUniformMatrix2fv },
+  { "glProgramUniformMatrix3fv", (void (*) (void)) glProgramUniformMatrix3fv },
+  { "glProgramUniformMatrix4fv", (void (*) (void)) glProgramUniformMatrix4fv },
+  { "glUseProgramStages", (void (*) (void)) glUseProgramStages },
+  { "glValidateProgramPipeline", (void (*) (void)) glValidateProgramPipeline },
+  { "glProgramUniform1ui", (void (*) (void)) glProgramUniform1ui },
+  { "glProgramUniform2ui", (void (*) (void)) glProgramUniform2ui },
+  { "glProgramUniform3ui", (void (*) (void)) glProgramUniform3ui },
+  { "glProgramUniform4ui", (void (*) (void)) glProgramUniform4ui },
+  { "glProgramUniform1uiv", (void (*) (void)) glProgramUniform1uiv },
+  { "glProgramUniform2uiv", (void (*) (void)) glProgramUniform2uiv },
+  { "glProgramUniform3uiv", (void (*) (void)) glProgramUniform3uiv },
+  { "glProgramUniform4uiv", (void (*) (void)) glProgramUniform4uiv },
+  { "glProgramUniformMatrix2x3fv", (void (*) (void)) glProgramUniformMatrix2x3fv },
+  { "glProgramUniformMatrix3x2fv", (void (*) (void)) glProgramUniformMatrix3x2fv },
+  { "glProgramUniformMatrix2x4fv", (void (*) (void)) glProgramUniformMatrix2x4fv },
+  { "glProgramUniformMatrix4x2fv", (void (*) (void)) glProgramUniformMatrix4x2fv },
+  { "glProgramUniformMatrix3x4fv", (void (*) (void)) glProgramUniformMatrix3x4fv },
+  { "glProgramUniformMatrix4x3fv", (void (*) (void)) glProgramUniformMatrix4x3fv },
+  { "glTexParameterIiv", (void (*) (void)) glTexParameterIiv },
+  { "glTexParameterIuiv", (void (*) (void)) glTexParameterIuiv },
+  { "glGetTexParameterIiv", (void (*) (void)) glGetTexParameterIiv },
+  { "glGetTexParameterIuiv", (void (*) (void)) glGetTexParameterIuiv },
+  { "glSamplerParameterIiv", (void (*) (void)) glSamplerParameterIiv },
+  { "glSamplerParameterIuiv", (void (*) (void)) glSamplerParameterIuiv },
+  { "glGetSamplerParameterIiv", (void (*) (void)) glGetSamplerParameterIiv },
+  { "glGetSamplerParameterIuiv", (void (*) (void)) glGetSamplerParameterIuiv },
+  { "glDebugMessageControl", (void (*) (void)) glDebugMessageControl },
+  { "glDebugMessageInsert", (void (*) (void)) glDebugMessageInsert },
+  { "glDebugMessageCallback", (void (*) (void)) glDebugMessageCallback },
+  { "glGetDebugMessageLog", (void (*) (void)) glGetDebugMessageLog },
+  { "glPushDebugGroup", (void (*) (void)) glPushDebugGroup },
+  { "glPopDebugGroup", (void (*) (void)) glPopDebugGroup },
+  { "glObjectLabel", (void (*) (void)) glObjectLabel },
+  { "glGetObjectLabel", (void (*) (void)) glGetObjectLabel },
+  { "glObjectPtrLabel", (void (*) (void)) glObjectPtrLabel },
+  { "glGetObjectPtrLabel", (void (*) (void)) glGetObjectPtrLabel },
+  { "glMaxShaderCompilerThreadsKHR", (void (*) (void)) glMaxShaderCompilerThreadsKHR },
+  { "glBeginConditionalRender", (void (*) (void)) glBeginConditionalRender },
+  { "glEndConditionalRender", (void (*) (void)) glEndConditionalRender },
+  { "glGetProgramBinary", (void (*) (void)) glGetProgramBinary },
+  { "glProgramBinary", (void (*) (void)) glProgramBinary },
   { "glActiveTextureARB", (void (*) (void)) glActiveTexture },
   { "glClientActiveTextureARB", (void (*) (void)) glClientActiveTexture },
   { "glMultiTexCoord1dARB", (void (*) (void)) glMultiTexCoord1d },
@@ -6682,4 +8152,182 @@ const struct r3d_gl_function r3d_gl_functions[] = {
   { "glCopyTexSubImage3DEXT", (void (*) (void)) glCopyTexSubImage3D },
   { "glTexSubImage1DEXT", (void (*) (void)) glTexSubImage1D },
   { "glTexSubImage2DEXT", (void (*) (void)) glTexSubImage2D },
+  { "glMapBufferRangeEXT", (void (*) (void)) glMapBufferRange },
+  { "glFlushMappedBufferRangeEXT", (void (*) (void)) glFlushMappedBufferRange },
+  { "glBlendEquationSeparateOES", (void (*) (void)) glBlendEquationSeparate },
+  { "glBlendFuncSeparateOES", (void (*) (void)) glBlendFuncSeparate },
+  { "glBlendEquationOES", (void (*) (void)) glBlendEquation },
+  { "glAlphaFuncxOES", (void (*) (void)) glAlphaFuncx },
+  { "glClearColorxOES", (void (*) (void)) glClearColorx },
+  { "glClearDepthxOES", (void (*) (void)) glClearDepthx },
+  { "glClipPlanexOES", (void (*) (void)) glClipPlanex },
+  { "glColor4xOES", (void (*) (void)) glColor4x },
+  { "glDepthRangexOES", (void (*) (void)) glDepthRangex },
+  { "glFogxOES", (void (*) (void)) glFogx },
+  { "glFogxvOES", (void (*) (void)) glFogxv },
+  { "glFrustumxOES", (void (*) (void)) glFrustumx },
+  { "glGetClipPlanexOES", (void (*) (void)) glGetClipPlanex },
+  { "glGetFixedvOES", (void (*) (void)) glGetFixedv },
+  { "glGetTexEnvxvOES", (void (*) (void)) glGetTexEnvxv },
+  { "glGetTexParameterxvOES", (void (*) (void)) glGetTexParameterxv },
+  { "glLightModelxOES", (void (*) (void)) glLightModelx },
+  { "glLightModelxvOES", (void (*) (void)) glLightModelxv },
+  { "glLightxOES", (void (*) (void)) glLightx },
+  { "glLightxvOES", (void (*) (void)) glLightxv },
+  { "glLineWidthxOES", (void (*) (void)) glLineWidthx },
+  { "glLoadMatrixxOES", (void (*) (void)) glLoadMatrixx },
+  { "glMaterialxOES", (void (*) (void)) glMaterialx },
+  { "glMaterialxvOES", (void (*) (void)) glMaterialxv },
+  { "glMultMatrixxOES", (void (*) (void)) glMultMatrixx },
+  { "glMultiTexCoord4xOES", (void (*) (void)) glMultiTexCoord4x },
+  { "glNormal3xOES", (void (*) (void)) glNormal3x },
+  { "glOrthoxOES", (void (*) (void)) glOrthox },
+  { "glPointParameterxvOES", (void (*) (void)) glPointParameterxv },
+  { "glPointSizexOES", (void (*) (void)) glPointSizex },
+  { "glPolygonOffsetxOES", (void (*) (void)) glPolygonOffsetx },
+  { "glRotatexOES", (void (*) (void)) glRotatex },
+  { "glScalexOES", (void (*) (void)) glScalex },
+  { "glTexEnvxOES", (void (*) (void)) glTexEnvx },
+  { "glTexEnvxvOES", (void (*) (void)) glTexEnvxv },
+  { "glTexParameterxOES", (void (*) (void)) glTexParameterx },
+  { "glTexParameterxvOES", (void (*) (void)) glTexParameterxv },
+  { "glTranslatexOES", (void (*) (void)) glTranslatex },
+  { "glGetLightxvOES", (void (*) (void)) glGetLightxv },
+  { "glGetMaterialxvOES", (void (*) (void)) glGetMaterialxv },
+  { "glPointParameterxOES", (void (*) (void)) glPointParameterx },
+  { "glSampleCoveragexOES", (void (*) (void)) glSampleCoveragex },
+  { "glIsRenderbufferOES", (void (*) (void)) glIsRenderbuffer },
+  { "glBindRenderbufferOES", (void (*) (void)) glBindRenderbuffer },
+  { "glDeleteRenderbuffersOES", (void (*) (void)) glDeleteRenderbuffers },
+  { "glGenRenderbuffersOES", (void (*) (void)) glGenRenderbuffers },
+  { "glRenderbufferStorageOES", (void (*) (void)) glRenderbufferStorage },
+  { "glGetRenderbufferParameterivOES", (void (*) (void)) glGetRenderbufferParameteriv },
+  { "glIsFramebufferOES", (void (*) (void)) glIsFramebuffer },
+  { "glBindFramebufferOES", (void (*) (void)) glBindFramebuffer },
+  { "glDeleteFramebuffersOES", (void (*) (void)) glDeleteFramebuffers },
+  { "glGenFramebuffersOES", (void (*) (void)) glGenFramebuffers },
+  { "glCheckFramebufferStatusOES", (void (*) (void)) glCheckFramebufferStatus },
+  { "glFramebufferRenderbufferOES", (void (*) (void)) glFramebufferRenderbuffer },
+  { "glFramebufferTexture2DOES", (void (*) (void)) glFramebufferTexture2D },
+  { "glGetFramebufferAttachmentParameterivOES", (void (*) (void)) glGetFramebufferAttachmentParameteriv },
+  { "glGenerateMipmapOES", (void (*) (void)) glGenerateMipmap },
+  { "glMapBufferOES", (void (*) (void)) glMapBuffer },
+  { "glUnmapBufferOES", (void (*) (void)) glUnmapBuffer },
+  { "glGetBufferPointervOES", (void (*) (void)) glGetBufferPointerv },
+  { "glClearDepthfOES", (void (*) (void)) glClearDepthf },
+  { "glClipPlanefOES", (void (*) (void)) glClipPlanef },
+  { "glDepthRangefOES", (void (*) (void)) glDepthRangef },
+  { "glFrustumfOES", (void (*) (void)) glFrustumf },
+  { "glGetClipPlanefOES", (void (*) (void)) glGetClipPlanef },
+  { "glOrthofOES", (void (*) (void)) glOrthof },
+  { "glTexGenfOES", (void (*) (void)) glTexGenf },
+  { "glTexGenfvOES", (void (*) (void)) glTexGenfv },
+  { "glTexGeniOES", (void (*) (void)) glTexGeni },
+  { "glTexGenivOES", (void (*) (void)) glTexGeniv },
+  { "glGetTexGenfvOES", (void (*) (void)) glGetTexGenfv },
+  { "glGetTexGenivOES", (void (*) (void)) glGetTexGeniv },
+  { "glBindVertexArrayOES", (void (*) (void)) glBindVertexArray },
+  { "glDeleteVertexArraysOES", (void (*) (void)) glDeleteVertexArrays },
+  { "glGenVertexArraysOES", (void (*) (void)) glGenVertexArrays },
+  { "glIsVertexArrayOES", (void (*) (void)) glIsVertexArray },
+  { "glDrawBuffersEXT", (void (*) (void)) glDrawBuffers },
+  { "glDrawElementsBaseVertexEXT", (void (*) (void)) glDrawElementsBaseVertex },
+  { "glDrawRangeElementsBaseVertexEXT", (void (*) (void)) glDrawRangeElementsBaseVertex },
+  { "glDrawElementsInstancedBaseVertexEXT", (void (*) (void)) glDrawElementsInstancedBaseVertex },
+  { "glMultiDrawElementsBaseVertexEXT", (void (*) (void)) glMultiDrawElementsBaseVertex },
+  { "glDrawArraysInstancedEXT", (void (*) (void)) glDrawArraysInstanced },
+  { "glDrawElementsInstancedEXT", (void (*) (void)) glDrawElementsInstanced },
+  { "glGenQueriesEXT", (void (*) (void)) glGenQueries },
+  { "glDeleteQueriesEXT", (void (*) (void)) glDeleteQueries },
+  { "glIsQueryEXT", (void (*) (void)) glIsQuery },
+  { "glBeginQueryEXT", (void (*) (void)) glBeginQuery },
+  { "glEndQueryEXT", (void (*) (void)) glEndQuery },
+  { "glGetQueryivEXT", (void (*) (void)) glGetQueryiv },
+  { "glGetQueryObjectuivEXT", (void (*) (void)) glGetQueryObjectuiv },
+  { "glActiveShaderProgramEXT", (void (*) (void)) glActiveShaderProgram },
+  { "glBindProgramPipelineEXT", (void (*) (void)) glBindProgramPipeline },
+  { "glCreateShaderProgramvEXT", (void (*) (void)) glCreateShaderProgramv },
+  { "glDeleteProgramPipelinesEXT", (void (*) (void)) glDeleteProgramPipelines },
+  { "glGenProgramPipelinesEXT", (void (*) (void)) glGenProgramPipelines },
+  { "glGetProgramPipelineInfoLogEXT", (void (*) (void)) glGetProgramPipelineInfoLog },
+  { "glGetProgramPipelineivEXT", (void (*) (void)) glGetProgramPipelineiv },
+  { "glIsProgramPipelineEXT", (void (*) (void)) glIsProgramPipeline },
+  { "glProgramParameteriEXT", (void (*) (void)) glProgramParameteri },
+  { "glProgramUniform1fEXT", (void (*) (void)) glProgramUniform1f },
+  { "glProgramUniform1fvEXT", (void (*) (void)) glProgramUniform1fv },
+  { "glProgramUniform1iEXT", (void (*) (void)) glProgramUniform1i },
+  { "glProgramUniform1ivEXT", (void (*) (void)) glProgramUniform1iv },
+  { "glProgramUniform2fEXT", (void (*) (void)) glProgramUniform2f },
+  { "glProgramUniform2fvEXT", (void (*) (void)) glProgramUniform2fv },
+  { "glProgramUniform2iEXT", (void (*) (void)) glProgramUniform2i },
+  { "glProgramUniform2ivEXT", (void (*) (void)) glProgramUniform2iv },
+  { "glProgramUniform3fEXT", (void (*) (void)) glProgramUniform3f },
+  { "glProgramUniform3fvEXT", (void (*) (void)) glProgramUniform3fv },
+  { "glProgramUniform3iEXT", (void (*) (void)) glProgramUniform3i },
+  { "glProgramUniform3ivEXT", (void (*) (void)) glProgramUniform3iv },
+  { "glProgramUniform4fEXT", (void (*) (void)) glProgramUniform4f },
+  { "glProgramUniform4fvEXT", (void (*) (void)) glProgramUniform4fv },
+  { "glProgramUniform4iEXT", (void (*) (void)) glProgramUniform4i },
+  { "glProgramUniform4ivEXT", (void (*) (void)) glProgramUniform4iv },
+  { "glProgramUniformMatrix2fvEXT", (void (*) (void)) glProgramUniformMatrix2fv },
+  { "glProgramUniformMatrix3fvEXT", (void (*) (void)) glProgramUniformMatrix3fv },
+  { "glProgramUniformMatrix4fvEXT", (void (*) (void)) glProgramUniformMatrix4fv },
+  { "glUseProgramStagesEXT", (void (*) (void)) glUseProgramStages },
+  { "glValidateProgramPipelineEXT", (void (*) (void)) glValidateProgramPipeline },
+  { "glProgramUniform1uiEXT", (void (*) (void)) glProgramUniform1ui },
+  { "glProgramUniform2uiEXT", (void (*) (void)) glProgramUniform2ui },
+  { "glProgramUniform3uiEXT", (void (*) (void)) glProgramUniform3ui },
+  { "glProgramUniform4uiEXT", (void (*) (void)) glProgramUniform4ui },
+  { "glProgramUniform1uivEXT", (void (*) (void)) glProgramUniform1uiv },
+  { "glProgramUniform2uivEXT", (void (*) (void)) glProgramUniform2uiv },
+  { "glProgramUniform3uivEXT", (void (*) (void)) glProgramUniform3uiv },
+  { "glProgramUniform4uivEXT", (void (*) (void)) glProgramUniform4uiv },
+  { "glProgramUniformMatrix2x3fvEXT", (void (*) (void)) glProgramUniformMatrix2x3fv },
+  { "glProgramUniformMatrix3x2fvEXT", (void (*) (void)) glProgramUniformMatrix3x2fv },
+  { "glProgramUniformMatrix2x4fvEXT", (void (*) (void)) glProgramUniformMatrix2x4fv },
+  { "glProgramUniformMatrix4x2fvEXT", (void (*) (void)) glProgramUniformMatrix4x2fv },
+  { "glProgramUniformMatrix3x4fvEXT", (void (*) (void)) glProgramUniformMatrix3x4fv },
+  { "glProgramUniformMatrix4x3fvEXT", (void (*) (void)) glProgramUniformMatrix4x3fv },
+  { "glTexParameterIivEXT", (void (*) (void)) glTexParameterIiv },
+  { "glTexParameterIuivEXT", (void (*) (void)) glTexParameterIuiv },
+  { "glGetTexParameterIivEXT", (void (*) (void)) glGetTexParameterIiv },
+  { "glGetTexParameterIuivEXT", (void (*) (void)) glGetTexParameterIuiv },
+  { "glSamplerParameterIivEXT", (void (*) (void)) glSamplerParameterIiv },
+  { "glSamplerParameterIuivEXT", (void (*) (void)) glSamplerParameterIuiv },
+  { "glGetSamplerParameterIivEXT", (void (*) (void)) glGetSamplerParameterIiv },
+  { "glGetSamplerParameterIuivEXT", (void (*) (void)) glGetSamplerParameterIuiv },
+  { "glDebugMessageControlKHR", (void (*) (void)) glDebugMessageControl },
+  { "glDebugMessageInsertKHR", (void (*) (void)) glDebugMessageInsert },
+  { "glDebugMessageCallbackKHR", (void (*) (void)) glDebugMessageCallback },
+  { "glGetDebugMessageLogKHR", (void (*) (void)) glGetDebugMessageLog },
+  { "glPushDebugGroupKHR", (void (*) (void)) glPushDebugGroup },
+  { "glPopDebugGroupKHR", (void (*) (void)) glPopDebugGroup },
+  { "glObjectLabelKHR", (void (*) (void)) glObjectLabel },
+  { "glGetObjectLabelKHR", (void (*) (void)) glGetObjectLabel },
+  { "glObjectPtrLabelKHR", (void (*) (void)) glObjectPtrLabel },
+  { "glGetObjectPtrLabelKHR", (void (*) (void)) glGetObjectPtrLabel },
+  { "glGetPointervKHR", (void (*) (void)) glGetPointerv },
+  { "glBeginConditionalRenderNV", (void (*) (void)) glBeginConditionalRender },
+  { "glEndConditionalRenderNV", (void (*) (void)) glEndConditionalRender },
+  { "glDrawBuffersNV", (void (*) (void)) glDrawBuffers },
+  { "glReadBufferNV", (void (*) (void)) glReadBuffer },
+  { "glDrawElementsBaseVertexOES", (void (*) (void)) glDrawElementsBaseVertex },
+  { "glDrawRangeElementsBaseVertexOES", (void (*) (void)) glDrawRangeElementsBaseVertex },
+  { "glDrawElementsInstancedBaseVertexOES", (void (*) (void)) glDrawElementsInstancedBaseVertex },
+  { "glGetProgramBinaryOES", (void (*) (void)) glGetProgramBinary },
+  { "glProgramBinaryOES", (void (*) (void)) glProgramBinary },
+  { "glTexImage3DOES", (void (*) (void)) glTexImage3D },
+  { "glTexSubImage3DOES", (void (*) (void)) glTexSubImage3D },
+  { "glCopyTexSubImage3DOES", (void (*) (void)) glCopyTexSubImage3D },
+  { "glCompressedTexImage3DOES", (void (*) (void)) glCompressedTexImage3D },
+  { "glCompressedTexSubImage3DOES", (void (*) (void)) glCompressedTexSubImage3D },
+  { "glFramebufferTexture3DOES", (void (*) (void)) glFramebufferTexture3D },
+  { "glTexParameterIivOES", (void (*) (void)) glTexParameterIiv },
+  { "glTexParameterIuivOES", (void (*) (void)) glTexParameterIuiv },
+  { "glGetTexParameterIivOES", (void (*) (void)) glGetTexParameterIiv },
+  { "glGetTexParameterIuivOES", (void (*) (void)) glGetTexParameterIuiv },
+  { "glSamplerParameterIivOES", (void (*) (void)) glSamplerParameterIiv },
+  { "glSamplerParameterIuivOES", (void (*) (void)) glSamplerParameterIuiv },
+  { "glGetSamplerParameterIivOES", (void (*) (void)) glGetSamplerParameterIiv },
+  { "glGetSamplerParameterIuivOES", (void (*) (void)) glGetSamplerParameterIuiv },
   { 0, 0 } };

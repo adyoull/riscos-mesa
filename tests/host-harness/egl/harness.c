@@ -545,6 +545,7 @@ static void test_image(void)
 /* RISC3D (egl/parts/risc3d.c), against the fake in fake_riscos.c: which
    contexts go to it, the dispatch switch, swap and glFinish copy-back,
    EGLImage as a copy, and OSMesa contexts unaffected around it. */
+extern int fake_r3d_no_es1;
 extern int fake_r3d_on, fake_r3d_fail, fake_r3d_live, fake_r3d_finishes, fake_r3d_swaps,
     fake_r3d_overlapped, fake_r3d_tex_w, fake_r3d_tex_h;
 extern unsigned int fake_r3d_tex_first;
@@ -588,10 +589,43 @@ static void test_risc3d(void)
     fake_r3d_fail = 0;
     eglDestroyContext(dpy, e1);
     eglBindAPI(EGL_OPENGL_ES_API);
+    fake_r3d_no_es1 = 1;
     e1 = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, es1);
-    CHECK(e1 != EGL_NO_CONTEXT && fake_r3d_live == before + 1, "GLES 1: OSMesa");
+    CHECK(e1 != EGL_NO_CONTEXT && fake_r3d_live == before + 1, "GLES 1, rol-3d before 0.4: OSMesa");
+    eglDestroyContext(dpy, e1);
+    fake_r3d_no_es1 = 0;
+    e1 = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, es1);
+    CHECK(e1 != EGL_NO_CONTEXT && fake_r3d_live == before + 2, "GLES 1: RISC3D (0.4)");
+    eglDestroyContext(dpy, e1);
     e2 = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, es2);
     CHECK(e2 != EGL_NO_CONTEXT && fake_r3d_live == before + 2, "GLES 2: RISC3D");
+    eglBindAPI(EGL_OPENGL_API);
+
+    /* the one choice (riscos_mesa_pick_renderer), and LIBGL_ALWAYS_SOFTWARE */
+    CHECK(riscos_mesa_pick_renderer(EGL_OPENGL_API, 0, 0) == RISCOS_MESA_RISC3D &&
+          riscos_mesa_pick_renderer(EGL_OPENGL_API, 2, 1) == RISCOS_MESA_RISC3D &&
+          riscos_mesa_pick_renderer(EGL_OPENGL_API, 3, 0) == RISCOS_MESA_SOFTWARE &&
+          riscos_mesa_pick_renderer(EGL_OPENGL_ES_API, 1, 1) == RISCOS_MESA_RISC3D &&
+          riscos_mesa_pick_renderer(EGL_OPENGL_ES_API, 2, 0) == RISCOS_MESA_RISC3D &&
+          riscos_mesa_pick_renderer(EGL_OPENGL_ES_API, 3, 0) == RISCOS_MESA_SOFTWARE,
+          "pick_renderer: GL up to 2.1 and GLES 1.1/2.0 to RISC3D, GL 3 and GLES 3 not");
+    setenv("LIBGL_ALWAYS_SOFTWARE", "1", 1);
+    e1 = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, NULL);
+    CHECK(e1 != EGL_NO_CONTEXT && fake_r3d_live == before + 2 &&
+          riscos_mesa_pick_renderer(EGL_OPENGL_API, 0, 0) == RISCOS_MESA_SOFTWARE &&
+          !strstr(eglQueryString(dpy, EGL_VERSION), "RISC3D"), "LIBGL_ALWAYS_SOFTWARE 1: OSMesa");
+    eglDestroyContext(dpy, e1);
+    setenv("LIBGL_ALWAYS_SOFTWARE", "False", 1);
+    CHECK(riscos_mesa_pick_renderer(EGL_OPENGL_API, 0, 0) == RISCOS_MESA_RISC3D, "LIBGL_ALWAYS_SOFTWARE False: RISC3D");
+    unsetenv("LIBGL_ALWAYS_SOFTWARE");
+    setenv("RISC3D$Disable", "1", 1);
+    CHECK(riscos_mesa_pick_renderer(EGL_OPENGL_ES_API, 2, 0) == RISCOS_MESA_SOFTWARE, "pick_renderer: RISC3D$Disable");
+    unsetenv("RISC3D$Disable");
+    /* the rest as before: an OSMesa GLES 1 context beside the RISC3D ones */
+    eglBindAPI(EGL_OPENGL_ES_API);
+    fake_r3d_no_es1 = 1;
+    e1 = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, es1);
+    fake_r3d_no_es1 = 0;
     eglBindAPI(EGL_OPENGL_API);
 
     /* A window, drawn by RISC3D: the gl calls reach it through the table */

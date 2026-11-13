@@ -202,6 +202,33 @@ static void *run(void *arg)
     eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglDestroyContext(dpy, ctx);
 
+    /* OpenGL ES 1.1 (RISC3D 0.4): drawn by RISC3D too, with vertex arrays */
+    {
+        static const GLfloat tri[] = { -1, -1, 1, -1, -1, 1 };
+        EGLint es1[] = { EGL_CONTEXT_CLIENT_VERSION, 1, EGL_NONE };
+        unsigned int c[W * H];
+        eglBindAPI(EGL_OPENGL_ES_API);
+        ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, es1);
+        CHECK(ctx != EGL_NO_CONTEXT && eglMakeCurrent(dpy, ws, ws, ctx), "GLES 1.1 context current");
+        r = (const char *) glGetString(GL_VERSION);
+        CHECK(r && !strncmp(r, "OpenGL ES-CM 1.1 RISC3D", 23), "GLES 1.1 drawn by RISC3D: %s", r ? r : "(none)");
+        glViewport(0, 0, W, H);
+        glClearColor(0, 0, 1, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glColor4f(1, 0, 0, 1);
+        glVertexPointer(2, GL_FLOAT, 0, tri);
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glDisableClientState(GL_VERTEX_ARRAY);
+        CHECK(eglSwapBuffers(dpy, ws), "GLES 1.1 swap");
+        grab(c);
+        CHECK(c[75 * W + 5] == 0x0000FF && c[5 * W + 90] == 0xFF0000,
+              "GLES 1.1: red triangle bottom left (%06x), blue top right (%06x)", c[75 * W + 5], c[5 * W + 90]);
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroyContext(dpy, ctx);
+        eglBindAPI(EGL_OPENGL_API);
+    }
+
     /* A pixmap: glFinish brings the sprite up to date */
     {
         int *area = malloc(16 + 44 + 16 * 8 * 4), *spr = area + 4;

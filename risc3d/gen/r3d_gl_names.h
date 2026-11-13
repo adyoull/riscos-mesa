@@ -1154,4 +1154,260 @@ void r3d_glRenderbufferStorageMultisample (GLenum target, GLsizei samples, GLenu
 #define glRenderbufferStorageMultisample r3d_glRenderbufferStorageMultisample
 void r3d_glFramebufferTextureLayer (GLenum target, GLenum attachment, GLuint texture, GLint level, GLint layer);
 #define glFramebufferTextureLayer r3d_glFramebufferTextureLayer
+void r3d_glClipPlanef (GLenum p, const GLfloat * eqn);
+#define glClipPlanef r3d_glClipPlanef
+void r3d_glFrustumf (GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f);
+#define glFrustumf r3d_glFrustumf
+void r3d_glGetClipPlanef (GLenum plane, GLfloat * equation);
+#define glGetClipPlanef r3d_glGetClipPlanef
+void r3d_glOrthof (GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f);
+#define glOrthof r3d_glOrthof
+void r3d_glAlphaFuncx (GLenum func, GLfixed ref);
+#define glAlphaFuncx r3d_glAlphaFuncx
+void r3d_glClearColorx (GLfixed red, GLfixed green, GLfixed blue, GLfixed alpha);
+#define glClearColorx r3d_glClearColorx
+void r3d_glClearDepthx (GLfixed depth);
+#define glClearDepthx r3d_glClearDepthx
+void r3d_glClipPlanex (GLenum plane, const GLfixed * equation);
+#define glClipPlanex r3d_glClipPlanex
+void r3d_glColor4x (GLfixed red, GLfixed green, GLfixed blue, GLfixed alpha);
+#define glColor4x r3d_glColor4x
+void r3d_glDepthRangex (GLfixed n, GLfixed f);
+#define glDepthRangex r3d_glDepthRangex
+void r3d_glFogx (GLenum pname, GLfixed param);
+#define glFogx r3d_glFogx
+void r3d_glFogxv (GLenum pname, const GLfixed * param);
+#define glFogxv r3d_glFogxv
+void r3d_glFrustumx (GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f);
+#define glFrustumx r3d_glFrustumx
+void r3d_glGetClipPlanex (GLenum plane, GLfixed * equation);
+#define glGetClipPlanex r3d_glGetClipPlanex
+void r3d_glGetFixedv (GLenum pname, GLfixed * data);
+#define glGetFixedv r3d_glGetFixedv
+void r3d_glGetLightxv (GLenum light, GLenum pname, GLfixed * params);
+#define glGetLightxv r3d_glGetLightxv
+void r3d_glGetMaterialxv (GLenum face, GLenum pname, GLfixed * params);
+#define glGetMaterialxv r3d_glGetMaterialxv
+void r3d_glGetTexEnvxv (GLenum target, GLenum pname, GLfixed * params);
+#define glGetTexEnvxv r3d_glGetTexEnvxv
+void r3d_glGetTexParameterxv (GLenum target, GLenum pname, GLfixed * params);
+#define glGetTexParameterxv r3d_glGetTexParameterxv
+void r3d_glLightModelx (GLenum pname, GLfixed param);
+#define glLightModelx r3d_glLightModelx
+void r3d_glLightModelxv (GLenum pname, const GLfixed * param);
+#define glLightModelxv r3d_glLightModelxv
+void r3d_glLightx (GLenum light, GLenum pname, GLfixed param);
+#define glLightx r3d_glLightx
+void r3d_glLightxv (GLenum light, GLenum pname, const GLfixed * params);
+#define glLightxv r3d_glLightxv
+void r3d_glLineWidthx (GLfixed width);
+#define glLineWidthx r3d_glLineWidthx
+void r3d_glLoadMatrixx (const GLfixed * m);
+#define glLoadMatrixx r3d_glLoadMatrixx
+void r3d_glMaterialx (GLenum face, GLenum pname, GLfixed param);
+#define glMaterialx r3d_glMaterialx
+void r3d_glMaterialxv (GLenum face, GLenum pname, const GLfixed * param);
+#define glMaterialxv r3d_glMaterialxv
+void r3d_glMultMatrixx (const GLfixed * m);
+#define glMultMatrixx r3d_glMultMatrixx
+void r3d_glMultiTexCoord4x (GLenum texture, GLfixed s, GLfixed t, GLfixed r, GLfixed q);
+#define glMultiTexCoord4x r3d_glMultiTexCoord4x
+void r3d_glNormal3x (GLfixed nx, GLfixed ny, GLfixed nz);
+#define glNormal3x r3d_glNormal3x
+void r3d_glOrthox (GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f);
+#define glOrthox r3d_glOrthox
+void r3d_glPointParameterx (GLenum pname, GLfixed param);
+#define glPointParameterx r3d_glPointParameterx
+void r3d_glPointParameterxv (GLenum pname, const GLfixed * params);
+#define glPointParameterxv r3d_glPointParameterxv
+void r3d_glPointSizex (GLfixed size);
+#define glPointSizex r3d_glPointSizex
+void r3d_glPolygonOffsetx (GLfixed factor, GLfixed units);
+#define glPolygonOffsetx r3d_glPolygonOffsetx
+void r3d_glRotatex (GLfixed angle, GLfixed x, GLfixed y, GLfixed z);
+#define glRotatex r3d_glRotatex
+void r3d_glSampleCoveragex (GLclampx value, GLboolean invert);
+#define glSampleCoveragex r3d_glSampleCoveragex
+void r3d_glScalex (GLfixed x, GLfixed y, GLfixed z);
+#define glScalex r3d_glScalex
+void r3d_glTexEnvx (GLenum target, GLenum pname, GLfixed param);
+#define glTexEnvx r3d_glTexEnvx
+void r3d_glTexEnvxv (GLenum target, GLenum pname, const GLfixed * params);
+#define glTexEnvxv r3d_glTexEnvxv
+void r3d_glTexParameterx (GLenum target, GLenum pname, GLfixed param);
+#define glTexParameterx r3d_glTexParameterx
+void r3d_glTexParameterxv (GLenum target, GLenum pname, const GLfixed * params);
+#define glTexParameterxv r3d_glTexParameterxv
+void r3d_glTranslatex (GLfixed x, GLfixed y, GLfixed z);
+#define glTranslatex r3d_glTranslatex
+void r3d_glDiscardFramebufferEXT (GLenum target, GLsizei numAttachments, const GLenum * attachments);
+#define glDiscardFramebufferEXT r3d_glDiscardFramebufferEXT
+void * r3d_glMapBufferRange (GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
+#define glMapBufferRange r3d_glMapBufferRange
+void r3d_glFlushMappedBufferRange (GLenum target, GLintptr offset, GLsizeiptr length);
+#define glFlushMappedBufferRange r3d_glFlushMappedBufferRange
+void r3d_glPointSizePointerOES (GLenum type, GLsizei stride, const void * pointer);
+#define glPointSizePointerOES r3d_glPointSizePointerOES
+GLbitfield r3d_glQueryMatrixxOES (GLfixed * mantissa, GLint * exponent);
+#define glQueryMatrixxOES r3d_glQueryMatrixxOES
+void r3d_glTexGenxOES (GLenum coord, GLenum pname, GLfixed param);
+#define glTexGenxOES r3d_glTexGenxOES
+void r3d_glTexGenxvOES (GLenum coord, GLenum pname, const GLfixed * params);
+#define glTexGenxvOES r3d_glTexGenxvOES
+void r3d_glGetTexGenxvOES (GLenum coord, GLenum pname, GLfixed * params);
+#define glGetTexGenxvOES r3d_glGetTexGenxvOES
+void r3d_glBindVertexArray (GLuint array);
+#define glBindVertexArray r3d_glBindVertexArray
+void r3d_glDeleteVertexArrays (GLsizei n, const GLuint * arrays);
+#define glDeleteVertexArrays r3d_glDeleteVertexArrays
+void r3d_glGenVertexArrays (GLsizei n, GLuint * arrays);
+#define glGenVertexArrays r3d_glGenVertexArrays
+GLboolean r3d_glIsVertexArray (GLuint array);
+#define glIsVertexArray r3d_glIsVertexArray
+void r3d_glDrawElementsBaseVertex (GLenum mode, GLsizei count, GLenum type, const void * indices, GLint basevertex);
+#define glDrawElementsBaseVertex r3d_glDrawElementsBaseVertex
+void r3d_glDrawRangeElementsBaseVertex (GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const void * indices, GLint basevertex);
+#define glDrawRangeElementsBaseVertex r3d_glDrawRangeElementsBaseVertex
+void r3d_glDrawElementsInstancedBaseVertex (GLenum mode, GLsizei count, GLenum type, const void * indices, GLsizei instancecount, GLint basevertex);
+#define glDrawElementsInstancedBaseVertex r3d_glDrawElementsInstancedBaseVertex
+void r3d_glMultiDrawElementsBaseVertex (GLenum mode, const GLsizei * count, GLenum type, const void *const* indices, GLsizei drawcount, const GLint * basevertex);
+#define glMultiDrawElementsBaseVertex r3d_glMultiDrawElementsBaseVertex
+void r3d_glDrawArraysInstanced (GLenum mode, GLint first, GLsizei count, GLsizei instancecount);
+#define glDrawArraysInstanced r3d_glDrawArraysInstanced
+void r3d_glDrawElementsInstanced (GLenum mode, GLsizei count, GLenum type, const void * indices, GLsizei instancecount);
+#define glDrawElementsInstanced r3d_glDrawElementsInstanced
+void r3d_glActiveShaderProgram (GLuint pipeline, GLuint program);
+#define glActiveShaderProgram r3d_glActiveShaderProgram
+void r3d_glBindProgramPipeline (GLuint pipeline);
+#define glBindProgramPipeline r3d_glBindProgramPipeline
+GLuint r3d_glCreateShaderProgramv (GLenum type, GLsizei count, const GLchar *const* strings);
+#define glCreateShaderProgramv r3d_glCreateShaderProgramv
+void r3d_glDeleteProgramPipelines (GLsizei n, const GLuint * pipelines);
+#define glDeleteProgramPipelines r3d_glDeleteProgramPipelines
+void r3d_glGenProgramPipelines (GLsizei n, GLuint * pipelines);
+#define glGenProgramPipelines r3d_glGenProgramPipelines
+void r3d_glGetProgramPipelineInfoLog (GLuint pipeline, GLsizei bufSize, GLsizei * length, GLchar * infoLog);
+#define glGetProgramPipelineInfoLog r3d_glGetProgramPipelineInfoLog
+void r3d_glGetProgramPipelineiv (GLuint pipeline, GLenum pname, GLint * params);
+#define glGetProgramPipelineiv r3d_glGetProgramPipelineiv
+GLboolean r3d_glIsProgramPipeline (GLuint pipeline);
+#define glIsProgramPipeline r3d_glIsProgramPipeline
+void r3d_glProgramParameteri (GLuint program, GLenum pname, GLint value);
+#define glProgramParameteri r3d_glProgramParameteri
+void r3d_glProgramUniform1f (GLuint program, GLint location, GLfloat v0);
+#define glProgramUniform1f r3d_glProgramUniform1f
+void r3d_glProgramUniform1fv (GLuint program, GLint location, GLsizei count, const GLfloat * value);
+#define glProgramUniform1fv r3d_glProgramUniform1fv
+void r3d_glProgramUniform1i (GLuint program, GLint location, GLint v0);
+#define glProgramUniform1i r3d_glProgramUniform1i
+void r3d_glProgramUniform1iv (GLuint program, GLint location, GLsizei count, const GLint * value);
+#define glProgramUniform1iv r3d_glProgramUniform1iv
+void r3d_glProgramUniform2f (GLuint program, GLint location, GLfloat v0, GLfloat v1);
+#define glProgramUniform2f r3d_glProgramUniform2f
+void r3d_glProgramUniform2fv (GLuint program, GLint location, GLsizei count, const GLfloat * value);
+#define glProgramUniform2fv r3d_glProgramUniform2fv
+void r3d_glProgramUniform2i (GLuint program, GLint location, GLint v0, GLint v1);
+#define glProgramUniform2i r3d_glProgramUniform2i
+void r3d_glProgramUniform2iv (GLuint program, GLint location, GLsizei count, const GLint * value);
+#define glProgramUniform2iv r3d_glProgramUniform2iv
+void r3d_glProgramUniform3f (GLuint program, GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
+#define glProgramUniform3f r3d_glProgramUniform3f
+void r3d_glProgramUniform3fv (GLuint program, GLint location, GLsizei count, const GLfloat * value);
+#define glProgramUniform3fv r3d_glProgramUniform3fv
+void r3d_glProgramUniform3i (GLuint program, GLint location, GLint v0, GLint v1, GLint v2);
+#define glProgramUniform3i r3d_glProgramUniform3i
+void r3d_glProgramUniform3iv (GLuint program, GLint location, GLsizei count, const GLint * value);
+#define glProgramUniform3iv r3d_glProgramUniform3iv
+void r3d_glProgramUniform4f (GLuint program, GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
+#define glProgramUniform4f r3d_glProgramUniform4f
+void r3d_glProgramUniform4fv (GLuint program, GLint location, GLsizei count, const GLfloat * value);
+#define glProgramUniform4fv r3d_glProgramUniform4fv
+void r3d_glProgramUniform4i (GLuint program, GLint location, GLint v0, GLint v1, GLint v2, GLint v3);
+#define glProgramUniform4i r3d_glProgramUniform4i
+void r3d_glProgramUniform4iv (GLuint program, GLint location, GLsizei count, const GLint * value);
+#define glProgramUniform4iv r3d_glProgramUniform4iv
+void r3d_glProgramUniformMatrix2fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value);
+#define glProgramUniformMatrix2fv r3d_glProgramUniformMatrix2fv
+void r3d_glProgramUniformMatrix3fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value);
+#define glProgramUniformMatrix3fv r3d_glProgramUniformMatrix3fv
+void r3d_glProgramUniformMatrix4fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value);
+#define glProgramUniformMatrix4fv r3d_glProgramUniformMatrix4fv
+void r3d_glUseProgramStages (GLuint pipeline, GLbitfield stages, GLuint program);
+#define glUseProgramStages r3d_glUseProgramStages
+void r3d_glValidateProgramPipeline (GLuint pipeline);
+#define glValidateProgramPipeline r3d_glValidateProgramPipeline
+void r3d_glProgramUniform1ui (GLuint program, GLint location, GLuint v0);
+#define glProgramUniform1ui r3d_glProgramUniform1ui
+void r3d_glProgramUniform2ui (GLuint program, GLint location, GLuint v0, GLuint v1);
+#define glProgramUniform2ui r3d_glProgramUniform2ui
+void r3d_glProgramUniform3ui (GLuint program, GLint location, GLuint v0, GLuint v1, GLuint v2);
+#define glProgramUniform3ui r3d_glProgramUniform3ui
+void r3d_glProgramUniform4ui (GLuint program, GLint location, GLuint v0, GLuint v1, GLuint v2, GLuint v3);
+#define glProgramUniform4ui r3d_glProgramUniform4ui
+void r3d_glProgramUniform1uiv (GLuint program, GLint location, GLsizei count, const GLuint * value);
+#define glProgramUniform1uiv r3d_glProgramUniform1uiv
+void r3d_glProgramUniform2uiv (GLuint program, GLint location, GLsizei count, const GLuint * value);
+#define glProgramUniform2uiv r3d_glProgramUniform2uiv
+void r3d_glProgramUniform3uiv (GLuint program, GLint location, GLsizei count, const GLuint * value);
+#define glProgramUniform3uiv r3d_glProgramUniform3uiv
+void r3d_glProgramUniform4uiv (GLuint program, GLint location, GLsizei count, const GLuint * value);
+#define glProgramUniform4uiv r3d_glProgramUniform4uiv
+void r3d_glProgramUniformMatrix2x3fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value);
+#define glProgramUniformMatrix2x3fv r3d_glProgramUniformMatrix2x3fv
+void r3d_glProgramUniformMatrix3x2fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value);
+#define glProgramUniformMatrix3x2fv r3d_glProgramUniformMatrix3x2fv
+void r3d_glProgramUniformMatrix2x4fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value);
+#define glProgramUniformMatrix2x4fv r3d_glProgramUniformMatrix2x4fv
+void r3d_glProgramUniformMatrix4x2fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value);
+#define glProgramUniformMatrix4x2fv r3d_glProgramUniformMatrix4x2fv
+void r3d_glProgramUniformMatrix3x4fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value);
+#define glProgramUniformMatrix3x4fv r3d_glProgramUniformMatrix3x4fv
+void r3d_glProgramUniformMatrix4x3fv (GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat * value);
+#define glProgramUniformMatrix4x3fv r3d_glProgramUniformMatrix4x3fv
+void r3d_glTexParameterIiv (GLenum target, GLenum pname, const GLint * params);
+#define glTexParameterIiv r3d_glTexParameterIiv
+void r3d_glTexParameterIuiv (GLenum target, GLenum pname, const GLuint * params);
+#define glTexParameterIuiv r3d_glTexParameterIuiv
+void r3d_glGetTexParameterIiv (GLenum target, GLenum pname, GLint * params);
+#define glGetTexParameterIiv r3d_glGetTexParameterIiv
+void r3d_glGetTexParameterIuiv (GLenum target, GLenum pname, GLuint * params);
+#define glGetTexParameterIuiv r3d_glGetTexParameterIuiv
+void r3d_glSamplerParameterIiv (GLuint sampler, GLenum pname, const GLint * param);
+#define glSamplerParameterIiv r3d_glSamplerParameterIiv
+void r3d_glSamplerParameterIuiv (GLuint sampler, GLenum pname, const GLuint * param);
+#define glSamplerParameterIuiv r3d_glSamplerParameterIuiv
+void r3d_glGetSamplerParameterIiv (GLuint sampler, GLenum pname, GLint * params);
+#define glGetSamplerParameterIiv r3d_glGetSamplerParameterIiv
+void r3d_glGetSamplerParameterIuiv (GLuint sampler, GLenum pname, GLuint * params);
+#define glGetSamplerParameterIuiv r3d_glGetSamplerParameterIuiv
+void r3d_glDebugMessageControl (GLenum source, GLenum type, GLenum severity, GLsizei count, const GLuint * ids, GLboolean enabled);
+#define glDebugMessageControl r3d_glDebugMessageControl
+void r3d_glDebugMessageInsert (GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar * buf);
+#define glDebugMessageInsert r3d_glDebugMessageInsert
+void r3d_glDebugMessageCallback (GLDEBUGPROC callback, const void * userParam);
+#define glDebugMessageCallback r3d_glDebugMessageCallback
+GLuint r3d_glGetDebugMessageLog (GLuint count, GLsizei bufSize, GLenum * sources, GLenum * types, GLuint * ids, GLenum * severities, GLsizei * lengths, GLchar * messageLog);
+#define glGetDebugMessageLog r3d_glGetDebugMessageLog
+void r3d_glPushDebugGroup (GLenum source, GLuint id, GLsizei length, const GLchar * message);
+#define glPushDebugGroup r3d_glPushDebugGroup
+void r3d_glPopDebugGroup (void);
+#define glPopDebugGroup r3d_glPopDebugGroup
+void r3d_glObjectLabel (GLenum identifier, GLuint name, GLsizei length, const GLchar * label);
+#define glObjectLabel r3d_glObjectLabel
+void r3d_glGetObjectLabel (GLenum identifier, GLuint name, GLsizei bufSize, GLsizei * length, GLchar * label);
+#define glGetObjectLabel r3d_glGetObjectLabel
+void r3d_glObjectPtrLabel (const void * ptr, GLsizei length, const GLchar * label);
+#define glObjectPtrLabel r3d_glObjectPtrLabel
+void r3d_glGetObjectPtrLabel (const void * ptr, GLsizei bufSize, GLsizei * length, GLchar * label);
+#define glGetObjectPtrLabel r3d_glGetObjectPtrLabel
+void r3d_glMaxShaderCompilerThreadsKHR (GLuint count);
+#define glMaxShaderCompilerThreadsKHR r3d_glMaxShaderCompilerThreadsKHR
+void r3d_glBeginConditionalRender (GLuint id, GLenum mode);
+#define glBeginConditionalRender r3d_glBeginConditionalRender
+void r3d_glEndConditionalRender (void);
+#define glEndConditionalRender r3d_glEndConditionalRender
+void r3d_glGetProgramBinary (GLuint program, GLsizei bufSize, GLsizei * length, GLenum * binaryFormat, void * binary);
+#define glGetProgramBinary r3d_glGetProgramBinary
+void r3d_glProgramBinary (GLuint program, GLenum binaryFormat, const void * binary, GLsizei length);
+#define glProgramBinary r3d_glProgramBinary
 #endif

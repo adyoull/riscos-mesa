@@ -59,9 +59,9 @@ The same applies to programs linked with OpenAL Soft (libopenal, section
     v2 or (at your option) any later version. riscos-mesa's small patch to
     it (patches/openal) is under the same terms. Source:
     https://github.com/kcat/openal-soft (tag openal-soft-1.19.1).
-13. RISC3D client library 0.2 (in libEGL: risc3d/, contexts drawn by a
+13. RISC3D client library 0.4 (in libEGL: risc3d/, contexts drawn by a
     hardware path where the RISC3D module has a driver) - MIT (below).
-    Source: RISC3D's repository at tag v0.2.
+    Source: RISC3D's repository at tag v0.4.
 
 
 ===========================================================================

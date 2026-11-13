@@ -149,6 +149,35 @@ void test_gles(EGLDisplay dpy)
         glReadPixels(5, 5, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
         CHECK(px[0] == 255 && px[1] == 255 && px[2] == 0, "ES 1.1 fixed function draw");
     }
+    {
+        /* GL_OES_vertex_array_object in ES 1.1 (patch riscos-es1-vao): the
+           array state goes with the object */
+        typedef void (*gen_t)(GLsizei, GLuint *);
+        typedef void (*bind_t)(GLuint);
+        typedef GLboolean (*is_t)(GLuint);
+        gen_t gen = (gen_t) eglGetProcAddress("glGenVertexArraysOES");
+        bind_t bind = (bind_t) eglGetProcAddress("glBindVertexArrayOES");
+        is_t is = (is_t) eglGetProcAddress("glIsVertexArrayOES");
+        static const float tri[] = { -1, -1, 3, -1, -1, 3 };
+        GLuint vao = 0, vbo = 0;
+        GLboolean on = 1;
+        glGetError();
+        if (gen && bind && is) {
+            gen(1, &vao);
+            bind(vao);
+            glGetBooleanv(0x8074, &on);         /* GL_VERTEX_ARRAY: off in a new object */
+            glEnableClientState(0x8074);
+            glGenBuffers(1, &vbo);              /* in an object, arrays come from buffers */
+            glBindBuffer(GL_ARRAY_BUFFER, vbo);
+            glBufferData(GL_ARRAY_BUFFER, sizeof tri, tri, GL_STATIC_DRAW);
+            glVertexPointer(2, GL_FLOAT, 0, (const void *) 0);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+            bind(0);
+        }
+        CHECK(gen && vao && is(vao) && !on && glGetError() == GL_NO_ERROR,
+              "ES 1.1 vertex array object (GL_OES_vertex_array_object)");
+        if (vbo) glDeleteBuffers(1, &vbo);
+    }
     /* OpenGL ES on the native RISC OS types: a Wimp window and a sprite */
     {
         EGLSurface ws, ps;

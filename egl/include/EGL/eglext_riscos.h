@@ -217,7 +217,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS (EGLDisplay dpy, EGLSurface
 /*
  * EGL_RISCOS_renderer
  *   Where the RISC3D module has a driver (a hardware path; on RISC OS on
- *   Linux, Linux's graphics driver), OpenGL 2.1 and OpenGL ES 2.0 contexts
+ *   Linux, Linux's graphics driver), OpenGL 2.1, OpenGL ES 1.1 and 2.0 contexts
  *   are drawn by it instead of by OSMesa in software.
  *   EGL_CONTEXT_SOFTWARE_RISCOS = EGL_TRUE in eglCreateContext's
  *   attributes asks for OSMesa all the same: for a program that needs
@@ -229,6 +229,20 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS (EGLDisplay dpy, EGLSurface
 #define EGL_RISCOS_renderer 1
 #define EGL_CONTEXT_SOFTWARE_RISCOS     0x3FFA
 #endif /* EGL_RISCOS_renderer */
+
+/*
+ * riscos_mesa_pick_renderer (riscos-mesa 20.3.5-20 and later)
+ *   riscos-mesa's one choice of renderer, which eglCreateContext and SDL's
+ *   GL windows both follow: for api EGL_OPENGL_API or EGL_OPENGL_ES_API
+ *   and the version asked for (0, 0: none), RISCOS_MESA_SOFTWARE (OSMesa)
+ *   or RISCOS_MESA_RISC3D. LIBGL_ALWAYS_SOFTWARE or RISC3D$Disable set
+ *   (system variables) give software. RISCOS_MESA_V3D is kept for a GPU
+ *   driven from the program itself (not yet).
+ */
+#define RISCOS_MESA_SOFTWARE 0
+#define RISCOS_MESA_RISC3D   1
+#define RISCOS_MESA_V3D      2
+EGLAPI int EGLAPIENTRY riscos_mesa_pick_renderer (unsigned int api, int major, int minor);
 
 #ifdef __cplusplus
 }
