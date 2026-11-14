@@ -158,6 +158,7 @@ mixed glutest   "$T/glutest.c"                               -- -lGLU -lOSMesa
 mixed egltest   "$T/egltest.c" "$T/hrtime.c"                 -- -lEGL -lOSMesa
 mixed glestest  "$T/glestest.c" "$T/es_cube.c" "$T/hrtime.c" -- -lEGL -lOSMesa
 mixed multitex  "$T/multitex.c"                              -- -lglut -lEGL -lOSMesa
+mixed texload   "$T/texload.c"                               -- -lglut -lEGL -lOSMesa
 # SDL: -ldl as well. The shared SDL holds all of SDL, SDL_LoadObject
 # included, which calls dlopen; a static SDL only brings it in for programs
 # that use it. (UnixLib's libdl.a: the program's own, as with UnixLib.)

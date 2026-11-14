@@ -11,6 +11,10 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   TORCS and plib do, through freeglut, in immediate mode and with client
   arrays; static in the tests, mixed in tests-mixed. RISC3D's end-to-end
   check on the build machine also checks the ARB and core names.
+- **New test, texload:** textures loaded the way plib loads TORCS's
+  (a proxy check, internal formats 3 and 4, each mipmap level uploaded on
+  its own, GL_LINEAR_MIPMAP_LINEAR) and drawn from client arrays,
+  including draws whose vertices don't start at 0.
 
 ## 20.3.5-19: the GPU through RISC3D, shared libraries for mixed programs
 

@@ -1,0 +1,228 @@
+/*
+ * texload.c - textures loaded the way plib's ssgMakeMipMaps does (TORCS's
+ * track and cars): the old internal formats 3 and 4, each mipmap level
+ * uploaded with its own glTexImage2D, GL_LINEAR_MIPMAP_LINEAR, then drawn
+ * from client arrays with glDrawElements, as plib's leaves are.
+ *
+ * Each texture is one colour; a quad drawn with it must come out in that
+ * colour. A texture the renderer thinks incomplete (a level missing or
+ * wrong) is drawn as if there were none: the quad comes out white.
+ * Prints one line per check and writes them to the file named on the
+ * command line as well.
+ *
+ *   texload [RESULTS-FILE]
+ *
+ * Copyright (c) 2026 Andrew Youll. MIT licence.
+ */
+#include <GL/freeglut.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static FILE *out;
+static int failures;
+
+static void say(const char *fmt, const char *a, unsigned int b, unsigned int c)
+{
+    printf(fmt, a, b, c);
+    if (out)
+        fprintf(out, fmt, a, b, c);
+}
+
+static void check(int ok, const char *what, unsigned int got, unsigned int want)
+{
+    failures += !ok;
+    say("%s %06x %06x\n", ok ? "ok  " : "FAIL", got, want);
+    say("     %s\n", what, 0, 0);
+}
+
+/* plib's ssgMakeMipMaps: halve until 1x1, one glTexImage2D per level,
+   internal format = the number of components */
+static GLuint load(int w, int h, int z, unsigned int rgb, int levels)
+{
+    static const GLenum fmt[] = { 0, GL_LUMINANCE, GL_LUMINANCE_ALPHA, GL_RGB, GL_RGBA };
+    GLubyte *px = malloc((size_t) w * h * z + 4);
+    GLuint t;
+    int i, l;
+    for (i = 0; i < w * h; i++) {
+        GLubyte c[4] = { (GLubyte) (rgb >> 16), (GLubyte) (rgb >> 8), (GLubyte) rgb, 255 };
+        memcpy(px + i * z, c, (size_t) z);
+    }
+    glGenTextures(1, &t);
+    glBindTexture(GL_TEXTURE_2D, t);
+    /* plib first asks whether the size fits (a proxy texture), and TORCS
+       queries the texture's state, as its log shows (glGetTexParameteriv,
+       glGetTexLevelParameteriv, glHint per texture) */
+    {
+        GLint pw = 0, ws = 0;
+        glTexImage2D(GL_PROXY_TEXTURE_2D, 0, z, w, h, 0, fmt[z], GL_UNSIGNED_BYTE, NULL);
+        glGetTexLevelParameteriv(GL_PROXY_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &pw);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &ws);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &ws);
+        glGetError();
+        if (pw != w)
+            say("note: proxy width %s%x for %x\n", "", (unsigned int) pw, (unsigned int) w);
+    }
+    glHint(GL_TEXTURE_COMPRESSION_HINT, GL_NICEST);
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, levels ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    for (l = 0; ; l++) {
+        int lw = w >> l, lh = h >> l;
+        if (lw < 1) lw = 1;
+        if (lh < 1) lh = 1;
+        /* the image for each level is the same colour: the first w*h
+           pixels serve for every level */
+        glTexImage2D(GL_TEXTURE_2D, l, z, lw, lh, 0, fmt[z], GL_UNSIGNED_BYTE, px);
+        if (!levels || (lw == 1 && lh == 1))
+            break;
+    }
+    free(px);
+    return t;
+}
+
+/* a quad of the window's size, or a small one (the smallest levels),
+   from client arrays with glDrawElements */
+static unsigned int draw(GLuint t, float size)
+{
+    GLfloat v[8] = { -size, -size, size, -size, size, size, -size, size };
+    static const GLfloat tc[] = { 0, 0, 1, 0, 1, 1, 0, 1 };
+    static const GLushort idx[] = { 0, 1, 2, 3 };
+    GLubyte p[4];
+    glClear(GL_COLOR_BUFFER_BIT);
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, t);
+    glPushClientAttrib(GL_CLIENT_VERTEX_ARRAY_BIT);
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 0, v);
+    glTexCoordPointer(2, GL_FLOAT, 0, tc);
+    glDrawElements(GL_TRIANGLE_FAN, 4, GL_UNSIGNED_SHORT, idx);
+    glPopClientAttrib();
+    glDisable(GL_TEXTURE_2D);
+    glReadPixels(64, 64, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, p);
+    return (unsigned int) p[0] << 16 | (unsigned int) p[1] << 8 | p[2];
+}
+
+static int near(unsigned int a, unsigned int b)
+{
+    int i;
+    for (i = 0; i < 24; i += 8) {
+        int d = (int) ((a >> i) & 255) - (int) ((b >> i) & 255);
+        if (d < -8 || d > 8)
+            return 0;
+    }
+    return 1;
+}
+
+static void one(const char *what, int w, int h, int z, unsigned int rgb, int levels, int align)
+{
+    GLuint t;
+    unsigned int c;
+    char line[160];
+    glPixelStorei(GL_UNPACK_ALIGNMENT, align);
+    t = load(w, h, z, rgb, levels);
+    c = draw(t, 1.0f);
+    snprintf(line, sizeof line, "%s, %dx%d, format %d, %s, alignment %d: full size", what, w, h, z,
+             levels ? "all levels" : "one level", align);
+    check(near(c, rgb), line, c, rgb);
+    if (levels) {
+        c = draw(t, 0.02f);   /* about 3 pixels: the small levels */
+        snprintf(line, sizeof line, "%s, %dx%d, format %d: drawn small (the last levels)", what, w, h, z);
+        check(near(c, rgb), line, c, rgb);
+    }
+    glDeleteTextures(1, &t);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+}
+
+/* Arrays whose used vertices don't start at 0, as plib's strips draw
+   from one shared set of arrays: a 2x2 texture (red, green / blue,
+   yellow), drawn NEAREST over the window from vertices 4 to 7 (0 to 3
+   are other strips' and off screen). Each quarter of the window must
+   show its texel. stride: 0 = separate arrays, else one interleaved
+   array of that many floats per vertex. */
+static void rebased(int stride)
+{
+    static const GLubyte tx[] = { 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0 };
+    static const unsigned int want[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
+    static const GLushort idx[] = { 4, 5, 6, 7 };
+    GLfloat v[8][2], tc[8][2], il[8][5];
+    GLuint t;
+    int i, q;
+    char line[120];
+    for (i = 0; i < 8; i++) {
+        float x = i < 4 ? 5.0f + i : (i == 4 || i == 7 ? -1.0f : 1.0f);
+        float y = i < 4 ? 5.0f : (i < 6 ? -1.0f : 1.0f);
+        float s = i < 4 ? 0.9f : (x + 1) / 2, u = i < 4 ? 0.9f : (y + 1) / 2;
+        v[i][0] = x; v[i][1] = y; tc[i][0] = s; tc[i][1] = u;
+        il[i][0] = s; il[i][1] = u; il[i][2] = x; il[i][3] = y; il[i][4] = 0;
+    }
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glGenTextures(1, &t);
+    glBindTexture(GL_TEXTURE_2D, t);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, 3, 2, 2, 0, GL_RGB, GL_UNSIGNED_BYTE, tx);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glEnable(GL_TEXTURE_2D);
+    glPushClientAttrib(GL_CLIENT_VERTEX_ARRAY_BIT);
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    if (stride) {
+        glTexCoordPointer(2, GL_FLOAT, stride * (GLsizei) sizeof(GLfloat), &il[0][0]);
+        glVertexPointer(2, GL_FLOAT, stride * (GLsizei) sizeof(GLfloat), &il[0][2]);
+    } else {
+        glVertexPointer(2, GL_FLOAT, 0, v);
+        glTexCoordPointer(2, GL_FLOAT, 0, tc);
+    }
+    glDrawElements(GL_TRIANGLE_FAN, 4, GL_UNSIGNED_SHORT, idx);
+    glPopClientAttrib();
+    glDisable(GL_TEXTURE_2D);
+    for (q = 0; q < 4; q++) {
+        GLubyte p[4];
+        unsigned int c;
+        glReadPixels(q & 1 ? 96 : 32, q & 2 ? 96 : 32, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, p);
+        c = (unsigned int) p[0] << 16 | (unsigned int) p[1] << 8 | p[2];
+        snprintf(line, sizeof line, "vertices 4-7 of shared arrays (%s): quarter %d shows its texel",
+                 stride ? "interleaved" : "separate", q);
+        check(c == want[q], line, c, want[q]);
+    }
+    glDeleteTextures(1, &t);
+}
+
+int main(int argc, char **argv)
+{
+    const char *s;
+    glutInit(&argc, argv);
+    out = argc > 1 ? fopen(argv[1], "w") : NULL;
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
+    glutInitWindowSize(128, 128);
+    glutCreateWindow("texload");
+    s = (const char *) glGetString(GL_RENDERER);
+    say("GL_RENDERER %s\n", s ? s : "(none)", 0, 0);
+    s = (const char *) glGetString(GL_VERSION);
+    say("GL_VERSION  %s\n", s ? s : "(none)", 0, 0);
+    glViewport(0, 0, 128, 128);
+    glClearColor(0, 0, 0, 1);
+    glColor4f(1, 1, 1, 1);
+
+    one("RGBA (TORCS's png)",      512, 128, 4, 0xC03020, 1, 1);
+    one("RGBA (TORCS's png)",      256, 256, 4, 0x2080C0, 1, 4);
+    one("RGB (TORCS's rgb)",       512, 512, 3, 0x30A040, 1, 1);
+    one("RGB, odd row length",      64,  32, 3, 0xA0A020, 1, 4);
+    one("RGB, odd row length",      16,   2, 3, 0x8020A0, 1, 1);
+    one("RGBA, one level",         128, 128, 4, 0x40C0C0, 0, 4);
+    one("RGB, one level",          128,  64, 3, 0xC04080, 0, 1);
+    rebased(0);
+    rebased(5);
+    check(glGetError() == GL_NO_ERROR, "no GL error", 0, 0);
+
+    say("%s: %x failures\n", failures ? "FAIL" : "ALL PASS", (unsigned int) failures, 0);
+    if (out)
+        fclose(out);
+    return failures != 0;
+}

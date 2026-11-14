@@ -17,6 +17,9 @@ $CC $RO_CFLAGS $GL -static "$T/prof.c"       -o "$STAGE/tests/prof,e1f"       $L
 # Two texture units selected with the ARB names, through freeglut (as TORCS and plib)
 [ -f "$STAGE/lib/libglut.a" ] && $CC $RO_CFLAGS $GL -static "$T/multitex.c" \
     -o "$STAGE/tests/multitex,e1f" -lglut -lEGL $LIBS
+# Textures loaded as plib loads TORCS's, drawn from shared client arrays
+[ -f "$STAGE/lib/libglut.a" ] && $CC $RO_CFLAGS $GL -static "$T/texload.c" \
+    -o "$STAGE/tests/texload,e1f" -lglut -lEGL $LIBS
 # Raspberry Pi style (DispmanX) program, linked the way Pi makefiles do
 # OpenGL ES on the native RISC OS types (Wimp window, full screen, sprite)
 [ -f "$STAGE/lib/libEGL.a" ] && $CC $RO_CFLAGS $GL -static "$T/glestest.c" "$T/es_cube.c" "$T/hrtime.c" \
