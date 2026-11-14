@@ -16,7 +16,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   its own, GL_LINEAR_MIPMAP_LINEAR) and drawn from client arrays,
   including draws whose vertices don't start at 0, and the state that
   glPopClientAttrib and glPopAttrib must restore after a multitextured
-  draw (the client and server texture units, units 1 and 2's arrays off).
+  draw (the client and server texture units, units 1 and 2's arrays off),
+  and plib's leaves: vertex, normal, texture-coordinate and colour arrays
+  together, lit and unlit.
 
 ## 20.3.5-19: the GPU through RISC3D, shared libraries for mixed programs
 

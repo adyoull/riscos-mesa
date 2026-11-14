@@ -291,6 +291,77 @@ static void popped(void)
     glDeleteTextures(1, &t);
 }
 
+/* plib's leaves: vertex, normal, texture-coordinate and colour arrays all
+   on (ssgVtxTable::draw_geometry), drawn from vertices 4 to 7 of shared
+   arrays as a strip. The 2x2 texture must show the right texel in each
+   quarter: texture coordinates taken from another array (the normals,
+   the colours) smear the texture or give one colour. */
+static void leaf(int lit)
+{
+    static const GLubyte tx[] = { 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0 };
+    static const unsigned int want[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
+    static const GLushort idx[] = { 4, 5, 7, 6 };   /* a strip */
+    GLfloat v[8][3], n[8][3], tc[8][2], col[8][4];
+    GLuint t;
+    int i, q;
+    char line[160];
+    for (i = 0; i < 8; i++) {
+        float x = i < 4 ? 5.0f + i : (i == 4 || i == 7 ? -1.0f : 1.0f);
+        float y = i < 4 ? 5.0f : (i < 6 ? -1.0f : 1.0f);
+        v[i][0] = x; v[i][1] = y; v[i][2] = 0;
+        n[i][0] = 0.3f; n[i][1] = 0.6f; n[i][2] = 0.74f;
+        tc[i][0] = i < 4 ? 0.9f : (x + 1) / 2; tc[i][1] = i < 4 ? 0.9f : (y + 1) / 2;
+        col[i][0] = col[i][1] = col[i][2] = col[i][3] = 1;
+    }
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glGenTextures(1, &t);
+    glBindTexture(GL_TEXTURE_2D, t);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, 3, 2, 2, 0, GL_RGB, GL_UNSIGNED_BYTE, tx);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+    glClear(GL_COLOR_BUFFER_BIT);
+    if (lit) {
+        /* full white light along the normal: colour stays 1 */
+        static const GLfloat white[] = { 1, 1, 1, 1 }, black[] = { 0, 0, 0, 1 }, dir[] = { 0.3f, 0.6f, 0.74f, 0 };
+        glEnable(GL_LIGHTING);
+        glEnable(GL_LIGHT0);
+        glLightfv(GL_LIGHT0, GL_POSITION, dir);
+        glLightfv(GL_LIGHT0, GL_DIFFUSE, white);
+        glLightfv(GL_LIGHT0, GL_AMBIENT, black);
+        glLightModelfv(GL_LIGHT_MODEL_AMBIENT, black);
+        glEnable(GL_COLOR_MATERIAL);
+        glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+    }
+    glEnable(GL_TEXTURE_2D);
+    glPushClientAttrib(GL_CLIENT_VERTEX_ARRAY_BIT);
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(3, GL_FLOAT, 0, v);
+    glEnableClientState(GL_NORMAL_ARRAY);
+    glNormalPointer(GL_FLOAT, 0, n);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    glTexCoordPointer(2, GL_FLOAT, 0, tc);
+    glEnableClientState(GL_COLOR_ARRAY);
+    glColorPointer(4, GL_FLOAT, 0, col);
+    glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_SHORT, idx);
+    glPopClientAttrib();
+    glDisable(GL_TEXTURE_2D);
+    glDisable(GL_LIGHTING);
+    glDisable(GL_COLOR_MATERIAL);
+    glColor4f(1, 1, 1, 1);
+    for (q = 0; q < 4; q++) {
+        GLubyte p[4];
+        unsigned int c;
+        glReadPixels(q & 1 ? 96 : 32, q & 2 ? 96 : 32, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, p);
+        c = (unsigned int) p[0] << 16 | (unsigned int) p[1] << 8 | p[2];
+        snprintf(line, sizeof line, "plib leaf: vertex, normal, texcoord and colour arrays%s: quarter %d shows its texel",
+                 lit ? ", lit" : "", q);
+        check(near(c, want[q]), line, c, want[q]);
+    }
+    glDeleteTextures(1, &t);
+}
+
 int main(int argc, char **argv)
 {
     const char *s;
@@ -317,6 +388,8 @@ int main(int argc, char **argv)
     rebased(0);
     rebased(5);
     popped();
+    leaf(0);
+    leaf(1);
     check(glGetError() == GL_NO_ERROR, "no GL error", 0, 0);
 
     say("%s: %x failures\n", failures ? "FAIL" : "ALL PASS", (unsigned int) failures, 0);
