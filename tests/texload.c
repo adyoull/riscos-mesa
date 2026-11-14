@@ -14,7 +14,9 @@
  *
  * Copyright (c) 2026 Andrew Youll. MIT licence.
  */
+#define GL_GLEXT_PROTOTYPES
 #include <GL/freeglut.h>
+#include <GL/glext.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -194,6 +196,101 @@ static void rebased(int stride)
     glDeleteTextures(1, &t);
 }
 
+/* State that glPopClientAttrib and glPopAttrib must put back, as TORCS's
+   grVtxTable and plib's leaves leave it: each leaf sets units 1 and 2's
+   texture-coordinate arrays inside glPushClientAttrib, and the next leaf
+   sets only unit 0's. The 2x2 texture (red, green / blue, yellow) on unit
+   0 must then show the right texel in each quarter. */
+static void popped(void)
+{
+    static const GLubyte tx[] = { 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0 };
+    static const unsigned int want[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
+    static const GLushort idx[] = { 0, 1, 2, 3 };
+    static const GLfloat v[] = { -1, -1, 1, -1, 1, 1, -1, 1 };
+    static const GLfloat tc[] = { 0.25f, 0.25f, 0.75f, 0.25f, 0.75f, 0.75f, 0.25f, 0.75f };
+    static const GLfloat junk[] = { 0.9f, 0.9f, 0.9f, 0.9f, 0.9f, 0.9f, 0.9f, 0.9f };
+    GLuint t;
+    GLint cu = 0, au = 0;
+    int q, pass;
+    char line[160];
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glGenTextures(1, &t);
+    glBindTexture(GL_TEXTURE_2D, t);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, 3, 2, 2, 0, GL_RGB, GL_UNSIGNED_BYTE, tx);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+
+    for (pass = 0; pass < 2; pass++) {
+        /* a "multitextured leaf": units 1 and 2's arrays, and (pass 1)
+           the server's active unit inside glPushAttrib */
+        glPushClientAttrib(GL_CLIENT_VERTEX_ARRAY_BIT);
+        if (pass)
+            glPushAttrib(GL_TEXTURE_BIT | GL_ENABLE_BIT);
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glVertexPointer(2, GL_FLOAT, 0, v);
+        glClientActiveTextureARB(GL_TEXTURE0_ARB);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        glTexCoordPointer(2, GL_FLOAT, 0, junk);
+        glClientActiveTextureARB(GL_TEXTURE1_ARB);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        glTexCoordPointer(2, GL_FLOAT, 0, junk);
+        glClientActiveTextureARB(GL_TEXTURE2_ARB);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        glTexCoordPointer(2, GL_FLOAT, 0, junk);
+        if (pass)
+            glActiveTextureARB(GL_TEXTURE2_ARB);
+        /* left as it is, as a leaf leaves it */
+        if (pass)
+            glPopAttrib();
+        glPopClientAttrib();
+
+        glGetIntegerv(GL_CLIENT_ACTIVE_TEXTURE_ARB, &cu);
+        glGetIntegerv(GL_ACTIVE_TEXTURE_ARB, &au);
+        snprintf(line, sizeof line, "after the pops%s: client unit (first) and unit (second) back to 0",
+                 pass ? " (glPopAttrib too)" : "");
+        check(cu == GL_TEXTURE0_ARB && au == GL_TEXTURE0_ARB, line, (unsigned int) cu, (unsigned int) au);
+
+        /* the next, single-textured leaf: unit 0 only, without selecting it */
+        glClear(GL_COLOR_BUFFER_BIT);
+        glBindTexture(GL_TEXTURE_2D, t);
+        glEnable(GL_TEXTURE_2D);
+        glPushClientAttrib(GL_CLIENT_VERTEX_ARRAY_BIT);
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glVertexPointer(2, GL_FLOAT, 0, v);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        glTexCoordPointer(2, GL_FLOAT, 0, tc);
+        glDrawElements(GL_TRIANGLE_FAN, 4, GL_UNSIGNED_SHORT, idx);
+        glPopClientAttrib();
+        glDisable(GL_TEXTURE_2D);
+        for (q = 0; q < 4; q++) {
+            GLubyte p[4];
+            unsigned int c;
+            glReadPixels(q & 1 ? 96 : 32, q & 2 ? 96 : 32, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, p);
+            c = (unsigned int) p[0] << 16 | (unsigned int) p[1] << 8 | p[2];
+            snprintf(line, sizeof line, "next leaf after a multitextured one%s: quarter %d shows its texel",
+                     pass ? " (glPopAttrib too)" : "", q);
+            check(c == want[q], line, c, want[q]);
+        }
+
+        /* units 1 and 2 must be off again: a texture there would change
+           the colour */
+        {
+            GLint on1 = 1, on2 = 1;
+            glClientActiveTextureARB(GL_TEXTURE1_ARB);
+            on1 = glIsEnabled(GL_TEXTURE_COORD_ARRAY);
+            glClientActiveTextureARB(GL_TEXTURE2_ARB);
+            on2 = glIsEnabled(GL_TEXTURE_COORD_ARRAY);
+            glClientActiveTextureARB(GL_TEXTURE0_ARB);
+            snprintf(line, sizeof line, "after the pops%s: units 1 and 2's coordinate arrays off",
+                     pass ? " (glPopAttrib too)" : "");
+            check(!on1 && !on2, line, (unsigned int) on1, (unsigned int) on2);
+        }
+    }
+    glDeleteTextures(1, &t);
+}
+
 int main(int argc, char **argv)
 {
     const char *s;
@@ -219,6 +316,7 @@ int main(int argc, char **argv)
     one("RGB, one level",          128,  64, 3, 0xC04080, 0, 1);
     rebased(0);
     rebased(5);
+    popped();
     check(glGetError() == GL_NO_ERROR, "no GL error", 0, 0);
 
     say("%s: %x failures\n", failures ? "FAIL" : "ALL PASS", (unsigned int) failures, 0);
