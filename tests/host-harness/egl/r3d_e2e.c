@@ -15,6 +15,7 @@
  * Copyright (c) 2026 Andrew Youll. MIT licence.
  */
 #define _GNU_SOURCE
+#define GL_GLEXT_PROTOTYPES
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <EGL/eglext_riscos.h>
@@ -154,6 +155,23 @@ static void *run(void *arg)
         glTranslatef(1, 2, 3);
         glGetFloatv(GL_MODELVIEW_MATRIX, m);
         CHECK(m[12] == 1 && m[13] == 2 && m[14] == 3, "glGetFloatv(GL_MODELVIEW_MATRIX) answered");
+    }
+    {
+        /* The ARB names as well as the core ones (TORCS calls the ARB
+           ones): both reach RISC3D */
+        GLint u = 0, cu = 0;
+        glActiveTextureARB(GL_TEXTURE1);
+        glClientActiveTextureARB(GL_TEXTURE2);
+        glGetIntegerv(GL_ACTIVE_TEXTURE, &u);
+        glGetIntegerv(GL_CLIENT_ACTIVE_TEXTURE, &cu);
+        CHECK(u == GL_TEXTURE1 && cu == GL_TEXTURE2,
+              "glActiveTextureARB, glClientActiveTextureARB reach RISC3D (%x, %x)", u, cu);
+        glActiveTexture(GL_TEXTURE0);
+        glClientActiveTexture(GL_TEXTURE0);
+        glGetIntegerv(GL_ACTIVE_TEXTURE, &u);
+        glGetIntegerv(GL_CLIENT_ACTIVE_TEXTURE, &cu);
+        CHECK(u == GL_TEXTURE0 && cu == GL_TEXTURE0,
+              "glActiveTexture, glClientActiveTexture reach RISC3D (%x, %x)", u, cu);
     }
     eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglDestroyContext(dpy, ctx);

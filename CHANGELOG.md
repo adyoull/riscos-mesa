@@ -4,6 +4,14 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## 20.3.5-20 (in development)
+
+- **New test, multitex:** two texture units selected with the ARB names
+  (glActiveTextureARB, glClientActiveTextureARB, glMultiTexCoord2fvARB) as
+  TORCS and plib do, through freeglut, in immediate mode and with client
+  arrays; static in the tests, mixed in tests-mixed. RISC3D's end-to-end
+  check on the build machine also checks the ARB and core names.
+
 ## 20.3.5-19: the GPU through RISC3D, shared libraries for mixed programs
 
 - **RISC3D: the GPU behind the same OpenGL.** Where the RISC3D module has
