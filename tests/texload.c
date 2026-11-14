@@ -362,6 +362,68 @@ static void leaf(int lit)
     glDeleteTextures(1, &t);
 }
 
+/* TORCS's "Scene resolution" below 100% (its RISC OS patch 0010): the
+   scene is drawn into the bottom-left part of the window, copied into a
+   texture with glCopyTexSubImage2D and drawn over the whole window as one
+   textured quad (GL_CLAMP_TO_EDGE, GL_LINEAR, GL_REPLACE). Four coloured
+   quarters drawn small must come out as the same four quarters, full
+   size. sub: glCopyTexSubImage2D into a texture made first (TORCS's way),
+   else glCopyTexImage2D. */
+static void scene_copy(int sub)
+{
+    static const unsigned int want[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
+    GLuint t;
+    int q;
+    char line[160];
+    glViewport(0, 0, 64, 64);
+    glScissor(0, 0, 64, 64);
+    glEnable(GL_SCISSOR_TEST);
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDisable(GL_SCISSOR_TEST);
+    glBegin(GL_QUADS);
+    for (q = 0; q < 4; q++) {
+        float x0 = q & 1 ? 0 : -1, y0 = q & 2 ? 0 : -1;
+        glColor3ub((GLubyte) (want[q] >> 16), (GLubyte) (want[q] >> 8), (GLubyte) want[q]);
+        glVertex2f(x0, y0); glVertex2f(x0 + 1, y0); glVertex2f(x0 + 1, y0 + 1); glVertex2f(x0, y0 + 1);
+    }
+    glEnd();
+    glColor4f(1, 1, 1, 1);
+    glGenTextures(1, &t);
+    glBindTexture(GL_TEXTURE_2D, t);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    if (sub) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+        glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, 64, 64);
+    } else
+        glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 0, 0, 64, 64, 0);
+    glViewport(0, 0, 128, 128);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glEnable(GL_TEXTURE_2D);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+    glBegin(GL_QUADS);
+    glTexCoord2f(0, 0); glVertex2f(-1, -1);
+    glTexCoord2f(1, 0); glVertex2f(1, -1);
+    glTexCoord2f(1, 1); glVertex2f(1, 1);
+    glTexCoord2f(0, 1); glVertex2f(-1, 1);
+    glEnd();
+    glDisable(GL_TEXTURE_2D);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+    for (q = 0; q < 4; q++) {
+        GLubyte p[4];
+        unsigned int c;
+        glReadPixels(q & 1 ? 96 : 32, q & 2 ? 96 : 32, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, p);
+        c = (unsigned int) p[0] << 16 | (unsigned int) p[1] << 8 | p[2];
+        snprintf(line, sizeof line, "scene drawn small, %s, drawn full size: quarter %d",
+                 sub ? "glCopyTexSubImage2D" : "glCopyTexImage2D", q);
+        check(near(c, want[q]), line, c, want[q]);
+    }
+    glDeleteTextures(1, &t);
+}
+
 int main(int argc, char **argv)
 {
     const char *s;
@@ -390,6 +452,8 @@ int main(int argc, char **argv)
     popped();
     leaf(0);
     leaf(1);
+    scene_copy(1);
+    scene_copy(0);
     check(glGetError() == GL_NO_ERROR, "no GL error", 0, 0);
 
     say("%s: %x failures\n", failures ? "FAIL" : "ALL PASS", (unsigned int) failures, 0);

@@ -18,7 +18,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   glPopClientAttrib and glPopAttrib must restore after a multitextured
   draw (the client and server texture units, units 1 and 2's arrays off),
   and plib's leaves: vertex, normal, texture-coordinate and colour arrays
-  together, lit and unlit.
+  together, lit and unlit; and TORCS's reduced scene resolution (the scene
+  copied into a texture with glCopyTexSubImage2D or glCopyTexImage2D and
+  drawn full size).
 
 ## 20.3.5-19: the GPU through RISC3D, shared libraries for mixed programs
 
