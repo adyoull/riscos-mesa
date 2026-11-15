@@ -18,7 +18,7 @@
 #   requests (headers xf86drm.h, xf86drmMode.h, drm.h, drm_mode.h from
 #   libdrm 2.4.124, unchanged; sys/ioccom.h gives Linux's request numbers).
 # - v3d/frontend: a context and an off-screen frame on the GPU (v3dm.h).
-# Output: $V3D_OUT (default build-v3d/) with v3dtri,e1f.
+# Output: $V3D_OUT (default build-v3d/) with v3dtri,e1f and v3dgles2,e1f.
 set -euo pipefail
 B=$(cd "$(dirname "$0")" && pwd)
 source "$B/env.sh"
@@ -114,12 +114,14 @@ eval "$CC $FLAGS -I$M/src/gallium/drivers -I$R/v3d/frontend -c $R/v3d/frontend/v
 $CC $RO_CFLAGS -Wall -c "$R/v3d/frontend/v3dm_stubs.c" -o "$O/v3dm_stubs.o"
 rm -f "$O/libv3dm.a"; $AR rcs "$O/libv3dm.a" "$O/v3dm.o" "$O/v3dm_stubs.o"
 
-# ---- the test ----
-$CC $RO_CFLAGS -Wall -I"$M/include" -I"$R/v3d/frontend" -c "$R/v3d/tests/v3dtri.c" -o "$O/v3dtri.o"
-$CXX $RO_CFLAGS -static -Wl,--gc-sections -o "$O/v3dtri" "$O/v3dtri.o" -Wl,--start-group "$O/libv3dm.a" \
-  $(for l in $LIBS; do echo "$MB/$l"; done) "$O/lib/libdrm.a" "$STAGE/lib/libz.a" -Wl,--end-group -lstdc++ -lm
-if [ -n "${RCD_DIR:-}" ]; then
-  RISCOS_TOOLCHAIN=$GCCSDK_ENV "$RCD_DIR/checks/check-all.sh" "$O/v3dtri"
-fi
-$STRIP -o "$O/v3dtri,e1f" "$O/v3dtri"
-ls -la "$O/v3dtri,e1f"
+# ---- the tests ----
+for t in v3dtri v3dgles2; do
+  $CC $RO_CFLAGS -Wall -I"$M/include" -I"$R/v3d/frontend" -c "$R/v3d/tests/$t.c" -o "$O/$t.o"
+  $CXX $RO_CFLAGS -static -Wl,--gc-sections -o "$O/$t" "$O/$t.o" -Wl,--start-group "$O/libv3dm.a" \
+    $(for l in $LIBS; do echo "$MB/$l"; done) "$O/lib/libdrm.a" "$STAGE/lib/libz.a" -Wl,--end-group -lstdc++ -lm
+  if [ -n "${RCD_DIR:-}" ]; then
+    RISCOS_TOOLCHAIN=$GCCSDK_ENV "$RCD_DIR/checks/check-all.sh" "$O/$t"
+  fi
+  $STRIP -o "$O/$t,e1f" "$O/$t"
+done
+ls -la "$O/v3dtri,e1f" "$O/v3dgles2,e1f"

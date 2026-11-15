@@ -23,6 +23,7 @@ from Mesa 20.3.5's (the software renderer stays 20.3.5).
 | `libdrm/` | The part of libdrm that Mesa's v3d driver uses, as V3DRender_Ioctl requests (`src/drm_riscos.c`), per V3DRender's docs/INTERFACE.md. `xf86drm.h`, `xf86drmMode.h`, `drm.h`, `drm_mode.h` are libdrm 2.4.124's, unchanged (MIT); `sys/ioccom.h` gives Linux's request numbers; `libsync.h` maps sync files to V3DRender's requests. |
 | `frontend/` | `v3dm.h`: a context and an off-screen frame on the GPU, after Mesa's hgl frontend and its removed OSMesa one. |
 | `tests/v3dtri.c` | Clear, a fixed-function triangle and quad, read back, a sprite of the frame, 100 frames timed. |
+| `tests/v3dgles2.c` | OpenGL ES 2.0: GLSL shaders, a vertex buffer, a texture, uniforms, blending, read back; 100 frames at 1920x1080 timed. |
 
 **Without a V3D:** set `V3DM$Fake` and the libdrm layer answers as a
 V3D 4.2 would without running anything (`libdrm/src/drm_riscos_fake.c`),
