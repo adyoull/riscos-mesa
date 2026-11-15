@@ -34,7 +34,7 @@ mkdir -p "$LOGS"
 
 # ---- 1. the position-independent build ----
 if [ -z "${SHARED_SKIP_PIC:-}" ]; then
-  for s in zlib mesa glu sdl2 openal egl freeglut; do
+  for s in zlib mesa glu sdl2 openal egl freeglut v3d; do
     printf "%-14s " "$s (PIC)"
     if env -u STAGE RO_PIC=1 "$B/build-$s.sh" > "$LOGS/$s-pic.log" 2>&1; then
       echo ok
@@ -78,6 +78,12 @@ make_so libGLU.so.1         libGLU.so    "$PIC/libGLU.a"    -L"$LIB" -lOSMesa
 make_so libglut.so.3        libglut.so   "$PIC/libglut.a"   -L"$LIB" -lEGL -lOSMesa
 make_so libSDL2-2.0.so.0    libSDL2.so   "$PIC/libSDL2.a"   -L"$LIB" -lEGL -lOSMesa
 make_so libopenal.so.1      libopenal.so "$PIC/libopenal.a" -L"$LIB" -lSDL2
+# The GPU library (build-v3d.sh): Mesa 26.x with only its GPU drivers, its
+# one exported name riscos_mesa_gpu(), which libOSMesa's RISC3D switch
+# refers to weakly. A program that wants the GPU (natively, where RISC3D
+# lists a GPU module) links it too: -lMesaGPU after -lOSMesa. Programs
+# that don't never load it, so older programs are unaffected.
+make_so libMesaGPU.so.1     libMesaGPU.so "$PIC/libMesaGPU.a"
 
 # Each library: a SONAME, no shared UnixLib of its own, no text relocations
 # (all of it PIC), and none of UnixLib's functions
@@ -159,6 +165,10 @@ mixed egltest   "$T/egltest.c" "$T/hrtime.c"                 -- -lEGL -lOSMesa
 mixed glestest  "$T/glestest.c" "$T/es_cube.c" "$T/hrtime.c" -- -lEGL -lOSMesa
 mixed multitex  "$T/multitex.c"                              -- -lglut -lEGL -lOSMesa
 mixed texload   "$T/texload.c"                               -- -lglut -lEGL -lOSMesa
+# The same with the GPU library (natively: V3DRender through RISC3D)
+mixed gpu-egltest  "$T/egltest.c" "$T/hrtime.c"                 -- -lEGL -lOSMesa -lMesaGPU
+mixed gpu-glestest "$T/glestest.c" "$T/es_cube.c" "$T/hrtime.c" -- -lEGL -lOSMesa -lMesaGPU
+mixed gpu-glbench  "$T/glbench.c" "$T/hrtime.c"                 -- -lOSMesa -lMesaGPU
 # SDL: -ldl as well. The shared SDL holds all of SDL, SDL_LoadObject
 # included, which calls dlopen; a static SDL only brings it in for programs
 # that use it. (UnixLib's libdl.a: the program's own, as with UnixLib.)

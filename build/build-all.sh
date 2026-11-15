@@ -1,7 +1,9 @@
 #!/bin/bash
 # Builds everything, in the right order, into $STAGE:
-#   zlib, Mesa (slow the first time), GLU, SDL2, OpenAL Soft, libEGL/libbcm_host,
-#   freeglut, then the test programs, the Pi examples and the ports.
+#   zlib, Mesa (slow the first time), the GPU library (Mesa 26.x, v3d: also
+#   slow the first time; needs MESON=<meson 1.4 or later>), GLU, SDL2,
+#   OpenAL Soft, libEGL/libbcm_host, freeglut, then the test programs, the
+#   Pi examples and the ports.
 #
 #   GCCSDK_ENV=/path/to/gccsdk/env build/build-all.sh [VERSION]
 #
@@ -19,7 +21,7 @@ B=$(cd "$(dirname "$0")" && pwd)
 source "$B/env.sh"
 mkdir -p "$STAGE/logs"
 
-STEPS="zlib mesa glu sdl2 openal egl freeglut tests hello-pi ports"
+STEPS="zlib mesa v3d glu sdl2 openal egl freeglut tests hello-pi ports"
 [ -n "${SKIP_ZLIB:-}" ] && STEPS=${STEPS#zlib }
 [ -n "${SHARED:-}" ] && STEPS="$STEPS shared"
 

@@ -1,24 +1,32 @@
 #!/bin/bash
-# PROTOTYPE (branch v3d): Mesa 26.1.6 with only its v3d gallium driver, for
-# the Raspberry Pi 4's GPU on native RISC OS (V3DRender, through RISC3D), and the
-# first test program (v3d/tests/v3dtri.c). Nothing here is in !MesaLibs or
-# the devkit yet: the plan (RISC3D's "two Mesas") is to put it behind
-# riscos-mesa's EGL once it draws on the Pi.
+# The GPU library, libMesaGPU: Mesa 26.1.6 with only its v3d gallium driver,
+# for the Raspberry Pi 4's GPU on native RISC OS (V3DRender, reached only
+# through RISC3D), behind riscos-mesa's EGL and OSMesa (RISC3D's "two
+# Mesas": Mesa 20.3.5 stays the software renderer). Also the test programs
+# v3dtri and v3dgles2.
 #
-#   build/build-v3d.sh          (after build/build-all.sh: it uses stage/'s zlib)
+#   MESON=<meson 1.4 or later> build/build-v3d.sh     (after build-zlib.sh)
+#   RO_PIC=1 ... build/build-v3d.sh                   (build-shared.sh does this)
 #
 # - Source: Debian's copy of the Mesa 26.1.6 release tarball, checked by
 #   sha256. Mesa 25.2 or later is needed: 25.0's v3d compiler loses
 #   fixed-function texture coordinates with lighting (RISC3D, 15 Nov 2026).
 # - v3d/patches/mesa-26.1.6-riscos-v3d.patch: RISC OS in meson.build and
 #   util (UnixLib: no pthread barriers, open_memstream, mkstemps, sysinfo),
-#   and the v3d driver's mmap, munmap and close of the GPU module's file and
-#   sync files.
+#   the v3d driver's mmap, munmap and close of the GPU module's file and
+#   sync files, BOs opened by handle, and a global GL dispatch.
 # - v3d/libdrm: the part of libdrm Mesa's v3d driver uses, as GPU module
 #   requests (headers xf86drm.h, xf86drmMode.h, drm.h, drm_mode.h from
 #   libdrm 2.4.124, unchanged; sys/ioccom.h gives Linux's request numbers).
-# - v3d/frontend: a context and an off-screen frame on the GPU (v3dm.h).
-# Output: $V3D_OUT (default build-v3d/) with v3dtri,e1f and v3dgles2,e1f.
+# - v3d/frontend: a context and a frame on the GPU (v3dm.h).
+# - v3d/gpu: libMesaGPU.a: all of the above in one object with every symbol
+#   hidden but riscos_mesa_gpu() (v3d/include/riscos_mesa_gpu.h), so that it
+#   links beside Mesa 20.3.5; libOSMesa's RISC3D switch uses it when RISC3D
+#   lists a GPU module (DRM device).
+# Output: $STAGE/lib/libMesaGPU.a. The static build (build-v3d/) also makes
+# the tests there (v3dtri,e1f, v3dgles2,e1f); with RO_PIC=1 the
+# position-independent one (build-v3d-pic/, into stage-pic/) is what
+# build-shared.sh makes libMesaGPU.so from, as for every other library.
 set -euo pipefail
 B=$(cd "$(dirname "$0")" && pwd)
 source "$B/env.sh"
@@ -26,17 +34,17 @@ R=$(cd "$B/.." && pwd)
 V=26.1.6
 URL=https://deb.debian.org/debian/pool/main/m/mesa/mesa_$V.orig.tar.xz
 SHA=5296b88a0f1e012e2cb9ada150a2bbadf728ca81e5a4fb2ab43c83a4d2158606
-O=${V3D_OUT:-$R/build-v3d}
-M=$O/mesa-$V
+O=${V3D_OUT:-$R/build-v3d$RO_SUFFIX}
+M=$R/build-v3d/mesa-$V             # (one patched source for both builds)
 MB=$O/build
 MESON=${MESON:-meson}         # 1.4 or later
-mkdir -p "$O" "$O/pc" "$O/lib" "$O/zinc" "$SRC"
+mkdir -p "$O" "$O/pc" "$O/lib" "$O/zinc" "$SRC" "$R/build-v3d"
 
 # ---- source ----
 if [ ! -d "$M" ]; then
   [ -f "$SRC/mesa_$V.orig.tar.xz" ] || fetch_verified "$URL" "$SHA" "$SRC/mesa_$V.orig.tar.xz"
   echo "$SHA  $SRC/mesa_$V.orig.tar.xz" | sha256sum -c --status
-  tar -xJf "$SRC/mesa_$V.orig.tar.xz" -C "$O"
+  tar -xJf "$SRC/mesa_$V.orig.tar.xz" -C "$R/build-v3d"
   (cd "$M" && patch -p1 < "$R/v3d/patches/mesa-$V-riscos-v3d.patch")
 fi
 
@@ -76,7 +84,7 @@ open(sys.argv[2], 'w').write(s)
 EOF
 if [ ! -f "$MB/build.ninja" ]; then
   PKG_CONFIG_LIBDIR="$O/pc" $MESON setup "$MB" "$M" --cross-file "$O/cross.txt" --buildtype=release \
-    -Db_staticpic=false -Ddefault_library=static -Dplatforms= -Dgallium-drivers=v3d -Dvulkan-drivers= \
+    -Db_staticpic=$([ -n "${RO_PIC:-}" ] && echo true || echo false) -Ddefault_library=static -Dplatforms= -Dgallium-drivers=v3d -Dvulkan-drivers= \
     -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dllvm=disabled -Dgles1=enabled -Dgles2=enabled \
     -Dopengl=true -Dshared-glapi=enabled -Dzstd=disabled -Dzlib=enabled -Dexpat=disabled \
     -Dvalgrind=disabled -Dlibunwind=disabled -Dlmsensors=disabled -Dbuild-tests=false -Dtools= \
@@ -134,6 +142,9 @@ $HOST-objcopy -R .group --redefine-syms="$O/mesagpu.syms" --keep-global-symbol=r
 leaked=$($HOST-nm -g --defined-only "$O/mesagpu.o" | awk '{print $3}' | grep -vx riscos_mesa_gpu || true)
 [ -z "$leaked" ] || { echo "libMesaGPU exports more than riscos_mesa_gpu: $leaked" >&2; exit 1; }
 rm -f "$O/libMesaGPU.a"; $AR rcs "$O/libMesaGPU.a" "$O/mesagpu.o"
+mkdir -p "$STAGE/lib"; cp "$O/libMesaGPU.a" "$STAGE/lib/"
+ls -la "$STAGE/lib/libMesaGPU.a"
+[ -z "${RO_PIC:-}" ] || exit 0         # (the tests are static programs)
 
 # ---- the tests ----
 for t in v3dtri v3dgles2; do
@@ -145,4 +156,4 @@ for t in v3dtri v3dgles2; do
   fi
   $STRIP -o "$O/$t,e1f" "$O/$t"
 done
-ls -la "$O/libMesaGPU.a" "$O/v3dtri,e1f" "$O/v3dgles2,e1f"
+ls -la "$O/v3dtri,e1f" "$O/v3dgles2,e1f"

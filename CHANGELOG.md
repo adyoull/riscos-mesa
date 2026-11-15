@@ -6,6 +6,29 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-20 (in development)
 
+- **The Raspberry Pi 4's GPU on native RISC OS** (branch v3d): where
+  RISC3D lists a GPU module (V3DRender 0.11 or later on a Pi 4), EGL and
+  OSMesa draw on the GPU, through RISC3D as on RISC OS on Linux. The
+  program's own copy of Mesa 26.1.6's v3d driver does the drawing: the
+  GPU library, `libMesaGPU` (every name hidden but one, so it lives
+  beside Mesa 20.3.5, which stays the software renderer). Programs link
+  it to get it: `-lMesaGPU` after `-lOSMesa` (mixed: `libMesaGPU.so.1`
+  in !MesaLibs) or `-Wl,-u,riscos_mesa_gpu -lMesaGPU` (static). Programs
+  that don't, including all those linked before, draw as before.
+  - Windows, direct full screen and screen banks are drawn by the GPU
+    straight into their own memory, as Mesa 20.3.5 draws them (V3DRender
+    0.11's memory import): nothing is read back. Other surfaces and OSMesa
+    buffers are read back from memory the CPU sees cached.
+  - On the owner's Pi 4 (static test programs, test 13): a 640x480
+    window at 365 fps (software: about 100 fps on textured scenes), full
+    screen 1920x1200 at the display's 60 fps, glbench 1.6-2.8 ms a frame
+    against 9.7-13.6 ms in software for textures, blending, triangles,
+    GLSL and fog. OpenGL 2.1 (compatibility) and OpenGL ES 1.1 to 3.1.
+  - Screen banks still don't switch in step with the display on the Pi 4
+    (as in software): they stay opt-in.
+  - Not yet: closing the GPU when a command-line program crashes (the
+    Wimp's close-down covers desktop programs); one thread drawing.
+
 - **RISC3D client 0.9** (was 0.8), inside libOSMesa:
   - **Faster draws from a program's own arrays:** each draw sends only the
     vertices it uses, from the lowest index to the highest. That's the

@@ -91,6 +91,8 @@ for l in libOSMesa libGLU libSDL2 libSDL2main libz libEGL libbcm_host libGLESv2 
          libvcos libvchiq_arm libglut libfreeglut-gles libopenal; do
   cp "$STAGE/lib/$l.a" "$K/lib/"
 done
+# the GPU library (build-v3d.sh), when made
+[ -f "$STAGE/lib/libMesaGPU.a" ] && cp "$STAGE/lib/libMesaGPU.a" "$K/lib/"
 cp -r "$STAGE/include" "$K/include"
 cp "$HERE/LICENCES.txt" "$HERE/devkit/README.md" "$K/"
 cp "$HERE/devkit/README.md" "$K/ReadMe,fff"            # the same guide, for RISC OS
