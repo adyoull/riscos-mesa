@@ -51,7 +51,13 @@ static int var_set(const char *name)
       only what OSMesa can't give goes to it (GL 3, GLES 3): our own
       renderer is much faster than another software renderer whose frames
       are read back. RISC3D$Force set sends everything to RISC3D anyway.
-   3. (Reserved: a GPU driven in the program, RISCOS_MESA_V3D.)
+   3. RISC3D's driver is a DRM device (a GPU module such as V3DRender,
+      natively) and the program has the GPU library: RISC3D too.
+      osmesa/r3d_switch.c then draws with the program's own Mesa driver
+      for the GPU instead of RISC3D's command stream, so r3d_available
+      and r3d_driver_flags (R3D_DRIVER_DRM) answer for it, and callers
+      need nothing more. (RISCOS_MESA_V3D stays unused: the GPU is still
+      reached through RISC3D.)
    4. Software: OSMesa, which refuses what it can't do, as before. */
 EGLAPI int EGLAPIENTRY riscos_mesa_pick_renderer(unsigned int api, int major, int minor)
 {

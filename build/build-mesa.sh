@@ -71,13 +71,20 @@ rm -f libOSMesa-full.a
 # the same client and choice from here. osmesa/r3d_compat.h gives the client
 # its own copies of the few C library functions it uses beyond the 20.3.5-19j test build's
 # libraries, so older mixed programs still work.
+# The client is compiled under r3ds_ names (osmesa/r3d_stream_names.h), and
+# osmesa/r3d_switch.c gives its API to EGL and the routing: the command
+# stream (Linux3D on RISC OS on Linux), or the GPU library (libMesaGPU,
+# build-v3d.sh) where RISC3D's driver is a DRM device (V3DRender) and the
+# program has the library.
 R3=$HERE/risc3d OM=$HERE/osmesa
-$CC $RO_CFLAGS -O2 -include "$OM/r3d_compat.h" -I"$R3/include" -I"$R3/lib" -I"$R3/gen" -I"$R3/proto" \
-  -c "$R3/lib/r3d_gl.c" -o r3d_gl.o
+$CC $RO_CFLAGS -O2 -include "$OM/r3d_compat.h" -include "$OM/r3d_stream_names.h" -I"$R3/include" \
+  -I"$R3/lib" -I"$R3/gen" -I"$R3/proto" -c "$R3/lib/r3d_gl.c" -o r3d_gl.o
 $CC $RO_CFLAGS -O2 -Wall -fno-math-errno -c "$OM/r3d_compat.c" -o r3d_compat.o
 $CC $RO_CFLAGS -O2 -Wall -I"$HERE/egl/include" -I../include -I"$R3/lib" -c "$OM/pick.c" -o r3d_pick.o
 $CC $RO_CFLAGS -O2 -Wall -I"$HERE/egl/include" -I../include -I"$R3/lib" -c "$OM/risc3d_route.c" -o r3d_route.o
-$AR rs libOSMesa-full.a r3d_gl.o r3d_compat.o r3d_pick.o r3d_route.o
+$CC $RO_CFLAGS -O2 -Wall -I"$HERE/egl/include" -I../include -I"$R3/lib" -I"$HERE/v3d/include" \
+  -c "$OM/r3d_switch.c" -o r3d_switch.o
+$AR rs libOSMesa-full.a r3d_gl.o r3d_compat.o r3d_pick.o r3d_route.o r3d_switch.o
 $RANLIB libOSMesa-full.a
 mkdir -p "$STAGE/lib" "$STAGE/include/GL" "$STAGE/include/KHR"
 cp libOSMesa-full.a "$STAGE/lib/libOSMesa.a"

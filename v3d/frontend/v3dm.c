@@ -25,6 +25,7 @@
 #include "frontend/api.h"
 #include "state_tracker/st_context.h"
 #include "util/u_atomic.h"
+#include "util/box.h"
 #include "util/format/u_format.h"
 #include "util/u_inlines.h"
 #include "util/u_memory.h"
@@ -212,6 +213,16 @@ void v3dm_shutdown(void)
     dev.fd = 0;
 }
 
+const char *v3dm_device_name(void)
+{
+    const char *name = drm_riscos_device();
+    unsigned i;
+    for (i = 0; name && i < sizeof drivers / sizeof drivers[0]; i++)
+        if (!strcmp(drivers[i].name, name))
+            return name;
+    return NULL;
+}
+
 const char *v3dm_device(void)
 {
     static char text[64];
@@ -310,6 +321,49 @@ void v3dm_destroy(v3dm_context *c)
     st_destroy_context(c->st);
     fb_destroy(c->fb);
     FREE(c);
+}
+
+/* The frame is a window-system framebuffer (Mesa draws it with y
+   flipped), so its row 0 is the top one. */
+int v3dm_read(v3dm_context *c, void *pixels, int row_bytes, int top_first)
+{
+    struct pipe_context *pipe;
+    struct pipe_resource *res;
+    struct pipe_transfer *t = NULL;
+    struct pipe_box box;
+    const unsigned char *src;
+    unsigned y, x, w, h;
+    int bgra;
+    if (!c || !c->fb)
+        return -1;
+    res = c->fb->textures[ST_ATTACHMENT_BACK_LEFT] ? c->fb->textures[ST_ATTACHMENT_BACK_LEFT]
+                                                   : c->fb->textures[ST_ATTACHMENT_FRONT_LEFT];
+    if (!res)
+        return -1;
+    w = c->fb->width;
+    h = c->fb->height;
+    bgra = res->format == PIPE_FORMAT_B8G8R8A8_UNORM;
+    st_context_flush(c->st, 0, NULL, NULL, NULL);
+    pipe = c->st->pipe;
+    u_box_2d(0, 0, w, h, &box);
+    src = (const unsigned char *) pipe->texture_map(pipe, res, 0, PIPE_MAP_READ, &box, &t);
+    if (!src)
+        return -1;
+    for (y = 0; y < h; y++) {
+        const unsigned char *row = src + (size_t) y * t->stride;
+        unsigned char *out = (unsigned char *) pixels + (size_t) (top_first ? y : h - 1 - y) * row_bytes;
+        if (!bgra)
+            memcpy(out, row, (size_t) w * 4);
+        else
+            for (x = 0; x < w; x++) {
+                out[x * 4 + 0] = row[x * 4 + 2];
+                out[x * 4 + 1] = row[x * 4 + 1];
+                out[x * 4 + 2] = row[x * 4 + 0];
+                out[x * 4 + 3] = row[x * 4 + 3];
+            }
+    }
+    pipe->texture_unmap(pipe, t);
+    return 0;
 }
 
 const char *v3dm_formats(v3dm_context *c)

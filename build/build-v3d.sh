@@ -114,6 +114,27 @@ eval "$CC $FLAGS -I$M/src/gallium/drivers -I$R/v3d/frontend -c $R/v3d/frontend/v
 $CC $RO_CFLAGS -Wall -c "$R/v3d/frontend/v3dm_stubs.c" -o "$O/v3dm_stubs.o"
 rm -f "$O/libv3dm.a"; $AR rcs "$O/libv3dm.a" "$O/v3dm.o" "$O/v3dm_stubs.o"
 
+# ---- the GPU library: one object, only riscos_mesa_gpu() global ----
+# (UnixLib, libstdc++, libgcc and libm stay undefined: the program has
+# them; zlib goes inside, hidden, as in libOSMesa)
+python3 "$R/tools/gpu-functions.py" "$HOST-nm" "$MB/src/mesa/glapi/glapi/libglapi_bridge.a" "$O/gpu_functions.c"
+$CC $RO_CFLAGS -Wall -I"$R/v3d/include" -c "$O/gpu_functions.c" -o "$O/gpu_functions.o"
+$CC $RO_CFLAGS -Wall -I"$R/v3d/include" -I"$R/v3d/frontend" -c "$R/v3d/gpu/riscos_mesa_gpu.c" -o "$O/riscos_mesa_gpu.o"
+$HOST-ld -r -o "$O/mesagpu-all.o" "$O/riscos_mesa_gpu.o" "$O/gpu_functions.o" --start-group "$O/libv3dm.a" \
+  $(for l in $LIBS; do echo "$MB/$l"; done) "$O/lib/libdrm.a" "$STAGE/lib/libz.a" --end-group
+# Every name it defines gets a prefix, all but riscos_mesa_gpu are made
+# local, and the COMDAT groups go (-R .group: their sections become plain
+# ones; ld -r has already kept one copy of each): C++ inline functions are
+# COMDAT groups, and Mesa 20.3.5's GLSL compiler has groups of the same
+# names (glsl_symbol_table::..., ir_discard's destructors), which the final
+# link would otherwise merge, keeping 20.3.5's code for 26.x's callers.
+$HOST-nm -g --defined-only "$O/mesagpu-all.o" | awk '$3 != "riscos_mesa_gpu" {print $3, "mgpu_" $3}' | sort -u > "$O/mesagpu.syms"
+$HOST-objcopy -R .group --redefine-syms="$O/mesagpu.syms" --keep-global-symbol=riscos_mesa_gpu \
+  "$O/mesagpu-all.o" "$O/mesagpu.o"
+leaked=$($HOST-nm -g --defined-only "$O/mesagpu.o" | awk '{print $3}' | grep -vx riscos_mesa_gpu || true)
+[ -z "$leaked" ] || { echo "libMesaGPU exports more than riscos_mesa_gpu: $leaked" >&2; exit 1; }
+rm -f "$O/libMesaGPU.a"; $AR rcs "$O/libMesaGPU.a" "$O/mesagpu.o"
+
 # ---- the tests ----
 for t in v3dtri v3dgles2; do
   $CC $RO_CFLAGS -Wall -I"$M/include" -I"$R/v3d/frontend" -c "$R/v3d/tests/$t.c" -o "$O/$t.o"
@@ -124,4 +145,4 @@ for t in v3dtri v3dgles2; do
   fi
   $STRIP -o "$O/$t,e1f" "$O/$t"
 done
-ls -la "$O/v3dtri,e1f" "$O/v3dgles2,e1f"
+ls -la "$O/libMesaGPU.a" "$O/v3dtri,e1f" "$O/v3dgles2,e1f"

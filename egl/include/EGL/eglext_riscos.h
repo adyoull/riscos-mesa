@@ -236,8 +236,11 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS (EGLDisplay dpy, EGLSurface
  *   GL windows both follow: for api EGL_OPENGL_API or EGL_OPENGL_ES_API
  *   and the version asked for (0, 0: none), RISCOS_MESA_SOFTWARE (OSMesa)
  *   or RISCOS_MESA_RISC3D. LIBGL_ALWAYS_SOFTWARE or RISC3D$Disable set
- *   (system variables) give software. RISCOS_MESA_V3D is kept for a GPU
- *   driven from the program itself (not yet).
+ *   (system variables) give software. RISCOS_MESA_RISC3D covers both
+ *   kinds of RISC3D driver: a command stream (RISC OS on Linux), and a
+ *   GPU module (a DRM device, natively), whose Mesa driver runs in the
+ *   program when it has the GPU library (libMesaGPU). RISCOS_MESA_V3D is
+ *   not returned (kept so that the number isn't reused).
  */
 #define RISCOS_MESA_SOFTWARE 0
 #define RISCOS_MESA_RISC3D   1

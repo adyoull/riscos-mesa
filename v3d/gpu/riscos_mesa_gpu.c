@@ -1,0 +1,57 @@
+/*
+ * riscos_mesa_gpu.c - the GPU library's one exported name (see
+ * v3d/include/riscos_mesa_gpu.h): the frontend (v3d/frontend/v3dm.c) in
+ * the shape libOSMesa's RISC3D switch expects.
+ *
+ * Copyright (c) 2026 Andrew Youll. MIT licence.
+ */
+#include <stddef.h>
+
+#include "riscos_mesa_gpu.h"
+#include "v3dm.h"
+
+/* gpu_functions.c (made by the build from the library's gl* entry points) */
+extern const struct riscos_mesa_gpu_function riscos_mesa_gpu_functions[];
+
+static const char *device(void)
+{
+    return v3dm_device_name();
+}
+
+static void *create(int api, int major, int minor)
+{
+    int a = api == 1 ? V3DM_API_GL : api == 2 ? V3DM_API_GLES1 : V3DM_API_GLES2;
+    if (major <= 0) {                   /* the highest the GPU gives */
+        major = a == V3DM_API_GLES1 ? 1 : a == V3DM_API_GLES2 ? 2 : 1;
+        minor = a == V3DM_API_GLES1 ? 1 : 0;
+    }
+    return v3dm_create(a, major, minor, 1);
+}
+
+static void destroy(void *context)
+{
+    v3dm_destroy((v3dm_context *) context);
+}
+
+static int make_current(void *context, int width, int height)
+{
+    if (width <= 0 || height <= 0)
+        width = height = 1;
+    return v3dm_make_current((v3dm_context *) context, (unsigned) width, (unsigned) height);
+}
+
+static int read_frame(void *context, void *pixels, int row_bytes, int top_first)
+{
+    return v3dm_read((v3dm_context *) context, pixels, row_bytes, top_first);
+}
+
+static const struct riscos_mesa_gpu gpu = {
+    RISCOS_MESA_GPU_VERSION, device, create, destroy, make_current, read_frame,
+    riscos_mesa_gpu_functions, v3dm_error,
+};
+
+__attribute__((visibility("default")))
+const struct riscos_mesa_gpu *riscos_mesa_gpu(void)
+{
+    return &gpu;
+}

@@ -70,11 +70,26 @@ Anywhere else, with `RISC3D$Disable` or `LIBGL_ALWAYS_SOFTWARE` set (system
 variables; `LIBGL_ALWAYS_SOFTWARE` as Mesa's, 0, false or no don't count),
 or if RISC3D can't make the context, OSMesa draws exactly as before.
 
+**Two kinds of RISC3D driver.** RISC3D is the interface GPU drivers
+register with. A command-stream driver (Linux3D, on RISC OS on Linux)
+takes the GL calls RISC3D's client writes; a DRM device (a GPU module:
+V3DRender on the Pi 4, natively) takes none, and the program runs Mesa's
+driver for that GPU itself: the GPU library, `libMesaGPU` (Mesa 26.x with
+only its GPU drivers and every symbol hidden, `build/build-v3d.sh`,
+`v3d/`). `osmesa/r3d_switch.c` gives RISC3D's client API (`r3d.h`) to
+this part and to OSMesa's routing either way, so nothing here differs:
+the GPU library's frame is read back into the surface as the command
+stream's is. The GPU library is used when RISC3D's driver is a DRM device
+it has a driver for (only "v3d" so far) and the program has it: a static
+program links it with `-Wl,-u,riscos_mesa_gpu -lMesaGPU` (about 15 MB;
+without it, such a machine draws in software); the GPU module is only
+ever reached through RISC3D.
+
 - **One choice.** `riscos_mesa_pick_renderer(api, major, minor)`
   (`EGL/eglext_riscos.h`) makes it, and `eglCreateContext`, `EGL_VERSION`
   and SDL's GL windows all ask it: `RISCOS_MESA_SOFTWARE` or
-  `RISCOS_MESA_RISC3D` (`RISCOS_MESA_V3D` is kept for a GPU driven from
-  the program itself, later). OpenGL 3 and OpenGL ES 3 stay with OSMesa,
+  `RISCOS_MESA_RISC3D`, for either kind of RISC3D driver (below;
+  `RISCOS_MESA_V3D` is never returned). OpenGL 3 and OpenGL ES 3 stay with OSMesa,
   which refuses them as before. Where RISC3D's driver itself draws in
   software (`RISC3D_Info` r4 bit 1: Linux's Mesa with no GPU driver, as
   under QEMU; riscos-risc3d 0.7-1 and later report it), only GL 3 and

@@ -37,19 +37,21 @@ s = s.replace(a, '  if (swi == 0xC3D00)          /* RISC3D_Info: r3 -> a driver 
                  '    *va_arg (ap, const char **) = "host";\n  else if (swi == 0xC3D02)\n', 1)
 open(p, 'w').write(s)
 EOF
-gcc -O2 -w -DR3D_HOST -Ir3dhost -I"$R/risc3d/include" -I"$R/risc3d/lib" -I"$R/risc3d/gen" -I"$R/risc3d/proto" \
-    -c "$R/risc3d/lib/r3d_gl.c" -o r3d_gl.o || exit 1
+# (under r3ds_ names, as in libOSMesa: osmesa/r3d_switch.c gives its API)
+gcc -O2 -w -DR3D_HOST -include "$R/osmesa/r3d_stream_names.h" -Ir3dhost -I"$R/risc3d/include" -I"$R/risc3d/lib" \
+    -I"$R/risc3d/gen" -I"$R/risc3d/proto" -c "$R/risc3d/lib/r3d_gl.c" -o r3d_gl.o || exit 1
 
 # riscos-mesa's EGL against the fake RISC OS, with that client
-F="-no-pie -O1 -w -std=gnu99 -DEGL_RISCOS_HOST -I$H/egl/fake -I$H/egl -I$R/dispmanx/include -I$R/dispmanx -I$R/egl/include -I$M/include"
+F="-no-pie -O1 -w -std=gnu99 -DEGL_RISCOS_HOST -I$H/egl/fake -I$H/egl -I$R/dispmanx/include -I$R/dispmanx -I$R/egl/include -I$M/include -I$R/osmesa -I$R/v3d/include"
 gcc -no-pie -O1 -w -std=gnu99 -I"$H/ovl/fake" -I"$H/egl" -I"$H/egl/fake" -c "$H/ovl/fake_ovl.c" -o fake_ovl.o &&
-gcc $F -DFAKE_NO_R3D "$H/egl/r3d_e2e.c" "$H/egl/fake_riscos.c" "$R/egl/egl_riscos.c" "$R/osmesa/pick.c" fake_ovl.o r3d_gl.o \
+gcc $F -DFAKE_NO_R3D -I"$R/risc3d/lib" "$H/egl/r3d_e2e.c" "$H/egl/fake_riscos.c" "$R/egl/egl_riscos.c" "$R/osmesa/pick.c" \
+    "$R/osmesa/r3d_switch.c" fake_ovl.o r3d_gl.o \
     -o r3d-e2e -L"$O" -lOSMesa -lpthread -lm -Wl,-rpath,"$O" || exit 1
 # OSMesa's own contexts through RISC3D (osmesa/risc3d_route.c): the
 # build machine's libOSMesa calls the routing hooks when the program has
 # them (-rdynamic), as libOSMesa on RISC OS always does
 gcc $F -DFAKE_NO_R3D -I"$R/risc3d/lib" -rdynamic "$H/egl/r3d_osmesa.c" "$R/osmesa/risc3d_route.c" "$R/osmesa/pick.c" \
-    "$H/egl/fake_riscos.c" fake_ovl.o r3d_gl.o -o r3d-osmesa -L"$O" -lOSMesa -lpthread -lm -Wl,-rpath,"$O" || exit 1
+    "$R/osmesa/r3d_switch.c" "$H/egl/fake_riscos.c" fake_ovl.o r3d_gl.o -o r3d-osmesa -L"$O" -lOSMesa -lpthread -lm -Wl,-rpath,"$O" || exit 1
 
 # in a process group of its own: it forks a process per context
 setsid ./rol-3d-host > helper.log 2>&1 &

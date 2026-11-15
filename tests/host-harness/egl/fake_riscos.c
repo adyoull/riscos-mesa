@@ -788,4 +788,7 @@ const struct r3d_gl_function r3d_gl_functions[] = {
     FR(ClearColor), FR(Clear), FR(Finish), FR(GetString), FR(PixelStorei), FR(TexImage2D),
     { NULL, NULL }
 };
+/* osmesa/r3d_switch.h's (the switch itself is in the real libOSMesa) */
+const struct r3d_gl_function *r3d_functions(void) { return r3d_gl_functions; }
+int r3d_in_program(void) { return 0; }
 #endif /* FAKE_NO_R3D */

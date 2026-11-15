@@ -37,6 +37,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext_riscos.h>
 #include "r3d.h"
+#include "r3d_switch.h"             /* r3d_functions: the command stream's, or the GPU library's */
 
 /* the hooks (as in Mesa's osmesa_riscos.h, which isn't installed) */
 void osmesa_r3d_create(OSMesaContext o, int profile, int major, int minor, GLenum format, int accum_bits);
@@ -74,17 +75,19 @@ static struct route *find(OSMesaContext o)
 static void *dispatch(void)
 {
     OSMesaDispatchEntry *list;
+    const struct r3d_gl_function *fns;
     int n;
     if (table)
         return table;
-    for (n = 0; r3d_gl_functions[n].name; n++)
+    fns = r3d_functions();
+    for (n = 0; fns[n].name; n++)
         ;
     list = (OSMesaDispatchEntry *) malloc((size_t) (n ? n : 1) * sizeof *list);
     if (!list)
         return NULL;
-    for (n = 0; r3d_gl_functions[n].name; n++) {
-        list[n].name = r3d_gl_functions[n].name;
-        list[n].fn = r3d_gl_functions[n].fn;
+    for (n = 0; fns[n].name; n++) {
+        list[n].name = fns[n].name;
+        list[n].fn = fns[n].fn;
     }
     table = OSMesaMakeDispatchRISCOS(list, n);
     free(list);
@@ -250,7 +253,7 @@ int osmesa_r3d_depth_buffer(OSMesaContext o, int *width, int *height, int *bytes
 
     if (!t || t != cur)
         return 0;
-    for (f = r3d_gl_functions; f->name && !readpixels; f++)
+    for (f = r3d_functions(); f->name && !readpixels; f++)
         if (!strcmp(f->name, "glReadPixels"))
             readpixels = (void (*)(GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, void *)) f->fn;
     if (!readpixels)

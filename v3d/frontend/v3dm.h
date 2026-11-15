@@ -23,6 +23,9 @@ typedef struct v3dm_context v3dm_context;
 int v3dm_init(void);
 void v3dm_shutdown(void);
 const char *v3dm_error(void);
+/* the DRM driver name of the GPU RISC3D lists, if this build has a Mesa
+   driver for it; else NULL */
+const char *v3dm_device_name(void);
 /* the GPU module's DRM driver name, as text */
 const char *v3dm_device(void);
 /* the driver's name for the GPU, once started */
@@ -34,6 +37,9 @@ v3dm_context *v3dm_create(int api, int major, int minor, int depth);
    (made again if the size changes); NULL: none current */
 int v3dm_make_current(v3dm_context *c, unsigned width, unsigned height);
 void v3dm_destroy(v3dm_context *c);
+/* c's frame (c current), finished, as R,G,B,A bytes: rows row_bytes
+   apart, the top row first or (top_first 0) last. 0, or -1 */
+int v3dm_read(v3dm_context *c, void *pixels, int row_bytes, int top_first);
 /* the formats of c's frame, as text */
 const char *v3dm_formats(v3dm_context *c);
 

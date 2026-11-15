@@ -51,7 +51,7 @@ static void (*r3dw_glPixelStorei)(GLenum, GLint);
 static void (*r3dw_find(const char *name))(void)
 {
     const struct r3d_gl_function *f;
-    for (f = r3d_gl_functions; f->name; f++)
+    for (f = r3d_functions(); f->name; f++)
         if (!strcmp(f->name, name))
             return f->fn;
     return NULL;
@@ -195,6 +195,7 @@ static void *r3dw_dispatch(void)
         { "glGetString", (void (*)(void)) r3dw_get_string },
     };
     OSMesaDispatchEntry *list;
+    const struct r3d_gl_function *fns;
     int n, i;
 
     if (r3dw_table)
@@ -204,15 +205,16 @@ static void *r3dw_dispatch(void)
                                   const void *)) r3dw_find("glTexImage2D");
     r3dw_glPixelStorei = (void (*)(GLenum, GLint)) r3dw_find("glPixelStorei");
     r3dw_glGetString = (const GLubyte *(*)(GLenum)) r3dw_find("glGetString");
-    for (n = 0; r3d_gl_functions[n].name; n++)
+    fns = r3d_functions();
+    for (n = 0; fns[n].name; n++)
         ;
     list = (OSMesaDispatchEntry *) malloc((n + sizeof own / sizeof own[0]) * sizeof *list);
     if (!list)
         return NULL;
     /* later entries win: RISC3D's first, then EGL's */
     for (i = 0; i < n; i++) {
-        list[i].name = r3d_gl_functions[i].name;
-        list[i].fn = r3d_gl_functions[i].fn;
+        list[i].name = fns[i].name;
+        list[i].fn = fns[i].fn;
     }
     for (i = 0; i < (int) (sizeof own / sizeof own[0]); i++)
         list[n + i] = own[i];

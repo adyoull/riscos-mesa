@@ -171,6 +171,10 @@ typedef struct { int x0, y0, x1, y1; } px_rect;
 typedef struct { int n; px_rect r[PX_RECT_LIST_MAX]; } px_rect_list;
 
 struct r3d_context;            /* RISC3D (parts/risc3d.c) */
+struct r3d_gl_function;
+/* libOSMesa's RISC3D switch (osmesa/r3d_switch.h): the gl functions of
+   the RISC3D route in use, the command stream's or the GPU library's */
+const struct r3d_gl_function *r3d_functions(void);
 
 typedef struct egl_surface {
     EGLint magic;
