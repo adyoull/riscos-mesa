@@ -15,3 +15,4 @@ handoffs/
 # Python bytecode from running tools/
 __pycache__/
 /build-v3d/
+/build-v3d-pic/
