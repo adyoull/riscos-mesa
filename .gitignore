@@ -1,6 +1,6 @@
 stage/
 stage-pic/
-src/
+/src/
 *.part
 dist/
 # Working notes and the assistant briefing: kept locally, never committed
