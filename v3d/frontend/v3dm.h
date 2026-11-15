@@ -1,0 +1,39 @@
+/*
+ * v3dm.h - riscos-mesa's frontend for Mesa's v3d driver on native RISC OS
+ * (V3DRender). PROTOTYPE (v3d branch): the interface may change before
+ * it goes behind riscos-mesa's EGL.
+ *
+ * Copyright (c) 2026 Andrew Youll. MIT licence.
+ */
+#ifndef V3DM_H
+#define V3DM_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct v3dm_context v3dm_context;
+
+#define V3DM_API_GL    0          /* OpenGL, compatibility profile */
+#define V3DM_API_GLES1 1
+#define V3DM_API_GLES2 2          /* OpenGL ES 2.0 and later */
+
+/* Opens V3DRender and starts Mesa's v3d driver on it: 1, or 0 (see
+   v3dm_error). v3dm_create does it when needed. */
+int v3dm_init(void);
+void v3dm_shutdown(void);
+const char *v3dm_error(void);
+/* the driver's name for the GPU, once started */
+const char *v3dm_renderer(void);
+
+/* a context; depth: with a 24-bit depth and 8-bit stencil buffer */
+v3dm_context *v3dm_create(int api, int major, int minor, int depth);
+/* makes c current, drawing into an off-screen RGBA frame of this size
+   (made again if the size changes); NULL: none current */
+int v3dm_make_current(v3dm_context *c, unsigned width, unsigned height);
+void v3dm_destroy(v3dm_context *c);
+
+#ifdef __cplusplus
+}
+#endif
+#endif
