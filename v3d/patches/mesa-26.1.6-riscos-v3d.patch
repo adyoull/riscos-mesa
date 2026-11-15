@@ -315,3 +315,41 @@ diff -ruN a/src/util/u_thread.h b/src/util/u_thread.h
  
  typedef pthread_barrier_t util_barrier;
  
+diff -ruN a/src/mesa/glapi/glapi/glapi.h b/src/mesa/glapi/glapi/glapi.h
+--- a/src/mesa/glapi/glapi/glapi.h
++++ b/src/mesa/glapi/glapi/glapi.h
+@@ -69,8 +69,17 @@
+ 
+ struct _glapi_table;
+ 
+-_GLAPI_EXPORT extern __THREAD_INITIAL_EXEC struct _glapi_table * _mesa_glapi_tls_Dispatch;
+-_GLAPI_EXPORT extern __THREAD_INITIAL_EXEC void * _mesa_glapi_tls_Context;
++#ifdef __riscos__
++/* riscos-mesa: the current dispatch and context are plain globals, as in
++ * riscos-mesa's Mesa 20.3.5: GCCSDK's thread-local variables are emulated
++ * (__emutls_get_address on every GL call), and one thread draws, as with
++ * RISC3D. */
++#define _GLAPI_CURRENT_STORAGE
++#else
++#define _GLAPI_CURRENT_STORAGE __THREAD_INITIAL_EXEC
++#endif
++_GLAPI_EXPORT extern _GLAPI_CURRENT_STORAGE struct _glapi_table * _mesa_glapi_tls_Dispatch;
++_GLAPI_EXPORT extern _GLAPI_CURRENT_STORAGE void * _mesa_glapi_tls_Context;
+ 
+ #if DETECT_OS_WINDOWS && !defined(MAPI_MODE_SHARED_GLAPI)
+ # define GET_DISPATCH() _mesa_glapi_get_dispatch()
+diff -ruN a/src/mesa/glapi/shared-glapi/core.c b/src/mesa/glapi/shared-glapi/core.c
+--- a/src/mesa/glapi/shared-glapi/core.c
++++ b/src/mesa/glapi/shared-glapi/core.c
+@@ -148,9 +148,9 @@
+ #endif /* defined(_GLAPI_ENTRY_ARCH_TLS_H) */
+ 
+ /* Current dispatch and current context variables */
+-__THREAD_INITIAL_EXEC struct _glapi_table *_mesa_glapi_tls_Dispatch
++_GLAPI_CURRENT_STORAGE struct _glapi_table *_mesa_glapi_tls_Dispatch
+    = (struct _glapi_table *)table_noop_array;
+-__THREAD_INITIAL_EXEC void *_mesa_glapi_tls_Context;
++_GLAPI_CURRENT_STORAGE void *_mesa_glapi_tls_Context;
+ 
+ static int
+ stub_compare(const void *key, const void *elem)

@@ -144,6 +144,9 @@ static int copy_to_target(struct r3d_context *r)
     int x, y, stride;
     if (!r || !r->buffer)
         return 0;
+    if (r->format == OSMESA_RGBA)       /* straight into the buffer: its layout is the frame's */
+        return gpu->read(r->c, r->buffer, (r->row_length > 0 ? r->row_length : r->w) * 4, !r->y_up)
+               ? -1 : 0;
     need = (size_t) r->w * r->h * 4;
     if (rgba_bytes < need) {
         unsigned char *n = (unsigned char *) realloc(rgba, need);

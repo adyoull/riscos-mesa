@@ -16,7 +16,9 @@
  *
  * Copyright (c) 2026 Andrew Youll. MIT licence.
  */
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "pipe/p_context.h"
@@ -53,6 +55,7 @@ static struct {
     struct pipe_screen *screen;
     struct pipe_frontend_screen *fscreen;
     driOptionCache options, options_info;
+    int tiled;                  /* V3DM$Tiled: colour buffers in tiles */
     char error[160];
 } dev;
 
@@ -90,6 +93,11 @@ fb_validate(struct st_context *st, struct pipe_frontend_drawable *drawable,
             } else {
                 t.format = b->visual.color_format;
                 t.bind = PIPE_BIND_RENDER_TARGET | PIPE_BIND_SAMPLER_VIEW;
+                /* in rows (raster), not the GPU's tiles: the frame is read
+                   back as one sequential copy, with no detiling by the
+                   CPU from uncached memory (V3DM$Tiled: tiles, to compare) */
+                if (!dev.tiled)
+                    t.bind |= PIPE_BIND_LINEAR;
             }
             if (t.format == PIPE_FORMAT_NONE)
                 continue;
@@ -178,6 +186,7 @@ int v3dm_init(void)
         snprintf(dev.error, sizeof dev.error, "this build has no Mesa driver for the \"%s\" GPU", name);
         return 0;
     }
+    dev.tiled = getenv("V3DM$Tiled") != NULL;
     dev.fd = drm_riscos_open();
     if (dev.fd < 0) {
         snprintf(dev.error, sizeof dev.error, "the %s GPU's module wouldn't open", name);
@@ -323,6 +332,30 @@ void v3dm_destroy(v3dm_context *c)
     FREE(c);
 }
 
+/* Copying out of the GPU's buffers, which the CPU sees uncached: reads
+   are slow, and slowest a word at a time, so 128 bytes go at once through
+   VFP's 16 upper double registers (VFPv3-D32: every ARMv7 target here;
+   d16-d31 need no saving). Then the rest a word at a time. */
+static void copy_from_gpu(void *dst, const void *src, size_t n)
+{
+#if defined(__arm__) && defined(__ARM_FP)
+    unsigned char *d = (unsigned char *) dst;
+    const unsigned char *s = (const unsigned char *) src;
+    if ((((uintptr_t) d | (uintptr_t) s) & 7) == 0) {
+        while (n >= 128) {
+            __asm__ volatile("vldmia %0!, {d16-d31}\n\tvstmia %1!, {d16-d31}"
+                             : "+r"(s), "+r"(d) : : "memory",
+                               "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23",
+                               "d24", "d25", "d26", "d27", "d28", "d29", "d30", "d31");
+            n -= 128;
+        }
+    }
+    memcpy(d, s, n);
+#else
+    memcpy(dst, src, n);
+#endif
+}
+
 /* The frame is a window-system framebuffer (Mesa draws it with y
    flipped), so its row 0 is the top one. */
 int v3dm_read(v3dm_context *c, void *pixels, int row_bytes, int top_first)
@@ -349,18 +382,20 @@ int v3dm_read(v3dm_context *c, void *pixels, int row_bytes, int top_first)
     src = (const unsigned char *) pipe->texture_map(pipe, res, 0, PIPE_MAP_READ, &box, &t);
     if (!src)
         return -1;
+    if (!bgra && top_first && t->stride == w * 4 && (unsigned) row_bytes == w * 4) {
+        copy_from_gpu(pixels, src, (size_t) w * h * 4);     /* the whole frame at once */
+        pipe->texture_unmap(pipe, t);
+        return 0;
+    }
     for (y = 0; y < h; y++) {
         const unsigned char *row = src + (size_t) y * t->stride;
         unsigned char *out = (unsigned char *) pixels + (size_t) (top_first ? y : h - 1 - y) * row_bytes;
-        if (!bgra)
-            memcpy(out, row, (size_t) w * 4);
-        else
-            for (x = 0; x < w; x++) {
-                out[x * 4 + 0] = row[x * 4 + 2];
-                out[x * 4 + 1] = row[x * 4 + 1];
-                out[x * 4 + 2] = row[x * 4 + 0];
-                out[x * 4 + 3] = row[x * 4 + 3];
-            }
+        copy_from_gpu(out, row, (size_t) w * 4);
+        if (bgra) {                     /* then R and B swapped, in cached memory */
+            uint32_t *p = (uint32_t *) out;
+            for (x = 0; x < w; x++)
+                p[x] = (p[x] & 0xFF00FF00u) | ((p[x] & 0xFF) << 16) | ((p[x] >> 16) & 0xFF);
+        }
     }
     pipe->texture_unmap(pipe, t);
     return 0;
