@@ -168,7 +168,7 @@ int v3dm_init(void)
         return 1;
     name = drm_riscos_device();
     if (!name) {
-        snprintf(dev.error, sizeof dev.error, "no GPU driver module is loaded (RISC3D lists no DRM device, and V3DRender isn't loaded)");
+        snprintf(dev.error, sizeof dev.error, "no GPU: RISC3D isn't loaded, or lists no GPU driver module (DRM device)");
         return 0;
     }
     for (i = 0; i < sizeof drivers / sizeof drivers[0] && strcmp(drivers[i].name, name); i++)
@@ -218,8 +218,7 @@ const char *v3dm_device(void)
     const char *name = drm_riscos_device();
     if (!name)
         return "none";
-    snprintf(text, sizeof text, "%s, opened %s", name,
-             drm_riscos_via_risc3d() ? "through RISC3D" : "directly (V3DRender_Open)");
+    snprintf(text, sizeof text, "%s, through RISC3D", name);
     return text;
 }
 

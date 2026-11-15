@@ -2,13 +2,14 @@
  * drm_riscos.c - the part of libdrm that Mesa's GPU drivers use, on RISC
  * OS: each call becomes a request to the GPU's RISC OS driver module
  * through its ioctl SWI, which takes Linux's request numbers and
- * structures (for the Pi 4's V3D: V3DRender, its docs/INTERFACE.md).
+ * structures (for the Pi 4's V3D: V3DRender's docs/INTERFACE.md).
  *
  * - The device: RISC3D lists GPU driver modules of the "DRM device" kind
  *   (RISC3D_Info: r4 bit 0, r5 = the module's ioctl SWI, r6 -> its DRM
  *   driver name, such as "v3d"), and RISC3D_Open gives the file
- *   (r1). Without RISC3D, V3DRender is opened directly (V3DRender_Open),
- *   as before.
+ *   (r1). Programs never call a GPU module's own SWIs other than the
+ *   ioctl SWI RISC3D names: without RISC3D listing a DRM device there is
+ *   no GPU.
  * - A "file" is the module's number, not a UnixLib descriptor: close it
  *   with drm_riscos_close, never close().
  * - drmGetVersion asks the module (DRM_IOCTL_VERSION, as on Linux); a
@@ -44,10 +45,6 @@
 #define RISC3D_Info     0xC3D00
 #define RISC3D_Open     0xC3D02
 #define RISC3D_Close    0xC3D03
-#define V3DRender_Info  0xC3D40
-#define V3DRender_Open  0xC3D41
-#define V3DRender_Close 0xC3D42
-#define V3DRender_Ioctl 0xC3D43
 #ifndef OS_ReadMonotonicTime
 #define OS_ReadMonotonicTime 0x42
 #endif
@@ -78,7 +75,6 @@ static struct {
     int found;              /* 1: looked for; name[0]: one was found */
     char name[32];          /* its DRM driver name ("v3d") */
     unsigned ioctl_swi;
-    int via_risc3d;         /* opened with RISC3D_Open: closed with RISC3D_Close */
 } device;
 
 /* the program's file (sync files belong to it), and its RISC3D context */
@@ -110,13 +106,6 @@ static void find_device(void)
         driver && (flags & 1) && swi && drm_name) {
         set_name(drm_name);
         device.ioctl_swi = swi;
-        device.via_risc3d = 1;
-        return;
-    }
-    /* else V3DRender itself */
-    if (!_swix(V3DRender_Info, _OUT(7), &drm_name) && drm_name) {
-        set_name(drm_name);
-        device.ioctl_swi = V3DRender_Ioctl;
     }
 }
 
@@ -124,12 +113,6 @@ const char *drm_riscos_device(void)
 {
     find_device();
     return device.name[0] ? device.name : NULL;
-}
-
-int drm_riscos_via_risc3d(void)
-{
-    find_device();
-    return device.via_risc3d;
 }
 
 int drm_riscos_available(void)
@@ -143,12 +126,7 @@ int drm_riscos_open(void)
     find_device();
     if (fake)
         fd = 1;
-    else if (!device.name[0])
-        fd = 0;
-    else if (device.via_risc3d) {
-        if (_swix(RISC3D_Open, _IN(0) | _OUTR(0, 1), 0, &context, &fd))
-            fd = 0;
-    } else if (_swix(V3DRender_Open, _IN(0) | _OUT(0), 0, &fd))
+    else if (!device.name[0] || _swix(RISC3D_Open, _IN(0) | _OUTR(0, 1), 0, &context, &fd))
         fd = 0;
     if (fd <= 0) {
         errno = ENODEV;
@@ -164,12 +142,8 @@ int drm_riscos_open(void)
 int drm_riscos_close(int fd)
 {
     modes();
-    if (fd > 0 && !fake) {
-        if (!device.via_risc3d)
-            _swix(V3DRender_Close, _IN(0), fd);
-        else if (fd == program_file && program_context)
-            _swix(RISC3D_Close, _IN(0), program_context);   /* closes the module's file too */
-    }
+    if (fd > 0 && !fake && fd == program_file && program_context)
+        _swix(RISC3D_Close, _IN(0), program_context);       /* closes the module's file too */
     if (fd == program_file)
         program_file = program_context = 0;
     return 0;
@@ -197,9 +171,10 @@ int drmIoctl(int fd, unsigned long request, void *arg)
     drm_riscos_dump_before(request, arg);
     if (fake)
         r = drm_riscos_fake_ioctl(request, arg);
+    else if (!device.ioctl_swi)
+        r = -ENODEV;
     else
-        e = device.ioctl_swi ? _swix(device.ioctl_swi, _INR(0, 2) | _OUT(0), fd, request, arg, &r)
-                             : _swix(V3DRender_Ioctl, _INR(0, 2) | _OUT(0), fd, request, arg, &r);
+        e = _swix(device.ioctl_swi, _INR(0, 2) | _OUT(0), fd, request, arg, &r);
     if (!e)
         drm_riscos_dump_after(request, arg, r);
     if (trace)

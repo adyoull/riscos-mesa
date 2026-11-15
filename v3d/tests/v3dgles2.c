@@ -1,5 +1,5 @@
 /*
- * v3dgles2.c - OpenGL ES 2.0 through Mesa's v3d driver and V3DRender on
+ * v3dgles2.c - OpenGL ES 2.0 through Mesa's v3d driver (through RISC3D) on
  * native RISC OS (riscos-mesa's v3d prototype): GLSL shaders compiled by
  * the v3d compiler, vertex buffers, a texture, uniforms, blending, and a
  * full-HD frame timed.
@@ -263,8 +263,8 @@ int main(int argc, char **argv)
     int i, frames = argc > 2 ? atoi(argv[2]) : 100;
 
     out = fopen(argc > 1 ? argv[1] : "Result", "w");
-    say("v3dgles2: OpenGL ES 2.0 on riscos-mesa's v3d prototype (Mesa 26.1.6's v3d driver on V3DRender)\n");
-    say("     starting Mesa's v3d driver on V3DRender%s\n", getenv("V3DM$Fake") ? " (V3DM$Fake: no GPU)" : "");
+    say("v3dgles2: OpenGL ES 2.0 on riscos-mesa's v3d prototype (Mesa 26.1.6's v3d driver, through RISC3D)\n");
+    say("     starting Mesa's v3d driver through RISC3D%s\n", getenv("V3DM$Fake") ? " (V3DM$Fake: no GPU)" : "");
     c = v3dm_create(V3DM_API_GLES2, 2, 0, 0);
     if (!c) {
         say("FAIL no context: %s\n", v3dm_error());

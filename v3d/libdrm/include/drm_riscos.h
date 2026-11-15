@@ -1,6 +1,6 @@
 /*
  * drm_riscos.h - riscos-mesa's libdrm layer for GPU driver modules
- * (V3DRender, and others RISC3D lists as DRM devices): the RISC OS parts
+ * that RISC3D lists as DRM devices (V3DRender on the Pi 4): the RISC OS parts
  * that Linux does with open, close and mmap (v3d/libdrm/src).
  *
  * Copyright (c) 2026 Andrew Youll. MIT licence.
@@ -25,14 +25,12 @@ struct drm_riscos_sync_file { int32_t fd; int32_t timeout_ms; uint32_t signalled
 #define DRM_IOCTL_RISCOS_SYNC_FILE_CLOSE \
   _IOC (_IOC_WRITE, DRM_RISCOS_BASE, 0x01, sizeof (struct drm_riscos_sync_file))
 
-/* the GPU's DRM driver name ("v3d"): RISC3D's choice if it is
-   a DRM device, else V3DRender's if it is loaded; NULL: none */
+/* the GPU's DRM driver name ("v3d"), if RISC3D's choice of driver is a
+   DRM device; NULL: none */
 const char *drm_riscos_device(void);
-/* 1: the device is opened through RISC3D (RISC3D_Open), 0: directly */
-int drm_riscos_via_risc3d(void);
 /* drm_riscos_device() != NULL */
 int drm_riscos_available(void);
-/* a file on that device (RISC3D_Open, or V3DRender_Open), or -1 with
+/* a file on that device (RISC3D_Open r1), or -1 with
    errno ENODEV */
 int drm_riscos_open(void);
 /* closes a file from drm_riscos_open (never close() it: it isn't a

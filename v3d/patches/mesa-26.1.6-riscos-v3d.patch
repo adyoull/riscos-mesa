@@ -86,7 +86,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
          }
  
 +#ifdef __riscos__
-+        /* riscos-mesa: V3DRender gives the BO's address as its offset */
++        /* riscos-mesa: the GPU module gives the BO's address as its offset */
 +        bo->map = drm_riscos_mmap(NULL, bo->size, PROT_READ | PROT_WRITE, MAP_SHARED,
 +                                  bo->screen->fd, offset);
 +#else
@@ -105,7 +105,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_fence.c b/src/gallium/drivers/v3d/v3d_fe
  #include <libsync.h>
 +#ifdef __riscos__
 +#include <drm_riscos.h>
-+/* riscos-mesa: a sync file is V3DRender's number, not a descriptor: it
++/* riscos-mesa: a sync file is the GPU module's number, not a descriptor: it
 +   can't be duplicated, and sync_close (libsync.h) closes it */
 +#define close(fd) sync_close(fd)
 +#endif
@@ -172,7 +172,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_screen.c b/src/gallium/drivers/v3d/v3d_s
          u_transfer_helper_destroy(pscreen->transfer_helper);
  
 +#ifdef __riscos__
-+        drm_riscos_close(screen->fd);   /* riscos-mesa: V3DRender's file */
++        drm_riscos_close(screen->fd);   /* riscos-mesa: the GPU module's file (RISC3D_Close) */
 +#else
          close(screen->fd);
 +#endif
@@ -184,7 +184,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_screen.c b/src/gallium/drivers/v3d/v3d_s
          caps->max_local_size = 32768;
  
 +#ifdef __riscos__
-+        /* riscos-mesa: V3DRender's buffers are one area of up to 1 GB */
++        /* riscos-mesa: V3DRender's buffers are one area of up to 1 GB (no sysinfo) */
 +        uint64_t totalram = 1024ull * 1024 * 1024;
 +        caps->max_global_size = totalram;
 +        caps->max_mem_alloc_size = MIN2(V3D_MAX_BUFFER_RANGE, totalram);

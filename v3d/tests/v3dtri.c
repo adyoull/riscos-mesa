@@ -1,8 +1,8 @@
 /*
- * v3dtri.c - the first triangle through Mesa's v3d driver and V3DRender
+ * v3dtri.c - the first triangle through Mesa's v3d driver (through RISC3D)
  * on native RISC OS (riscos-mesa's v3d prototype).
  *
- * Opens V3DRender, starts Mesa's v3d driver on it, makes an OpenGL
+ * Opens the GPU through RISC3D, starts Mesa's v3d driver on it, makes an OpenGL
  * context drawing into a 256x256 frame, clears it and draws a triangle
  * and a smooth-shaded quad, reads the frame back and checks some pixels.
  * It writes what it found to the file named on the command line (or
@@ -93,9 +93,9 @@ int main(int argc, char **argv)
 
     int frames = argc > 2 ? atoi(argv[2]) : 100;
     out = fopen(argc > 1 ? argv[1] : "Result", "w");
-    say("v3dtri: riscos-mesa's v3d prototype (Mesa 26.1.6's v3d driver on V3DRender)\n");
+    say("v3dtri: riscos-mesa's v3d prototype (Mesa 26.1.6's v3d driver, through RISC3D)\n");
 
-    say("     starting Mesa's v3d driver on V3DRender%s\n", getenv("V3DM$Fake") ? " (V3DM$Fake: no GPU)" : "");
+    say("     starting Mesa's v3d driver through RISC3D%s\n", getenv("V3DM$Fake") ? " (V3DM$Fake: no GPU)" : "");
     t0 = clock();
     c = v3dm_create(V3DM_API_GL, 2, 1, 1);
     if (!c) {

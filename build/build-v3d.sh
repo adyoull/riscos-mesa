@@ -1,6 +1,6 @@
 #!/bin/bash
 # PROTOTYPE (branch v3d): Mesa 26.1.6 with only its v3d gallium driver, for
-# the Raspberry Pi 4's GPU on native RISC OS through V3DRender, and the
+# the Raspberry Pi 4's GPU on native RISC OS (V3DRender, through RISC3D), and the
 # first test program (v3d/tests/v3dtri.c). Nothing here is in !MesaLibs or
 # the devkit yet: the plan (RISC3D's "two Mesas") is to put it behind
 # riscos-mesa's EGL once it draws on the Pi.
@@ -12,9 +12,9 @@
 #   fixed-function texture coordinates with lighting (RISC3D, 15 Nov 2026).
 # - v3d/patches/mesa-26.1.6-riscos-v3d.patch: RISC OS in meson.build and
 #   util (UnixLib: no pthread barriers, open_memstream, mkstemps, sysinfo),
-#   and the v3d driver's mmap, munmap and close of V3DRender's file and
+#   and the v3d driver's mmap, munmap and close of the GPU module's file and
 #   sync files.
-# - v3d/libdrm: the part of libdrm Mesa's v3d driver uses, as V3DRender
+# - v3d/libdrm: the part of libdrm Mesa's v3d driver uses, as GPU module
 #   requests (headers xf86drm.h, xf86drmMode.h, drm.h, drm_mode.h from
 #   libdrm 2.4.124, unchanged; sys/ioccom.h gives Linux's request numbers).
 # - v3d/frontend: a context and an off-screen frame on the GPU (v3dm.h).
@@ -50,7 +50,7 @@ done
 rm -f "$O/lib/libdrm.a"; $AR rcs "$O/lib/libdrm.a" "$O/drm_riscos.o" "$O/drm_riscos_fake.o" "$O/drm_riscos_dump.o"
 cat > "$O/pc/libdrm.pc" <<EOF
 Name: libdrm
-Description: riscos-mesa's libdrm layer for V3DRender
+Description: riscos-mesa's libdrm layer for GPU modules (through RISC3D)
 Version: 2.4.124
 Cflags: -I$R/v3d/libdrm/include
 Libs: -L$O/lib -ldrm

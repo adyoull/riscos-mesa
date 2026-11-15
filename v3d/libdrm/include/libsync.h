@@ -1,8 +1,8 @@
 /*
  * libsync.h for riscos-mesa's libdrm layer (v3d/libdrm): sync files on
- * RISC OS are V3DRender's numbers, not file descriptors, so waiting for
- * one is a V3DRender request (DRM_IOCTL_RISCOS_SYNC_FILE_WAIT) on the
- * program's V3DRender file. Merging sync files isn't supported (V3DRender
+ * RISC OS are the GPU module's numbers, not file descriptors, so waiting
+ * for one is a request (DRM_IOCTL_RISCOS_SYNC_FILE_WAIT) on the program's
+ * file from RISC3D_Open. Merging sync files isn't supported (V3DRender
  * has no such request): sync_merge and sync_accumulate fail with EINVAL,
  * which is why EGL_ANDROID_native_fence_sync isn't offered.
  *
