@@ -1,10 +1,10 @@
-RISC3D client library 0.8 (13 November 2026), for riscos-mesa's EGL
+RISC3D client library 0.9 (15 November 2026), for riscos-mesa's EGL
 ====================================================================
 
 RISC3D's front end for RISC OS programs: the GL functions as commands for
 the RISC3D module (r3d_glXxx, listed by name in r3d_gl_functions[]), and
 contexts. Source and a prebuilt static library, from RISC3D's repository
-at tag v0.8 (RiscOS/RISC3D/risc3d.bundle). MIT licence (LICENSE).
+at tag v0.9 (RiscOS/RISC3D/risc3d.bundle). MIT licence (LICENSE).
 
   lib/r3d.h          the interface (all EGL needs)
   lib/r3d_gl.c       the library; it #includes lib/r3d_dsa.c,
@@ -15,6 +15,26 @@ at tag v0.8 (RiscOS/RISC3D/risc3d.bundle). MIT licence (LICENSE).
   proto/r3d_shared.h the memory shared with the renderer
   libRISC3D.a        built with riscos-crossdev 1.11's GCC 10:
                      -O2 -mfpu=vfpv3 -mfloat-abi=hard (not PIC)
+
+New in 0.9:
+  client arrays                   a draw from the program's memory sends
+                                  only its lowest to highest index used
+                                  (indices rebased in the copy sent;
+                                  glDrawArrays' first moved to 0), when
+                                  every enabled array is the program's
+                                  and no shader is bound. TORCS's many
+                                  strips: the Pi went from 2.4 to 18.9
+                                  fps in gl1test's track (with rol-3d
+                                  0.8 or later giving them to Mesa as
+                                  memory: riscos-risc3d 0.8-1 on)
+  r3d_uploads (as_memory)         for comparing: 0 sends each array in a
+                                  buffer object of its own (0.8's way)
+  closed contexts                 calls after a context is closed (or
+                                  closed at exit by the library) are
+                                  dropped, not written into the unmapped
+                                  ring: the exit abort riscos-mesa found
+  C library                       no functions beyond 0.8's (nm -u is
+                                  0.8's list)
 
 New in 0.8:
   r3d_driver_flags ()             RISC3D_Info's flags for the driver a new

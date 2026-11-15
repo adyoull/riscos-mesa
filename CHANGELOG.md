@@ -6,6 +6,17 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-20 (in development)
 
+- **RISC3D client 0.9** (was 0.8), inside libOSMesa:
+  - **Faster draws from a program's own arrays:** each draw sends only the
+    vertices it uses, from the lowest index to the highest. That's the
+    case for games that draw many strips from one set of arrays, such as
+    TORCS. On a Pi 4, RISC3D's own track test went from 2.4 to 18.9 fps
+    with riscos-risc3d 0.8-1 or later.
+  - **No more abort when a program quits:** a GL call after RISC3D's
+    end-of-program clean-up is now dropped. freeglut's and EGL's own
+    clean-up ran after it and ended in "EMT trap" or a data abort.
+  - It asks nothing more of the C library than 0.8, so programs linked
+    mixed against 20.3.5-19 get it by updating !MesaLibs.
 - **New test, multitex:** two texture units selected with the ARB names
   (glActiveTextureARB, glClientActiveTextureARB, glMultiTexCoord2fvARB) as
   TORCS and plib do, through freeglut, in immediate mode and with client

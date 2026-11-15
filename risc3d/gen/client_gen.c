@@ -4879,6 +4879,7 @@ glLinkProgram (GLuint program)
 void
 glUseProgram (GLuint program)
 {
+  r3d_track_glUseProgram (program);
   uint32_t *a = r3d_put (OP_glUseProgram, 1);
   if (!a)
     return;
@@ -6521,6 +6522,7 @@ glActiveShaderProgram (GLuint pipeline, GLuint program)
 void
 glBindProgramPipeline (GLuint pipeline)
 {
+  r3d_track_glBindProgramPipeline (pipeline);
   uint32_t *a = r3d_put (OP_glBindProgramPipeline, 1);
   if (!a)
     return;

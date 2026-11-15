@@ -60,6 +60,11 @@ const char *r3d_target (struct r3d_context *, void *buffer, int width, int heigh
 #define R3D_DRIVER_DRM		1
 #define R3D_DRIVER_SOFTWARE	2
 int r3d_driver_flags (void);
+/* (from RISC3D 0.9) how the renderer takes arrays and indices from the
+   program's memory: 1 (the default), given to the driver as memory, as a
+   Linux program gives them; 0, each in a buffer object of its own (0.8's
+   way). For comparing the two: rol-3d 0.8 on (else ignored). */
+void r3d_uploads (int as_memory);
 int r3d_target_copy (struct r3d_context *);	/* now: 0, or -1 */
 void r3d_make_current (struct r3d_context *);
 void r3d_destroy (struct r3d_context *);
