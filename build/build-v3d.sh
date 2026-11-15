@@ -43,11 +43,11 @@ fi
 # ---- the libdrm layer ----
 # (built as Mesa is, with 64-bit off_t, though nothing shared with Mesa
 # uses off_t: drm_riscos.h)
-for f in drm_riscos drm_riscos_fake; do
+for f in drm_riscos drm_riscos_fake drm_riscos_dump; do
   $CC $RO_CFLAGS -D_FILE_OFFSET_BITS=64 -Wall -I"$R/v3d/libdrm/include" -I"$M/include" \
     -c "$R/v3d/libdrm/src/$f.c" -o "$O/$f.o"
 done
-rm -f "$O/lib/libdrm.a"; $AR rcs "$O/lib/libdrm.a" "$O/drm_riscos.o" "$O/drm_riscos_fake.o"
+rm -f "$O/lib/libdrm.a"; $AR rcs "$O/lib/libdrm.a" "$O/drm_riscos.o" "$O/drm_riscos_fake.o" "$O/drm_riscos_dump.o"
 cat > "$O/pc/libdrm.pc" <<EOF
 Name: libdrm
 Description: riscos-mesa's libdrm layer for V3DRender

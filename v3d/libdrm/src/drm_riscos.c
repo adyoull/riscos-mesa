@@ -32,6 +32,7 @@
 #include "xf86drm.h"
 #include "drm_riscos.h"
 #include "drm_riscos_fake.h"
+#include "drm_riscos_dump.h"
 
 #define V3DRender_Info  0xC3D40
 #define V3DRender_Open  0xC3D41
@@ -121,10 +122,13 @@ int drmIoctl(int fd, unsigned long request, void *arg)
     int r = 0;
     _kernel_oserror *e = NULL;
     modes();
+    drm_riscos_dump_before(request, arg);
     if (fake)
         r = drm_riscos_fake_ioctl(request, arg);
     else
         e = _swix(V3DRender_Ioctl, _INR(0, 2) | _OUT(0), fd, request, arg, &r);
+    if (!e)
+        drm_riscos_dump_after(request, arg, r);
     if (trace)
         fprintf(stderr, "drm: file %d request %08lx (type %c nr &%02lX size %lu) -> %d%s\n", fd, request,
                 (int) ((request >> 8) & 0xff), request & 0xff, (request >> 16) & 0x3fff, r,

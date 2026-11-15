@@ -23,7 +23,9 @@ from Mesa 20.3.5's (the software renderer stays 20.3.5).
 V3D 4.2 would without running anything (`libdrm/src/drm_riscos_fake.c`),
 so Mesa's ARM side (start-up, shader compiler, command lists, buffers)
 can be run under ROL in QEMU. Nothing is drawn. `V3DM$Trace` prints each
-request to stderr.
+request to stderr. `V3DM$Dump <file>` writes the first jobs (SUBMIT_CL
+and every buffer they use; `V3DM$DumpJobs`, default 3) to a file for
+replaying off the Pi; `tools/v3dm-dump.py` prints one.
 
 **Notes for later:**
 - Mesa 25.2 or later: 25.0's v3d compiler mis-draws lit, textured
