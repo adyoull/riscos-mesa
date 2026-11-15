@@ -103,7 +103,7 @@ int main(int argc, char **argv)
         return 1;
     }
     say("ok   context in %d cs: %s\n", (int) ((clock() - t0) * 100 / CLOCKS_PER_SEC), v3dm_renderer());
-    say("     making it current on a %dx%d frame\n", W, H);
+    say("     making it current on a %dx%d frame (%s)\n", W, H, v3dm_formats(c));
     if (!v3dm_make_current(c, W, H)) {
         say("FAIL make current\n");
         return 1;

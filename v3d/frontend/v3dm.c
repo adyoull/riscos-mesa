@@ -22,6 +22,7 @@
 #include "frontend/api.h"
 #include "state_tracker/st_context.h"
 #include "util/u_atomic.h"
+#include "util/format/u_format.h"
 #include "util/u_inlines.h"
 #include "util/u_memory.h"
 #include "util/xmlconfig.h"
@@ -188,6 +189,27 @@ const char *v3dm_renderer(void)
     return dev.screen ? dev.screen->get_name(dev.screen) : NULL;
 }
 
+/* ---- formats ----
+   The first of a list that the driver can use for this kind of buffer.
+   (A format v3d's table doesn't know is accepted for the resource but
+   stored by the GPU in a colour format: a depth store then never
+   finishes. V3DRender found it: Z24_UNORM_S8_UINT, 15 Nov 2026.) */
+
+static enum pipe_format pick_format(const enum pipe_format *list, unsigned bind)
+{
+    for (; *list != PIPE_FORMAT_NONE; list++)
+        if (dev.screen->is_format_supported(dev.screen, *list, PIPE_TEXTURE_2D, 0, 0, bind))
+            return *list;
+    return PIPE_FORMAT_NONE;
+}
+
+static const enum pipe_format colour_formats[] = {
+    PIPE_FORMAT_R8G8B8A8_UNORM, PIPE_FORMAT_B8G8R8A8_UNORM, PIPE_FORMAT_NONE
+};
+static const enum pipe_format depth_formats[] = {
+    PIPE_FORMAT_S8_UINT_Z24_UNORM, PIPE_FORMAT_X8Z24_UNORM, PIPE_FORMAT_Z16_UNORM, PIPE_FORMAT_NONE
+};
+
 /* ---- contexts ---- */
 
 v3dm_context *v3dm_create(int api, int major, int minor, int depth)
@@ -200,8 +222,14 @@ v3dm_context *v3dm_create(int api, int major, int minor, int depth)
     c = CALLOC_STRUCT(v3dm_context);
     if (!c)
         return NULL;
-    c->visual.color_format = PIPE_FORMAT_R8G8B8A8_UNORM;
-    c->visual.depth_stencil_format = depth ? PIPE_FORMAT_Z24_UNORM_S8_UINT : PIPE_FORMAT_NONE;
+    c->visual.color_format = pick_format(colour_formats, PIPE_BIND_RENDER_TARGET);
+    c->visual.depth_stencil_format = depth ? pick_format(depth_formats, PIPE_BIND_DEPTH_STENCIL)
+                                           : PIPE_FORMAT_NONE;
+    if (c->visual.color_format == PIPE_FORMAT_NONE) {
+        snprintf(dev.error, sizeof dev.error, "the GPU offers no RGBA8 render target");
+        FREE(c);
+        return NULL;
+    }
     c->visual.accum_format = PIPE_FORMAT_NONE;
     c->visual.buffer_mask = ST_ATTACHMENT_FRONT_LEFT_MASK | ST_ATTACHMENT_BACK_LEFT_MASK |
                             (depth ? ST_ATTACHMENT_DEPTH_STENCIL_MASK : 0);
@@ -244,4 +272,15 @@ void v3dm_destroy(v3dm_context *c)
     st_destroy_context(c->st);
     fb_destroy(c->fb);
     FREE(c);
+}
+
+const char *v3dm_formats(v3dm_context *c)
+{
+    static char text[96];
+    if (!c)
+        return "";
+    snprintf(text, sizeof text, "colour %s, depth/stencil %s",
+             util_format_short_name(c->visual.color_format),
+             util_format_short_name(c->visual.depth_stencil_format));
+    return text;
 }

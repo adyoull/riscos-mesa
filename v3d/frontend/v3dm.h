@@ -32,6 +32,8 @@ v3dm_context *v3dm_create(int api, int major, int minor, int depth);
    (made again if the size changes); NULL: none current */
 int v3dm_make_current(v3dm_context *c, unsigned width, unsigned height);
 void v3dm_destroy(v3dm_context *c);
+/* the formats of c's frame, as text */
+const char *v3dm_formats(v3dm_context *c);
 
 #ifdef __cplusplus
 }
