@@ -6,9 +6,14 @@ program and sends its work to V3DRender, the native GPU driver. Under
 RISC OS on Linux the GPU is reached through RISC3D instead, as now.
 
 **Status:** prototype on branch `v3d`. It builds and links into a static
-test program (`v3d/tests/v3dtri.c`); the first Pi test is
-`riscos-mesa-v3d-test1.zip`. Nothing here is in !MesaLibs or the devkit.
-When it draws, it goes behind riscos-mesa's EGL, with its symbols hidden
+test program (`v3d/tests/v3dtri.c`). It draws on the Pi: test 5 on
+V3DRender 0.08 (15 Nov 2026) passed every check (clear, depth-tested
+triangle and smooth quad, read back), 100 frames of clear + triangle +
+glFinish in 3 cs, also with 2 shader threads and with V3D_DEBUG.
+Tests 2-4 hung because the depth buffer's format wasn't one v3d's table
+knows (Z24_UNORM_S8_UINT): v3dm now asks is_format_supported.
+Nothing here is in !MesaLibs or the devkit. Next, it goes behind
+riscos-mesa's EGL, with its symbols hidden
 from Mesa 20.3.5's (the software renderer stays 20.3.5).
 
 | Part | What it is |
