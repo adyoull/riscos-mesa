@@ -19,12 +19,21 @@ from Mesa 20.3.5's (the software renderer stays 20.3.5).
 | `frontend/` | `v3dm.h`: a context and an off-screen frame on the GPU, after Mesa's hgl frontend and its removed OSMesa one. |
 | `tests/v3dtri.c` | Clear, a fixed-function triangle and quad, read back, a sprite of the frame, 100 frames timed. |
 
+**Without a V3D:** set `V3DM$Fake` and the libdrm layer answers as a
+V3D 4.2 would without running anything (`libdrm/src/drm_riscos_fake.c`),
+so Mesa's ARM side (start-up, shader compiler, command lists, buffers)
+can be run under ROL in QEMU. Nothing is drawn. `V3DM$Trace` prints each
+request to stderr.
+
 **Notes for later:**
 - Mesa 25.2 or later: 25.0's v3d compiler mis-draws lit, textured
   fixed-function scenes (RISC3D, 15 Nov 2026).
 - GCCSDK's GCC has emulated TLS: glapi's current dispatch is read through
   `__emutls_get_address` on every GL call. Fine for a prototype; the EGL
   version should use a global dispatch, as 20.3.5's does.
+- Nothing shared between Mesa and the libdrm layer may use off_t: Mesa is
+  built with _FILE_OFFSET_BITS=64 (UnixLib's off_t is then 8 bytes, else
+  4). test1 crashed on the Pi from exactly that (drm_riscos_mmap).
 - Programs are UnixLib programs and need PThreadTicker 0.04.
 - A command-line program that dies leaves its V3DRender file (and GPU
   memory) open until a restart; the EGL version must close it from

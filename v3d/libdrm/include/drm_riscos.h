@@ -30,8 +30,11 @@ int drm_riscos_open(void);
 /* closes a file from drm_riscos_open (never close() it: it isn't a
    UnixLib descriptor) */
 int drm_riscos_close(int fd);
-/* mmap of a BO after DRM_IOCTL_V3D_MMAP_BO: the offset is its address */
-void *drm_riscos_mmap(void *addr, size_t size, int prot, int flags, int fd, off_t offset);
+/* mmap of a BO after DRM_IOCTL_V3D_MMAP_BO: the offset is its address.
+   (The offset is uint64_t, not off_t: Mesa is built with
+   _FILE_OFFSET_BITS=64, where UnixLib's off_t is 8 bytes, and 4 bytes
+   without it; a header shared by both must not use off_t.) */
+void *drm_riscos_mmap(void *addr, size_t size, int prot, int flags, int fd, uint64_t offset);
 int drm_riscos_munmap(void *addr, size_t size);
 
 #ifdef __cplusplus

@@ -94,6 +94,7 @@ int main(int argc, char **argv)
     out = fopen(argc > 1 ? argv[1] : "Result", "w");
     say("v3dtri: riscos-mesa's v3d prototype (Mesa 26.1.6's v3d driver on V3DRender)\n");
 
+    say("     starting Mesa's v3d driver on V3DRender%s\n", getenv("V3DM$Fake") ? " (V3DM$Fake: no GPU)" : "");
     t0 = clock();
     c = v3dm_create(V3DM_API_GL, 2, 1, 1);
     if (!c) {
@@ -101,6 +102,7 @@ int main(int argc, char **argv)
         return 1;
     }
     say("ok   context in %d cs: %s\n", (int) ((clock() - t0) * 100 / CLOCKS_PER_SEC), v3dm_renderer());
+    say("     making it current on a %dx%d frame\n", W, H);
     if (!v3dm_make_current(c, W, H)) {
         say("FAIL make current\n");
         return 1;
@@ -109,6 +111,7 @@ int main(int argc, char **argv)
     say("GL_RENDERER %s\n", (const char *) glGetString(GL_RENDERER));
     say("GL_VERSION  %s\n", (const char *) glGetString(GL_VERSION));
 
+    say("     clearing\n");
     /* 1: a clear */
     glViewport(0, 0, W, H);
     glClearColor(0, 0, 1, 1);
@@ -118,6 +121,7 @@ int main(int argc, char **argv)
     check(px(frame, 10, 10) == 0x0000FF && px(frame, 200, 200) == 0x0000FF,
           "the GPU cleared the frame to blue", px(frame, 10, 10), 0x0000FF);
 
+    say("     drawing (Mesa compiles its shaders now)\n");
     /* 2: a red triangle (bottom left half) and a smooth quad in front
        (depth tested), as the software tests draw */
     t0 = clock();
