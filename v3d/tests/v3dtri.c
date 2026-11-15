@@ -8,7 +8,7 @@
  * It writes what it found to the file named on the command line (or
  * "Result") and the picture as a sprite file "Picture" (32bpp, for Paint).
  *
- *   v3dtri [RESULT-FILE]
+ *   v3dtri [RESULT-FILE [FRAMES]]     (FRAMES: the timed frames, default 100)
  *
  * Copyright (c) 2026 Andrew Youll. MIT licence.
  */
@@ -91,6 +91,7 @@ int main(int argc, char **argv)
     clock_t t0;
     int i;
 
+    int frames = argc > 2 ? atoi(argv[2]) : 100;
     out = fopen(argc > 1 ? argv[1] : "Result", "w");
     say("v3dtri: riscos-mesa's v3d prototype (Mesa 26.1.6's v3d driver on V3DRender)\n");
 
@@ -151,9 +152,9 @@ int main(int argc, char **argv)
     save_sprite("Picture", frame);
     say("     picture saved as Picture (sprite)\n");
 
-    /* 3: speed: 100 frames of the same scene */
+    /* 3: speed: frames of the same scene */
     t0 = clock();
-    for (i = 0; i < 100; i++) {
+    for (i = 0; i < frames; i++) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glBegin(GL_TRIANGLES);
         glColor3f(1, 0, 0);
@@ -161,7 +162,7 @@ int main(int argc, char **argv)
         glEnd();
         glFinish();
     }
-    say("     100 frames (clear, triangle, glFinish) in %d cs\n", (int) ((clock() - t0) * 100 / CLOCKS_PER_SEC));
+    say("     %d frames (clear, triangle, glFinish) in %d cs\n", frames, (int) ((clock() - t0) * 100 / CLOCKS_PER_SEC));
     check(glGetError() == GL_NO_ERROR, "no GL error", 0, 0);
 
     v3dm_destroy(c);

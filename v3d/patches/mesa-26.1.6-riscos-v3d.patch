@@ -1,4 +1,4 @@
-diff -ruN -x build pristine/mesa-26.1.6/meson.build mesa-26.1.6/meson.build
+diff -ruN a/meson.build b/meson.build
 --- a/meson.build
 +++ b/meson.build
 @@ -1205,7 +1205,7 @@
@@ -20,7 +20,31 @@ diff -ruN -x build pristine/mesa-26.1.6/meson.build mesa-26.1.6/meson.build
  else
    dep_thread = dependency('threads')
  endif
-diff -ruN -x build pristine/mesa-26.1.6/src/c11/impl/threads_posix.c mesa-26.1.6/src/c11/impl/threads_posix.c
+diff -ruN a/src/broadcom/compiler/vir.c b/src/broadcom/compiler/vir.c
+--- a/src/broadcom/compiler/vir.c
++++ b/src/broadcom/compiler/vir.c
+@@ -560,6 +560,20 @@
+         c->debug_output_data = debug_output_data;
+         c->compilation_result = V3D_COMPILATION_SUCCEEDED;
+         c->min_threads_for_reg_alloc = strategy->min_threads;
++#ifdef __riscos__
++        /* riscos-mesa (v3d prototype): V3DM_THREADS 2 caps the threads
++         * every shader is compiled for at 2, to look for a fault in thread
++         * switching. (Not 1: fragment shaders compiled for one thread
++         * lose their TLB writes on V3D 4.2.) */
++        {
++                const char *t = getenv("V3DM_THREADS");
++                uint32_t n = t ? (uint32_t) atoi(t) : 0;
++                if (n == 2) {
++                        c->threads = MIN2(c->threads, n);
++                        c->min_threads_for_reg_alloc = MIN2(c->min_threads_for_reg_alloc, n);
++                }
++        }
++#endif
+         c->max_tmu_spills = strategy->max_tmu_spills;
+         c->fallback_scheduler = fallback_scheduler;
+         c->disable_general_tmu_sched = strategy->disable_general_tmu_sched;
+diff -ruN a/src/c11/impl/threads_posix.c b/src/c11/impl/threads_posix.c
 --- a/src/c11/impl/threads_posix.c
 +++ b/src/c11/impl/threads_posix.c
 @@ -19,7 +19,7 @@
@@ -32,11 +56,7 @@ diff -ruN -x build pristine/mesa-26.1.6/src/c11/impl/threads_posix.c mesa-26.1.6
  #define EMULATED_THREADS_USE_NATIVE_TIMEDLOCK
  #endif
  
-Binary files pristine/mesa-26.1.6/src/compiler/__pycache__/builtin_types.cpython-313.pyc and mesa-26.1.6/src/compiler/__pycache__/builtin_types.cpython-313.pyc differ
-Binary files pristine/mesa-26.1.6/src/compiler/nir/__pycache__/nir_algebraic.cpython-313.pyc and mesa-26.1.6/src/compiler/nir/__pycache__/nir_algebraic.cpython-313.pyc differ
-Binary files pristine/mesa-26.1.6/src/compiler/nir/__pycache__/nir_intrinsics.cpython-313.pyc and mesa-26.1.6/src/compiler/nir/__pycache__/nir_intrinsics.cpython-313.pyc differ
-Binary files pristine/mesa-26.1.6/src/compiler/nir/__pycache__/nir_opcodes.cpython-313.pyc and mesa-26.1.6/src/compiler/nir/__pycache__/nir_opcodes.cpython-313.pyc differ
-diff -ruN -x build pristine/mesa-26.1.6/src/gallium/drivers/v3d/v3d_bufmgr.c mesa-26.1.6/src/gallium/drivers/v3d/v3d_bufmgr.c
+diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_bufmgr.c
 --- a/src/gallium/drivers/v3d/v3d_bufmgr.c
 +++ b/src/gallium/drivers/v3d/v3d_bufmgr.c
 @@ -27,6 +27,9 @@
@@ -76,7 +96,7 @@ diff -ruN -x build pristine/mesa-26.1.6/src/gallium/drivers/v3d/v3d_bufmgr.c mes
          if (bo->map == MAP_FAILED) {
                  mesa_loge("mmap of bo %d (offset 0x%016llx, size %d) failed",
                            bo->handle, (long long)offset, bo->size);
-diff -ruN -x build pristine/mesa-26.1.6/src/gallium/drivers/v3d/v3d_fence.c mesa-26.1.6/src/gallium/drivers/v3d/v3d_fence.c
+diff -ruN a/src/gallium/drivers/v3d/v3d_fence.c b/src/gallium/drivers/v3d/v3d_fence.c
 --- a/src/gallium/drivers/v3d/v3d_fence.c
 +++ b/src/gallium/drivers/v3d/v3d_fence.c
 @@ -35,6 +35,12 @@
@@ -117,7 +137,7 @@ diff -ruN -x build pristine/mesa-26.1.6/src/gallium/drivers/v3d/v3d_fence.c mesa
  }
  
  int
-diff -ruN -x build pristine/mesa-26.1.6/src/gallium/drivers/v3d/v3d_job.c mesa-26.1.6/src/gallium/drivers/v3d/v3d_job.c
+diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.c
 --- a/src/gallium/drivers/v3d/v3d_job.c
 +++ b/src/gallium/drivers/v3d/v3d_job.c
 @@ -660,7 +660,11 @@
@@ -132,7 +152,7 @@ diff -ruN -x build pristine/mesa-26.1.6/src/gallium/drivers/v3d/v3d_job.c mesa-2
                  v3d->in_fence_fd = -1;
          } else {
                  /* While the RCL will implicitly depend on the last RCL to have
-diff -ruN -x build pristine/mesa-26.1.6/src/gallium/drivers/v3d/v3d_screen.c mesa-26.1.6/src/gallium/drivers/v3d/v3d_screen.c
+diff -ruN a/src/gallium/drivers/v3d/v3d_screen.c b/src/gallium/drivers/v3d/v3d_screen.c
 --- a/src/gallium/drivers/v3d/v3d_screen.c
 +++ b/src/gallium/drivers/v3d/v3d_screen.c
 @@ -22,7 +22,11 @@
@@ -187,16 +207,7 @@ diff -ruN -x build pristine/mesa-26.1.6/src/gallium/drivers/v3d/v3d_screen.c mes
  
          caps->clip_planes = 0;
          caps->depth_clip_disable = screen->devinfo.ver >= 71;
-Binary files pristine/mesa-26.1.6/src/mesa/glapi/glapi/gen/__pycache__/apiexec.cpython-313.pyc and mesa-26.1.6/src/mesa/glapi/glapi/gen/__pycache__/apiexec.cpython-313.pyc differ
-Binary files pristine/mesa-26.1.6/src/mesa/glapi/glapi/gen/__pycache__/glX_XML.cpython-313.pyc and mesa-26.1.6/src/mesa/glapi/glapi/gen/__pycache__/glX_XML.cpython-313.pyc differ
-Binary files pristine/mesa-26.1.6/src/mesa/glapi/glapi/gen/__pycache__/gl_XML.cpython-313.pyc and mesa-26.1.6/src/mesa/glapi/glapi/gen/__pycache__/gl_XML.cpython-313.pyc differ
-Binary files pristine/mesa-26.1.6/src/mesa/glapi/glapi/gen/__pycache__/license.cpython-313.pyc and mesa-26.1.6/src/mesa/glapi/glapi/gen/__pycache__/license.cpython-313.pyc differ
-Binary files pristine/mesa-26.1.6/src/mesa/glapi/glapi/gen/__pycache__/marshal_XML.cpython-313.pyc and mesa-26.1.6/src/mesa/glapi/glapi/gen/__pycache__/marshal_XML.cpython-313.pyc differ
-Binary files pristine/mesa-26.1.6/src/mesa/glapi/glapi/gen/__pycache__/static_data.cpython-313.pyc and mesa-26.1.6/src/mesa/glapi/glapi/gen/__pycache__/static_data.cpython-313.pyc differ
-Binary files pristine/mesa-26.1.6/src/mesa/glapi/glapi/gen/__pycache__/typeexpr.cpython-313.pyc and mesa-26.1.6/src/mesa/glapi/glapi/gen/__pycache__/typeexpr.cpython-313.pyc differ
-Binary files pristine/mesa-26.1.6/src/mesa/main/__pycache__/format_parser.cpython-313.pyc and mesa-26.1.6/src/mesa/main/__pycache__/format_parser.cpython-313.pyc differ
-Binary files pristine/mesa-26.1.6/src/mesa/main/__pycache__/get_hash_params.cpython-313.pyc and mesa-26.1.6/src/mesa/main/__pycache__/get_hash_params.cpython-313.pyc differ
-diff -ruN -x build pristine/mesa-26.1.6/src/util/detect_os.h mesa-26.1.6/src/util/detect_os.h
+diff -ruN a/src/util/detect_os.h b/src/util/detect_os.h
 --- a/src/util/detect_os.h
 +++ b/src/util/detect_os.h
 @@ -86,6 +86,13 @@
@@ -223,9 +234,7 @@ diff -ruN -x build pristine/mesa-26.1.6/src/util/detect_os.h mesa-26.1.6/src/uti
  #ifndef DETECT_OS_SOLARIS
  #define DETECT_OS_SOLARIS 0
  #endif
-Binary files pristine/mesa-26.1.6/src/util/format/__pycache__/u_format_pack.cpython-313.pyc and mesa-26.1.6/src/util/format/__pycache__/u_format_pack.cpython-313.pyc differ
-Binary files pristine/mesa-26.1.6/src/util/format/__pycache__/u_format_parse.cpython-313.pyc and mesa-26.1.6/src/util/format/__pycache__/u_format_parse.cpython-313.pyc differ
-diff -ruN -x build pristine/mesa-26.1.6/src/util/log.c mesa-26.1.6/src/util/log.c
+diff -ruN a/src/util/log.c b/src/util/log.c
 --- a/src/util/log.c
 +++ b/src/util/log.c
 @@ -146,6 +146,7 @@
@@ -247,7 +256,7 @@ diff -ruN -x build pristine/mesa-26.1.6/src/util/log.c mesa-26.1.6/src/util/log.
           const char *log_file = os_get_option("MESA_LOG_FILE");
           if (log_file)
              fp = fopen(log_file, "w");
-diff -ruN -x build pristine/mesa-26.1.6/src/util/memstream.c mesa-26.1.6/src/util/memstream.c
+diff -ruN a/src/util/memstream.c b/src/util/memstream.c
 --- a/src/util/memstream.c
 +++ b/src/util/memstream.c
 @@ -63,6 +63,10 @@
@@ -261,7 +270,7 @@ diff -ruN -x build pristine/mesa-26.1.6/src/util/memstream.c mesa-26.1.6/src/uti
  #else
     FILE *const f = open_memstream(bufp, sizep);
     mem->f = f;
-diff -ruN -x build pristine/mesa-26.1.6/src/util/os_misc.c mesa-26.1.6/src/util/os_misc.c
+diff -ruN a/src/util/os_misc.c b/src/util/os_misc.c
 --- a/src/util/os_misc.c
 +++ b/src/util/os_misc.c
 @@ -58,7 +58,7 @@
@@ -273,8 +282,7 @@ diff -ruN -x build pristine/mesa-26.1.6/src/util/os_misc.c mesa-26.1.6/src/util/
  #  include <unistd.h>
  #elif DETECT_OS_OPENBSD || DETECT_OS_FREEBSD
  #  include <sys/resource.h>
-Binary files pristine/mesa-26.1.6/src/util/perf/__pycache__/u_trace.cpython-313.pyc and mesa-26.1.6/src/util/perf/__pycache__/u_trace.cpython-313.pyc differ
-diff -ruN -x build pristine/mesa-26.1.6/src/util/u_thread.c mesa-26.1.6/src/util/u_thread.c
+diff -ruN a/src/util/u_thread.c b/src/util/u_thread.c
 --- a/src/util/u_thread.c
 +++ b/src/util/u_thread.c
 @@ -150,7 +150,7 @@
@@ -295,7 +303,7 @@ diff -ruN -x build pristine/mesa-26.1.6/src/util/u_thread.c mesa-26.1.6/src/util
  
  void util_barrier_init(util_barrier *barrier, unsigned count)
  {
-diff -ruN -x build pristine/mesa-26.1.6/src/util/u_thread.h mesa-26.1.6/src/util/u_thread.h
+diff -ruN a/src/util/u_thread.h b/src/util/u_thread.h
 --- a/src/util/u_thread.h
 +++ b/src/util/u_thread.h
 @@ -116,7 +116,7 @@
