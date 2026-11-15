@@ -271,6 +271,7 @@ int main(int argc, char **argv)
         return 1;
     }
     say("ok   context: %s\n", v3dm_renderer());
+    say("     GPU module: %s\n", v3dm_device());
     say("     making it current on a %dx%d frame (%s)\n", W, H, v3dm_formats(c));
     if (!v3dm_make_current(c, W, H)) {
         say("FAIL make current\n");

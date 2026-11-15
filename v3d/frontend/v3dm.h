@@ -23,6 +23,8 @@ typedef struct v3dm_context v3dm_context;
 int v3dm_init(void);
 void v3dm_shutdown(void);
 const char *v3dm_error(void);
+/* the GPU module's DRM driver name and how it is opened, as text */
+const char *v3dm_device(void);
 /* the driver's name for the GPU, once started */
 const char *v3dm_renderer(void);
 

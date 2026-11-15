@@ -1,21 +1,28 @@
 /*
- * drm_riscos.c - the part of libdrm that Mesa's v3d driver uses, on RISC
- * OS: each call becomes a request to V3DRender (V3DRender_Ioctl), which
- * takes Linux's request numbers and structures (V3DRender's
- * docs/INTERFACE.md).
+ * drm_riscos.c - the part of libdrm that Mesa's GPU drivers use, on RISC
+ * OS: each call becomes a request to the GPU's RISC OS driver module
+ * through its ioctl SWI, which takes Linux's request numbers and
+ * structures (for the Pi 4's V3D: V3DRender, its docs/INTERFACE.md).
  *
- * - A "file" is V3DRender's number from V3DRender_Open (or RISC3D_Open
- *   r1), not a UnixLib descriptor: close it with drm_riscos_close, never
- *   close().
- * - A BO's MMAP_BO offset is already its address: drm_riscos_mmap returns
- *   it, and drm_riscos_munmap does nothing (the patch riscos-v3d-drm
- *   points Mesa's mmap/munmap/close of these at them).
+ * - The device: RISC3D lists GPU driver modules of the "DRM device" kind
+ *   (RISC3D_Info: r4 bit 0, r5 = the module's ioctl SWI, r6 -> its DRM
+ *   driver name, such as "v3d"), and RISC3D_Open gives the file
+ *   (r1). Without RISC3D, V3DRender is opened directly (V3DRender_Open),
+ *   as before.
+ * - A "file" is the module's number, not a UnixLib descriptor: close it
+ *   with drm_riscos_close, never close().
+ * - drmGetVersion asks the module (DRM_IOCTL_VERSION, as on Linux); a
+ *   module that doesn't answer it is taken as version 1.0 of the name
+ *   RISC3D gave.
+ * - A BO's mmap offset is already its address: drm_riscos_mmap returns
+ *   it, and drm_riscos_munmap does nothing (the riscos-v3d patch points
+ *   Mesa's mmap/munmap/close of these at them).
  * - Sync objects are requests as on Linux. drmSyncobjWait's timeout is
- *   absolute on Mesa's CLOCK_MONOTONIC: it is moved onto V3DRender's
+ *   absolute on Mesa's CLOCK_MONOTONIC: it is moved onto the modules'
  *   clock (OS_ReadMonotonicTime * 10,000,000 ns).
- * - Not offered (V3DRender has no such thing yet): PRIME (dma-buf)
- *   import/export, timeline sync objects. They fail with EINVAL or
- *   ENOSYS, and Mesa doesn't need them for drawing.
+ * - Not offered: PRIME (dma-buf) import/export, timeline sync objects.
+ *   They fail with EINVAL or ENOSYS, and Mesa doesn't need them for
+ *   drawing.
  *
  * Copyright (c) 2026 Andrew Youll. MIT licence.
  */
@@ -34,6 +41,9 @@
 #include "drm_riscos_fake.h"
 #include "drm_riscos_dump.h"
 
+#define RISC3D_Info     0xC3D00
+#define RISC3D_Open     0xC3D02
+#define RISC3D_Close    0xC3D03
 #define V3DRender_Info  0xC3D40
 #define V3DRender_Open  0xC3D41
 #define V3DRender_Close 0xC3D42
@@ -62,45 +72,107 @@ static void modes(void)
     }
 }
 
-/* ---- files ---- */
+/* ---- the device ---- */
 
-/* the program's V3DRender file (sync files belong to it) */
-static int program_file;
+static struct {
+    int found;              /* 1: looked for; name[0]: one was found */
+    char name[32];          /* its DRM driver name ("v3d") */
+    unsigned ioctl_swi;
+    int via_risc3d;         /* opened with RISC3D_Open: closed with RISC3D_Close */
+} device;
+
+/* the program's file (sync files belong to it), and its RISC3D context */
+static int program_file, program_context;
+
+static void set_name(const char *n)
+{
+    size_t l = 0;
+    while (n[l] >= ' ' && l < sizeof device.name - 1)
+        l++;
+    memcpy(device.name, n, l);
+    device.name[l] = 0;
+}
+
+static void find_device(void)
+{
+    unsigned flags = 0, swi = 0;
+    const char *driver = NULL, *drm_name = NULL;
+    modes();
+    if (device.found)
+        return;
+    device.found = 1;
+    if (fake) {
+        strcpy(device.name, "v3d");
+        return;
+    }
+    /* RISC3D's choice, if it is a DRM device */
+    if (!_swix(RISC3D_Info, _OUTR(3, 6), &driver, &flags, &swi, &drm_name) &&
+        driver && (flags & 1) && swi && drm_name) {
+        set_name(drm_name);
+        device.ioctl_swi = swi;
+        device.via_risc3d = 1;
+        return;
+    }
+    /* else V3DRender itself */
+    if (!_swix(V3DRender_Info, _OUT(7), &drm_name) && drm_name) {
+        set_name(drm_name);
+        device.ioctl_swi = V3DRender_Ioctl;
+    }
+}
+
+const char *drm_riscos_device(void)
+{
+    find_device();
+    return device.name[0] ? device.name : NULL;
+}
+
+int drm_riscos_via_risc3d(void)
+{
+    find_device();
+    return device.via_risc3d;
+}
+
+int drm_riscos_available(void)
+{
+    return drm_riscos_device() != NULL;
+}
 
 int drm_riscos_open(void)
 {
-    int fd = 0;
-    modes();
+    int fd = 0, context = 0;
+    find_device();
     if (fake)
         fd = 1;
-    else if (_swix(V3DRender_Open, _IN(0) | _OUT(0), 0, &fd) || fd <= 0) {
+    else if (!device.name[0])
+        fd = 0;
+    else if (device.via_risc3d) {
+        if (_swix(RISC3D_Open, _IN(0) | _OUTR(0, 1), 0, &context, &fd))
+            fd = 0;
+    } else if (_swix(V3DRender_Open, _IN(0) | _OUT(0), 0, &fd))
+        fd = 0;
+    if (fd <= 0) {
         errno = ENODEV;
         return -1;
     }
-    if (program_file <= 0)
+    if (program_file <= 0) {
         program_file = fd;
+        program_context = context;
+    }
     return fd;
 }
 
 int drm_riscos_close(int fd)
 {
     modes();
-    if (fd > 0 && !fake)
-        _swix(V3DRender_Close, _IN(0), fd);
+    if (fd > 0 && !fake) {
+        if (!device.via_risc3d)
+            _swix(V3DRender_Close, _IN(0), fd);
+        else if (fd == program_file && program_context)
+            _swix(RISC3D_Close, _IN(0), program_context);   /* closes the module's file too */
+    }
     if (fd == program_file)
-        program_file = 0;
+        program_file = program_context = 0;
     return 0;
-}
-
-int drm_riscos_available(void)
-{
-    const char *name = NULL;
-    modes();
-    if (fake)
-        return 1;
-    if (_swix(V3DRender_Info, _OUT(7), &name) || !name)
-        return 0;
-    return strcmp(name, "v3d") == 0;
 }
 
 void *drm_riscos_mmap(void *addr, size_t size, int prot, int flags, int fd, uint64_t offset)
@@ -126,7 +198,8 @@ int drmIoctl(int fd, unsigned long request, void *arg)
     if (fake)
         r = drm_riscos_fake_ioctl(request, arg);
     else
-        e = _swix(V3DRender_Ioctl, _INR(0, 2) | _OUT(0), fd, request, arg, &r);
+        e = device.ioctl_swi ? _swix(device.ioctl_swi, _INR(0, 2) | _OUT(0), fd, request, arg, &r)
+                             : _swix(V3DRender_Ioctl, _INR(0, 2) | _OUT(0), fd, request, arg, &r);
     if (!e)
         drm_riscos_dump_after(request, arg, r);
     if (trace)
@@ -162,19 +235,61 @@ int drmGetCap(int fd, uint64_t capability, uint64_t *value)
     return 0;
 }
 
+/* The module's DRM_IOCTL_VERSION (as libdrm asks it: the lengths first,
+   then the strings); if it doesn't answer, version 1.0 of the device's
+   name. (Some of Mesa's drivers choose features by the minor version.) */
+static char *version_string(char *p, size_t len)
+{
+    char *s = malloc(len + 1);
+    if (s) {
+        memcpy(s, p ? p : "", p ? len : 0);
+        s[p ? len : 0] = 0;
+    }
+    return s;
+}
+
 drmVersionPtr drmGetVersion(int fd)
 {
+    struct drm_version q;
     drmVersionPtr v = calloc(1, sizeof *v);
-    (void) fd;
+    char *name = NULL, *date = NULL, *desc = NULL;
     if (!v)
         return NULL;
-    v->version_major = 1;
-    v->name = strdup("v3d");
-    v->name_len = 3;
-    v->date = strdup("20260515");
-    v->date_len = 8;
-    v->desc = strdup("V3DRender");
-    v->desc_len = 9;
+    find_device();
+    memset(&q, 0, sizeof q);
+    if (drmIoctl(fd, DRM_IOCTL_VERSION, &q) == 0 && q.name_len > 0 && q.name_len < 64 &&
+        q.date_len < 64 && q.desc_len < 256) {
+        q.name = name = calloc(1, q.name_len + 1);
+        q.date = date = calloc(1, q.date_len + 1);
+        q.desc = desc = calloc(1, q.desc_len + 1);
+        if (name && date && desc && drmIoctl(fd, DRM_IOCTL_VERSION, &q) == 0) {
+            v->version_major = q.version_major;
+            v->version_minor = q.version_minor;
+            v->version_patchlevel = q.version_patchlevel;
+            v->name = version_string(name, q.name_len);
+            v->date = version_string(date, q.date_len);
+            v->desc = version_string(desc, q.desc_len);
+        }
+        free(name);
+        free(date);
+        free(desc);
+    }
+    if (!v->name) {
+        free(v->date);
+        free(v->desc);
+        v->version_major = 1;
+        v->version_minor = v->version_patchlevel = 0;
+        v->name = version_string(device.name, strlen(device.name));
+        v->date = version_string("20260515", 8);
+        v->desc = version_string("RISC OS", 7);
+    }
+    if (!v->name || !v->date || !v->desc) {
+        drmFreeVersion(v);
+        return NULL;
+    }
+    v->name_len = (int) strlen(v->name);
+    v->date_len = (int) strlen(v->date);
+    v->desc_len = (int) strlen(v->desc);
     return v;
 }
 
@@ -244,8 +359,8 @@ int drmSyncobjExportSyncFile(int fd, uint32_t handle, int *sync_file_fd)
     return 0;
 }
 
-/* Mesa's deadline (CLOCK_MONOTONIC, ns) on V3DRender's clock */
-static int64_t to_v3drender_clock(int64_t deadline)
+/* Mesa's deadline (CLOCK_MONOTONIC, ns) on the modules' clock */
+static int64_t to_module_clock(int64_t deadline)
 {
     struct timespec ts;
     unsigned int cs = 0;
@@ -269,7 +384,7 @@ int drmSyncobjWait(int fd, uint32_t *handles, unsigned num_handles, int64_t time
     struct drm_syncobj_wait a;
     memset(&a, 0, sizeof a);
     a.handles = (uintptr_t) handles;
-    a.timeout_nsec = to_v3drender_clock(timeout_nsec);
+    a.timeout_nsec = to_module_clock(timeout_nsec);
     a.count_handles = num_handles;
     a.flags = flags;
     if (drmIoctl(fd, DRM_IOCTL_SYNCOBJ_WAIT, &a))
@@ -298,8 +413,8 @@ int drmSyncobjSignal(int fd, const uint32_t *handles, uint32_t count)
     return syncobj_array(fd, DRM_IOCTL_SYNCOBJ_SIGNAL, handles, count);
 }
 
-/* timeline sync objects: not in V3DRender (Mesa's v3d gallium driver
-   doesn't use them) */
+/* timeline sync objects: not offered (Mesa's v3d gallium driver doesn't
+   use them) */
 int drmSyncobjTimelineSignal(int fd, const uint32_t *handles, uint64_t *points, uint32_t count)
 {
     (void) fd; (void) handles; (void) points; (void) count;
@@ -344,7 +459,7 @@ int drmPrimeFDToHandle(int fd, int prime_fd, uint32_t *handle)
 }
 
 /* ---- sync files (libsync.h) ----
-   The V3DRender file they belong to: the program's one file. */
+   The module's file they belong to: the program's one file. */
 
 #include "libsync.h"
 

@@ -103,6 +103,19 @@ int drm_riscos_fake_ioctl(unsigned long request, void *arg)
         }
         return 0;
     }
+    case 0x00: {                            /* VERSION: as V3DRender would answer it */
+        struct drm_version *a = arg;
+        a->version_major = 1;
+        a->version_minor = 0;
+        a->version_patchlevel = 0;
+        if (a->name && a->name_len >= 3) memcpy(a->name, "v3d", 3);
+        if (a->date && a->date_len >= 8) memcpy(a->date, "20260515", 8);
+        if (a->desc && a->desc_len >= 9) memcpy(a->desc, "V3DM$Fake", 9);
+        a->name_len = 3;
+        a->date_len = 8;
+        a->desc_len = 9;
+        return 0;
+    }
     case 0x0c: {                            /* GET_CAP */
         struct drm_get_cap *a = arg;
         a->value = a->capability == DRM_CAP_SYNCOBJ;

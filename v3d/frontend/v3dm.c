@@ -1,12 +1,15 @@
 /*
- * v3dm.c - riscos-mesa's frontend for Mesa's v3d driver on native RISC OS
- * (V3DRender): a context and an off-screen framebuffer of a given size,
- * as OSMesa gives, but drawn by the Raspberry Pi 4's GPU.
+ * v3dm.c - riscos-mesa's frontend for Mesa's GPU drivers on native RISC
+ * OS: a context and an off-screen framebuffer of a given size, as OSMesa
+ * gives, but drawn by the GPU. The GPU's RISC OS driver module (V3DRender
+ * on the Raspberry Pi 4) is found through RISC3D, and Mesa's driver for it
+ * is chosen by the DRM driver name the module registered with RISC3D
+ * (only v3d so far).
  *
  * PROTOTYPE (v3d branch). It follows the frontends Mesa carries for
  * systems without DRI (gallium/frontends/hgl, and the OSMesa frontend
- * Mesa removed in 25.1): one pipe screen from v3d_screen_create on
- * V3DRender's file, a pipe_frontend_screen, and for each context a
+ * Mesa removed in 25.1): one pipe screen on the module's file, a
+ * pipe_frontend_screen, and for each context a
  * pipe_frontend_drawable whose colour and depth buffers are resources
  * of the GPU. The program reads the frame back with glReadPixels (or
  * v3dm_read), as with OSMesa.
@@ -141,27 +144,52 @@ static int get_param(struct pipe_frontend_screen *fscreen, enum st_manager_param
     return param == ST_MANAGER_BROKEN_INVALIDATE;
 }
 
+/* Mesa's driver for each kind of GPU module, by the DRM driver name the
+   module gives (RISC3D_Info r6, or its DRM_IOCTL_VERSION) */
+static struct pipe_screen *create_v3d(int fd, struct pipe_screen_config *config)
+{
+    return v3d_screen_create(fd, config, NULL);
+}
+
+static const struct {
+    const char *name;
+    struct pipe_screen *(*create)(int fd, struct pipe_screen_config *config);
+} drivers[] = {
+    { "v3d", create_v3d },              /* Raspberry Pi 4 and 400 (V3DRender) */
+    /* another GPU's module: a row here, and its Mesa driver in build-v3d.sh */
+};
+
 int v3dm_init(void)
 {
     struct pipe_screen_config config;
+    const char *name;
+    unsigned i;
     if (dev.screen)
         return 1;
-    if (!drm_riscos_available()) {
-        snprintf(dev.error, sizeof dev.error, "V3DRender isn't loaded (or isn't driving a V3D)");
+    name = drm_riscos_device();
+    if (!name) {
+        snprintf(dev.error, sizeof dev.error, "no GPU driver module is loaded (RISC3D lists no DRM device, and V3DRender isn't loaded)");
+        return 0;
+    }
+    for (i = 0; i < sizeof drivers / sizeof drivers[0] && strcmp(drivers[i].name, name); i++)
+        ;
+    if (i == sizeof drivers / sizeof drivers[0]) {
+        snprintf(dev.error, sizeof dev.error, "this build has no Mesa driver for the \"%s\" GPU", name);
         return 0;
     }
     dev.fd = drm_riscos_open();
     if (dev.fd < 0) {
-        snprintf(dev.error, sizeof dev.error, "V3DRender_Open failed");
+        snprintf(dev.error, sizeof dev.error, "the %s GPU's module wouldn't open", name);
+        dev.fd = 0;
         return 0;
     }
     driParseOptionInfo(&dev.options_info, NULL, 0);
     memset(&config, 0, sizeof config);
     config.options = &dev.options;
     config.options_info = &dev.options_info;
-    dev.screen = v3d_screen_create(dev.fd, &config, NULL);
+    dev.screen = drivers[i].create(dev.fd, &config);
     if (!dev.screen) {
-        snprintf(dev.error, sizeof dev.error, "Mesa's v3d driver refused V3DRender's file");
+        snprintf(dev.error, sizeof dev.error, "Mesa's %s driver refused the GPU module's file", name);
         drm_riscos_close(dev.fd);
         dev.fd = 0;
         return 0;
@@ -178,10 +206,21 @@ void v3dm_shutdown(void)
         return;
     st_screen_destroy(dev.fscreen);
     FREE(dev.fscreen);
-    dev.screen->destroy(dev.screen);     /* closes V3DRender's file */
+    dev.screen->destroy(dev.screen);     /* v3d: closes the module's file */
     dev.screen = NULL;
     dev.fscreen = NULL;
     dev.fd = 0;
+}
+
+const char *v3dm_device(void)
+{
+    static char text[64];
+    const char *name = drm_riscos_device();
+    if (!name)
+        return "none";
+    snprintf(text, sizeof text, "%s, opened %s", name,
+             drm_riscos_via_risc3d() ? "through RISC3D" : "directly (V3DRender_Open)");
+    return text;
 }
 
 const char *v3dm_renderer(void)
