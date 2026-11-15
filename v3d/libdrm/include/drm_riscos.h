@@ -25,6 +25,16 @@ struct drm_riscos_sync_file { int32_t fd; int32_t timeout_ms; uint32_t signalled
 #define DRM_IOCTL_RISCOS_SYNC_FILE_CLOSE \
   _IOC (_IOC_WRITE, DRM_RISCOS_BASE, 0x01, sizeof (struct drm_riscos_sync_file))
 
+/* V3DRender 0.11: a BO the CPU sees cached (drm_v3d_create_bo.flags), the
+   module cleaning and invalidating it around the jobs that list it */
+#define DRM_RISCOS_BO_CPU_CACHED 0x80000000u
+/* V3DRender 0.11: memory the program has (4 KB aligned, a multiple of
+   4 KB) as a BO, the GPU's MMU mapping its pages; handle and offset (the
+   GPU address) out. The memory must stay where it is until GEM_CLOSE. */
+struct drm_riscos_import_memory { uint64_t address; uint32_t size, handle, offset, pad; };
+#define DRM_IOCTL_RISCOS_IMPORT_MEMORY \
+  _IOC (_IOC_READ | _IOC_WRITE, DRM_RISCOS_BASE, 0x02, sizeof (struct drm_riscos_import_memory))
+
 /* the GPU's DRM driver name ("v3d"), if RISC3D's choice of driver is a
    DRM device; NULL: none */
 const char *drm_riscos_device(void);

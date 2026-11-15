@@ -27,7 +27,7 @@
 #include "drm_riscos_fake.h"
 
 #define MAX_BOS 4096
-static struct { void *p; uint32_t size; } bos[MAX_BOS];
+static struct { void *p; uint32_t size; int imported; } bos[MAX_BOS];
 static uint32_t syncobjs;
 
 static int nr(unsigned long request) { return (int) (request & 0xff); }
@@ -54,6 +54,22 @@ static int get_param(struct drm_v3d_get_param *a)
 
 int drm_riscos_fake_ioctl(unsigned long request, void *arg)
 {
+    if (request == DRM_IOCTL_RISCOS_IMPORT_MEMORY) {   /* the program's memory as a BO */
+        struct drm_riscos_import_memory *a = arg;
+        uint32_t h;
+        if (!a->size || (a->size & 4095) || (a->address & 4095) || a->pad)
+            return -EINVAL;
+        for (h = 1; h < MAX_BOS && bos[h].p; h++)
+            ;
+        if (h == MAX_BOS)
+            return -ENOMEM;
+        bos[h].p = (void *) (uintptr_t) a->address;
+        bos[h].size = a->size;
+        bos[h].imported = 1;
+        a->handle = h;
+        a->offset = (uint32_t) a->address;
+        return 0;
+    }
     if (((request >> 8) & 0xff) != DRM_IOCTL_BASE)
         return 0;                           /* RISC OS sync files: nothing to wait for */
     switch (nr(request)) {
@@ -72,6 +88,7 @@ int drm_riscos_fake_ioctl(unsigned long request, void *arg)
             return -ENOMEM;
         memset(bos[h].p, 0, a->size);
         bos[h].size = a->size;
+        bos[h].imported = 0;              /* (DRM_RISCOS_BO_CPU_CACHED: all fake BOs are cached) */
         a->handle = h;
         a->offset = (uint32_t) (uintptr_t) bos[h].p;
         return 0;
@@ -98,7 +115,8 @@ int drm_riscos_fake_ioctl(unsigned long request, void *arg)
     case 0x09: {                            /* GEM_CLOSE */
         struct drm_gem_close *a = arg;
         if (a->handle < MAX_BOS && bos[a->handle].p) {
-            free(bos[a->handle].p);
+            if (!bos[a->handle].imported)
+                free(bos[a->handle].p);
             bos[a->handle].p = NULL;
         }
         return 0;

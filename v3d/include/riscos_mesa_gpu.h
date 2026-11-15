@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-#define RISCOS_MESA_GPU_VERSION 1
+#define RISCOS_MESA_GPU_VERSION 2
 
 /* a gl function by its GL name, as RISC3D's client lists its own */
 struct riscos_mesa_gpu_function { const char *name; void (*fn)(void); };
@@ -47,6 +47,15 @@ struct riscos_mesa_gpu {
        current context */
     const struct riscos_mesa_gpu_function *functions;
     const char *(*error)(void);
+    /* (version 2) the context, made current at this size, draws straight
+       into the caller's memory (R,G,B,A bytes, rows row_bytes apart, the
+       top first; 4 KB aligned with whole pages to its end, rows a
+       multiple of 16 bytes): 1, or 0 if it can't and draws into its own
+       frame as before. pixels NULL: its own frame. The memory must stay
+       put until then, or until destroy. */
+    int (*draw_into)(void *context, void *pixels, int row_bytes, int width, int height);
+    /* (version 2) the frame is finished. 0, or -1 */
+    int (*finish)(void *context);
 };
 
 /* the library's one exported name */

@@ -81,7 +81,27 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
                          VG(VALGRIND_FREELIKE_BLOCK(bo->map, 0));
                  }
          }
-@@ -515,8 +522,14 @@
+@@ -374,6 +381,19 @@
+         return bo;
+ }
+ 
++#ifdef __riscos__
++/* riscos-mesa: a BO the program made itself on the GPU module's file
++ * (a CPU-cached BO, or memory imported with DRM_IOCTL_RISCOS_IMPORT_MEMORY),
++ * by its handle: there is no flink or dma-buf on RISC OS. The BO is the
++ * screen's from now, and closed with the resource. */
++struct v3d_bo *
++v3d_bo_open_riscos_handle(struct v3d_screen *screen, uint32_t handle, uint32_t size)
++{
++        mtx_lock(&screen->bo_handles_mutex);
++        return v3d_bo_open_handle(screen, handle, size);
++}
++#endif
++
+ struct v3d_bo *
+ v3d_bo_open_name(struct v3d_screen *screen, uint32_t name)
+ {
+@@ -515,8 +535,14 @@
                  abort();
          }
  
@@ -96,6 +116,19 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
          if (bo->map == MAP_FAILED) {
                  mesa_loge("mmap of bo %d (offset 0x%016llx, size %d) failed",
                            bo->handle, (long long)offset, bo->size);
+diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.h b/src/gallium/drivers/v3d/v3d_bufmgr.h
+--- a/src/gallium/drivers/v3d/v3d_bufmgr.h
++++ b/src/gallium/drivers/v3d/v3d_bufmgr.h
+@@ -61,6 +61,9 @@
+ void v3d_bo_last_unreference(struct v3d_bo *bo);
+ void v3d_bo_last_unreference_locked_timed(struct v3d_bo *bo, time_t time);
+ struct v3d_bo *v3d_bo_open_name(struct v3d_screen *screen, uint32_t name);
++#ifdef __riscos__
++struct v3d_bo *v3d_bo_open_riscos_handle(struct v3d_screen *screen, uint32_t handle, uint32_t size);
++#endif
+ struct v3d_bo *v3d_bo_open_dmabuf(struct v3d_screen *screen, int fd);
+ bool v3d_bo_flink(struct v3d_bo *bo, uint32_t *name);
+ int v3d_bo_get_dmabuf(struct v3d_bo *bo);
 diff -ruN a/src/gallium/drivers/v3d/v3d_fence.c b/src/gallium/drivers/v3d/v3d_fence.c
 --- a/src/gallium/drivers/v3d/v3d_fence.c
 +++ b/src/gallium/drivers/v3d/v3d_fence.c
@@ -152,6 +185,27 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
                  v3d->in_fence_fd = -1;
          } else {
                  /* While the RCL will implicitly depend on the last RCL to have
+diff -ruN a/src/gallium/drivers/v3d/v3d_resource.c b/src/gallium/drivers/v3d/v3d_resource.c
+--- a/src/gallium/drivers/v3d/v3d_resource.c
++++ b/src/gallium/drivers/v3d/v3d_resource.c
+@@ -966,6 +966,17 @@
+         case WINSYS_HANDLE_TYPE_FD:
+                 rsc->bo = v3d_bo_open_dmabuf(screen, whandle->handle);
+                 break;
++#ifdef __riscos__
++        case WINSYS_HANDLE_TYPE_KMS:
++                /* riscos-mesa: a handle on the GPU module's file, of a
++                 * raster image (one level) whose size the stride gives */
++                if (rsc->tiled || !whandle->stride)
++                        goto fail;
++                rsc->bo = v3d_bo_open_riscos_handle(screen, whandle->handle,
++                                                    whandle->offset +
++                                                    whandle->stride * prsc->height0);
++                break;
++#endif
+         default:
+                 mesa_loge("Attempt to import unsupported handle type %d",
+                           whandle->type);
 diff -ruN a/src/gallium/drivers/v3d/v3d_screen.c b/src/gallium/drivers/v3d/v3d_screen.c
 --- a/src/gallium/drivers/v3d/v3d_screen.c
 +++ b/src/gallium/drivers/v3d/v3d_screen.c
@@ -207,6 +261,44 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_screen.c b/src/gallium/drivers/v3d/v3d_s
  
          caps->clip_planes = 0;
          caps->depth_clip_disable = screen->devinfo.ver >= 71;
+diff -ruN a/src/mesa/glapi/glapi/glapi.h b/src/mesa/glapi/glapi/glapi.h
+--- a/src/mesa/glapi/glapi/glapi.h
++++ b/src/mesa/glapi/glapi/glapi.h
+@@ -69,8 +69,17 @@
+ 
+ struct _glapi_table;
+ 
+-_GLAPI_EXPORT extern __THREAD_INITIAL_EXEC struct _glapi_table * _mesa_glapi_tls_Dispatch;
+-_GLAPI_EXPORT extern __THREAD_INITIAL_EXEC void * _mesa_glapi_tls_Context;
++#ifdef __riscos__
++/* riscos-mesa: the current dispatch and context are plain globals, as in
++ * riscos-mesa's Mesa 20.3.5: GCCSDK's thread-local variables are emulated
++ * (__emutls_get_address on every GL call), and one thread draws, as with
++ * RISC3D. */
++#define _GLAPI_CURRENT_STORAGE
++#else
++#define _GLAPI_CURRENT_STORAGE __THREAD_INITIAL_EXEC
++#endif
++_GLAPI_EXPORT extern _GLAPI_CURRENT_STORAGE struct _glapi_table * _mesa_glapi_tls_Dispatch;
++_GLAPI_EXPORT extern _GLAPI_CURRENT_STORAGE void * _mesa_glapi_tls_Context;
+ 
+ #if DETECT_OS_WINDOWS && !defined(MAPI_MODE_SHARED_GLAPI)
+ # define GET_DISPATCH() _mesa_glapi_get_dispatch()
+diff -ruN a/src/mesa/glapi/shared-glapi/core.c b/src/mesa/glapi/shared-glapi/core.c
+--- a/src/mesa/glapi/shared-glapi/core.c
++++ b/src/mesa/glapi/shared-glapi/core.c
+@@ -148,9 +148,9 @@
+ #endif /* defined(_GLAPI_ENTRY_ARCH_TLS_H) */
+ 
+ /* Current dispatch and current context variables */
+-__THREAD_INITIAL_EXEC struct _glapi_table *_mesa_glapi_tls_Dispatch
++_GLAPI_CURRENT_STORAGE struct _glapi_table *_mesa_glapi_tls_Dispatch
+    = (struct _glapi_table *)table_noop_array;
+-__THREAD_INITIAL_EXEC void *_mesa_glapi_tls_Context;
++_GLAPI_CURRENT_STORAGE void *_mesa_glapi_tls_Context;
+ 
+ static int
+ stub_compare(const void *key, const void *elem)
 diff -ruN a/src/util/detect_os.h b/src/util/detect_os.h
 --- a/src/util/detect_os.h
 +++ b/src/util/detect_os.h
@@ -315,41 +407,3 @@ diff -ruN a/src/util/u_thread.h b/src/util/u_thread.h
  
  typedef pthread_barrier_t util_barrier;
  
-diff -ruN a/src/mesa/glapi/glapi/glapi.h b/src/mesa/glapi/glapi/glapi.h
---- a/src/mesa/glapi/glapi/glapi.h
-+++ b/src/mesa/glapi/glapi/glapi.h
-@@ -69,8 +69,17 @@
- 
- struct _glapi_table;
- 
--_GLAPI_EXPORT extern __THREAD_INITIAL_EXEC struct _glapi_table * _mesa_glapi_tls_Dispatch;
--_GLAPI_EXPORT extern __THREAD_INITIAL_EXEC void * _mesa_glapi_tls_Context;
-+#ifdef __riscos__
-+/* riscos-mesa: the current dispatch and context are plain globals, as in
-+ * riscos-mesa's Mesa 20.3.5: GCCSDK's thread-local variables are emulated
-+ * (__emutls_get_address on every GL call), and one thread draws, as with
-+ * RISC3D. */
-+#define _GLAPI_CURRENT_STORAGE
-+#else
-+#define _GLAPI_CURRENT_STORAGE __THREAD_INITIAL_EXEC
-+#endif
-+_GLAPI_EXPORT extern _GLAPI_CURRENT_STORAGE struct _glapi_table * _mesa_glapi_tls_Dispatch;
-+_GLAPI_EXPORT extern _GLAPI_CURRENT_STORAGE void * _mesa_glapi_tls_Context;
- 
- #if DETECT_OS_WINDOWS && !defined(MAPI_MODE_SHARED_GLAPI)
- # define GET_DISPATCH() _mesa_glapi_get_dispatch()
-diff -ruN a/src/mesa/glapi/shared-glapi/core.c b/src/mesa/glapi/shared-glapi/core.c
---- a/src/mesa/glapi/shared-glapi/core.c
-+++ b/src/mesa/glapi/shared-glapi/core.c
-@@ -148,9 +148,9 @@
- #endif /* defined(_GLAPI_ENTRY_ARCH_TLS_H) */
- 
- /* Current dispatch and current context variables */
--__THREAD_INITIAL_EXEC struct _glapi_table *_mesa_glapi_tls_Dispatch
-+_GLAPI_CURRENT_STORAGE struct _glapi_table *_mesa_glapi_tls_Dispatch
-    = (struct _glapi_table *)table_noop_array;
--__THREAD_INITIAL_EXEC void *_mesa_glapi_tls_Context;
-+_GLAPI_CURRENT_STORAGE void *_mesa_glapi_tls_Context;
- 
- static int
- stub_compare(const void *key, const void *elem)

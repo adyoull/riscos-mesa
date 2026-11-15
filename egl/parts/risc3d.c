@@ -70,6 +70,8 @@ static int r3dw_frame_into(egl_surface *s, int overlapped)
 
     if (!s->pixels || s->w <= 0 || s->h <= 0)
         return 0;
+    if (r3d_in_place(s->pixels))        /* drawn there already: wait for it */
+        return r3d_swap(s->pixels, bytes);
     if (s->stride == s->w && s->cfg->layout == LAYOUT_TBGR)
         return overlapped ? r3d_swap_overlapped(dst, bytes) : r3d_swap(dst, bytes);
     if (tmp_words < words) {
@@ -297,6 +299,31 @@ static int r3dw_es3(void)
     return known;
 }
 
+/* With the GPU library in the program (natively, through V3DRender 0.11),
+   a window surface's frames are drawn straight into its own memory, as
+   Mesa 20.3.5 draws them: the sprite EGL plots, screen memory (direct),
+   or each screen bank in turn. Nothing is read back: eglSwapBuffers only
+   waits for the frame. Where it can't (not 4 KB aligned, rows not a
+   multiple of 16 bytes, 0x00RRGGBB layout, an older GPU module), frames
+   are read back as before. */
+static void r3dw_place(egl_surface *s)
+{
+    if (!r3d_in_program())
+        return;
+    if (s && s->kind == SURF_WINDOW && s->pixels && s->cfg->layout == LAYOUT_TBGR &&
+        s->r3d_ovl != R3O_ON && r3d_draw_into(s->pixels, s->stride * 4, s->w, s->h))
+        return;
+    r3d_draw_into(NULL, 0, s ? s->w : 1, s ? s->h : 1);
+}
+
+/* s's memory is about to go or move: the GPU stops drawing into it */
+static void r3dw_release_pixels(egl_surface *s)
+{
+    egl_context *c = thr()->active;
+    if (c && c->r3d && s->pixels && r3d_in_place(s->pixels))
+        r3d_draw_into(NULL, 0, s->w, s->h);
+}
+
 /* make c (a RISC3D context) the one drawing, after OSMesa's is released */
 static int r3dw_activate(egl_context *c)
 {
@@ -305,6 +332,7 @@ static int r3dw_activate(egl_context *c)
     r3dw_current = c->r3d;
     OSMesaSetDispatchRISCOS(r3dw_table);
     r3d_surface(s ? s->w : 1, s ? s->h : 1);
+    r3dw_place(s);
     return 1;
 }
 

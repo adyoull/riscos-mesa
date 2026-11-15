@@ -791,4 +791,7 @@ const struct r3d_gl_function r3d_gl_functions[] = {
 /* osmesa/r3d_switch.h's (the switch itself is in the real libOSMesa) */
 const struct r3d_gl_function *r3d_functions(void) { return r3d_gl_functions; }
 int r3d_in_program(void) { return 0; }
+int r3d_draw_into(void *pixels, int row_bytes, int width, int height)
+{ (void) pixels; (void) row_bytes; (void) width; (void) height; return 0; }
+int r3d_in_place(const void *pixels) { (void) pixels; return 0; }
 #endif /* FAKE_NO_R3D */

@@ -26,13 +26,15 @@ static void restore_banks_atexit(void)
 
 static void free_buffers(egl_surface *surf)
 {
+    r3dw_release_pixels(surf);          /* the GPU draws there no more (parts/risc3d.c) */
     if (surf->banks) {
         restore_banks();
         surf->banks = 0;
         banks_in_use--;
     }
-    free(surf->area);
+    free(surf->area_mem ? surf->area_mem : surf->area);
     surf->area = NULL;
+    surf->area_mem = NULL;
     surf->sprite = NULL;
     free(surf->mem);
     surf->mem = NULL;
@@ -121,6 +123,7 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
 {
     _kernel_swi_regs r;
     int w, h, size, mode, sprite_h, *area;
+    void *mem;
 
     surf->scale = surface_scale(surf, s);
     if (!wanted_size(surf, s, &w, &h))
@@ -172,7 +175,16 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
     if ((long) w * 4 * h < MIN_SPRITE_BYTES)
         sprite_h = (MIN_SPRITE_BYTES + w * 4 - 1) / (w * 4);
     size = 16 + 44 + w * 4 * sprite_h;
-    area = (int *) malloc(size);
+    if (r3d_in_program()) {
+        /* The GPU library draws straight into the sprite (parts/risc3d.c)
+           when its pixels start a 4 KB page and end on one: the area is
+           placed in a larger block to make it so. */
+        mem = malloc(4096 + 60 + (((size_t) w * 4 * sprite_h + 4095) & ~(size_t) 4095));
+        area = mem ? (int *) ((((uintptr_t) mem + 60 + 4095) & ~(uintptr_t) 4095) - 60) : NULL;
+    } else {
+        mem = NULL;
+        area = (int *) malloc(size);
+    }
     if (!area)
         return fail(EGL_BAD_ALLOC), buffer_failed(surf);
     area[0] = size;
@@ -187,11 +199,12 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
     r.r[5] = sprite_h;
     r.r[6] = mode;
     if (_kernel_swi(OS_SpriteOp, &r, &r) != NULL) {
-        free(area);
+        free(mem ? mem : area);
         return fail(EGL_BAD_ALLOC), buffer_failed(surf);
     }
     free_buffers(surf);         /* only now that the new sprite exists */
     surf->area = area;
+    surf->area_mem = mem;
     surf->sprite = (int *) ((char *) surf->area + surf->area[2]);
     surf->pixels = (char *) surf->sprite + surf->sprite[8];
     surf->w = w;

@@ -18,4 +18,15 @@ const struct r3d_gl_function *r3d_functions(void);
    (Linux3D on RISC OS on Linux), or nothing */
 int r3d_in_program(void);
 
+/* With the GPU library (r3d_in_program): the current context draws
+   straight into this memory (an EGL surface's sprite or screen memory;
+   rows row_bytes apart, top first, &BBGGRR words), with no copy: 1, or 0
+   (it can't: it draws into its own frame, read back by r3d_swap as
+   before). The memory must be 4 KB aligned, whole pages to its end, and
+   stay put until r3d_draw_into(NULL, ...) or the context is destroyed.
+   r3d_swap(pixels) then only waits for the frame. */
+int r3d_draw_into(void *pixels, int row_bytes, int width, int height);
+/* 1 if the current context draws straight into pixels */
+int r3d_in_place(const void *pixels);
+
 #endif

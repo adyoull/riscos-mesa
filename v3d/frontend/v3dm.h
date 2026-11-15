@@ -37,6 +37,15 @@ v3dm_context *v3dm_create(int api, int major, int minor, int depth);
    (made again if the size changes); NULL: none current */
 int v3dm_make_current(v3dm_context *c, unsigned width, unsigned height);
 void v3dm_destroy(v3dm_context *c);
+/* c (made current at this size) draws straight into the caller's memory
+   (rows row_bytes apart, the top first, R,G,B,A bytes): 1, or 0 if it
+   can't (an older GPU module, or memory not 4 KB aligned with whole pages
+   to the end, or rows not a multiple of 16 bytes) and draws into a buffer
+   of its own, read with v3dm_read. The memory must stay put until
+   another v3dm_draw_into (NULL: none) or v3dm_destroy. */
+int v3dm_draw_into(v3dm_context *c, void *pixels, int row_bytes, unsigned width, unsigned height);
+/* c's frame is finished (in the caller's memory, if drawn there). 0, or -1 */
+int v3dm_finish(v3dm_context *c);
 /* c's frame (c current), finished, as R,G,B,A bytes: rows row_bytes
    apart, the top row first or (top_first 0) last. 0, or -1 */
 int v3dm_read(v3dm_context *c, void *pixels, int row_bytes, int top_first);

@@ -45,9 +45,21 @@ static int read_frame(void *context, void *pixels, int row_bytes, int top_first)
     return v3dm_read((v3dm_context *) context, pixels, row_bytes, top_first);
 }
 
+static int draw_into(void *context, void *pixels, int row_bytes, int width, int height)
+{
+    if (width <= 0 || height <= 0)
+        return 0;
+    return v3dm_draw_into((v3dm_context *) context, pixels, row_bytes, (unsigned) width, (unsigned) height);
+}
+
+static int finish(void *context)
+{
+    return v3dm_finish((v3dm_context *) context);
+}
+
 static const struct riscos_mesa_gpu gpu = {
     RISCOS_MESA_GPU_VERSION, device, create, destroy, make_current, read_frame,
-    riscos_mesa_gpu_functions, v3dm_error,
+    riscos_mesa_gpu_functions, v3dm_error, draw_into, finish,
 };
 
 __attribute__((visibility("default")))

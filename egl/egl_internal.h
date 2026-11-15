@@ -175,6 +175,9 @@ struct r3d_gl_function;
 /* libOSMesa's RISC3D switch (osmesa/r3d_switch.h): the gl functions of
    the RISC3D route in use, the command stream's or the GPU library's */
 const struct r3d_gl_function *r3d_functions(void);
+int r3d_in_program(void);
+int r3d_draw_into(void *pixels, int row_bytes, int width, int height);
+int r3d_in_place(const void *pixels);
 
 typedef struct egl_surface {
     EGLint magic;
@@ -205,6 +208,7 @@ typedef struct egl_surface {
     int no_banks;               /* don't try screen banks (failed, or preserved contents wanted) */
     int want_banks;             /* banks asked for at creation: 0 (sprite plot), 2 or 3 */
     int *area;                  /* malloc'd sprite area */
+    void *area_mem;             /* what was malloc'd for it, when area isn't (page-aligned pixels) */
     int *sprite;                /* sprite in it */
     int sprite_mode;            /* mode word / selector used to make it */
     int sprite_eig;             /* the screen's xeig << 4 | yeig then (a selector's
@@ -410,6 +414,7 @@ static void ovl_check_all(egl_display *d);
 #define R3O_FAILED  2           /* the plane said no: not until the place or mode changes */
 static void r3dw_paint_key(const egl_surface *s, const int *block);
 static void r3dw_surface_gone(egl_surface *s);
+static void r3dw_release_pixels(egl_surface *s);
 static void r3dw_context_gone(egl_display *d, struct r3d_context *r);
 
 /* parts/validation.c */

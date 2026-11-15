@@ -34,6 +34,11 @@
 #include "util/xmlconfig.h"
 #include "v3d/v3d_screen.h"
 
+#include <errno.h>
+#include "xf86drm.h"
+#include "drm-uapi/v3d_drm.h"
+#include "drm-uapi/drm_fourcc.h"
+#include "frontend/winsys_handle.h"
 #include "drm_riscos.h"
 #include "v3dm.h"
 
@@ -42,12 +47,22 @@ struct v3dm_buffer {
     struct st_visual visual;
     unsigned width, height;
     struct pipe_resource *textures[ST_ATTACHMENT_COUNT];
+    enum st_attachment_type main;       /* the colour buffer drawn into */
+    void *requested;                    /* the caller's memory asked for (v3dm_draw_into) */
+    void *target;                       /* the caller's memory it is, or NULL */
+    int target_row_bytes;
 };
 
 struct v3dm_context {
     struct st_context *st;
     struct v3dm_buffer *fb;
     struct st_visual visual;
+    void *target;                       /* v3dm_draw_into's memory, or NULL */
+    int target_row_bytes;
+    /* frames used lately, kept for coming back to: EGL's screen banks
+       take turns, each drawn into where it is */
+#define V3DM_SPARE_FBS 3
+    struct v3dm_buffer *spare[V3DM_SPARE_FBS];
 };
 
 static struct {
@@ -56,6 +71,8 @@ static struct {
     struct pipe_frontend_screen *fscreen;
     driOptionCache options, options_info;
     int tiled;                  /* V3DM$Tiled: colour buffers in tiles */
+    int no_cached;              /* V3DM$Uncached, or a module before V3DRender 0.11 */
+    int no_import;              /* V3DM$NoImport, or the module refused an import */
     char error[160];
 } dev;
 
@@ -68,6 +85,101 @@ const char *v3dm_error(void)
 
 /* ---- the framebuffer ---- */
 
+/* ---- the colour buffer drawn into ----
+   With V3DRender 0.11 the GPU draws, in rows, either straight into memory
+   the caller has (DRM_IOCTL_RISCOS_IMPORT_MEMORY: an EGL surface's sprite
+   or screen memory; no copy at all), or into a BO the CPU sees cached
+   (DRM_RISCOS_BO_CPU_CACHED: read back at cached speed). The module
+   cleans and invalidates the CPU's caches around the jobs. Older
+   modules: an ordinary (uncached) buffer, as before. */
+
+static struct pipe_resource *from_handle(const struct pipe_resource *t, uint32_t handle,
+                                         unsigned stride)
+{
+    struct winsys_handle wh;
+    memset(&wh, 0, sizeof wh);
+    wh.type = WINSYS_HANDLE_TYPE_KMS;
+    wh.handle = handle;
+    wh.stride = stride;
+    wh.modifier = DRM_FORMAT_MOD_LINEAR;
+    wh.format = t->format;
+    return dev.screen->resource_from_handle(dev.screen, t, &wh, PIPE_HANDLE_USAGE_FRAMEBUFFER_WRITE);
+}
+
+static void close_handle(uint32_t handle)
+{
+    struct drm_gem_close cl;
+    memset(&cl, 0, sizeof cl);
+    cl.handle = handle;
+    drmIoctl(dev.fd, DRM_IOCTL_GEM_CLOSE, &cl);
+}
+
+static struct pipe_resource *colour_resource(struct v3dm_buffer *b, const struct pipe_resource *t)
+{
+    struct pipe_resource *r;
+    unsigned stride = t->width0 * 4;
+    if (!dev.tiled && b->target) {
+        /* the caller's memory: whole 4 KB pages (the caller pads it), rows
+           a multiple of 16 bytes */
+        struct drm_riscos_import_memory im;
+        memset(&im, 0, sizeof im);
+        im.address = (uintptr_t) b->target;
+        im.size = (b->target_row_bytes * t->height0 + 4095) & ~4095u;
+        if (!dev.no_import && !((uintptr_t) b->target & 4095) && !(b->target_row_bytes & 15) &&
+            drmIoctl(dev.fd, DRM_IOCTL_RISCOS_IMPORT_MEMORY, &im) == 0) {
+            r = from_handle(t, im.handle, b->target_row_bytes);
+            if (r)
+                return r;
+            close_handle(im.handle);
+        }
+        b->target = NULL;               /* drawn into a buffer of its own, and copied */
+    }
+    if (!dev.no_cached) {
+        struct drm_v3d_create_bo cb;
+        memset(&cb, 0, sizeof cb);
+        cb.size = (stride * t->height0 + 4095) & ~4095u;
+        cb.flags = DRM_RISCOS_BO_CPU_CACHED;
+        if (drmIoctl(dev.fd, DRM_IOCTL_V3D_CREATE_BO, &cb) == 0) {
+            r = from_handle(t, cb.handle, stride);
+            if (r)
+                return r;
+            close_handle(cb.handle);
+        } else if (errno == EINVAL) {
+            dev.no_cached = 1;          /* before V3DRender 0.11 */
+        }
+    }
+    return dev.screen->resource_create(dev.screen, t);
+}
+
+/* b->textures[a], made: 1, or 0 if the visual has no such buffer (or it
+   couldn't be made: textures[a] stays NULL) */
+static int fb_make(struct v3dm_buffer *b, enum st_attachment_type a)
+{
+    struct pipe_resource t;
+    memset(&t, 0, sizeof t);
+    t.target = PIPE_TEXTURE_2D;
+    t.width0 = b->width;
+    t.height0 = b->height;
+    t.depth0 = 1;
+    t.array_size = 1;
+    if (a == ST_ATTACHMENT_DEPTH_STENCIL) {
+        t.format = b->visual.depth_stencil_format;
+        t.bind = PIPE_BIND_DEPTH_STENCIL;
+    } else {
+        t.format = b->visual.color_format;
+        t.bind = PIPE_BIND_RENDER_TARGET | PIPE_BIND_SAMPLER_VIEW;
+        /* in rows (raster), not the GPU's tiles: the frame is read back as
+           one sequential copy (or not at all), with no detiling by the CPU
+           (V3DM$Tiled: tiles, to compare) */
+        if (!dev.tiled)
+            t.bind |= PIPE_BIND_LINEAR;
+    }
+    if (t.format == PIPE_FORMAT_NONE)
+        return 0;
+    b->textures[a] = a == b->main ? colour_resource(b, &t) : dev.screen->resource_create(dev.screen, &t);
+    return 1;
+}
+
 static bool
 fb_validate(struct st_context *st, struct pipe_frontend_drawable *drawable,
             const enum st_attachment_type *statts, unsigned count,
@@ -79,32 +191,10 @@ fb_validate(struct st_context *st, struct pipe_frontend_drawable *drawable,
     (void) resolve;
     for (i = 0; i < count; i++) {
         enum st_attachment_type a = statts[i];
-        if (!b->textures[a]) {
-            struct pipe_resource t;
-            memset(&t, 0, sizeof t);
-            t.target = PIPE_TEXTURE_2D;
-            t.width0 = b->width;
-            t.height0 = b->height;
-            t.depth0 = 1;
-            t.array_size = 1;
-            if (a == ST_ATTACHMENT_DEPTH_STENCIL) {
-                t.format = b->visual.depth_stencil_format;
-                t.bind = PIPE_BIND_DEPTH_STENCIL;
-            } else {
-                t.format = b->visual.color_format;
-                t.bind = PIPE_BIND_RENDER_TARGET | PIPE_BIND_SAMPLER_VIEW;
-                /* in rows (raster), not the GPU's tiles: the frame is read
-                   back as one sequential copy, with no detiling by the
-                   CPU from uncached memory (V3DM$Tiled: tiles, to compare) */
-                if (!dev.tiled)
-                    t.bind |= PIPE_BIND_LINEAR;
-            }
-            if (t.format == PIPE_FORMAT_NONE)
-                continue;
-            b->textures[a] = dev.screen->resource_create(dev.screen, &t);
-            if (!b->textures[a])
-                return false;
-        }
+        if (!b->textures[a] && !fb_make(b, a))
+            continue;                   /* (no format: no such buffer) */
+        if (!b->textures[a])
+            return false;
         pipe_resource_reference(&out[i], b->textures[a]);
     }
     return true;
@@ -118,7 +208,8 @@ fb_flush_front(struct st_context *st, struct pipe_frontend_drawable *drawable,
     return true;            /* the program reads the frame back itself */
 }
 
-static struct v3dm_buffer *fb_create(const struct st_visual *visual, unsigned w, unsigned h)
+static struct v3dm_buffer *fb_create(const struct st_visual *visual, unsigned w, unsigned h,
+                                     void *target, int target_row_bytes)
 {
     struct v3dm_buffer *b = CALLOC_STRUCT(v3dm_buffer);
     if (!b)
@@ -126,6 +217,10 @@ static struct v3dm_buffer *fb_create(const struct st_visual *visual, unsigned w,
     b->visual = *visual;
     b->width = w;
     b->height = h;
+    b->main = visual->buffer_mask & ST_ATTACHMENT_BACK_LEFT_MASK ? ST_ATTACHMENT_BACK_LEFT
+                                                                 : ST_ATTACHMENT_FRONT_LEFT;
+    b->requested = b->target = target;
+    b->target_row_bytes = target_row_bytes;
     b->base.visual = &b->visual;
     b->base.flush_front = fb_flush_front;
     b->base.validate = fb_validate;
@@ -140,6 +235,7 @@ static void fb_destroy(struct v3dm_buffer *b)
     unsigned i;
     if (!b)
         return;
+    st_api_destroy_drawable(&b->base);  /* the state tracker lets go of it */
     for (i = 0; i < ST_ATTACHMENT_COUNT; i++)
         pipe_resource_reference(&b->textures[i], NULL);
     FREE(b);
@@ -187,6 +283,8 @@ int v3dm_init(void)
         return 0;
     }
     dev.tiled = getenv("V3DM$Tiled") != NULL;
+    dev.no_cached = dev.tiled || getenv("V3DM$Uncached") != NULL;
+    dev.no_import = dev.tiled || getenv("V3DM$NoImport") != NULL;
     dev.fd = drm_riscos_open();
     if (dev.fd < 0) {
         snprintf(dev.error, sizeof dev.error, "the %s GPU's module wouldn't open", name);
@@ -307,28 +405,127 @@ v3dm_context *v3dm_create(int api, int major, int minor, int depth)
     return c;
 }
 
+/* the GPU has finished drawing into b's colour buffer (it is mapped and
+   unmapped for reading: v3d flushes the jobs writing it and waits) */
+static int fb_finish(v3dm_context *c, struct v3dm_buffer *b)
+{
+    struct pipe_context *pipe = c->st->pipe;
+    struct pipe_resource *res = b ? b->textures[b->main] : NULL;
+    struct pipe_transfer *t = NULL;
+    struct pipe_box box;
+    if (!res)
+        return -1;
+    st_context_flush(c->st, 0, NULL, NULL, NULL);
+    u_box_2d(0, 0, 1, 1, &box);
+    if (!pipe->texture_map(pipe, res, 0, PIPE_MAP_READ, &box, &t))
+        return -1;
+    pipe->texture_unmap(pipe, t);
+    return 0;
+}
+
+static int fb_fits(const struct v3dm_buffer *b, unsigned w, unsigned h, void *target, int row_bytes)
+{
+    return b && b->width == w && b->height == h && b->requested == target &&
+           (!target || b->target_row_bytes == row_bytes);
+}
+
+/* The frame c->fb was, kept as a spare (the oldest spare goes) */
+static struct v3dm_buffer *fb_keep(v3dm_context *c, struct v3dm_buffer *b)
+{
+    struct v3dm_buffer *gone = c->spare[V3DM_SPARE_FBS - 1];
+    unsigned i;
+    for (i = V3DM_SPARE_FBS - 1; i > 0; i--)
+        c->spare[i] = c->spare[i - 1];
+    c->spare[0] = b;
+    return gone;
+}
+
 int v3dm_make_current(v3dm_context *c, unsigned width, unsigned height)
 {
+    struct v3dm_buffer *gone = NULL;
+    unsigned i;
+    int ok;
     if (!c)
         return st_api_make_current(NULL, NULL, NULL);
-    if (!c->fb || c->fb->width != width || c->fb->height != height) {
-        struct v3dm_buffer *old = c->fb;
-        c->fb = fb_create(&c->visual, width, height);
-        if (!c->fb)
-            return 0;
-        fb_destroy(old);
+    if (!fb_fits(c->fb, width, height, c->target, c->target_row_bytes)) {
+        struct v3dm_buffer *b = NULL;
+        for (i = 0; i < V3DM_SPARE_FBS && !b; i++)
+            if (fb_fits(c->spare[i], width, height, c->target, c->target_row_bytes)) {
+                b = c->spare[i];
+                for (; i + 1 < V3DM_SPARE_FBS; i++)
+                    c->spare[i] = c->spare[i + 1];
+                c->spare[V3DM_SPARE_FBS - 1] = NULL;
+            }
+        if (!b) {
+            b = fb_create(&c->visual, width, height, c->target, c->target_row_bytes);
+            if (!b)
+                return 0;
+            fb_make(b, b->main);        /* now: whether it draws into c->target is known */
+        }
+        if (c->fb)
+            gone = fb_keep(c, c->fb);
+        c->fb = b;
     }
-    return st_api_make_current(c->st, &c->fb->base, &c->fb->base);
+    ok = st_api_make_current(c->st, &c->fb->base, &c->fb->base);
+    if (gone) {
+        if (gone->target)
+            fb_finish(c, gone);         /* nothing more goes into the caller's memory */
+        fb_destroy(gone);
+    }
+    return ok;
+}
+
+/* Every frame that draws into the caller's memory finished and let go
+   (the caller is about to free or move some of it) */
+static void drop_targets(v3dm_context *c)
+{
+    unsigned i, j;
+    if (c->fb && c->fb->target)
+        fb_finish(c, c->fb);
+    for (i = j = 0; i < V3DM_SPARE_FBS; i++) {
+        struct v3dm_buffer *b = c->spare[i];
+        c->spare[i] = NULL;
+        if (b && b->target) {
+            fb_finish(c, b);
+            fb_destroy(b);
+        } else if (b) {
+            c->spare[j++] = b;
+        }
+    }
+}
+
+int v3dm_draw_into(v3dm_context *c, void *pixels, int row_bytes, unsigned width, unsigned height)
+{
+    if (!c)
+        return 0;
+    if (!pixels)
+        drop_targets(c);
+    c->target = pixels;
+    c->target_row_bytes = pixels ? row_bytes : 0;
+    if (!v3dm_make_current(c, width, height))
+        return 0;
+    return pixels && c->fb->target == pixels;
+}
+
+int v3dm_finish(v3dm_context *c)
+{
+    return c ? fb_finish(c, c->fb) : -1;
 }
 
 void v3dm_destroy(v3dm_context *c)
 {
     if (!c)
         return;
+    drop_targets(c);                    /* the caller may free its memory after this */
     st_api_make_current(NULL, NULL, NULL);
     st_context_flush(c->st, 0, NULL, NULL, NULL);
     st_destroy_context(c->st);
     fb_destroy(c->fb);
+    {
+        unsigned i;
+        for (i = 0; i < V3DM_SPARE_FBS; i++)
+            fb_destroy(c->spare[i]);
+    }
     FREE(c);
 }
 

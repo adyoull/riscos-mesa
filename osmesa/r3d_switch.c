@@ -115,6 +115,7 @@ int r3d_in_program(void)
 struct r3d_context {
     void *c;                    /* the GPU library's */
     int w, h;                   /* the frame's size */
+    void *into;                 /* r3d_draw_into's memory, when the GPU draws there */
     void *buffer;               /* r3d_target's, or NULL */
     int format, row_length, y_up;
 };
@@ -292,6 +293,8 @@ void r3d_make_current(struct r3d_context *r)
         r3ds_make_current(r);
         return;
     }
+    if (cur && cur != r && cur->into && gpu->version >= 2)
+        gpu->finish(cur->c);            /* its frame is complete in the caller's memory */
     cur = r;
     if (r)
         gpu->make_current(r->c, r->w, r->h);
@@ -332,6 +335,27 @@ void r3d_destroy(struct r3d_context *r)
     free(r);
 }
 
+int r3d_draw_into(void *pixels, int row_bytes, int width, int height)
+{
+    decide();
+    if (!gpu || gpu->version < 2 || !cur)
+        return 0;
+    cur->into = NULL;
+    if (gpu->draw_into(cur->c, pixels, row_bytes, width, height))
+        cur->into = pixels;
+    if (width > 0 && height > 0) {
+        cur->w = width;
+        cur->h = height;
+    }
+    return cur->into != NULL;
+}
+
+int r3d_in_place(const void *pixels)
+{
+    decide();
+    return gpu && cur && cur->into && cur->into == pixels;
+}
+
 int r3d_swap(void *pixels, size_t bytes)
 {
     size_t need;
@@ -341,6 +365,8 @@ int r3d_swap(void *pixels, size_t bytes)
     if (!cur)
         return -1;
     need = (size_t) cur->w * cur->h * 4;
+    if (cur->into && cur->into == pixels)       /* already there: only wait for it */
+        return gpu->finish(cur->c) ? -1 : (int) need;
     if (bytes < need || gpu->read(cur->c, pixels, cur->w * 4, 1))
         return -1;
     return (int) need;
