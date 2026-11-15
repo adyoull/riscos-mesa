@@ -73,6 +73,7 @@ static struct {
     int tiled;                  /* V3DM$Tiled: colour buffers in tiles */
     int no_cached;              /* V3DM$Uncached, or a module before V3DRender 0.11 */
     int no_import;              /* V3DM$NoImport, or the module refused an import */
+    int trace;                  /* V3DM$Trace: frames made, chosen and finished, on stderr */
     char error[160];
 } dev;
 
@@ -285,6 +286,7 @@ int v3dm_init(void)
     dev.tiled = getenv("V3DM$Tiled") != NULL;
     dev.no_cached = dev.tiled || getenv("V3DM$Uncached") != NULL;
     dev.no_import = dev.tiled || getenv("V3DM$NoImport") != NULL;
+    dev.trace = getenv("V3DM$Trace") != NULL;
     dev.fd = drm_riscos_open();
     if (dev.fd < 0) {
         snprintf(dev.error, sizeof dev.error, "the %s GPU's module wouldn't open", name);
@@ -415,6 +417,8 @@ static int fb_finish(v3dm_context *c, struct v3dm_buffer *b)
     struct pipe_box box;
     if (!res)
         return -1;
+    if (dev.trace)
+        fprintf(stderr, "v3dm: finish frame %p (into %p)\n", (void *) b, b->target);
     st_context_flush(c->st, 0, NULL, NULL, NULL);
     u_box_2d(0, 0, 1, 1, &box);
     if (!pipe->texture_map(pipe, res, 0, PIPE_MAP_READ, &box, &t))
@@ -461,6 +465,10 @@ int v3dm_make_current(v3dm_context *c, unsigned width, unsigned height)
             if (!b)
                 return 0;
             fb_make(b, b->main);        /* now: whether it draws into c->target is known */
+            if (dev.trace)
+                fprintf(stderr, "v3dm: new frame %p %ux%u, into %p\n", (void *) b, width, height, b->target);
+        } else if (dev.trace) {
+            fprintf(stderr, "v3dm: frame %p %ux%u again, into %p\n", (void *) b, width, height, b->target);
         }
         if (c->fb)
             gone = fb_keep(c, c->fb);

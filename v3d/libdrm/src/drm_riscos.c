@@ -177,10 +177,16 @@ int drmIoctl(int fd, unsigned long request, void *arg)
         e = _swix(device.ioctl_swi, _INR(0, 2) | _OUT(0), fd, request, arg, &r);
     if (!e)
         drm_riscos_dump_after(request, arg, r);
-    if (trace)
+    if (trace) {
         fprintf(stderr, "drm: file %d request %08lx (type %c nr &%02lX size %lu) -> %d%s\n", fd, request,
                 (int) ((request >> 8) & 0xff), request & 0xff, (request >> 16) & 0x3fff, r,
                 e ? " (SWI error)" : "");
+        if (request == DRM_IOCTL_RISCOS_IMPORT_MEMORY) {
+            const struct drm_riscos_import_memory *im = arg;
+            fprintf(stderr, "drm:   import %08x size %u -> handle %u, GPU address %08x\n",
+                    (unsigned) im->address, im->size, im->handle, im->offset);
+        }
+    }
     if (e) {
         errno = EBADF;
         return -1;
