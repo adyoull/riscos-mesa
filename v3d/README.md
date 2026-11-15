@@ -16,7 +16,8 @@ Tests 2-4 hung because the depth buffer's format wasn't one v3d's table
 knows (Z24_UNORM_S8_UINT): v3dm now asks is_format_supported.
 Test 6 (`v3dgles2`, OpenGL ES 2.0: GLSL, a vertex buffer, a texture,
 uniforms, blending) passed every check on the Pi too: 100 frames at
-1920x1080 in 37 cs (about 3.7 ms a frame).
+1920x1080 in 37 cs (about 3.7 ms a frame). Test 8 (the same, with the
+GPU reached only through RISC3D) passed the same way.
 Nothing here is in !MesaLibs or the devkit. Next, it goes behind
 riscos-mesa's EGL, with its symbols hidden
 from Mesa 20.3.5's (the software renderer stays 20.3.5).
