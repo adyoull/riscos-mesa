@@ -30,10 +30,28 @@ struct drm_riscos_sync_file { int32_t fd; int32_t timeout_ms; uint32_t signalled
 #define DRM_RISCOS_BO_CPU_CACHED 0x80000000u
 /* V3DRender 0.11: memory the program has (4 KB aligned, a multiple of
    4 KB) as a BO, the GPU's MMU mapping its pages; handle and offset (the
-   GPU address) out. The memory must stay where it is until GEM_CLOSE. */
-struct drm_riscos_import_memory { uint64_t address; uint32_t size, handle, offset, pad; };
+   GPU address) out. The memory must stay where it is until GEM_CLOSE.
+   flags (0.13; "pad" before, which 0.11 and 0.12 refuse nonzero with
+   EINVAL): DRM_RISCOS_IMPORT_UNCACHED, the CPU doesn't cache this memory
+   (screen memory), so no cache cleaning or invalidating around jobs.
+   Never for memory the CPU caches: it would read stale lines. */
+struct drm_riscos_import_memory { uint64_t address; uint32_t size, handle, offset, flags; };
+#define DRM_RISCOS_IMPORT_UNCACHED 1u
 #define DRM_IOCTL_RISCOS_IMPORT_MEMORY \
   _IOC (_IOC_READ | _IOC_WRITE, DRM_RISCOS_BASE, 0x02, sizeof (struct drm_riscos_import_memory))
+
+/* V3DRender 0.13: per queue (bin, render, TFU, CSD, cache clean), the
+   calling file's finished jobs and their time on the GPU, and everyone's.
+   Older modules: ENOTTY. */
+struct drm_riscos_queue_stats { uint64_t busy_ns; uint32_t jobs, pad; };
+struct drm_riscos_file_stats { struct drm_riscos_queue_stats file[5], all[5]; };
+#define DRM_IOCTL_RISCOS_FILE_STATS \
+  _IOC (_IOC_READ, DRM_RISCOS_BASE, 0x03, sizeof (struct drm_riscos_file_stats))
+
+/* 1 if the CPU doesn't cache any of [p, p + n): all in one dynamic area
+   whose flags say not cacheable (and, for screen memory, the screen cache
+   suspended); 0 if it may */
+int drm_riscos_cpu_uncached(const void *p, size_t n);
 
 /* the GPU's DRM driver name ("v3d"), if RISC3D's choice of driver is a
    DRM device; NULL: none */

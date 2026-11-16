@@ -381,6 +381,34 @@ static double stats_now(void)
 
 static struct { unsigned long request; unsigned n, errors; double secs; uint64_t bytes; } st[48];
 static double st_start;
+static struct drm_riscos_file_stats gpu_last;   /* the module's figures at the last line */
+static int gpu_stats = 1;                       /* 0: the module has no FILE_STATS */
+
+/* The GPU's own time for this file since the last line (V3DRender 0.13:
+   time from a job put on the GPU to its interrupt; bin and render
+   overlap) */
+static void stats_gpu(int fd)
+{
+    static const char *const queue[5] = { "bin", "render", "TFU", "CSD", "clean" };
+    struct drm_riscos_file_stats now;
+    int r = -1, q;
+    if (!gpu_stats || fake || !device.ioctl_swi)
+        return;
+    memset(&now, 0, sizeof now);
+    if (_swix(device.ioctl_swi, _INR(0, 2) | _OUT(0), fd, DRM_IOCTL_RISCOS_FILE_STATS, &now, &r) || r) {
+        gpu_stats = 0;                  /* before V3DRender 0.13 */
+        return;
+    }
+    fprintf(stderr, "V3DM$Stats: GPU time:");
+    for (q = 0; q < 5; q++) {
+        unsigned jobs = now.file[q].jobs - gpu_last.file[q].jobs;
+        if (jobs)
+            fprintf(stderr, " %s %u jobs %.1f ms;", queue[q], jobs,
+                    (double) (now.file[q].busy_ns - gpu_last.file[q].busy_ns) / 1e6);
+    }
+    fputc('\n', stderr);
+    gpu_last = now;
+}
 
 static const char *request_name(unsigned long request)
 {
@@ -402,7 +430,7 @@ static const char *request_name(unsigned long request)
     }
 }
 
-static void stats_note(unsigned long request, void *arg, int r, double secs)
+static void stats_note(int fd, unsigned long request, void *arg, int r, double secs)
 {
     unsigned i;
     double now;
@@ -436,8 +464,36 @@ static void stats_note(unsigned long request, void *arg, int r, double secs)
         fputc(';', stderr);
     }
     fputc('\n', stderr);
+    stats_gpu(fd);
     memset(st, 0, sizeof st);
     st_start = now;
+}
+
+/* ---- memory the CPU doesn't cache ---- */
+
+#ifndef OS_DynamicArea
+#define OS_DynamicArea 0x66
+#endif
+#ifndef OS_ScreenMode
+#define OS_ScreenMode 0x65
+#endif
+
+int drm_riscos_cpu_uncached(const void *p, size_t n)
+{
+    int type, area, area2, flags, cache;
+    if (!n)
+        return 0;
+    if (_swix(OS_DynamicArea, _INR(0, 1) | _OUTR(0, 1), 20, p, &type, &area) || type != 0 ||
+        _swix(OS_DynamicArea, _INR(0, 1) | _OUTR(0, 1), 20, (const char *) p + n - 1, &type, &area2) ||
+        type != 0 || area2 != area)
+        return 0;                       /* not all in one dynamic area */
+    if (_swix(OS_DynamicArea, _INR(0, 1) | _OUT(4), 2, area, &flags) || !(flags & (1 << 5)))
+        return 0;                       /* cacheable (DA flag bit 5: not cacheable) */
+    /* screen memory: RISC OS 5 can cache the screen and clean it every few
+       vsyncs; only when that is suspended (OS_ScreenMode 4 bit 0) */
+    if (area == 2 && (_swix(OS_ScreenMode, _INR(0, 2) | _OUT(1), 4, -1, -1, &cache) || !(cache & 1)))
+        return 0;
+    return 1;
 }
 
 /* ---- the call ---- */
@@ -460,15 +516,16 @@ int drmIoctl(int fd, unsigned long request, void *arg)
     if (!e)
         drm_riscos_dump_after(request, arg, r);
     if (stats)
-        stats_note(request, arg, e ? -1 : r, stats_now() - t0);
+        stats_note(fd, request, arg, e ? -1 : r, stats_now() - t0);
     if (trace) {
         fprintf(stderr, "drm: file %d request %08lx (type %c nr &%02lX size %lu) -> %d%s\n", fd, request,
                 (int) ((request >> 8) & 0xff), request & 0xff, (request >> 16) & 0x3fff, r,
                 e ? " (SWI error)" : "");
         if (request == DRM_IOCTL_RISCOS_IMPORT_MEMORY) {
             const struct drm_riscos_import_memory *im = arg;
-            fprintf(stderr, "drm:   import %08x size %u -> handle %u, GPU address %08x\n",
-                    (unsigned) im->address, im->size, im->handle, im->offset);
+            fprintf(stderr, "drm:   import %08x size %u%s -> handle %u, GPU address %08x\n",
+                    (unsigned) im->address, im->size,
+                    im->flags & DRM_RISCOS_IMPORT_UNCACHED ? " (uncached)" : "", im->handle, im->offset);
         }
     }
     if (e) {

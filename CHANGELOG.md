@@ -6,6 +6,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-20 (in development)
 
+- **GPU (V3DRender 0.13): screen memory imported as uncached.** When the GPU draws straight into screen memory or screen banks, the import is marked `DRM_RISCOS_IMPORT_UNCACHED` if the memory's dynamic area isn't cacheable (and, for the screen, RISC OS's screen cache is suspended), so V3DRender no longer cleans and invalidates it around every frame (8 MB at 1080p). Older modules refuse the flag and the import is made again without it.
+- **`V3DM$Stats` shows GPU time** (V3DRender 0.13 `DRM_IOCTL_RISCOS_FILE_STATS`): every 5 s, a second line with this program's jobs and their time on the GPU per queue (bin, render, TFU, CSD, clean), so a slow program shows whether it waits for the GPU or the CPU.
+
 - **EGL, full screen direct rendering: late frames don't wait for another vsync.** A one-buffer full screen surface drawn straight into screen memory (as the GPU draws full screen) waited for the next vsync on every swap, so a program taking a little longer than one display frame ran at half the display's rate (30 fps on a 60 Hz screen). It now waits only until its swap interval has passed since the last frame, as screen banks do. The sprite plot is unchanged (it is timed to start after a vsync).
 - **EGL: `EGL$SwapInterval`.** `*Set EGL$SwapInterval 0` (to 4) replaces the swap interval of every program, to find out whether vsync waits are holding a frame rate down. Host harness: 581 checks.
 

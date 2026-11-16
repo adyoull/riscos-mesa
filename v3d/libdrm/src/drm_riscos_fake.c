@@ -57,7 +57,7 @@ int drm_riscos_fake_ioctl(unsigned long request, void *arg)
     if (request == DRM_IOCTL_RISCOS_IMPORT_MEMORY) {   /* the program's memory as a BO */
         struct drm_riscos_import_memory *a = arg;
         uint32_t h;
-        if (!a->size || (a->size & 4095) || (a->address & 4095) || a->pad)
+        if (!a->size || (a->size & 4095) || (a->address & 4095) || (a->flags & ~DRM_RISCOS_IMPORT_UNCACHED))
             return -EINVAL;
         for (h = 1; h < MAX_BOS && bos[h].p; h++)
             ;

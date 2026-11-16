@@ -73,6 +73,7 @@ static struct {
     int tiled;                  /* V3DM$Tiled: colour buffers in tiles */
     int no_cached;              /* V3DM$Uncached, or a module before V3DRender 0.11 */
     int no_import;              /* V3DM$NoImport, or the module refused an import */
+    int no_uncached;            /* a module before V3DRender 0.13 (no DRM_RISCOS_IMPORT_UNCACHED) */
     int trace;                  /* V3DM$Trace: frames made, chosen and finished, on stderr */
     char error[160];
 } dev;
@@ -115,6 +116,24 @@ static void close_handle(uint32_t handle)
     drmIoctl(dev.fd, DRM_IOCTL_GEM_CLOSE, &cl);
 }
 
+/* DRM_IOCTL_RISCOS_IMPORT_MEMORY of im's memory; memory the CPU doesn't
+   cache (screen memory) marked so (V3DRender 0.13: no cache cleaning and
+   invalidating around jobs), or not on an older module */
+static int import_memory(struct drm_riscos_import_memory *im)
+{
+    im->flags = 0;
+    if (!dev.no_uncached && drm_riscos_cpu_uncached((void *) (uintptr_t) im->address, im->size)) {
+        im->flags = DRM_RISCOS_IMPORT_UNCACHED;
+        if (drmIoctl(dev.fd, DRM_IOCTL_RISCOS_IMPORT_MEMORY, im) == 0)
+            return 0;
+        if (errno != EINVAL)
+            return -1;
+        dev.no_uncached = 1;            /* before V3DRender 0.13 */
+        im->flags = 0;
+    }
+    return drmIoctl(dev.fd, DRM_IOCTL_RISCOS_IMPORT_MEMORY, im);
+}
+
 static struct pipe_resource *colour_resource(struct v3dm_buffer *b, const struct pipe_resource *t)
 {
     struct pipe_resource *r;
@@ -127,7 +146,7 @@ static struct pipe_resource *colour_resource(struct v3dm_buffer *b, const struct
         im.address = (uintptr_t) b->target;
         im.size = (b->target_row_bytes * t->height0 + 4095) & ~4095u;
         if (!dev.no_import && !((uintptr_t) b->target & 4095) && !(b->target_row_bytes & 15) &&
-            drmIoctl(dev.fd, DRM_IOCTL_RISCOS_IMPORT_MEMORY, &im) == 0) {
+            import_memory(&im) == 0) {
             r = from_handle(t, im.handle, b->target_row_bytes);
             if (r)
                 return r;
