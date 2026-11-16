@@ -38,6 +38,7 @@
 
 #include <stdio.h>
 #include "xf86drm.h"
+#include "drm-uapi/v3d_drm.h"   /* (V3DM$Stats: CREATE_BO sizes) */
 #include "drm_riscos.h"
 #include "drm_riscos_fake.h"
 #include "drm_riscos_dump.h"
@@ -52,7 +53,7 @@
 /* ---- V3DM$Fake (no V3D: drm_riscos_fake.c) and V3DM$Trace (each
    request on stderr), read once ---- */
 
-static int fake = -1, trace;
+static int fake = -1, trace, stats;
 
 /* (getenv: only whether it is set is kept, never the pointer, which
    UnixLib reuses for the next system variable read) */
@@ -66,6 +67,7 @@ static void modes(void)
     if (fake < 0) {
         fake = var_set("V3DM$Fake");
         trace = var_set("V3DM$Trace");
+        stats = var_set("V3DM$Stats");
     }
 }
 
@@ -342,14 +344,113 @@ static int from_linux_errno(int e)
     }
 }
 
+/* ---- V3DM$Stats: what the GPU module was asked, and the time it took,
+   on stderr every 5 seconds (for finding where a program's frames go) ---- */
+
+#define HAL_CounterRate   19
+#define HAL_CounterPeriod 20
+#define HAL_CounterRead   21
+#ifndef OS_Hardware
+#define OS_Hardware 0x7A
+#endif
+
+static unsigned hal_rate, hal_period;
+
+static int hal_counter(int entry, unsigned *out)
+{
+    return !_swix(OS_Hardware, _INR(0, 0) | _IN(8) | _IN(9) | _OUT(0), 0, 0, entry, out);
+}
+
+/* seconds, to the HAL counter's precision where it has one */
+static double stats_now(void)
+{
+    unsigned cs1 = 0, cs2 = 0, cnt = 0;
+    if (!hal_rate && !(hal_counter(HAL_CounterRate, &hal_rate) && hal_counter(HAL_CounterPeriod, &hal_period) &&
+                       hal_rate >= 10000 && hal_period))
+        hal_rate = 1;                       /* centiseconds only */
+    do {
+        _swix(OS_ReadMonotonicTime, _OUT(0), &cs1);
+        if (hal_rate == 1 || !hal_counter(HAL_CounterRead, &cnt))
+            return cs1 / 100.0;
+        _swix(OS_ReadMonotonicTime, _OUT(0), &cs2);
+    } while (cs1 != cs2);
+    if (cnt > hal_period)
+        cnt = hal_period;
+    return cs1 / 100.0 + (double) (hal_period - cnt) / hal_rate;
+}
+
+static struct { unsigned long request; unsigned n, errors; double secs; uint64_t bytes; } st[48];
+static double st_start;
+
+static const char *request_name(unsigned long request)
+{
+    switch (request & 0xffff) {
+    case 0x6440: return "SUBMIT_CL";
+    case 0x6441: return "WAIT_BO";
+    case 0x6442: return "CREATE_BO";
+    case 0x6443: return "MMAP_BO";
+    case 0x6444: return "GET_PARAM";
+    case 0x6445: return "GET_BO_OFFSET";
+    case 0x6446: return "SUBMIT_TFU";
+    case 0x6447: return "SUBMIT_CSD";
+    case 0x6409: return "GEM_CLOSE";
+    case 0x64C3: return "SYNCOBJ_WAIT";
+    case 0x64C4: return "SYNCOBJ_RESET";
+    case 0x5200: return "SYNC_FILE_WAIT";
+    case 0x5202: return "IMPORT";
+    default: return NULL;
+    }
+}
+
+static void stats_note(unsigned long request, void *arg, int r, double secs)
+{
+    unsigned i;
+    double now;
+    for (i = 0; i < sizeof st / sizeof st[0] && st[i].n && st[i].request != request; i++)
+        ;
+    if (i < sizeof st / sizeof st[0]) {
+        st[i].request = request;
+        st[i].n++;
+        st[i].errors += r < 0;
+        st[i].secs += secs;
+        if ((request & 0xffff) == 0x6442)
+            st[i].bytes += ((struct drm_v3d_create_bo *) arg)->size;
+    }
+    now = stats_now();
+    if (!st_start)
+        st_start = now;
+    if (now - st_start < 5)
+        return;
+    fprintf(stderr, "V3DM$Stats: %.1f s:", now - st_start);
+    for (i = 0; i < sizeof st / sizeof st[0] && st[i].n; i++) {
+        const char *name = request_name(st[i].request);
+        if (name)
+            fprintf(stderr, " %s %u", name, st[i].n);
+        else
+            fprintf(stderr, " %c&%02lX %u", (int) ((st[i].request >> 8) & 0xff), st[i].request & 0xff, st[i].n);
+        if (st[i].errors)
+            fprintf(stderr, " (%u refused)", st[i].errors);
+        fprintf(stderr, " %.1f ms", st[i].secs * 1000);
+        if (st[i].bytes)
+            fprintf(stderr, " %llu KB", (unsigned long long) (st[i].bytes / 1024));
+        fputc(';', stderr);
+    }
+    fputc('\n', stderr);
+    memset(st, 0, sizeof st);
+    st_start = now;
+}
+
 /* ---- the call ---- */
 
 int drmIoctl(int fd, unsigned long request, void *arg)
 {
     int r = 0;
     _kernel_oserror *e = NULL;
+    double t0 = 0;
     modes();
     drm_riscos_dump_before(request, arg);
+    if (stats)
+        t0 = stats_now();
     if (fake)
         r = drm_riscos_fake_ioctl(request, arg);
     else if (!device.ioctl_swi)
@@ -358,6 +459,8 @@ int drmIoctl(int fd, unsigned long request, void *arg)
         e = _swix(device.ioctl_swi, _INR(0, 2) | _OUT(0), fd, request, arg, &r);
     if (!e)
         drm_riscos_dump_after(request, arg, r);
+    if (stats)
+        stats_note(request, arg, e ? -1 : r, stats_now() - t0);
     if (trace) {
         fprintf(stderr, "drm: file %d request %08lx (type %c nr &%02lX size %lu) -> %d%s\n", fd, request,
                 (int) ((request >> 8) & 0xff), request & 0xff, (request >> 16) & 0x3fff, r,
