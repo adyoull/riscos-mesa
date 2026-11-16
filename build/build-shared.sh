@@ -133,7 +133,14 @@ for f in "$LIB"/*.so.*; do
   $STRIP --strip-unneeded "$f"
   cp "$f" "$PACK/lib/$(basename "$f"),e1f"
 done
-cp "$R/shared/!MesaLibs/"* "$PACK/"
+cp -r "$R/shared/!MesaLibs/"* "$PACK/"
+# SharedLibs: the ld-riscos/so/2 loader and SOManager 3.04 (from !GTKLibs
+# 3.24.52-21, as GCCSDK built them), which !Boot copies into !SharedLibs
+# where missing or older. They keep SOManager 3.04's date, 27 May 2021,
+# so that Copy's date comparison (N) means something (git doesn't keep
+# dates; the zips take the date from the file).
+touch -d '2021-05-27 12:00:00 UTC' "$PACK/SharedLibs/SOManager,ffa" \
+  "$PACK/SharedLibs/lib/ld-riscos-eabihf.so,e1f" "$PACK/SharedLibs/lib/ld-riscos.so.2,1c8"
 # The icon (tools/mkmesalibsicon.py): !Sprites and !Sprites11
 python3 "$R/tools/mkmesalibsicon.py" "$PACK"
 # DAClamp, a 36-byte Utility that !Boot and !Run run: OS_DynamicArea
@@ -196,6 +203,6 @@ for p in "$M"/*; do
   $STRIP -o "$p,e1f" "$p" && rm "$p"
 done
 cp "$T"/mixed/*,feb "$T/mixed/ReadMe,fff" "$M/"
-cp -r "$PACK" "$M/"
+cp -a "$PACK" "$M/"                # (-a: SharedLibs keeps its dates)
 cp "$R/devkit/riscos/PThrTicker,ffa" "$M/"
 ls -la "$M"

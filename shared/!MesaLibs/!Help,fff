@@ -14,9 +14,17 @@ every shared library in one such area, sized when the first program loads
 one, so the limit has to go before then: keep !MesaLibs in !Boot.Resources.
 
 Also needed:
-- !SharedLibs with ld-riscos/so/2 (GCCSDK 8 or later; Iris includes one),
-  also in !Boot.Resources;
+- !SharedLibs, also in !Boot.Resources (PackMan's SharedLibs package, or
+  the one Iris includes);
 - SharedUnixLibrary 1.16 or later, and ARMEABISupport.
+
+Mixed programs need !SharedLibs' ld-riscos/so/2 loader and SOManager 3.x,
+which PackMan's SharedLibs 4.0 lacks: they are in SharedLibs here, and
+each time !MesaLibs is booted it copies them into !SharedLibs where they
+are missing (SOManager also where the one there is older), as !GTKLibs
+does. Nothing else in !SharedLibs is touched. Restart after installing,
+so the newer SOManager is the one loaded. The loader's licence is
+SharedLibs.COPYRIGHT-ld; SOManager 3.04 is GCCSDK's (Lee Noar).
 
 The libraries (in lib):
   libOSMesa/so/8    OpenGL 2.1 and OpenGL ES 1.1/2.0 (Mesa 20.3.5)

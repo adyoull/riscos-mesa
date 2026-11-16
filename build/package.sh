@@ -62,13 +62,13 @@ fi
 # -> dist/riscos-mesa-tests-mixed-VERSION.zip, dist/riscos-mesa-MesaLibs-VERSION.zip
 if [ -d "$STAGE/tests-mixed" ]; then
   TMP=$(mktemp -d)
-  cp -r "$STAGE/tests-mixed" "$TMP/riscos-mesa-tests-mixed"
+  cp -a "$STAGE/tests-mixed" "$TMP/riscos-mesa-tests-mixed"
   cp "$HERE/LICENCES.txt" "$TMP/riscos-mesa-tests-mixed/Licences,fff"
   rm -f "$HERE/dist/riscos-mesa-tests-mixed-$V.zip"
   ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-tests-mixed-$V.zip" riscos-mesa-tests-mixed )
   rm -rf "$TMP"
   TMP=$(mktemp -d)
-  cp -r "$STAGE/shared/!MesaLibs" "$TMP/"
+  cp -a "$STAGE/shared/!MesaLibs" "$TMP/"
   cp "$HERE/LICENCES.txt" "$TMP/!MesaLibs/Licences,fff"
   rm -f "$HERE/dist/riscos-mesa-MesaLibs-$V.zip"
   ( cd "$TMP" && python3 "$HERE/tools/mkrozip.py" "$HERE/dist/riscos-mesa-MesaLibs-$V.zip" '!MesaLibs' )
@@ -106,7 +106,7 @@ cp -r "$HERE/devkit/riscos" "$K/riscos"              # PThreadTicker (UnixLib 5.
 if [ -d "$STAGE/shared/lib" ]; then
   mkdir -p "$K/lib/shared"
   cp -P "$STAGE/shared/lib/"* "$K/lib/shared/"
-  cp -r "$STAGE/shared/!MesaLibs" "$K/riscos/"
+  cp -a "$STAGE/shared/!MesaLibs" "$K/riscos/"
 fi
 mkdir -p "$K/docs/porting"
 cp "$HERE/docs/EGL-GUIDE.md" "$K/docs/"

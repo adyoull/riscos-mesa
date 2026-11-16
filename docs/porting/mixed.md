@@ -94,7 +94,8 @@ defined. `build/build-shared.sh` runs both on the mixed test programs.
 
 ## !Run
 
-The program's `!Run` boots !SharedLibs and !MesaLibs if they haven't been,
+The program's `!Run` boots !SharedLibs and !MesaLibs if they haven't been
+(booting !MesaLibs puts the so/2 loader into !SharedLibs if it's missing),
 checks for `ld-riscos/so/2`, and tells the loader where !MesaLibs is, in a
 variable named after the program's leaf name (`mygame$LD$Env` for a program
 called `mygame`):
@@ -104,7 +105,7 @@ If "<SharedLibs$Dir>" = "" Then IfThere Boot:Resources.!SharedLibs.!Boot Then Ru
 If "<MesaLibs$Dir>" = "" Then IfThere Boot:Resources.!MesaLibs.!Boot Then Run Boot:Resources.!MesaLibs.!Boot
 Unset MyGame$SO2
 IfThere SharedLibs:lib.ld-riscos-eabihf/so Then Set MyGame$SO2 1
-If "<MyGame$SO2>" = "" Then Error MyGame needs a !SharedLibs with ld-riscos/so/2 (GCCSDK 8 or later, as in Iris) in !Boot.Resources
+If "<MyGame$SO2>" = "" Then Error MyGame needs !SharedLibs and !MesaLibs 20.3.5-21 or later in !Boot.Resources
 If "<MesaLibs$Dir>" = "" Then Error MyGame needs !MesaLibs in !Boot.Resources
 Set mygame$LD$Env "LD_LIBRARY_PATH=/MesaLibs:"
 WimpSlot -min 16000K -max 16000K
@@ -135,9 +136,13 @@ only when they load the same file.
 
 ## Users need
 
-- !SharedLibs with `ld-riscos/so/2` (GCCSDK 8 or later; Iris includes one)
-  in `!Boot.Resources`. riscos.info's SharedLibs 4.0 has only
-  `ld-riscos/so/1` and won't run these programs.
+- !SharedLibs in `!Boot.Resources`. Mixed programs need its
+  `ld-riscos/so/2` loader and SOManager 3.x; riscos.info's SharedLibs 4.0
+  (PackMan's) has only `ld-riscos/so/1`. From 20.3.5-21, !MesaLibs carries
+  both and copies them into !SharedLibs when it boots (where missing; SOManager
+  also where older), as !GTKLibs does, so booting !MesaLibs before the check
+  above is enough. With an older !MesaLibs, a !SharedLibs from GCCSDK 8 or
+  later (Iris includes one) is needed.
 - !MesaLibs in `!Boot.Resources`.
 - SharedUnixLibrary 1.16 or later, and ARMEABISupport.
 - On RISC OS on Linux, NativeSupport 0.33 or later.

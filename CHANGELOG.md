@@ -4,6 +4,15 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## 20.3.5-21: !MesaLibs brings the loader mixed programs need
+
+!MesaLibs now carries the ld-riscos/so/2 loader and SOManager 3.04, and copies them into !SharedLibs when it boots, as !GTKLibs does, so a !SharedLibs from PackMan (SharedLibs 4.0, which has only the so/1 loader) is all mixed programs need besides it.
+
+- **`!MesaLibs.SharedLibs`:** `SOManager` (3.04), `lib.ld-riscos-eabihf/so`, `lib.ld-riscos/so/2` (a link, type &1C8) and `COPYRIGHT-ld`, the files !GTKLibs 3.24.52-21 ships, with SOManager 3.04's date (27 May 2021) kept on the three.
+- **`!Boot` and `!Run`** copy them into the booted !SharedLibs (`<SharedLibs$Dir>`, else `Boot:Resources.!SharedLibs`, only if its `lib` exists): the loader only where it's missing, SOManager only where it's missing or older (`Copy ... ~C~DFN~S~V`). Nothing else in !SharedLibs is touched.
+- **`!Help`** says so; LICENCES.txt section 15 has the loader's notice.
+- **Host tests:** dEQP-EGL builds again (its `--wrap` link options moved from every program, which broke CMake's own checks, to the platform's libraries).
+
 ## 20.3.5-20: the Pi 4's GPU on native RISC OS
 
 OpenGL and OpenGL ES programs can now be drawn by the Raspberry Pi 4's GPU on native RISC OS 5, through RISC3D and the V3DRender module, with Mesa 26.1.6's v3d driver in a GPU library (`libMesaGPU`) beside the software renderer. RISC3D decides between the GPU and software; programs opt in once, at link time, with `-lMesaGPU`. Also: full screen frames that are late no longer wait for another vsync, `EGL$SwapInterval`, RISC3D client 0.9, and tools to see where a GPU program's time goes (`V3DM$Stats`, `V3DM$Why`).

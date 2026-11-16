@@ -10,3 +10,21 @@ IconSprites <MesaLibs$Dir>.!Sprites
 | can't grow past the size it's created with): OS_DynamicArea 8,0,-1,0.
 | The setting is system-wide; R1 and R3 are left as they are.
 /<MesaLibs$Dir>.DAClamp
+| the loader and SOManager mixed programs need, into !SharedLibs (the one
+| booted, else Boot:Resources'), as !GTKLibs does: the loader where it's
+| missing, SOManager only where it's missing or older (by date: Copy's N)
+Set MesaLibs$SL <SharedLibs$Dir>
+If "<MesaLibs$SL>" = "" Then Set MesaLibs$SL Boot:Resources.!SharedLibs
+Unset MesaLibs$Do
+IfThere <MesaLibs$SL>.lib Then Set MesaLibs$Do 1
+IfThere <MesaLibs$SL>.lib.ld-riscos-eabihf/so Then Unset MesaLibs$Do
+If "<MesaLibs$Do>" = "1" Then X Copy <MesaLibs$Dir>.SharedLibs.lib.ld-riscos-eabihf/so <MesaLibs$SL>.lib.ld-riscos-eabihf/so ~C~D~N~S~V
+Unset MesaLibs$Do
+IfThere <MesaLibs$SL>.lib Then Set MesaLibs$Do 1
+IfThere <MesaLibs$SL>.lib.ld-riscos/so/2 Then Unset MesaLibs$Do
+If "<MesaLibs$Do>" = "1" Then X Copy <MesaLibs$Dir>.SharedLibs.lib.ld-riscos/so/2 <MesaLibs$SL>.lib.ld-riscos/so/2 ~C~D~N~S~V
+Unset MesaLibs$Do
+IfThere <MesaLibs$SL>.lib Then Set MesaLibs$Do 1
+If "<MesaLibs$Do>" = "1" Then X Copy <MesaLibs$Dir>.SharedLibs.SOManager <MesaLibs$SL>.SOManager ~C~DFN~S~V
+Unset MesaLibs$Do
+Unset MesaLibs$SL
