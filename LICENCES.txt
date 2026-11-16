@@ -62,6 +62,23 @@ The same applies to programs linked with OpenAL Soft (libopenal, section
 13. RISC3D client library 0.9 (in libOSMesa: risc3d/, contexts drawn by a
     hardware path where the RISC3D module has a driver) - MIT (below).
     Source: RISC3D's repository at tag v0.9.
+14. The GPU library, libMesaGPU (libMesaGPU.a, libMesaGPU.so.1 in
+    !MesaLibs): Mesa 3D 26.1.6 with only its v3d driver - MIT, as Mesa
+    20.3.5 (see 2), with the C11 threads emulation under the Boost
+    licence (see 3) and these parts under their own (below):
+    - xxHash (src/util/xxhash.h) - BSD 2-clause
+    - BLAKE3 1.8.2 (src/util/blake3) - CC0 1.0 or Apache 2.0, used here
+      under CC0 1.0 (a public domain dedication: no conditions)
+    - the GLSL and ARB program parsers, made by GNU Bison, under the
+      GPL with Bison's exception, which lets the parsers be used in any
+      program as part of a larger work (as in Mesa 20.3.5)
+    - libdrm 2.4.124's headers and Linux's DRM uAPI headers (xf86drm.h,
+      xf86drmMode.h, drm.h, drm_mode.h, drm_fourcc.h, v3d_drm.h) - MIT
+    riscos-mesa's parts of it (v3d/: the RISC OS libdrm layer, the
+    frontend, the patch to Mesa) are under riscos-mesa's MIT licence
+    (see 1). Source: https://deb.debian.org/debian/pool/main/m/mesa/
+    mesa_26.1.6.orig.tar.xz (sha256 5296b88a...4d2158606), as released
+    by the Mesa project.
 
 
 ===========================================================================
@@ -1205,3 +1222,71 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+===========================================================================
+
+14. The GPU library (Mesa 26.1.6)
+
+Mesa 26.1.6's own files are under the MIT licence of section 2 (Mesa's
+docs/license.rst; each file's notice or SPDX identifier gives its
+copyright holders). The parts under other licences:
+
+xxHash (src/util/xxhash.h)
+
+Copyright (C) 2012-2023 Yann Collet
+
+BSD 2-Clause License (https://www.opensource.org/licenses/bsd-license.php)
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+     notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+     copyright notice, this list of conditions and the following disclaimer
+     in the documentation and/or other materials provided with the
+     distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+BLAKE3 1.8.2 (src/util/blake3)
+
+The BLAKE3 team's code is dedicated to the public domain under CC0 1.0
+(https://creativecommons.org/publicdomain/zero/1.0/), or available under
+the Apache License 2.0; riscos-mesa uses it under CC0 1.0.
+
+libdrm 2.4.124 headers and Linux's DRM uAPI headers
+
+Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
+All rights reserved. (and the other holders named in each header)
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice (including the next
+paragraph) shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+VA LINUX SYSTEMS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.

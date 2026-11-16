@@ -25,8 +25,12 @@ The libraries (in lib):
   libglut/so/3      freeglut 3.8.0
   libSDL2-2.0/so/0  SDL 2.32.10
   libopenal/so/1    OpenAL Soft 1.19.1
+  libMesaGPU/so/1   the GPU (Mesa 26.1.6's v3d driver), for programs
+                    linked with -lMesaGPU: on a Pi 4 with !RISC3D in
+                    !Boot.Resources they draw on the GPU, elsewhere as
+                    before. Other programs never load it.
 
 Programs that link the devkit's static libraries (as before) don't need
 this. https://github.com/adyoull/riscos-mesa - licences in LICENCES.txt
-there: Mesa (MIT), GLU (SGI B 2.0), freeglut (MIT/X), SDL (zlib), OpenAL
+there (and in Licences here): Mesa 20.3.5 and 26.1.6 (MIT), GLU (SGI B 2.0), freeglut (MIT/X), SDL (zlib), OpenAL
 Soft (LGPL 2 or later: being a shared library, it can be replaced).
