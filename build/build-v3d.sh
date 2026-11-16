@@ -100,7 +100,9 @@ LIBS="src/mesa/libmesa.a src/gallium/drivers/v3d/libv3d.a src/gallium/drivers/v3
   src/compiler/spirv/libvtn.a src/compiler/libcompiler.a src/mesa/glapi/shared-glapi/libglapi.a
   src/mesa/glapi/glapi/libglapi_bridge.a src/util/libxmlconfig.a src/util/libmesa_util.a
   src/util/libmesa_util_simd.a src/util/blake3/libblake3.a src/c11/impl/libmesa_util_c11.a"
-ninja -C "$MB" $LIBS
+# (ninja runs meson's own Python helpers: MESON_PYTHONPATH, if set, is the
+# PYTHONPATH that finds MESON's meson rather than another one: build/ci.sh)
+PYTHONPATH="${MESON_PYTHONPATH-${PYTHONPATH:-}}" ninja -C "$MB" $LIBS
 
 # ---- the frontend, with Mesa's own compiler flags (st_manager.c's) ----
 FLAGS=$(python3 - "$MB" <<'EOF'

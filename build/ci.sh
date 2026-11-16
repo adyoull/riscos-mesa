@@ -58,7 +58,7 @@ if [ -z "${MESON:-}" ]; then
   printf '#!/bin/sh\nPYTHONPATH="%s${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m mesonbuild.mesonmain "$@"\n' "$T3" \
     > "$T/ci-bin/meson-v3d"
   chmod +x "$T/ci-bin/meson-v3d"
-  export MESON=$T/ci-bin/meson-v3d
+  export MESON=$T/ci-bin/meson-v3d MESON_PYTHONPATH="$T3${PYTHONPATH:+:$PYTHONPATH}"
 fi
 echo "compiler: $("$GCCSDK_ENV/bin/arm-riscos-gnueabihf-gcc" --version | head -1)"
 echo "meson $(meson --version), Mako $(python3 -c 'import mako; print(mako.__version__)'); for the GPU library meson $($MESON --version)"
