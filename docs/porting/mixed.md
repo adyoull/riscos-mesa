@@ -60,7 +60,9 @@ arm-riscos-gnueabihf-gcc -O2 -I$DEVKIT/include prog.c -o prog $MIXED -lOSMesa -l
   from the program, which the toolchain links in for any `-rdynamic` link,
   and zlib is inside libOSMesa.
 - **The GPU: add `-lMesaGPU` after `-lOSMesa`.** On native RISC OS with
-  a GPU module registered with RISC3D (V3DRender on a Pi 4), EGL and
+  a GPU module registered with RISC3D (V3DRender on a Pi 4: !RISC3D 0.04
+  or later in !Boot.Resources loads both at start-up; a program needs no
+  RMLoad of its own, and should never name a driver), EGL and
   OSMesa then draw on the GPU through `libMesaGPU.so.1` (Mesa 26.x with
   only its GPU drivers). Nothing else changes in the program. Without
   `-lMesaGPU` the program never loads it and draws as before (software,

@@ -7,7 +7,9 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 ## 20.3.5-20 (in development)
 
 - **The Raspberry Pi 4's GPU on native RISC OS** (branch v3d): where
-  RISC3D lists a GPU module (V3DRender 0.11 or later on a Pi 4), EGL and
+  RISC3D lists a GPU module (V3DRender 0.11 or later on a Pi 4; !RISC3D
+  0.04 in !Boot.Resources loads RISC3D at start-up, and RISC3D loads the
+  machine's GPU driver itself, so nothing else is needed), EGL and
   OSMesa draw on the GPU, through RISC3D as on RISC OS on Linux. The
   program's own copy of Mesa 26.1.6's v3d driver does the drawing: the
   GPU library, `libMesaGPU` (every name hidden but one, so it lives
