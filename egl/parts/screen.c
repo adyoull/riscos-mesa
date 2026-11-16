@@ -220,6 +220,12 @@ static int plot_vsyncs_needed(const egl_surface *surf)
     int n = surf->swap_interval;
     if (surf->plot_vsync >= 0)
         n -= vsyncs_since(surf->plot_vsync);
+    /* Drawn straight into screen memory, the frame is on show already:
+       waiting only paces. A frame later than its swap interval doesn't
+       wait for yet another vsync (that halved the frame rate of anything
+       a little slower than the display, as with screen banks). */
+    if (surf->direct)
+        return n < 0 ? 0 : n;
     return n < 1 ? 1 : n;
 }
 
@@ -266,6 +272,23 @@ static int user_window_scale(void)
     if (_kernel_swi(OS_ReadVarVal, &r, &r) != NULL || r.r[2] != 1)
         return 0;
     return v[0] >= '1' && v[0] <= '4' ? v[0] - '0' : 0;
+}
+
+/* EGL$SwapInterval: 0 to 4 replaces every swap interval programs set or
+   leave (for finding out whether waiting for vsyncs is what holds a
+   program's frame rate down); -1 if unset or anything else. */
+static int user_swap_interval(void)
+{
+    char v[4];
+    _kernel_swi_regs r;
+    r.r[0] = (int) "EGL$SwapInterval";
+    r.r[1] = (int) v;
+    r.r[2] = (int) sizeof v - 1;
+    r.r[3] = 0;
+    r.r[4] = 3;                                 /* expanded to a string */
+    if (_kernel_swi(OS_ReadVarVal, &r, &r) != NULL || r.r[2] != 1)
+        return -1;
+    return v[0] >= '0' && v[0] <= '0' + MAX_SWAP_INTERVAL ? v[0] - '0' : -1;
 }
 
 /* The window scale for a window showing w x h pixels (0: don't check that
@@ -889,8 +912,11 @@ static void present_fullscreen(egl_surface *surf, const screen_info *s, os_rect 
     /* one buffer: the wait times the plot to just after a vsync (the
        swap interval counts from the last plot) */
     if (surf->swap_interval > 0) {
-        wait_vsyncs(plot_vsyncs_needed(surf));
-        note_vsync();
+        int n = plot_vsyncs_needed(surf);
+        if (n > 0) {
+            wait_vsyncs(n);
+            note_vsync();
+        }
         surf->plot_vsync = vsync_counter();
     }
     if (surf->direct || !surf->sprite)

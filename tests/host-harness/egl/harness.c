@@ -2108,6 +2108,45 @@ static void test_swap_soon(void)
     CHECK(fake_vsyncs == v + 2 && fake_time_us % 16667 == 0,
           "interval 2: the swap waited for the second vsync since the last plot only (%d)", fake_vsyncs - v);
 
+    /* Straight into screen memory: a frame later than its swap interval
+       doesn't wait for another vsync (the frame rate of a program a little
+       slower than the display isn't halved) */
+    {
+        EGLint a[] = { EGL_RENDER_BUFFER, EGL_SINGLE_BUFFER, EGL_NONE };
+        EGLSurface ds = eglCreateWindowSurface(dpy, cfg, EGL_RISCOS_SCREEN_WINDOW, a);
+        CHECK(ds != EGL_NO_SURFACE && eglMakeCurrent(dpy, ds, ds, ctx), "direct screen surface");
+        eglSwapInterval(dpy, 1);
+        eglSwapBuffers(dpy, ds);                /* (waits for the next vsync) */
+        v = fake_vsyncs;
+        fake_advance_us(5000);
+        eglSwapBuffers(dpy, ds);
+        CHECK(fake_vsyncs == v + 1 && fake_time_us % 16667 == 0, "direct, on time: waited for the vsync");
+        v = fake_vsyncs;
+        fake_advance_us(20000);                 /* one vsync passes while drawing */
+        t = fake_time_us;
+        eglSwapBuffers(dpy, ds);
+        CHECK(fake_vsyncs == v + 1 && fake_time_us == t, "direct, late: no wait for another vsync");
+        fake_advance_us(20000);
+        CHECK(!eglSwapWouldWaitRISCOS(dpy, ds), "direct, late again: wouldn't wait");
+        /* EGL$SwapInterval overrides the program's interval */
+        setenv("EGL$SwapInterval", "0", 1);
+        eglSwapInterval(dpy, 1);
+        fake_advance_us(1000);
+        t = fake_time_us;
+        eglSwapBuffers(dpy, ds);
+        eglSwapBuffers(dpy, ds);
+        CHECK(fake_time_us == t, "EGL$SwapInterval 0: no waits");
+        setenv("EGL$SwapInterval", "x", 1);
+        eglSwapInterval(dpy, 1);
+        eglSwapBuffers(dpy, ds);
+        eglSwapBuffers(dpy, ds);
+        CHECK(fake_time_us > t, "EGL$SwapInterval not a number: the program's interval");
+        unsetenv("EGL$SwapInterval");
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(dpy, ds);
+        eglMakeCurrent(dpy, fs, fs, ctx);
+    }
+
     /* a window surface never waits for a vsync */
     fake_open_window(0x1000, 200, 300, 400, 460, 0, 0);
     {

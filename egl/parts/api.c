@@ -172,7 +172,7 @@ static egl_surface *new_surface(egl_display *d, const egl_config *c, int kind)
        The contents are kept anyway (buffer age 1), but EGL_BUFFER_PRESERVED
        has to be asked for, and rules out partial update. */
     s->swap_behavior = EGL_BUFFER_DESTROYED;
-    s->swap_interval = 1;
+    s->swap_interval = user_swap_interval() >= 0 ? user_swap_interval() : 1;
     s->handle = 0;
     s->n_damage = -1;
     s->bank_vsync = -1;
@@ -732,6 +732,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapInterval(EGLDisplay dpy, EGLint interval)
         return fail(EGL_BAD_SURFACE);
     if (interval < 0) interval = 0;
     if (interval > MAX_SWAP_INTERVAL) interval = MAX_SWAP_INTERVAL;
+    if (user_swap_interval() >= 0)
+        interval = user_swap_interval();    /* EGL$SwapInterval overrides */
     cur_context()->draw->swap_interval = interval;
     return ok();
 }

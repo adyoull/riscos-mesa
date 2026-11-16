@@ -346,7 +346,7 @@ EGLint rb;
 eglQuerySurface(dpy, surf, EGL_RENDER_BUFFER, &rb);   /* what you actually got */
 ```
 
-- **Vsync:** `eglSwapInterval(dpy, n)` shows each frame for at least n vertical syncs (`OS_Byte 19`); the default is 1, and 0 means don't wait. With the sprite plot the swap always waits for the next vsync (the plot starts just after it), so a program with other work can ask `eglSwapWouldWaitRISCOS` first and do that work instead of blocking (see [Reference: RISC OS additions](#reference-risc-os-additions)).
+- **Vsync:** `eglSwapInterval(dpy, n)` shows each frame for at least n vertical syncs (`OS_Byte 19`); the default is 1, and 0 means don't wait. The user can override every program's interval with `*Set EGL$SwapInterval 0` (to 4), for instance to find out whether waiting for vsyncs is what holds a program's frame rate down. With the sprite plot the swap always waits for the next vsync (the plot starts just after it), so a program with other work can ask `eglSwapWouldWaitRISCOS` first and do that work instead of blocking (see [Reference: RISC OS additions](#reference-risc-os-additions)).
 - **Direct and banks need** a 32bpp mode in the config's colour order; otherwise the library falls back to the sprite plot. Check `EGL_RENDER_BUFFER` or `EGL_SCREEN_BANKS_RISCOS` to see what you got.
 - **Bank surfaces don't keep their contents** between frames (`EGL_SWAP_BEHAVIOR` is `EGL_BUFFER_DESTROYED`). Setting `EGL_BUFFER_PRESERVED` with `eglSurfaceAttrib` switches back to the sprite plot. The library returns the display to bank 1 when the surface is destroyed and at exit.
 - **Mode changes** are picked up at the next swap: the surface takes the new size.
@@ -577,7 +577,7 @@ All four are also available through `eglGetProcAddress` (`PFNEGLREDRAWWINDOWRISC
 | Call | RISC OS behaviour |
 | --- | --- |
 | `eglSwapBuffers` (window) | `Wimp_UpdateWindow` over the surface and plot; never waits for vsync. Through a hardware overlay: copy into an overlay buffer and show it, waiting for a vsync only if none has passed since the last frame |
-| `eglSwapBuffers` (full screen) | Sprite plot and direct: waits for the next vsync, or until `swap interval` vsyncs have passed since the last frame was shown if that's later, then shows the frame. Screen banks: waits only until `swap interval` vsyncs have passed since the last switch |
+| `eglSwapBuffers` (full screen) | Sprite plot: waits for the next vsync, or until `swap interval` vsyncs have passed since the last frame was shown if that's later, then shows the frame. Direct and screen banks: wait only until `swap interval` vsyncs have passed since the last frame (from 20.3.5-20 for direct: a late frame no longer waits for another vsync, which halved the frame rate of anything a little slower than the display) |
 | `eglSwapBuffers` (pbuffer, pixmap) | No effect |
 | `eglSwapInterval` | 0 to 4; applies to the current surface |
 | `eglWaitClient`, `eglWaitGL` | `glFinish` |
