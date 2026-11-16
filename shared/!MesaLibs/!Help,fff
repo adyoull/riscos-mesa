@@ -25,10 +25,13 @@ The libraries (in lib):
   libglut/so/3      freeglut 3.8.0
   libSDL2-2.0/so/0  SDL 2.32.10
   libopenal/so/1    OpenAL Soft 1.19.1
-  libMesaGPU/so/1   the GPU (Mesa 26.1.6's v3d driver), for programs
-                    linked with -lMesaGPU: on a Pi 4 with !RISC3D in
-                    !Boot.Resources they draw on the GPU, elsewhere as
-                    before. Other programs never load it.
+  libMesaGPU/so/1   Mesa 26.1.6's driver for a Pi 4's GPU, for programs
+                    linked with -lMesaGPU. Other programs never load it.
+
+Programs don't choose between the GPU and software: RISC3D decides. With
+!RISC3D in !Boot.Resources, programs draw on the GPU driver it loads at
+start-up; without one they draw in software. LIBGL_ALWAYS_SOFTWARE or
+RISC3D$Disable (system variables) keep everything in software.
 
 Programs that link the devkit's static libraries (as before) don't need
 this. https://github.com/adyoull/riscos-mesa - licences in LICENCES.txt

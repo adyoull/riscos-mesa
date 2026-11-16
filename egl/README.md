@@ -70,6 +70,16 @@ Anywhere else, with `RISC3D$Disable` or `LIBGL_ALWAYS_SOFTWARE` set (system
 variables; `LIBGL_ALWAYS_SOFTWARE` as Mesa's, 0, false or no don't count),
 or if RISC3D can't make the context, OSMesa draws exactly as before.
 
+**Programs don't choose the renderer: RISC3D decides.** Whether a
+context is drawn on a GPU or in software follows only from what RISC3D
+has loaded on the machine (!RISC3D's !Boot loads RISC3D and the GPU's
+driver at start-up), and from the user's `LIBGL_ALWAYS_SOFTWARE` /
+`RISC3D$Disable`. A program needs no code for it, and one build draws on
+the GPU where RISC3D has one and in software everywhere else. (EGL's
+`EGL_CONTEXT_SOFTWARE_RISCOS` attribute is only for the rare program that
+needs a context to draw straight from a sprite's memory, which a GPU
+context can't.)
+
 **Two kinds of RISC3D driver.** RISC3D is the interface GPU drivers
 register with. A command-stream driver (Linux3D, on RISC OS on Linux)
 takes the GL calls RISC3D's client writes; a DRM device (a GPU module:

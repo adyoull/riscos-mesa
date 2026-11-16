@@ -59,15 +59,18 @@ arm-riscos-gnueabihf-gcc -O2 -I$DEVKIT/include prog.c -o prog $MIXED -lOSMesa -l
 - **`-lstdc++` and `-lz` aren't needed:** Mesa's C++ parts get libstdc++
   from the program, which the toolchain links in for any `-rdynamic` link,
   and zlib is inside libOSMesa.
-- **The GPU: add `-lMesaGPU` after `-lOSMesa`.** On native RISC OS with
-  a GPU module registered with RISC3D (V3DRender on a Pi 4: !RISC3D 0.04
-  or later in !Boot.Resources loads both at start-up; a program needs no
-  RMLoad of its own, and should never name a driver), EGL and
-  OSMesa then draw on the GPU through `libMesaGPU.so.1` (Mesa 26.x with
-  only its GPU drivers). Nothing else changes in the program. Without
-  `-lMesaGPU` the program never loads it and draws as before (software,
-  or RISC3D's Linux3D on RISC OS on Linux), which is also how programs
-  linked before it existed keep working.
+- **The GPU: add `-lMesaGPU` after `-lOSMesa`.** This doesn't make the
+  program draw on the GPU: **RISC3D decides that, not the program.**
+  !RISC3D 0.04 or later, in !Boot.Resources, loads RISC3D and the
+  machine's GPU driver at start-up (a program needs no RMLoad of its own,
+  and never names a driver). When RISC3D has a GPU driver, EGL and OSMesa
+  draw on it; when it hasn't, or there's no !RISC3D, they draw in
+  software; the program has no code for either. `libMesaGPU.so.1` (Mesa
+  26.x with only its GPU drivers) is what riscos-mesa needs for a GPU
+  that RISC3D reaches as a GPU module (V3DRender on a Pi 4, natively);
+  RISC3D's Linux3D on RISC OS on Linux needs nothing extra. A program
+  linked without `-lMesaGPU` never loads it: on a native Pi 4 it then
+  draws in software, as programs linked before it existed do.
 - **SDL needs `-ldl`:** the shared SDL holds all of SDL, including
   `SDL_LoadObject`, which calls `dlopen`. A static SDL only brought that in
   for programs that used it.

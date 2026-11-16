@@ -19,11 +19,24 @@ If you only read one section, read
 over here". It's the same on Windows, Linux, macOS, phones and now RISC
 OS, which is why so many games, tools and tutorials use it.
 
-Most computers have a graphics chip to do the drawing. RISC OS doesn't
-have drivers for one, so this devkit does the drawing on the main
-processor instead, using **Mesa**, the same software that Linux uses. It
-is slower than a graphics chip, but it's complete and exact: OpenGL 2.1,
-OpenGL ES 1.1 and OpenGL ES 2.0.
+Most computers have a graphics chip (a GPU) to do the drawing. On RISC
+OS, **RISC3D** is what connects programs to one: !RISC3D, in
+!Boot.Resources, loads the machine's GPU driver at start-up (V3DRender
+on a Raspberry Pi 4 running RISC OS, Linux3D on RISC OS on Linux). Where
+there's no GPU driver, or no !RISC3D, this devkit draws on the main
+processor instead, using **Mesa**, the same software that Linux uses:
+slower than a graphics chip, but complete and exact (OpenGL 2.1, OpenGL
+ES 1.1 and OpenGL ES 2.0).
+
+**Your program doesn't choose between the GPU and software: RISC3D
+decides.** What RISC3D has loaded on the machine the program runs on
+decides where it draws: the GPU if RISC3D has a GPU driver, software if
+not. The program contains no code for either, and the same program does
+the right thing on every machine. The only settings are the user's: the
+system variables `LIBGL_ALWAYS_SOFTWARE` or `RISC3D$Disable` keep
+everything in software. (Linking the GPU library, `libMesaGPU`, doesn't
+choose the GPU either: it gives riscos-mesa what it needs to drive a
+Pi 4's GPU when RISC3D has one, and is never used otherwise.)
 
 OpenGL only knows how to draw. It doesn't know about windows, screens or
 RISC OS. Something has to connect the two, and in this devkit that's
@@ -83,7 +96,7 @@ The libraries:
 | `libSDL2.a` | SDL 2.32.10: windows, keyboard, mouse, sound, OpenGL | `-lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm` (this SDL has OpenGL built in, through EGL, so it always needs EGL and Mesa) |
 | `libglut.a` | freeglut 3.8: the classic GLUT toolkit | `-lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libopenal.a` | OpenAL Soft: positioned 3D sound (it plays through SDL) | `-lopenal -lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm` |
-| `libMesaGPU.a` | The GPU on native RISC OS (Mesa 26.x's v3d driver: a Pi 4 with !RISC3D 0.04 or later in !Boot.Resources, which loads RISC3D and the GPU's driver, V3DRender, at start-up). EGL and OSMesa use it when it's linked in; about 15 MB | add `-Wl,-u,riscos_mesa_gpu -lMesaGPU` after `-lOSMesa` (static), or `-lMesaGPU` (mixed: see docs/porting/mixed.md) |
+| `libMesaGPU.a` | Mesa 26.x's driver for a Pi 4's GPU on native RISC OS, about 15 MB. It doesn't make the program use the GPU: RISC3D decides that. When !RISC3D (0.04 or later, in !Boot.Resources) has loaded the GPU's driver, V3DRender, EGL and OSMesa draw with it; otherwise the program draws as it would without it | add `-Wl,-u,riscos_mesa_gpu -lMesaGPU` after `-lOSMesa` (static), or `-lMesaGPU` (mixed: see docs/porting/mixed.md) |
 | `libbcm_host.a` and friends | Lets existing Raspberry Pi (Pi 1-3) OpenGL ES programs run unchanged. For porting only: new programs should use EGL directly | see the porting guides |
 
 All of these are linked into your program (static libraries), which is the

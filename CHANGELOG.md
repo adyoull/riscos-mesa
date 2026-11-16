@@ -13,10 +13,13 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   OSMesa draw on the GPU, through RISC3D as on RISC OS on Linux. The
   program's own copy of Mesa 26.1.6's v3d driver does the drawing: the
   GPU library, `libMesaGPU` (every name hidden but one, so it lives
-  beside Mesa 20.3.5, which stays the software renderer). Programs link
-  it to get it: `-lMesaGPU` after `-lOSMesa` (mixed: `libMesaGPU.so.1`
-  in !MesaLibs) or `-Wl,-u,riscos_mesa_gpu -lMesaGPU` (static). Programs
-  that don't, including all those linked before, draw as before.
+  beside Mesa 20.3.5, which stays the software renderer). Programs don't
+  choose between the GPU and software: RISC3D decides, by the driver it
+  has loaded, and the program has no code for it. A program carries the
+  GPU library by linking `-lMesaGPU` after `-lOSMesa` (mixed:
+  `libMesaGPU.so.1` in !MesaLibs) or `-Wl,-u,riscos_mesa_gpu -lMesaGPU`
+  (static); programs that don't, including all those linked before, draw
+  in software on a native Pi 4 as before.
   - Windows, direct full screen and screen banks are drawn by the GPU
     straight into their own memory, as Mesa 20.3.5 draws them (V3DRender
     0.11's memory import): nothing is read back. Other surfaces and OSMesa
