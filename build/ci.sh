@@ -41,8 +41,27 @@ if [ -n "${CI_FORCE_TOOLS:-}" ] || ! command -v meson >/dev/null || ! python3 -c
   chmod +x "$T/ci-bin/meson"
   export PYTHONPATH="$T${PYTHONPATH:+:$PYTHONPATH}" PATH="$T/ci-bin:$PATH"
 fi
+# The GPU library (build-v3d.sh, Mesa 26.x) needs meson 1.4 or later and
+# PyYAML: a second meson, in its own directory, run as MESON (unless MESON
+# is set already)
+MESON_V3D_V=1.6.1 PYYAML_V=6.0.3 PACKAGING_V=26.3
+if [ -z "${MESON:-}" ]; then
+  T3=$T/v3d
+  if [ ! -f "$T3/.done-$MESON_V3D_V-$PYYAML_V" ]; then
+    rm -rf "$T3"
+    pip3 install --quiet --disable-pip-version-check --break-system-packages --target "$T3" \
+      "meson==$MESON_V3D_V" "PyYAML==$PYYAML_V" "packaging==$PACKAGING_V" \
+      "Mako==$MAKO_V" "MarkupSafe==$MARKUPSAFE_V"
+    touch "$T3/.done-$MESON_V3D_V-$PYYAML_V"
+  fi
+  mkdir -p "$T/ci-bin"
+  printf '#!/bin/sh\nPYTHONPATH="%s${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m mesonbuild.mesonmain "$@"\n' "$T3" \
+    > "$T/ci-bin/meson-v3d"
+  chmod +x "$T/ci-bin/meson-v3d"
+  export MESON=$T/ci-bin/meson-v3d
+fi
 echo "compiler: $("$GCCSDK_ENV/bin/arm-riscos-gnueabihf-gcc" --version | head -1)"
-echo "meson $(meson --version), Mako $(python3 -c 'import mako; print(mako.__version__)')"
+echo "meson $(meson --version), Mako $(python3 -c 'import mako; print(mako.__version__)'); for the GPU library meson $($MESON --version)"
 
 "$R/build/build-all.sh" "$V"
 

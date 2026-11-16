@@ -34,12 +34,14 @@ binaries go on the release, never into git.
 In riscos-crossdev's image (the toolchain `.riscos-deps` names), as the
 GitHub build does:
 
-    docker run --rm -v "$PWD":/src ghcr.io/adyoull/riscos-crossdev:1.8.1 build/ci.sh 20.3.5-N
+    docker run --rm -v "$PWD":/src ghcr.io/adyoull/riscos-crossdev:1.11 build/ci.sh 20.3.5-N
 
 or with a toolchain of your own:
 
     export GCCSDK_ENV=/path/to/gccsdk/env
     build/build-all.sh 20.3.5-N
+
+(`SHARED=1` also makes the shared libraries: the `MesaLibs` and `tests-mixed` zips. The GPU library needs meson 1.4 or later and PyYAML; `build/ci.sh` installs them in `.ci-tools/v3d` unless `MESON` is set.)
 
 This builds everything in order (logs in `stage/logs/`) and packages
 `dist/` (`build/ci.sh` then runs riscos-crossdev's checks on the test
