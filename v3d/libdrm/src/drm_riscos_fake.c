@@ -107,7 +107,13 @@ int drm_riscos_fake_ioctl(unsigned long request, void *arg)
         a->offset = (uint32_t) (uintptr_t) bos[a->handle].p;
         return 0;
     }
-    case DRM_COMMAND_BASE + DRM_V3D_WAIT_BO:
+    case DRM_COMMAND_BASE + DRM_V3D_WAIT_BO: {
+        /* as a module answers a busy check (timeout 0) on a BO still in
+           use: Linux's ETIME, -62 (the answers here are Linux's numbers,
+           as a module's are) */
+        struct drm_v3d_wait_bo *a = arg;
+        return a->timeout_ns == 0 ? -62 : 0;
+    }
     case DRM_COMMAND_BASE + DRM_V3D_SUBMIT_CL:
     case DRM_COMMAND_BASE + DRM_V3D_SUBMIT_TFU:
     case DRM_COMMAND_BASE + DRM_V3D_SUBMIT_CSD:

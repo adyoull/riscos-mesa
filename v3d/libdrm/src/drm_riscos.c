@@ -161,6 +161,187 @@ int drm_riscos_munmap(void *addr, size_t size)
     return 0;
 }
 
+/* GPU modules answer with Linux's error numbers (-errno: V3DRender's
+   docs/INTERFACE.md), but Mesa is compiled with UnixLib's <errno.h>, whose
+   numbers differ above 10: Linux's ETIME (62) is UnixLib's ELOOP, so a
+   timed-out wait (v3d_bo_wait with timeout 0, as a busy check) looked like
+   a real failure and Mesa aborted ("wait failed: -62": YSFlight, 16 Nov
+   2026). Each number Mesa can see is turned into UnixLib's. */
+static int from_linux_errno(int e)
+{
+    switch (e) {
+#ifdef EPERM
+    case 1: return EPERM;
+#endif
+#ifdef ENOENT
+    case 2: return ENOENT;
+#endif
+#ifdef ESRCH
+    case 3: return ESRCH;
+#endif
+#ifdef EINTR
+    case 4: return EINTR;
+#endif
+#ifdef EIO
+    case 5: return EIO;
+#endif
+#ifdef ENXIO
+    case 6: return ENXIO;
+#endif
+#ifdef E2BIG
+    case 7: return E2BIG;
+#endif
+#ifdef ENOEXEC
+    case 8: return ENOEXEC;
+#endif
+#ifdef EBADF
+    case 9: return EBADF;
+#endif
+#ifdef ECHILD
+    case 10: return ECHILD;
+#endif
+#ifdef EAGAIN
+    case 11: return EAGAIN;
+#endif
+#ifdef ENOMEM
+    case 12: return ENOMEM;
+#endif
+#ifdef EACCES
+    case 13: return EACCES;
+#endif
+#ifdef EFAULT
+    case 14: return EFAULT;
+#endif
+#ifdef ENOTBLK
+    case 15: return ENOTBLK;
+#endif
+#ifdef EBUSY
+    case 16: return EBUSY;
+#endif
+#ifdef EEXIST
+    case 17: return EEXIST;
+#endif
+#ifdef EXDEV
+    case 18: return EXDEV;
+#endif
+#ifdef ENODEV
+    case 19: return ENODEV;
+#endif
+#ifdef ENOTDIR
+    case 20: return ENOTDIR;
+#endif
+#ifdef EISDIR
+    case 21: return EISDIR;
+#endif
+#ifdef EINVAL
+    case 22: return EINVAL;
+#endif
+#ifdef ENFILE
+    case 23: return ENFILE;
+#endif
+#ifdef EMFILE
+    case 24: return EMFILE;
+#endif
+#ifdef ENOTTY
+    case 25: return ENOTTY;
+#endif
+#ifdef ETXTBSY
+    case 26: return ETXTBSY;
+#endif
+#ifdef EFBIG
+    case 27: return EFBIG;
+#endif
+#ifdef ENOSPC
+    case 28: return ENOSPC;
+#endif
+#ifdef ESPIPE
+    case 29: return ESPIPE;
+#endif
+#ifdef EROFS
+    case 30: return EROFS;
+#endif
+#ifdef EMLINK
+    case 31: return EMLINK;
+#endif
+#ifdef EPIPE
+    case 32: return EPIPE;
+#endif
+#ifdef EDOM
+    case 33: return EDOM;
+#endif
+#ifdef ERANGE
+    case 34: return ERANGE;
+#endif
+#ifdef EDEADLK
+    case 35: return EDEADLK;
+#endif
+#ifdef ENAMETOOLONG
+    case 36: return ENAMETOOLONG;
+#endif
+#ifdef ENOLCK
+    case 37: return ENOLCK;
+#endif
+#ifdef ENOSYS
+    case 38: return ENOSYS;
+#endif
+#ifdef ENOTEMPTY
+    case 39: return ENOTEMPTY;
+#endif
+#ifdef ELOOP
+    case 40: return ELOOP;
+#endif
+#ifdef ENOMSG
+    case 42: return ENOMSG;
+#endif
+#ifdef EIDRM
+    case 43: return EIDRM;
+#endif
+#ifdef ENOSTR
+    case 60: return ENOSTR;
+#endif
+#ifdef ENODATA
+    case 61: return ENODATA;
+#endif
+#ifdef ETIME
+    case 62: return ETIME;
+#endif
+#ifdef ENOSR
+    case 63: return ENOSR;
+#endif
+#ifdef ENOLINK
+    case 67: return ENOLINK;
+#endif
+#ifdef EPROTO
+    case 71: return EPROTO;
+#endif
+#ifdef EBADMSG
+    case 74: return EBADMSG;
+#endif
+#ifdef EOVERFLOW
+    case 75: return EOVERFLOW;
+#endif
+#ifdef EILSEQ
+    case 84: return EILSEQ;
+#endif
+#ifdef EOPNOTSUPP
+    case 95: return EOPNOTSUPP;
+#endif
+#ifdef ETIMEDOUT
+    case 110: return ETIMEDOUT;
+#endif
+#ifdef EALREADY
+    case 114: return EALREADY;
+#endif
+#ifdef EINPROGRESS
+    case 115: return EINPROGRESS;
+#endif
+#ifdef ECANCELED
+    case 125: return ECANCELED;
+#endif
+    default: return EIO;
+    }
+}
+
 /* ---- the call ---- */
 
 int drmIoctl(int fd, unsigned long request, void *arg)
@@ -192,7 +373,7 @@ int drmIoctl(int fd, unsigned long request, void *arg)
         return -1;
     }
     if (r < 0) {
-        errno = -r;
+        errno = from_linux_errno(-r);           /* (the stand-in answers in Linux's too) */
         return -1;
     }
     return 0;
