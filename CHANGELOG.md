@@ -4,7 +4,10 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## 20.3.5-20 (in development)
+## 20.3.5-20: the Pi 4's GPU on native RISC OS
+
+OpenGL and OpenGL ES programs can now be drawn by the Raspberry Pi 4's GPU on native RISC OS 5, through RISC3D and the V3DRender module, with Mesa 26.1.6's v3d driver in a GPU library (`libMesaGPU`) beside the software renderer. RISC3D decides between the GPU and software; programs opt in once, at link time, with `-lMesaGPU`. Also: full screen frames that are late no longer wait for another vsync, `EGL$SwapInterval`, RISC3D client 0.9, and tools to see where a GPU program's time goes (`V3DM$Stats`, `V3DM$Why`).
+
 
 - **`V3DM$Why`**: a line on stderr for each job Mesa's v3d driver submits, with the reason (a flush, a read of something a job writes, a write of something a job reads, a BO in use, or direct) and where it was asked from, as offsets to look up in the link map that `build-shared.sh` now keeps for each shared library (`stage/shared/obj/*.map`). For programs that submit several jobs a frame (YSFlight: about 9).
 
