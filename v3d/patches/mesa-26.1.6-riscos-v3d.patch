@@ -129,6 +129,49 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.h b/src/gallium/drivers/v3d/v3d_b
  struct v3d_bo *v3d_bo_open_dmabuf(struct v3d_screen *screen, int fd);
  bool v3d_bo_flink(struct v3d_bo *bo, uint32_t *name);
  int v3d_bo_get_dmabuf(struct v3d_bo *bo);
+diff -ruN a/src/gallium/drivers/v3d/v3d_context.c b/src/gallium/drivers/v3d/v3d_context.c
+--- a/src/gallium/drivers/v3d/v3d_context.c
++++ b/src/gallium/drivers/v3d/v3d_context.c
+@@ -45,6 +45,7 @@
+ v3d_flush(struct pipe_context *pctx)
+ {
+         struct v3d_context *v3d = v3d_context(pctx);
++        V3D_RISCOS_WHY("v3d_flush");
+ 
+         hash_table_foreach(v3d->jobs, entry) {
+                 struct v3d_job *job = entry->data;
+@@ -57,6 +58,7 @@
+                unsigned flags)
+ {
+         struct v3d_context *v3d = v3d_context(pctx);
++        V3D_RISCOS_WHY("pipe flush (glFlush, glFinish, a swap, a read-back)");
+ 
+         v3d_flush(pctx);
+ 
+diff -ruN a/src/gallium/drivers/v3d/v3d_context.h b/src/gallium/drivers/v3d/v3d_context.h
+--- a/src/gallium/drivers/v3d/v3d_context.h
++++ b/src/gallium/drivers/v3d/v3d_context.h
+@@ -830,6 +830,20 @@
+ void v3d_job_add_write_resource(struct v3d_job *job, struct pipe_resource *prsc);
+ void v3d_job_add_tf_write_resource(struct v3d_job *job, struct pipe_resource *prsc);
+ void v3d_job_submit(struct v3d_context *v3d, struct v3d_job *job);
++#ifdef __riscos__
++/* riscos-mesa: V3DM$Why prints why each job was submitted (the flush
++   function that asked, and where it was called from) */
++struct v3d_riscos_why { const char *why; void *from; };
++extern struct v3d_riscos_why v3d_riscos_why;
++void v3d_riscos_why_restore(struct v3d_riscos_why *saved);
++#define V3D_RISCOS_WHY(w) \
++        struct v3d_riscos_why why_saved__ __attribute__((cleanup(v3d_riscos_why_restore))) = v3d_riscos_why; \
++        if (!v3d_riscos_why.why) { /* the outermost reason */ \
++                v3d_riscos_why.why = (w); v3d_riscos_why.from = __builtin_return_address(0); \
++        }
++#else
++#define V3D_RISCOS_WHY(w) do { } while (0)
++#endif
+ void v3d_flush_jobs_using_bo(struct v3d_context *v3d, struct v3d_bo *bo);
+ void v3d_flush_jobs_writing_resource(struct v3d_context *v3d,
+                                      struct pipe_resource *prsc,
 diff -ruN a/src/gallium/drivers/v3d/v3d_fence.c b/src/gallium/drivers/v3d/v3d_fence.c
 --- a/src/gallium/drivers/v3d/v3d_fence.c
 +++ b/src/gallium/drivers/v3d/v3d_fence.c
@@ -173,7 +216,84 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_fence.c b/src/gallium/drivers/v3d/v3d_fe
 diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.c
 --- a/src/gallium/drivers/v3d/v3d_job.c
 +++ b/src/gallium/drivers/v3d/v3d_job.c
-@@ -660,7 +660,11 @@
+@@ -28,6 +28,8 @@
+ 
+ #include <xf86drm.h>
+ #include <libsync.h>
++#include <stdio.h>
++#include <stdlib.h>
+ #include "v3d_context.h"
+ /* The OQ/semaphore packets are the same across V3D versions. */
+ #define V3D_VERSION 42
+@@ -157,6 +159,7 @@
+ v3d_flush_jobs_using_bo(struct v3d_context *v3d, struct v3d_bo *bo)
+ {
+         MESA_TRACE_FUNC();
++        V3D_RISCOS_WHY("a BO a job uses");
+ 
+         hash_table_foreach(v3d->jobs, entry) {
+                 struct v3d_job *job = entry->data;
+@@ -196,6 +199,7 @@
+                                 enum v3d_flush_cond flush_cond,
+                                 bool is_compute_pipeline)
+ {
++        V3D_RISCOS_WHY("reading a resource a job writes");
+         struct hash_entry *entry = _mesa_hash_table_search(v3d->write_jobs,
+                                                            prsc);
+         if (!entry)
+@@ -250,6 +254,7 @@
+                                 enum v3d_flush_cond flush_cond,
+                                 bool is_compute_pipeline)
+ {
++        V3D_RISCOS_WHY("writing a resource a job reads");
+         struct v3d_resource *rsc = v3d_resource(prsc);
+ 
+         /* We only need to force the flush on TF writes, which is the only
+@@ -622,6 +627,33 @@
+ /**
+  * Submits the job to the kernel and then reinitializes it.
+  */
++#ifdef __riscos__
++struct v3d_riscos_why v3d_riscos_why;
++
++void
++v3d_riscos_why_restore(struct v3d_riscos_why *saved)
++{
++        v3d_riscos_why = *saved;
++}
++
++/* V3DM$Why: one line on stderr per job submitted. Addresses are offsets
++   from v3d_job_submit, for the build's link map. */
++static void
++v3d_riscos_print_why(struct v3d_job *job, void *caller)
++{
++        static int on = -1;
++        if (on < 0)
++                on = getenv("V3DM$Why") != NULL;
++        if (!on)
++                return;
++        fprintf(stderr, "v3d: job %ux%u submitted: %s (from %+ld), by %+ld\n",
++                job->draw_width, job->draw_height,
++                v3d_riscos_why.why ? v3d_riscos_why.why : "directly",
++                v3d_riscos_why.why ? (long) ((char *) v3d_riscos_why.from - (char *) v3d_job_submit) : 0L,
++                (long) ((char *) caller - (char *) v3d_job_submit));
++}
++#endif
++
+ void
+ v3d_job_submit(struct v3d_context *v3d, struct v3d_job *job)
+ {
+@@ -632,6 +664,9 @@
+ 
+         if (!job->needs_flush)
+                 goto done;
++#ifdef __riscos__
++        v3d_riscos_print_why(job, __builtin_return_address(0));
++#endif
+ 
+         /* The GL_PRIMITIVES_GENERATED query is included with
+          * OES_geometry_shader.
+@@ -660,7 +695,11 @@
                  } else {
                     job->submit.in_sync_bcl = v3d->in_syncobj;
                  }

@@ -6,6 +6,8 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-20 (in development)
 
+- **`V3DM$Why`**: a line on stderr for each job Mesa's v3d driver submits, with the reason (a flush, a read of something a job writes, a write of something a job reads, a BO in use, or direct) and where it was asked from, as offsets to look up in the link map that `build-shared.sh` now keeps for each shared library (`stage/shared/obj/*.map`). For programs that submit several jobs a frame (YSFlight: about 9).
+
 - **GPU (V3DRender 0.13): screen memory imported as uncached.** When the GPU draws straight into screen memory or screen banks, the import is marked `DRM_RISCOS_IMPORT_UNCACHED` if the memory's dynamic area isn't cacheable (and, for the screen, RISC OS's screen cache is suspended), so V3DRender no longer cleans and invalidates it around every frame (8 MB at 1080p). Older modules refuse the flag and the import is made again without it.
 - **`V3DM$Stats` shows GPU time** (V3DRender 0.13 `DRM_IOCTL_RISCOS_FILE_STATS`): every 5 s, a second line with this program's jobs and their time on the GPU per queue (bin, render, TFU, CSD, clean), so a slow program shows whether it waits for the GPU or the CPU.
 

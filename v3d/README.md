@@ -39,12 +39,24 @@ request to stderr. `V3DM$Dump <file>` writes the first jobs (SUBMIT_CL
 and every buffer they use; `V3DM$DumpJobs`, default 3) to a file for
 replaying off the Pi; `tools/v3dm-dump.py` prints one.
 
+**Where the time goes:** `V3DM$Stats` prints, every 5 s, each kind of
+request with its count and the ms spent in it, then (V3DRender 0.13) this
+program's GPU jobs and their time on the GPU per queue. `V3DM$Why` prints
+a line for each job Mesa submits: why (`pipe flush` for glFlush, glFinish,
+a swap or a read-back; `reading a resource a job writes`; `writing a
+resource a job reads`; `a BO a job uses`; `directly` for blits, clears
+and compute), and two addresses as offsets from `v3d_job_submit`: where
+that flush was called from, and who called `v3d_job_submit`. Look them up
+in the shared build's link map, `stage/shared/obj/libMesaGPU.so.1.map`
+(sections are named after functions).
+
 **Notes for later:**
 - Mesa 25.2 or later: 25.0's v3d compiler mis-draws lit, textured
   fixed-function scenes (RISC3D, 15 Nov 2026).
-- GCCSDK's GCC has emulated TLS: glapi's current dispatch is read through
-  `__emutls_get_address` on every GL call. Fine for a prototype; the EGL
-  version should use a global dispatch, as 20.3.5's does.
+- GCCSDK's GCC has emulated TLS: glapi's current dispatch and context are
+  plain globals on RISC OS (the patch, `_GLAPI_CURRENT_STORAGE`), as in
+  20.3.5. What's left thread-local (call_once, qsort_r's arguments, a
+  strtok-like buffer) isn't on the per-call path.
 - Nothing shared between Mesa and the libdrm layer may use off_t: Mesa is
   built with _FILE_OFFSET_BITS=64 (UnixLib's off_t is then 8 bytes, else
   4). test1 crashed on the Pi from exactly that (drm_riscos_mmap).

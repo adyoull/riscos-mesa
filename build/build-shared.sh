@@ -59,12 +59,14 @@ rm -rf "$OUT"; mkdir -p "$LIB"
 # registers their destructors with it.
 # --gc-sections: only what the exported functions reach (Mesa and SDL are
 # compiled with a section per function, and export only their API).
-# The libraries it uses become its NEEDED entries.
+# The libraries it uses become its NEEDED entries. A link map is kept
+# (obj/SONAME.map), for addresses in the libraries (V3DM$Why prints some).
 make_so() {
   local soname=$1 linkname=$2 archive=$3; shift 3
   local objs=$OUT/obj/$soname
   python3 "$R/tools/ar-unique.py" "$archive" "$objs" > "$objs.list"
   $CC -shared -nodefaultlibs -Wl,--gc-sections -Wl,-soname,"$soname" -o "$LIB/$soname" \
+      -Wl,-Map,"$objs.map" \
       @"$objs.list" "$@" -lgcc
   ln -sf "$soname" "$LIB/$linkname"
   printf "%-22s %6d KB\n" "$soname" $(( $(stat -c %s "$LIB/$soname") / 1024 ))
