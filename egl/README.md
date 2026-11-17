@@ -87,13 +87,18 @@ V3DRender on the Pi 4, natively) takes none, and the program runs Mesa's
 driver for that GPU itself: the GPU library, `libMesaGPU` (Mesa 26.x with
 only its GPU drivers and every symbol hidden, `build/build-v3d.sh`,
 `v3d/`). `osmesa/r3d_switch.c` gives RISC3D's client API (`r3d.h`) to
-this part and to OSMesa's routing either way, so nothing here differs:
-the GPU library's frame is read back into the surface as the command
-stream's is. The GPU library is used when RISC3D's driver is a DRM device
-it has a driver for (only "v3d" so far) and the program has it: a static
-program links it with `-Wl,-u,riscos_mesa_gpu -lMesaGPU` (about 15 MB;
-without it, such a machine draws in software); the GPU module is only
-ever reached through RISC3D.
+this part and to OSMesa's routing either way, so little here differs:
+with the GPU library, a window surface's frames are drawn straight into
+the surface's own memory (its sprite, screen memory or a screen bank,
+which V3DRender maps into the GPU: `r3d_draw_into`, parts/risc3d.c
+`r3dw_place`), and other surfaces' frames are read back as the command
+stream's are. Window sprites are page-aligned for it. The GPU library is
+used when RISC3D's driver is a DRM device it has a driver for (only
+"v3d" so far) and the program has it: a static program links it with
+`-Wl,-u,riscos_mesa_gpu -lMesaGPU` (about 15 MB), a mixed one with
+`-lMesaGPU` (`libMesaGPU.so.1` in !MesaLibs); without it, such a machine
+draws in software. The GPU module is only ever reached through RISC3D.
+`v3d/README.md` has the rest.
 
 - **One choice.** `riscos_mesa_pick_renderer(api, major, minor)`
   (`EGL/eglext_riscos.h`) makes it, and `eglCreateContext`, `EGL_VERSION`

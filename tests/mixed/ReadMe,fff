@@ -16,7 +16,8 @@ What it needs:
 - !SharedLibs in !Boot.Resources. These need its ld-riscos/so/2 loader
   and SOManager 3.x, which riscos.info's SharedLibs 4.0 lacks: !MesaLibs
   (20.3.5-21 or later) copies them into !SharedLibs when it boots. Restart
-  after the first time, so the newer SOManager is the one loaded. On RISC OS on Linux, NativeSupport 0.33 or later.
+  after the first time, so the newer SOManager is the one loaded.
+- On RISC OS on Linux, NativeSupport 0.33 or later.
 - SharedUnixLibrary 1.16 or later, and ARMEABISupport.
 - !MesaLibs: there is a copy here, which the Obey files use if no
   !MesaLibs has been booted. For other programs, copy it to
@@ -31,6 +32,19 @@ The Obey files (double-click):
   mx-sdl-fb-overlay   sdlfbtest through the overlay, results in SDLFBovl
   mx-glu              glutest (GLU), results in ResultGLU
   mx-al-tone          OpenAL's three tones, results in altone
+
+The GPU (20.3.5-20): gpu-glbench, gpu-egltest and gpu-glestest are the
+same programs linked with the GPU library (-lMesaGPU, libMesaGPU/so/1 in
+!MesaLibs). Programs don't choose the GPU: RISC3D does. On a Pi 4 with
+!RISC3D in !Boot.Resources (it loads V3DRender) they draw on the GPU; on
+RISC OS on Linux every program here does, through Linux3D; anywhere else
+they draw in software, as the others do.
+  mx-gpu-glbench      glbench 640 480 5, results in GPUBench
+  mx-gpu-egl-window   egltest in a window, results in gpueglwin
+  mx-gpu-gles-window  OpenGL ES 1.1 and 2.0 in a window, gpu-gles-window
+*Set V3DM$Stats 1 before one of them prints, every 5 seconds, what it
+asked the GPU for and how long the GPU took (see v3d/README.md in the
+source).
 
 What to compare, with the static programs run the same way:
 - speed: glbench's times (the shared library is position-independent

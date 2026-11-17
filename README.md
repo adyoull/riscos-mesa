@@ -1,11 +1,17 @@
 # riscos-mesa
 
-Software OpenGL for RISC OS 5: **OpenGL 2.1, OpenGL ES 1.1 and OpenGL ES
-2.0**, rendered on the CPU by Mesa 20.3.5, with a native RISC OS **EGL**
-to set them up. It runs on RISC OS 5 machines with an ARMv7 or later CPU
-and VFPv3 floating point: Raspberry Pi 2, 3 and 4, and Cortex-A8/A9/A15
+OpenGL for RISC OS 5: **OpenGL 2.1, OpenGL ES 1.1 and OpenGL ES 2.0**,
+rendered on the CPU by Mesa 20.3.5, with a native RISC OS **EGL** to set
+them up. It runs on RISC OS 5 machines with an ARMv7 or later CPU and
+VFPv3 floating point: Raspberry Pi 2, 3 and 4, and Cortex-A8/A9/A15
 machines such as the BeagleBoard-xM, PandaBoard, ARMini, i.MX6 boards and
 Titanium. Not on the Pi 1 or Zero (ARMv6).
+
+**Where RISC3D has a GPU driver, the same programs draw on the GPU** (up
+to OpenGL ES 3.1, and OpenGL 3.1 under RISC OS on Linux): on a Raspberry
+Pi 4 running RISC OS 5 through the V3DRender module and riscos-mesa's GPU
+library, `libMesaGPU` (Mesa 26.1.6's v3d driver), and under RISC OS on
+Linux through Linux's own driver. See [The GPU](#the-gpu).
 
 **Tested on a Raspberry Pi 4 (RISC OS 5).** EGL in desktop windows and
 full screen, OpenGL ES 1.1 and 2.0, SDL2, freeglut, the Raspberry Pi
@@ -44,7 +50,48 @@ UnixLib 5.0.3.6: SDL programs get focus events, pointer warping and
 relative mouse mode (mouse look), and SDL's and OpenAL's threads sleep
 while they wait instead of spinning; OpenAL mixes with NEON. Not tried on
 a Pi yet: the overlay across mode changes, and GLUT's game mode at the
-requested size.
+requested size. 20.3.5-19 sends programs' drawing to the GPU through
+RISC3D under RISC OS on Linux, and adds shared libraries for "mixed"
+programs (!MesaLibs). 20.3.5-20 does it natively on a Pi 4: a 640x480
+window at 365 fps, full screen at the display's 60 fps, glbench's scenes
+in 1.6-2.8 ms a frame against 9.7-13.6 ms in software. 20.3.5-21 puts the
+loader mixed programs need into !MesaLibs.
+
+## The GPU
+
+**Programs don't choose between the GPU and software: RISC3D decides.**
+RISC3D (from [riscos-risc3d](https://github.com/adyoull/riscos-risc3d),
+!RISC3D in `!Boot.Resources`) loads the machine's 3D driver at start-up,
+and riscos-mesa's EGL and OSMesa draw with whatever it has:
+
+| Where | RISC3D's driver | Who draws |
+|---|---|---|
+| Raspberry Pi 4, 400 or CM4, RISC OS 5 | V3DRender ([riscos-v3drender](https://github.com/adyoull/riscos-v3drender), 0.15 or later) | the GPU, through the program's GPU library, `libMesaGPU` |
+| RISC OS on Linux (Pi 4, Pi 5...) | Linux3D | the GPU, through Linux's own Mesa |
+| anywhere else, or no !RISC3D | none | riscos-mesa's software renderer, as always |
+
+- **On native RISC OS the GPU's driver runs inside the program**: Mesa
+  26.1.6's v3d driver, as the GPU library. It sits beside Mesa 20.3.5 with
+  its names hidden, and sends its work to V3DRender through RISC3D.
+- **A program carries it by linking it once:** `-lMesaGPU` after
+  `-lOSMesa` for a mixed program (`libMesaGPU.so.1` is in !MesaLibs), or
+  `-Wl,-u,riscos_mesa_gpu -lMesaGPU` for a static one (about 15 MB). It
+  doesn't make the program use the GPU; it lets RISC3D give it one.
+- **Programs linked without it**, including everything linked before
+  20.3.5-20, draw in software on a native Pi 4, and still use the GPU
+  under RISC OS on Linux.
+- **The user can keep everything in software** with the system variables
+  `LIBGL_ALWAYS_SOFTWARE` or `RISC3D$Disable`.
+- **What it gives:**
+  - on the GPU: OpenGL 2.1 (compatibility) and OpenGL ES 1.1 to 3.1
+    natively, and up to OpenGL 3.1 under RISC OS on Linux;
+  - windows, full screen and screen banks are drawn straight into their
+    own memory.
+
+[v3d/README.md](v3d/README.md) describes the GPU library: how it's built,
+what it does, and the `V3DM$Stats` and `V3DM$Why` variables that show
+where a GPU program's time goes. [egl/README.md](egl/README.md) has
+RISC3D's side of EGL.
 
 ## Three ways in
 
@@ -116,6 +163,17 @@ and `tests/glestest.c` (OpenGL ES) are complete programs.
 | `libopenal.a` | OpenAL Soft 1.19.1: OpenAL 1.1 with the EFX effects and positioned (3D) sources, mixed in software and played through SDL's sound driver (so it mixes with other programs) | `-lopenal -lSDL2 -lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libglut.a` | freeglut 3.8.0 with a native RISC OS back end: Wimp windows and subwindows, Wimp menus, full screen and game mode, keyboard (with key releases), mouse, wheel. `libfreeglut-gles.a` is the OpenGL ES build (`-DFREEGLUT_GLES`) | `-lglut -lGLU -lEGL -lOSMesa -lstdc++ -lz -lm` |
 | `libbcm_host.a` | DispmanX compatibility, a porting aid for Raspberry Pi 1–3 Khronos code. Empty `libGLESv2`, `libGLESv1_CM`, `libvcos` and `libvchiq_arm` come with it so Pi link lines work | `-lbcm_host -lEGL -lOSMesa -lstdc++ -lz -lm` |
+| `libMesaGPU.a` | The GPU library: Mesa 26.1.6's v3d driver for a Pi 4's GPU on native RISC OS, used when RISC3D has V3DRender loaded (see [The GPU](#the-gpu)), never otherwise. About 15 MB | add `-Wl,-u,riscos_mesa_gpu -lMesaGPU` after `-lOSMesa` |
+
+**Shared libraries** (a test, from 20.3.5-19): the devkit's `lib/shared`
+has every library above except `libbcm_host` as a RISC OS shared library
+(`libOSMesa.so.8`, `libEGL.so.1`, `libGLU.so.1`, `libglut.so.3`,
+`libSDL2-2.0.so.0`, `libopenal.so.1`, `libMesaGPU.so.1`). A *mixed*
+program has UnixLib linked in and loads these from **!MesaLibs** in
+`!Boot.Resources`, so programs share one copy and each is much smaller.
+!MesaLibs also carries the `ld-riscos/so/2` loader and SOManager 3.04 and
+puts them into !SharedLibs when it boots (20.3.5-21). See
+[docs/porting/mixed.md](docs/porting/mixed.md).
 
 Headers: `EGL/` (with `EGL/eglext_riscos.h` for the RISC OS additions),
 `GL/` (with `GL/glut.h` and `GL/freeglut*.h`), `GLES/`, `GLES2/`, `KHR/`,
@@ -135,9 +193,11 @@ The GitHub [Releases](../../releases) page has, for each release:
 
 | File | Contents |
 | --- | --- |
-| `riscos-mesa-devkit-VERSION.tgz` | everything for building your own programs: the static libraries and headers, a beginner's guide, six commented example programs with a Makefile, `sdl2-config`, pkg-config files and `LICENCES.txt` |
+| `riscos-mesa-MesaLibs-VERSION.zip` | !MesaLibs, for `!Boot.Resources`: the shared libraries mixed programs load, with the GPU library and the so/2 loader |
+| `riscos-mesa-devkit-VERSION.tgz` | everything for building your own programs: the static and shared libraries (with `libMesaGPU`) and headers, a beginner's guide, six commented example programs with a Makefile, `sdl2-config`, pkg-config files and `LICENCES.txt` |
 | `riscos-mesa-examples-VERSION.zip` | the devkit's six example programs, built and ready to run (`!GLFull`, `!GLWindow`, `!GLShaders`, `!SDLSpin`, `!Teapot`, `!Tune`) |
 | `riscos-mesa-tests-VERSION.zip` | the test programs and their Obey files, with a ReadMe |
+| `riscos-mesa-tests-mixed-VERSION.zip` | the test programs linked mixed, with !MesaLibs, including the GPU tests (`gpu-egltest`, `gpu-glestest`, `gpu-glbench`) |
 | `riscos-mesa-hello_pi-VERSION.zip` | the Raspberry Pi's `hello_triangle`, `hello_triangle2` and `hello_teapot`, rebuilt |
 | `riscos-mesa-ports-VERSION.zip` | Mesa's EGL demos (gears, torus, ...) and SDL's GL test programs, in desktop windows, and SDL's loopwave sound test |
 | `riscos-mesa-glut-VERSION.zip` | freeglut's demos (shapes, Lorenz, fractals, subwindows, menus, game mode...) over riscos-mesa's freeglut |
@@ -158,10 +218,11 @@ The zips store RISC OS filetypes. Releases are numbered after the Mesa version t
 
 ## Limits
 
-- **API versions:** OpenGL 2.1, OpenGL ES 1.1 and ES 2.0. Requests for GL
-  3.0+, a core profile or ES 3.x fail. That's what classic OSMesa grants;
-  GL 3.x would need Mesa 25.1's softpipe OSMesa, a later option.
-- **Speed:** rendering is on the CPU, on one core.
+- **API versions:** in software, OpenGL 2.1, OpenGL ES 1.1 and ES 2.0;
+  requests for GL 3.0+, a core profile or ES 3.x fail (that's what classic
+  OSMesa grants). On the GPU, up to OpenGL ES 3.1, and OpenGL 3.1 under
+  RISC OS on Linux (natively, OpenGL 2.1). See [The GPU](#the-gpu).
+- **Speed:** in software, rendering is on the CPU, on one core.
   - Fixed-function GL and ES 1.1 are quick at desktop window sizes: aim
     for 320x240 to 640x480.
   - Shaders (GLSL, ES 2.0) run through Mesa's interpreter, several pixels
@@ -182,7 +243,7 @@ The zips store RISC OS filetypes. Releases are numbered after the Mesa version t
 The simplest way is riscos-crossdev's container image, which has the
 compiler (GCCSDK GCC 10.2 with riscos-unixlib): from a clean checkout,
 
-    docker run --rm -v "$PWD":/src ghcr.io/adyoull/riscos-crossdev:1.8.1 build/ci.sh [VERSION]
+    docker run --rm -v "$PWD":/src ghcr.io/adyoull/riscos-crossdev:1.11 build/ci.sh [VERSION]
 
 builds everything, makes the release zips and devkit in `dist/` and runs
 riscos-crossdev's checks on the test programs. GitHub runs the same
@@ -196,11 +257,13 @@ With a toolchain of your own:
 
 `build-all.sh` logs each step to `stage/logs/` and stops at the first
 failure; with a VERSION it also runs `package.sh`. `SKIP_ZLIB=1` leaves out
-zlib. The steps it runs, which can also be run one at a time (after
+zlib; `SHARED=1` also makes the shared libraries, !MesaLibs and the mixed
+tests (`build-shared.sh`). The steps it runs, which can also be run one at a time (after
 changing only `egl/`, say, run `build-egl.sh` and the steps after it):
 
     build/build-zlib.sh      # skip if your env already has libz
     build/build-mesa.sh
+    build/build-v3d.sh       # the GPU library, libMesaGPU (Mesa 26.1.6, v3d; meson 1.4+ as MESON=)
     build/build-glu.sh
     build/build-sdl2.sh      # SDL 2 + patches/sdl2 (the RISC OS overlay)
     build/build-openal.sh    # OpenAL Soft 1.19.1 + patches/openal (SDL2 output)
@@ -209,20 +272,23 @@ changing only `egl/`, say, run `build-egl.sh` and the steps after it):
     build/build-tests.sh     # -> stage/tests/*,e1f
     build/build-hello-pi.sh  # Pi hello_triangle/2, hello_teapot -> stage/hello_pi
     build/build-ports.sh     # ported examples (docs/porting) -> stage/ports
+    build/build-shared.sh    # with SHARED=1: lib/shared, !MesaLibs, the mixed tests
     build/package.sh VERSION # the release zips and devkit -> dist/
 
 Everything installs into `stage/`. No GCCSDK GCC 10 yet? See
 [build/TOOLCHAIN.md](build/TOOLCHAIN.md), or use riscos-crossdev's
 (`$RISCOS_TOOLCHAIN`). The host needs meson, ninja, python3-mako, bison,
-flex, autoconf, automake, libtool and cmake (`build/ci.sh` installs meson
-and Mako itself if they're missing).
+flex, autoconf, automake, libtool and cmake, and for the GPU library meson
+1.4 or later with PyYAML (`build/ci.sh` installs meson, Mako and PyYAML
+itself if they're missing).
 
 **Working on riscos-mesa itself:** [docs/DECISIONS.md](docs/DECISIONS.md)
 explains why things are the way they are (Mesa 20.3.5, EGL as the API,
 the build flags, what's opt-in), and [docs/RELEASING.md](docs/RELEASING.md)
 how a release is made. Each part has its own README: `egl/`,
 `patches/mesa/`, `patches/sdl2/` (including how to change the SDL
-overlay), `glut/`, `dispmanx/`, `tests/host-harness/`.
+overlay), `glut/`, `dispmanx/`, `v3d/` (the GPU library),
+`tests/host-harness/`.
 
 ## Using it from another port
 
@@ -269,10 +335,14 @@ overlay), `glut/`, `dispmanx/`, `tests/host-harness/`.
 | `glestest` (`gles-*`) | OpenGL ES 1.1 and 2.0 in a desktop window, full screen and into a sprite |
 | `dmxtest` (`dmx-*`) | the DispmanX compatibility library, full screen and window mode |
 | `sdlgltest` | SDL2 GL in a desktop window: fps in the title, F full screen, D desktop-size full screen, Space vsync; `-S WxH` render size and `-V` overlay (`sdl-scaled`, `sdl-scaled-plot`, `sdl-plain`) |
+| `gpu-egltest`, `gpu-glestest`, `gpu-glbench` (tests-mixed) | egltest, glestest and glbench linked with the GPU library: on a Pi 4 with !RISC3D they draw on the GPU, elsewhere in software |
+| `v3dtri`, `v3dgles2` (`v3d/tests`) | the GPU library on its own, without EGL (bring-up) |
 | `hello_pi`, `ports` and `glut` zips | real programs: the Pi examples, Mesa's demos, SDL's GL tests, freeglut's demos |
 | `tests/host-harness` | SDL's GL windows on Linux with emulated SWIs: the sprite path and the EGL path, with a render size and a fake VideoOverlay; `sdl-wimp` checks the driver's Wimp events and mouse scaling |
 | `tests/host-harness/egl` | libEGL and libbcm_host on Linux against a fake screen, Wimp and SpriteOp (over 400 checks, including hardware overlays against a fake VideoOverlay); `portrun.c` runs whole ported programs |
 | `tests/host-harness/glut` | freeglut's RISC OS back end on Linux: freeglut's demos driven by scripted keys, clicks, drags, menus, the wheel and resizing (23 checks) |
+| `tests/host-harness/deqp` | Khronos's EGL conformance tests (dEQP-EGL) against riscos-mesa's EGL on the fake RISC OS |
+| `tests/host-harness/egl/r3d_e2e.sh` | EGL and OSMesa through RISC3D's real client and Linux helper, end to end |
 | `tests/host-harness/mesa` | the Mesa patches: a hash of every image in a few thousand rendering cases, on the host and on the RISC OS build under qemu-arm; instructions per frame for glbench's scenes (performance regressions) |
 
 The host tests run on any Linux x86-64 machine, without the RISC OS
@@ -283,11 +353,12 @@ runs the same on every push (`.github/workflows/host-tests.yml`).
 ## Licences
 
 - **riscos-mesa's own files** are MIT (`LICENSE`): the EGL library, the
-  DispmanX compatibility library, the porting helpers in `ports/`, test
+  DispmanX compatibility library, the GPU library's own parts (`v3d/libdrm`,
+  `v3d/frontend`, `v3d/gpu`, `osmesa/r3d_switch.c`), the porting helpers in `ports/`, test
   programs, tools, build scripts and docs.
 - **Patches** keep the licence of the files they change:
-  - `patches/mesa` is MIT, like Mesa. Its one change to
-    `include/c11/threads_posix.h` is Boost.
+  - `patches/mesa` and `v3d/patches` are MIT, like Mesa. `patches/mesa`'s
+    one change to `include/c11/threads_posix.h` is Boost.
   - `patches/sdl2` is zlib, like SDL.
   - `patches/openal` is LGPL v2 or later, like OpenAL Soft.
   - The RISC OS section of `EGL/eglplatform.h` is under the Khronos
@@ -297,7 +368,12 @@ runs the same on every push (`.github/workflows/host-tests.yml`).
 - **Ported programs** keep theirs: Raspberry Pi userland BSD, mesa-demos
   MIT, SDL's tests zlib, freeglut's demos MIT/X.
 - **Third-party components:**
-  - Mesa: MIT (some parts Boost / SGI Free B).
+  - Mesa 20.3.5 and, in the GPU library, Mesa 26.1.6: MIT (some parts
+    Boost / SGI Free B; Mesa 26's xxHash BSD-2, BLAKE3 CC0).
+  - libdrm's headers and the DRM uAPI headers (GPU library): MIT.
+  - RISC3D's client library (in libOSMesa): MIT.
+  - In !MesaLibs only: GCCSDK's `ld-riscos` loader (its own BSD-style
+    notice, `SharedLibs.COPYRIGHT-ld`) and SOManager.
   - Khronos headers: Khronos MIT-style.
   - GLU: SGI Free Software Licence B.
   - freeglut: MIT/X style.

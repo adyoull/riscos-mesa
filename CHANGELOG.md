@@ -4,6 +4,11 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## 20.3.5-22 (in development)
+
+- **Docs for the GPU library:** the README has a section on the GPU (RISC3D decides; `libMesaGPU` on a native Pi 4; what each machine gets), the shared libraries and !MesaLibs, the new downloads, build steps and licences. `v3d/README.md` now describes the released GPU library rather than the prototype. `docs/DECISIONS.md` explains the two Mesas, the porting guides' README and the devkit's docs index say how a port gets the GPU, and the EGL guide and `egl/README.md` are up to date (natively, OpenGL stays at 2.1 on the GPU; windows are drawn into their own memory).
+- **Tests-mixed:** Obey files for the GPU tests, `mx-gpu-glbench`, `mx-gpu-egl-window` and `mx-gpu-gles-window`, and the ReadMe says what they show.
+
 ## 20.3.5-21: !MesaLibs brings the loader mixed programs need
 
 !MesaLibs now carries the ld-riscos/so/2 loader and SOManager 3.04, and copies them into !SharedLibs when it boots, as !GTKLibs does, so a !SharedLibs from PackMan (SharedLibs 4.0, which has only the so/1 loader) is all mixed programs need besides it.

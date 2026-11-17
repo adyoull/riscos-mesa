@@ -38,9 +38,44 @@ be worked out again. Each says what would have to change to revisit it.
   JIT, which RISC OS doesn't have.
 - **No TinyGL.** Its feature set is too small for the programs worth
   porting.
-- **No hardware GL.** The Pi 1 to 3's VideoCore IV GLES (the Khronos
-  module) is Pi 1–3 only. The Pi 4 and later have a different GPU with no
-  RISC OS driver, so rendering is on the CPU.
+- **No VideoCore IV GLES.** The Pi 1 to 3's VideoCore IV GLES (the
+  Khronos module) is Pi 1–3 only. The GPU route is RISC3D (next section).
+
+## The GPU: RISC3D decides, a second Mesa draws
+
+- **RISC3D is the one interface to 3D hardware.** Drivers register with
+  it: Linux3D under RISC OS on Linux, V3DRender on a native Pi 4, and
+  later others (an i.MX6 driver is planned). riscos-mesa asks RISC3D,
+  never a driver, so a new driver needs no change to programs. Programs
+  never choose between the GPU and software: RISC3D does, by what it has
+  loaded. Users can still say software (`LIBGL_ALWAYS_SOFTWARE`,
+  `RISC3D$Disable`).
+- **Under RISC OS on Linux the GPU's Mesa is Linux's**: RISC3D's client
+  (in libOSMesa) sends a command stream to Linux3D, and Linux's Mesa
+  draws.
+- **Natively, the GPU's Mesa runs in the program: two Mesas.** V3DRender
+  takes Linux's v3d requests (it registers as a *DRM device*), as Linux's
+  kernel does, so the program needs Mesa's v3d driver, which classic
+  Mesa 20.3.5 doesn't have. So the program carries Mesa 26.1.6 with only
+  that driver (the GPU library, `libMesaGPU`), and Mesa 20.3.5 stays the
+  software renderer: it is faster in software than any Gallium Mesa here
+  (above) and holds most of riscos-mesa's speed work. Mesa 25.2 or later
+  is needed for v3d (25.0 mis-draws lit, textured fixed-function scenes).
+- **One name visible.** Two Mesas would collide, in C and in their C++
+  GLSL compilers' COMDAT groups, so the GPU library is one relocatable
+  object with every name but `riscos_mesa_gpu` made local. libOSMesa
+  refers to it weakly: RISC OS has no `dlopen`, so a program opts in to
+  carrying it at link time (`-lMesaGPU`), and one that doesn't still
+  links and draws in software.
+- **Same EGL, same behaviour.** The GPU library's contexts are presented
+  to EGL and OSMesa in the shape of RISC3D's client, so EGL has one GPU
+  path for both RISC OS on Linux and native, as the software one.
+  Windows and full screen are drawn into their own memory (V3DRender maps
+  it into the GPU), as the software renderer draws them.
+- **Shared from the start.** The GPU library is in !MesaLibs like the
+  rest, built position-independent like the rest.
+- **On `main`, built every time.** No separate branch: `build-v3d.sh` is a
+  step of `build-all.sh`, and every release has both Mesas.
 
 ## Native RISC OS EGL is the API
 

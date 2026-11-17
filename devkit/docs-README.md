@@ -10,6 +10,11 @@ Start with ../README.md (the beginner's guide) and ../examples.
                      demos and the OpenGL ES 2.0 Programming Guide's
                      samples. Start with porting/README.md.
 
+The GPU: programs draw on a GPU wherever RISC3D has one, with no code for
+it. On a native Raspberry Pi 4 they also need the GPU library, libMesaGPU
+(lib/libMesaGPU.a, lib/shared/libMesaGPU.so): see ../README.md, the
+devkit's guide, and porting/mixed.md.
+
 These are Markdown files: plain text with a little formatting, readable
 in any text editor. Links to files such as ports/... or tests/... point
 into the riscos-mesa source repository, which also has the worked ports'

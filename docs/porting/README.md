@@ -24,6 +24,18 @@ Any of these can also be linked as a *mixed* program (a test from
 20.3.5-19): UnixLib linked in, and the devkit's libraries loaded from
 !MesaLibs and shared between programs. See [mixed.md](mixed.md).
 
+**The GPU.** No port needs code for the GPU: RISC3D decides whether a
+program's contexts draw on the GPU or in software, from the driver it has
+loaded. Under RISC OS on Linux every program gets the GPU that way. On a
+native Pi 4 (RISC3D with V3DRender) a program also has to carry the GPU
+library, `libMesaGPU`: link `-lMesaGPU` after `-lOSMesa` (mixed) or
+`-Wl,-u,riscos_mesa_gpu -lMesaGPU` (static, about 15 MB more), and
+nothing else changes. Without it the program draws in software there. A
+port that only works with GL 3 or ES 3 contexts gets them only from the
+GPU, and should say so (natively: OpenGL ES up to 3.1, OpenGL 2.1). See
+the main [README](../../README.md#the-gpu) and
+[v3d/README.md](../../v3d/README.md).
+
 New RISC OS programs should use riscos-mesa's native EGL directly: a Wimp
 window handle, `EGL_RISCOS_SCREEN_WINDOW` (-1) for the whole screen, or a
 sprite. See [../EGL-GUIDE.md](../EGL-GUIDE.md). The helpers in these guides
