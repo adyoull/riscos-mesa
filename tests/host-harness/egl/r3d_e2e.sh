@@ -26,17 +26,10 @@ done
 gcc -O2 -w -I"$R3D_SRC/include" -I"$R3D_SRC/lib" -I"$OUT/gen" -I"$R3D_SRC/proto" \
     -o rol-3d-host "$R3D_SRC/linux/rol-3d.c" -ldl || exit 1
 
-# RISC3D's host stand-in for the SWIs, saying a driver is there
+# RISC3D's host stand-in for the SWIs (RISC3D_Info answers a driver,
+# "Linux3D (host)", since client 0.8)
 cp "$R3D_SRC/test/host/swis.h" "$R3D_SRC/test/host/kernel.h" r3dhost/
-python3 - r3dhost/swis.h <<'EOF' || exit 1
-import sys
-p = sys.argv[1]; s = open(p).read()
-a = '  if (swi == 0xC3D02)\n'
-assert a in s, "RISC3D's test/host/swis.h has changed"
-s = s.replace(a, '  if (swi == 0xC3D00)          /* RISC3D_Info: r3 -> a driver */\n'
-                 '    *va_arg (ap, const char **) = "host";\n  else if (swi == 0xC3D02)\n', 1)
-open(p, 'w').write(s)
-EOF
+grep -q 'swi == RISC3D_Info\|swi == 0x5AF80' r3dhost/swis.h || { echo "RISC3D's test/host/swis.h has no RISC3D_Info &5AF80: not client 0.11 or later?"; exit 1; }
 # (under r3ds_ names, as in libOSMesa: osmesa/r3d_switch.c gives its API)
 gcc -O2 -w -DR3D_HOST -include "$R/osmesa/r3d_stream_names.h" -Ir3dhost -I"$R/risc3d/include" -I"$R/risc3d/lib" \
     -I"$R/risc3d/gen" -I"$R/risc3d/proto" -c "$R/risc3d/lib/r3d_gl.c" -o r3d_gl.o || exit 1

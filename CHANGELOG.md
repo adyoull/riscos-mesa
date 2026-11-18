@@ -4,7 +4,14 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## 20.3.5-22 (in development)
+## 20.3.5-22: RISC3D's allocated SWIs
+
+RISC OS Allocations gave RISC3D its own SWI chunk, &5AF80 (it used the provisional &C3D00), and RISC3D 0.05 answers only the new numbers. This release talks to it there: with RISC3D 0.05 or later programs draw on the GPU again; an older !MesaLibs or a program linked against 20.3.5-21 or earlier finds no RISC3D 0.05 and draws in software.
+
+- **RISC3D client 0.11** (was 0.9), inside libOSMesa: only `r3d.h`'s five SWI numbers changed (RISC3D_Info &5AF80, _Register &5AF81, _Open &5AF82, _Close &5AF83, _Sync &5AF84).
+- **The GPU library's libdrm layer** (`v3d/libdrm/src/drm_riscos.c`) uses the same numbers for RISC3D_Info, _Open and _Close. V3DRender's own SWIs (its allocated chunk &5AFC0 from 0.16) are never named: its ioctl SWI comes from RISC3D_Info's r5, as before.
+- **Docs:** RISC3D module 0.05 or later; a program that must have it uses `RMEnsure RISC3D 0.05 Error This program needs !RISC3D`.
+- **Host tests:** the RISC3D end-to-end run uses RISC3D's own host stand-in for RISC3D_Info (RISC3D source at v0.11): 28 EGL and 23 OSMesa checks pass.
 
 - **Docs for the GPU library:** the README has a section on the GPU (RISC3D decides; `libMesaGPU` on a native Pi 4; what each machine gets), the shared libraries and !MesaLibs, the new downloads, build steps and licences. `v3d/README.md` now describes the released GPU library rather than the prototype. `docs/DECISIONS.md` explains the two Mesas, the porting guides' README and the devkit's docs index say how a port gets the GPU, and the EGL guide and `egl/README.md` are up to date (natively, OpenGL stays at 2.1 on the GPU; windows are drawn into their own memory).
 - **`docs/ALLOCATIONS.md`:** the RISC OS names reserved for riscos-mesa (RISC OS Open, 7 and 18 November 2026) and the two still to request, `V3DM$Why` and `DispmanX$Display`.

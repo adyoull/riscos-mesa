@@ -1,10 +1,10 @@
-RISC3D client library 0.9 (15 November 2026), for riscos-mesa's EGL
-====================================================================
+RISC3D client library 0.11 (18 November 2026), for riscos-mesa's EGL
+=====================================================================
 
 RISC3D's front end for RISC OS programs: the GL functions as commands for
 the RISC3D module (r3d_glXxx, listed by name in r3d_gl_functions[]), and
 contexts. Source and a prebuilt static library, from RISC3D's repository
-at tag v0.9 (RiscOS/RISC3D/risc3d.bundle). MIT licence (LICENSE).
+at tag v0.11 (RiscOS/RISC3D/risc3d.bundle). MIT licence (LICENSE).
 
   lib/r3d.h          the interface (all EGL needs)
   lib/r3d_gl.c       the library; it #includes lib/r3d_dsa.c,
@@ -15,6 +15,15 @@ at tag v0.9 (RiscOS/RISC3D/risc3d.bundle). MIT licence (LICENSE).
   proto/r3d_shared.h the memory shared with the renderer
   libRISC3D.a        built with riscos-crossdev 1.11's GCC 10:
                      -O2 -mfpu=vfpv3 -mfloat-abi=hard (not PIC)
+
+New in 0.11:
+  RISC3D's SWIs at their allocated  RISC3D_Info &5AF80, _Register &5AF81,
+  numbers                           _Open &5AF82, _Close &5AF83, _Sync
+                                    &5AF84 (were the provisional &C3D00-04).
+                                    Needs the RISC3D module 0.05 or later;
+                                    with an older module RISC3D_Info isn't
+                                    there, so programs draw in software.
+                                    Nothing else changed.
 
 New in 0.9:
   client arrays                   a draw from the program's memory sends

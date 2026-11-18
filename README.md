@@ -60,7 +60,7 @@ loader mixed programs need into !MesaLibs.
 ## The GPU
 
 **Programs don't choose between the GPU and software: RISC3D decides.**
-RISC3D (from [riscos-risc3d](https://github.com/adyoull/riscos-risc3d),
+RISC3D (module 0.05 or later, from [riscos-risc3d](https://github.com/adyoull/riscos-risc3d),
 !RISC3D in `!Boot.Resources`) loads the machine's 3D driver at start-up,
 and riscos-mesa's EGL and OSMesa draw with whatever it has:
 

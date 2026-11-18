@@ -43,9 +43,11 @@
 #include "drm_riscos_fake.h"
 #include "drm_riscos_dump.h"
 
-#define RISC3D_Info     0xC3D00
-#define RISC3D_Open     0xC3D02
-#define RISC3D_Close    0xC3D03
+/* RISC3D's SWIs, allocated (RISC OS Allocations, 18 Nov 2026; the same
+   numbers as risc3d/lib/r3d.h, client 0.11). RISC3D 0.05 answers only these. */
+#define RISC3D_Info     0x5AF80
+#define RISC3D_Open     0x5AF82
+#define RISC3D_Close    0x5AF83
 #ifndef OS_ReadMonotonicTime
 #define OS_ReadMonotonicTime 0x42
 #endif

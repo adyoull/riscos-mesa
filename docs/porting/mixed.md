@@ -61,9 +61,12 @@ arm-riscos-gnueabihf-gcc -O2 -I$DEVKIT/include prog.c -o prog $MIXED -lOSMesa -l
   and zlib is inside libOSMesa.
 - **The GPU: add `-lMesaGPU` after `-lOSMesa`.** This doesn't make the
   program draw on the GPU: **RISC3D decides that, not the program.**
-  !RISC3D 0.04 or later, in !Boot.Resources, loads RISC3D and the
-  machine's GPU driver at start-up (a program needs no RMLoad of its own,
-  and never names a driver). When RISC3D has a GPU driver, EGL and OSMesa
+  !RISC3D (RISC3D module 0.05 or later, in !Boot.Resources) loads RISC3D
+  and the machine's GPU driver at start-up (a program needs no RMLoad of
+  its own, and never names a driver). From 20.3.5-22 riscos-mesa uses
+  RISC3D's allocated SWIs (&5AF80), which RISC3D 0.05 answers, and older
+  modules don't. A program that must have it:
+  `RMEnsure RISC3D 0.05 Error This program needs !RISC3D`. When RISC3D has a GPU driver, EGL and OSMesa
   draw on it; when it hasn't, or there's no !RISC3D, they draw in
   software; the program has no code for either. `libMesaGPU.so.1` (Mesa
   26.x with only its GPU drivers) is what riscos-mesa needs for a GPU

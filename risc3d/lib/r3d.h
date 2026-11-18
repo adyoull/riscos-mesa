@@ -13,11 +13,11 @@
 #define R3D_H
 #include <stddef.h>
 
-#define RISC3D_Info	0xC3D00		/* provisional chunk */
-#define RISC3D_Register	0xC3D01
-#define RISC3D_Open	0xC3D02
-#define RISC3D_Close	0xC3D03
-#define RISC3D_Sync	0xC3D04
+#define RISC3D_Info	0x5AF80		/* allocated chunk (RISC OS Allocations, 18 Nov 2026) */
+#define RISC3D_Register	0x5AF81
+#define RISC3D_Open	0x5AF82
+#define RISC3D_Close	0x5AF83
+#define RISC3D_Sync	0x5AF84
 
 /* For Mesa's EGL (the real front end): the gl functions are r3d_glXxx,
    listed by their GL names so that a dispatch table can be built from
