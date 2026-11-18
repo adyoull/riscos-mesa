@@ -17,6 +17,9 @@ binaries go on the release, never into git.
   ReadMe lists them). Record what was and wasn't tried: the release notes
   say which new things haven't been run on a Pi.
 
+- **RISC OS names:** any new system variable, application name or other
+  shared name is in `docs/ALLOCATIONS.md`, reserved or requested.
+
 ## 2. Write it up
 
 - **`CHANGELOG.md`:** rename "(in development)" to the release's heading

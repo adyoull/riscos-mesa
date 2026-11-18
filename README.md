@@ -285,7 +285,8 @@ itself if they're missing).
 **Working on riscos-mesa itself:** [docs/DECISIONS.md](docs/DECISIONS.md)
 explains why things are the way they are (Mesa 20.3.5, EGL as the API,
 the build flags, what's opt-in), and [docs/RELEASING.md](docs/RELEASING.md)
-how a release is made. Each part has its own README: `egl/`,
+how a release is made; [docs/ALLOCATIONS.md](docs/ALLOCATIONS.md) lists
+the RISC OS names reserved for it. Each part has its own README: `egl/`,
 `patches/mesa/`, `patches/sdl2/` (including how to change the SDL
 overlay), `glut/`, `dispmanx/`, `v3d/` (the GPU library),
 `tests/host-harness/`.
