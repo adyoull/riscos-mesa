@@ -28,6 +28,7 @@
  * Copyright (c) 2026 Andrew Youll. MIT licence.
  */
 
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <kernel.h>
@@ -118,24 +119,57 @@ struct r3d_context {
     void *into;                 /* r3d_draw_into's memory, when the GPU draws there */
     void *buffer;               /* r3d_target's, or NULL */
     int format, row_length, y_up;
+    unsigned char *rgba;        /* a frame read back, for r3d_target's buffer */
+    size_t rgba_bytes;
 };
 
-static struct r3d_context *cur, *only;
-static unsigned char *rgba;     /* a frame read back, for r3d_target's buffer */
-static size_t rgba_bytes;
+/* Each thread's current context (with the GPU library several threads
+   can draw at once, each with its own). EGL's calls are
+   serialised by its lock; GL calls (glFinish, glFlush below) aren't. */
+static pthread_once_t cur_once = PTHREAD_ONCE_INIT;
+static pthread_key_t cur_key;
 
-static struct r3d_context *gpu_create(int api, int major, int minor)
+static void cur_make_key(void)
+{
+    pthread_key_create(&cur_key, NULL);
+}
+
+static struct r3d_context *cur_get(void)
+{
+    pthread_once(&cur_once, cur_make_key);
+    return (struct r3d_context *) pthread_getspecific(cur_key);
+}
+
+static void cur_set(struct r3d_context *r)
+{
+    pthread_once(&cur_once, cur_make_key);
+    pthread_setspecific(cur_key, r);
+}
+
+#define cur (cur_get())
+
+static struct r3d_context *only;
+
+static struct r3d_context *gpu_create_shared(int api, int major, int minor, struct r3d_context *share)
 {
     struct r3d_context *r = (struct r3d_context *) calloc(1, sizeof *r);
     if (!r)
         return NULL;
-    r->c = gpu->create(api, major, minor);
+    if (share)
+        r->c = gpu->version >= 3 ? gpu->create_shared(api, major, minor, share->c) : NULL;
+    else
+        r->c = gpu->create(api, major, minor);
     if (!r->c) {
         free(r);
         return NULL;
     }
     r->w = r->h = 1;
     return r;
+}
+
+static struct r3d_context *gpu_create(int api, int major, int minor)
+{
+    return gpu_create_shared(api, major, minor, NULL);
 }
 
 /* the frame into r3d_target's buffer, in its format, row length and order */
@@ -149,18 +183,18 @@ static int copy_to_target(struct r3d_context *r)
         return gpu->read(r->c, r->buffer, (r->row_length > 0 ? r->row_length : r->w) * 4, !r->y_up)
                ? -1 : 0;
     need = (size_t) r->w * r->h * 4;
-    if (rgba_bytes < need) {
-        unsigned char *n = (unsigned char *) realloc(rgba, need);
+    if (r->rgba_bytes < need) {
+        unsigned char *n = (unsigned char *) realloc(r->rgba, need);
         if (!n)
             return -1;
-        rgba = n;
-        rgba_bytes = need;
+        r->rgba = n;
+        r->rgba_bytes = need;
     }
-    if (gpu->read(r->c, rgba, r->w * 4, !r->y_up))   /* the buffer's row order */
+    if (gpu->read(r->c, r->rgba, r->w * 4, !r->y_up))   /* the buffer's row order */
         return -1;
     stride = r->row_length > 0 ? r->row_length : r->w;
     for (y = 0; y < r->h; y++) {
-        const unsigned char *s = rgba + (size_t) y * r->w * 4;
+        const unsigned char *s = r->rgba + (size_t) y * r->w * 4;
         switch (r->format) {
         case OSMESA_RGBA:
             memcpy((unsigned char *) r->buffer + (size_t) y * stride * 4, s, (size_t) r->w * 4);
@@ -268,6 +302,20 @@ struct r3d_context *r3d_create_version(int api, int major, int minor)
     return gpu ? gpu_create(api, major, minor) : r3ds_create_version(api, major, minor);
 }
 
+struct r3d_context *r3d_create_shared(int api, int major, int minor, struct r3d_context *share)
+{
+    decide();
+    if (!share)
+        return r3d_create_version(api, major, minor);
+    return gpu ? gpu_create_shared(api, major, minor, share) : NULL;     /* (the stream shares nothing) */
+}
+
+int r3d_can_share(void)
+{
+    decide();
+    return gpu && gpu->version >= 3;
+}
+
 struct r3d_context *r3d_create(void)
 {
     decide();
@@ -295,7 +343,7 @@ void r3d_make_current(struct r3d_context *r)
     }
     if (cur && cur != r && cur->into && gpu->version >= 2)
         gpu->finish(cur->c);            /* its frame is complete in the caller's memory */
-    cur = r;
+    cur_set(r);
     if (r)
         gpu->make_current(r->c, r->w, r->h);
     else
@@ -329,9 +377,10 @@ void r3d_destroy(struct r3d_context *r)
         return;
     if (cur == r) {
         gpu->make_current(NULL, 0, 0);
-        cur = NULL;
+        cur_set(NULL);
     }
     gpu->destroy(r->c);
+    free(r->rgba);
     free(r);
 }
 

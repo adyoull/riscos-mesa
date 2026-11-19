@@ -18,14 +18,19 @@ static const char *device(void)
     return v3dm_device_name();
 }
 
-static void *create(int api, int major, int minor)
+static void *create_shared(int api, int major, int minor, void *share)
 {
     int a = api == 1 ? V3DM_API_GL : api == 2 ? V3DM_API_GLES1 : V3DM_API_GLES2;
     if (major <= 0) {                   /* the highest the GPU gives */
         major = a == V3DM_API_GLES1 ? 1 : a == V3DM_API_GLES2 ? 2 : 1;
         minor = a == V3DM_API_GLES1 ? 1 : 0;
     }
-    return v3dm_create(a, major, minor, 1);
+    return v3dm_create(a, major, minor, 1, (v3dm_context *) share);
+}
+
+static void *create(int api, int major, int minor)
+{
+    return create_shared(api, major, minor, NULL);
 }
 
 static void destroy(void *context)
@@ -59,7 +64,7 @@ static int finish(void *context)
 
 static const struct riscos_mesa_gpu gpu = {
     RISCOS_MESA_GPU_VERSION, device, create, destroy, make_current, read_frame,
-    riscos_mesa_gpu_functions, v3dm_error, draw_into, finish,
+    riscos_mesa_gpu_functions, v3dm_error, draw_into, finish, create_shared,
 };
 
 __attribute__((visibility("default")))

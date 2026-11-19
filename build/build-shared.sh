@@ -178,6 +178,7 @@ mixed texload   "$T/texload.c"                               -- -lglut -lEGL -lO
 mixed gpu-egltest  "$T/egltest.c" "$T/hrtime.c"                 -- -lEGL -lOSMesa -lMesaGPU
 mixed gpu-glestest "$T/glestest.c" "$T/es_cube.c" "$T/hrtime.c" -- -lEGL -lOSMesa -lMesaGPU
 mixed gpu-glbench  "$T/glbench.c" "$T/hrtime.c"                 -- -lOSMesa -lMesaGPU
+mixed gpu-share    "$T/gpushare.c"                              -- -lEGL -lOSMesa -lMesaGPU
 # SDL: -ldl as well. The shared SDL holds all of SDL, SDL_LoadObject
 # included, which calls dlopen; a static SDL only brings it in for programs
 # that use it. (UnixLib's libdl.a: the program's own, as with UnixLib.)

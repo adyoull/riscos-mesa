@@ -74,7 +74,7 @@ static program; a mixed program shares !MesaLibs' copy.
 | Part | What it is |
 |---|---|
 | `build/build-v3d.sh` | Fetches Mesa 26.1.6 (Debian's copy of the release tarball, sha256-checked), patches it, builds it with meson for RISC OS, and makes `libMesaGPU.a` and the test programs. Needs meson 1.4 or later (`MESON=`; `build/ci.sh` installs one). `RO_PIC=1` makes the position-independent build that `build-shared.sh` turns into `libMesaGPU.so.1`. |
-| `patches/mesa-26.1.6-riscos-v3d.patch` | Mesa's changes: RISC OS in meson.build and util (UnixLib has no pthread barriers, open_memstream, mkstemps or sysinfo); the v3d driver's mmap, munmap and close of the GPU module's file and of sync files; BOs opened by handle (imported memory); a global GL dispatch and context (GCCSDK's thread-local variables are emulated); `V3DM$Why`. |
+| `patches/mesa-26.1.6-riscos-v3d.patch` | Mesa's changes: RISC OS in meson.build and util (UnixLib has no pthread barriers, open_memstream, mkstemps or sysinfo); the v3d driver's mmap, munmap and close of the GPU module's file and of sync files; BOs opened by handle (imported memory); a global GL dispatch and context (GCCSDK's thread-local variables are emulated), each thread's own once a second thread draws; `V3DM$Why`. |
 | `libdrm/` | The part of libdrm that Mesa's v3d driver uses, as requests to the GPU module (`src/drm_riscos.c`, per V3DRender's docs/INTERFACE.md). The module is found through RISC3D: `RISC3D_Info` r4 bit 0 = DRM device, r5 its ioctl SWI, r6 its DRM driver name; `RISC3D_Open` r1 = its file. The module's answers are Linux errno numbers, mapped to UnixLib's. `xf86drm.h`, `xf86drmMode.h`, `drm.h`, `drm_mode.h` are libdrm 2.4.124's, unchanged (MIT). `include/drm_riscos.h` has the RISC OS requests (sync files, cached buffers, imported memory, GPU time). |
 | `frontend/` | `v3dm.h`: contexts and frames on the GPU, after Mesa's hgl frontend and its removed OSMesa one. It picks Mesa's driver by the DRM driver name, so another GPU's module that registers with RISC3D needs only its Mesa driver added. |
 | `gpu/`, `include/riscos_mesa_gpu.h` | The library's one entry point, `riscos_mesa_gpu()`: a table of functions (device, create, destroy, make current, read back, draw into, finish, the gl entry points) that libOSMesa's RISC3D switch uses. `tools/gpu-functions.py` makes the gl entry point list. |
@@ -84,6 +84,30 @@ The library is linked from all of the above with `ld -r`. Every defined
 name is prefixed `mgpu_` and made local except `riscos_mesa_gpu`, and
 `.group` sections are dropped. Mesa 20.3.5's and 26.1.6's GLSL compilers
 share C++ names whose COMDAT groups would otherwise merge.
+
+## Sharing and threads (from 20.3.5-23)
+
+- **Sharing:** a context can share another's objects (textures, buffers,
+  renderbuffers, framebuffers, programs): `eglCreateContext` with a
+  share context that is the GPU library's gives another of its contexts,
+  through `create_shared` (interface version 3) and Mesa's own sharing.
+- **Threads:** contexts can be current in different threads at once, each
+  thread with its own (a program can paint in one thread and composite
+  in another). Mesa 26's glapi keeps the current dispatch and context in
+  plain globals, read directly while one thread draws (GCCSDK's
+  thread-local variables are emulated, a call per use); it also keeps each
+  thread's own, and reads those instead once a second thread makes a
+  context current (`_mesa_glapi_riscos_threads`, as Mesa 20's glapi did
+  without TLS). The RISC3D switch keeps its current context per thread too.
+  Threaded programs load PThreadTicker, as always.
+- **Fences:** `EGL_KHR_fence_sync` does a glFinish when the fence is made,
+  so it is signalled at once and safe across threads.
+- `gpu-share` (tests-mixed, `mx-gpu-share`) checks all of this: two GLES 2
+  contexts on the surfaceless platform, the second sharing the first, both
+  current in two threads switched pre-emptively, each seeing only its own
+  state, sharing a texture and a framebuffer, and a fence. Under QEMU with
+  `V3DM$Fake`: 14 checks pass, with the threads interleaved over 20,000
+  rounds.
 
 ## Finding problems
 
@@ -103,7 +127,8 @@ All of these are system variables, read when the program starts:
 - A command-line program that crashes keeps its GPU file (and GPU
   memory) until a restart. Desktop programs are cleaned up by the Wimp's
   close-down.
-- One thread draws per program.
+- Under RISC OS on Linux (RISC3D's command stream), contexts still don't
+  share objects and one thread draws: that needs RISC3D's protocol.
 - Screen banks don't switch in step with the display on the Pi 4 (as in
   software), so they stay opt-in.
 - Only V3D has a Mesa driver here. Another GPU's module (an i.MX6's, say)

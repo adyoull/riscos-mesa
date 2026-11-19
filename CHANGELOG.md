@@ -6,6 +6,11 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-23 (in development)
 
+- **The GPU library: shared contexts, and a context per thread** (for programs that paint in one thread and composite in another, every context sharing the compositor's objects):
+  - `eglCreateContext` sharing a GPU-library context gives another GPU-library context sharing its objects (textures, buffers, renderbuffers, framebuffers, programs): `riscos_mesa_gpu` interface version 3 (`create_shared`), `r3d_create_shared` / `r3d_can_share` in libOSMesa's RISC3D switch, Mesa's own sharing. With RISC3D's command stream (RISC OS on Linux) it is still `EGL_BAD_MATCH`; sharing with an OSMesa context still gives an OSMesa one, and never an OSMesa context when the sharer is on the GPU.
+  - Contexts can be current in several threads at once. Mesa 26's glapi keeps the current dispatch and context per thread as well as in the globals one thread reads directly, and switches to the per-thread ones when a second thread makes a context current (single-threaded programs cost nothing more). The RISC3D switch's current context and its read-back buffer are per thread / per context. Destroying a context no longer unbinds another one current in the same thread.
+  - New test `gpu-share` (tests-mixed, `mx-gpu-share`): under QEMU with `V3DM$Fake`, 14 checks pass with the two threads interleaved (and the same program in software); host harness 584 checks. Not yet run on a Pi.
+
 - **EGL: `EGL_MESA_platform_surfaceless`.** `eglGetPlatformDisplayEXT(EGL_PLATFORM_SURFACELESS_MESA, NULL, NULL)` gives the display, for programs that draw only into framebuffer objects (made current with no surface: `EGL_KHR_surfaceless_context`). Host harness: 582 checks.
 
 ## 20.3.5-22: RISC3D's allocated SWIs

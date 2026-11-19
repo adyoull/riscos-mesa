@@ -384,30 +384,45 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_screen.c b/src/gallium/drivers/v3d/v3d_s
 diff -ruN a/src/mesa/glapi/glapi/glapi.h b/src/mesa/glapi/glapi/glapi.h
 --- a/src/mesa/glapi/glapi/glapi.h
 +++ b/src/mesa/glapi/glapi/glapi.h
-@@ -69,8 +69,17 @@
+@@ -69,10 +69,31 @@
  
  struct _glapi_table;
  
 -_GLAPI_EXPORT extern __THREAD_INITIAL_EXEC struct _glapi_table * _mesa_glapi_tls_Dispatch;
 -_GLAPI_EXPORT extern __THREAD_INITIAL_EXEC void * _mesa_glapi_tls_Context;
 +#ifdef __riscos__
-+/* riscos-mesa: the current dispatch and context are plain globals, as in
-+ * riscos-mesa's Mesa 20.3.5: GCCSDK's thread-local variables are emulated
-+ * (__emutls_get_address on every GL call), and one thread draws, as with
-+ * RISC3D. */
++/* riscos-mesa: GCCSDK's thread-local variables are emulated (a call to
++ * __emutls_get_address for every use), so the current dispatch and context
++ * are plain globals, read directly while one thread draws, as in
++ * riscos-mesa's Mesa 20.3.5. Each thread's own are kept too (core.c): once
++ * a second thread makes a context current, _mesa_glapi_riscos_threads is
++ * set and every read goes to the calling thread's (as Mesa 20's glapi did
++ * without TLS), for programs that draw from several threads (such as
++ * compositors). */
 +#define _GLAPI_CURRENT_STORAGE
++_GLAPI_EXPORT extern int _mesa_glapi_riscos_threads;
++_GLAPI_EXPORT struct _glapi_table *_mesa_glapi_riscos_dispatch(void);
++_GLAPI_EXPORT void *_mesa_glapi_riscos_context(void);
 +#else
 +#define _GLAPI_CURRENT_STORAGE __THREAD_INITIAL_EXEC
 +#endif
 +_GLAPI_EXPORT extern _GLAPI_CURRENT_STORAGE struct _glapi_table * _mesa_glapi_tls_Dispatch;
 +_GLAPI_EXPORT extern _GLAPI_CURRENT_STORAGE void * _mesa_glapi_tls_Context;
  
- #if DETECT_OS_WINDOWS && !defined(MAPI_MODE_SHARED_GLAPI)
+-#if DETECT_OS_WINDOWS && !defined(MAPI_MODE_SHARED_GLAPI)
++#ifdef __riscos__
++# define GET_DISPATCH() \
++   (__builtin_expect(_mesa_glapi_riscos_threads, 0) ? _mesa_glapi_riscos_dispatch() : _mesa_glapi_tls_Dispatch)
++# define GET_CURRENT_CONTEXT(C)  struct gl_context *C = (struct gl_context *) \
++   (__builtin_expect(_mesa_glapi_riscos_threads, 0) ? _mesa_glapi_riscos_context() : _mesa_glapi_tls_Context)
++#elif DETECT_OS_WINDOWS && !defined(MAPI_MODE_SHARED_GLAPI)
  # define GET_DISPATCH() _mesa_glapi_get_dispatch()
+ # define GET_CURRENT_CONTEXT(C)  struct gl_context *C = (struct gl_context *) _mesa_glapi_get_context()
+ #else
 diff -ruN a/src/mesa/glapi/shared-glapi/core.c b/src/mesa/glapi/shared-glapi/core.c
 --- a/src/mesa/glapi/shared-glapi/core.c
 +++ b/src/mesa/glapi/shared-glapi/core.c
-@@ -148,9 +148,9 @@
+@@ -148,9 +148,55 @@
  #endif /* defined(_GLAPI_ENTRY_ARCH_TLS_H) */
  
  /* Current dispatch and current context variables */
@@ -416,9 +431,98 @@ diff -ruN a/src/mesa/glapi/shared-glapi/core.c b/src/mesa/glapi/shared-glapi/cor
     = (struct _glapi_table *)table_noop_array;
 -__THREAD_INITIAL_EXEC void *_mesa_glapi_tls_Context;
 +_GLAPI_CURRENT_STORAGE void *_mesa_glapi_tls_Context;
++
++#ifdef __riscos__
++/* riscos-mesa (glapi.h): each thread's current dispatch and context, kept
++ * beside the globals; read instead of them once a second thread has made
++ * a context current. */
++#include <pthread.h>
++
++int _mesa_glapi_riscos_threads;
++static pthread_once_t riscos_once = PTHREAD_ONCE_INIT;
++static pthread_key_t riscos_dispatch_key, riscos_context_key;
++static pthread_t riscos_first;          /* the first thread to set either */
++static int riscos_have_first;
++
++static void
++riscos_keys(void)
++{
++   pthread_key_create(&riscos_dispatch_key, NULL);
++   pthread_key_create(&riscos_context_key, NULL);
++}
++
++static void
++riscos_note_thread(int setting)
++{
++   pthread_t self = pthread_self();
++   pthread_once(&riscos_once, riscos_keys);
++   if (!riscos_have_first) {
++      riscos_first = self;
++      riscos_have_first = 1;
++   } else if (setting && !_mesa_glapi_riscos_threads && !pthread_equal(self, riscos_first)) {
++      _mesa_glapi_riscos_threads = 1;   /* from now on, each thread's own */
++   }
++}
++
++struct _glapi_table *
++_mesa_glapi_riscos_dispatch(void)
++{
++   struct _glapi_table *t = pthread_getspecific(riscos_dispatch_key);
++   return t ? t : (struct _glapi_table *)table_noop_array;
++}
++
++void *
++_mesa_glapi_riscos_context(void)
++{
++   return pthread_getspecific(riscos_context_key);
++}
++#endif
  
  static int
  stub_compare(const void *key, const void *elem)
+@@ -238,6 +284,10 @@
+ void
+ _mesa_glapi_set_context(void *ptr)
+ {
++#ifdef __riscos__
++   riscos_note_thread(ptr != NULL);
++   pthread_setspecific(riscos_context_key, ptr);
++#endif
+    _mesa_glapi_tls_Context = ptr;
+ }
+ 
+@@ -249,6 +299,10 @@
+ void *
+ _mesa_glapi_get_context(void)
+ {
++#ifdef __riscos__
++   if (_mesa_glapi_riscos_threads)
++      return _mesa_glapi_riscos_context();
++#endif
+    return _mesa_glapi_tls_Context;
+ }
+ 
+@@ -263,6 +317,10 @@
+    static once_flag flag = ONCE_FLAG_INIT;
+    call_once(&flag, entry_patch_public);
+ 
++#ifdef __riscos__
++   riscos_note_thread(tbl != NULL);
++   pthread_setspecific(riscos_dispatch_key, tbl);
++#endif
+    _mesa_glapi_tls_Dispatch =
+       tbl ? tbl : (struct _glapi_table *)table_noop_array;
+ }
+@@ -273,5 +331,9 @@
+ struct _glapi_table *
+ _mesa_glapi_get_dispatch(void)
+ {
++#ifdef __riscos__
++   if (_mesa_glapi_riscos_threads)
++      return _mesa_glapi_riscos_dispatch();
++#endif
+    return _mesa_glapi_tls_Dispatch;
+ }
 diff -ruN a/src/util/detect_os.h b/src/util/detect_os.h
 --- a/src/util/detect_os.h
 +++ b/src/util/detect_os.h

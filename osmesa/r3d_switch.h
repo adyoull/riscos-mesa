@@ -29,4 +29,11 @@ int r3d_draw_into(void *pixels, int row_bytes, int width, int height);
 /* 1 if the current context draws straight into pixels */
 int r3d_in_place(const void *pixels);
 
+/* 1 if contexts can share objects (the GPU library, version 3): then
+   r3d_create_shared makes one sharing share's (api as r3d_create_version's;
+   major 0: the highest the GPU gives). NULL: it can't (the command stream
+   shares nothing). Each thread has its own current context. */
+int r3d_can_share(void);
+struct r3d_context *r3d_create_shared(int api, int major, int minor, struct r3d_context *share);
+
 #endif

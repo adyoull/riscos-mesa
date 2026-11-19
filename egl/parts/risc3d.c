@@ -230,9 +230,19 @@ static struct r3d_context *r3dw_create(EGLenum api, const context_request *q, co
 {
     struct r3d_context *r = NULL;
 
-    if (share || q->software)
-        return NULL;
-    if (api == EGL_OPENGL_ES_API) {
+    if (q->software || (share && !share->r3d))
+        return NULL;                    /* (OSMesa contexts share with OSMesa ones) */
+    if (share) {
+        /* sharing with a RISC3D context: the GPU library's contexts can
+           (r3d_can_share), the command stream's can't (eglCreateContext
+           says EGL_BAD_MATCH before this) */
+        if (api == EGL_OPENGL_ES_API)
+            r = r3d_create_shared(q->es == 1 ? R3D_API_GLES1 : R3D_API_GLES2,
+                                  q->es == 3 ? q->major : 0, q->es == 3 ? q->minor : 0, share->r3d);
+        else
+            r = r3d_create_shared(R3D_API_GL, q->explicit_version && q->major >= 3 ? q->major : 0,
+                                  q->explicit_version && q->major >= 3 ? q->minor : 0, share->r3d);
+    } else if (api == EGL_OPENGL_ES_API) {
         if (riscos_mesa_pick_renderer(api, q->major, q->minor) != RISCOS_MESA_RISC3D)
             return NULL;
         if (q->es == 3)

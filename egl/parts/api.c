@@ -854,8 +854,8 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
         fail(EGL_BAD_MATCH);            /* can't share between GL and GLES */
         return EGL_NO_CONTEXT;
     }
-    if (share && share->r3d) {
-        fail(EGL_BAD_MATCH);            /* RISC3D contexts share nothing */
+    if (share && share->r3d && !r3d_can_share()) {
+        fail(EGL_BAD_MATCH);            /* RISC3D's command stream shares nothing */
         return EGL_NO_CONTEXT;
     }
     if (!read_context_attribs(attrib_list, api, &q))
@@ -871,6 +871,8 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
     ctx->r3d = r3dw_create(api, &q, share);
     if (ctx->r3d)
         ctx->r3d_overlapped = r3dw_want_overlapped();
+    else if (share && share->r3d)
+        ;                               /* (a GPU context's objects are only on the GPU) */
     else if (q.es != 3)
         ctx->om = OSMesaCreateContextAttribs(attribs, share ? share->om : NULL);
     if (!ctx->om && !ctx->r3d) {

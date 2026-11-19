@@ -179,6 +179,8 @@ const struct r3d_gl_function *r3d_functions(void);
 int r3d_in_program(void);
 int r3d_draw_into(void *pixels, int row_bytes, int width, int height);
 int r3d_in_place(const void *pixels);
+int r3d_can_share(void);
+struct r3d_context *r3d_create_shared(int api, int major, int minor, struct r3d_context *share);
 
 typedef struct egl_surface {
     EGLint magic;

@@ -161,10 +161,17 @@ draws in software. The GPU module is only ever reached through RISC3D.
   ("2.1 RISC3D (...)", "OpenGL ES 2.0 RISC3D (...)") and trims
   `GL_EXTENSIONS`; EGL adds `GL_OES_EGL_image`, whose function it gives.
   `EGL_VERSION` says when RISC3D draws.
-- **Not given to RISC3D:** OpenGL ES 1 and 3, OpenGL 3 and core profiles,
-  and contexts that share objects. Sharing with a RISC3D context is
-  `EGL_BAD_MATCH`; sharing with an OSMesa context gives an OSMesa one.
-- **One thread draws:** RISC3D's current context is global.
+- **Sharing objects:** with the GPU library (natively, from 20.3.5-23) a
+  context created sharing a RISC3D context's objects is another RISC3D
+  context sharing them (`r3d_create_shared`, Mesa's own sharing); with
+  RISC3D's command stream it is `EGL_BAD_MATCH` (the stream shares
+  nothing). Sharing with an OSMesa context gives an OSMesa one.
+- **Threads:** with the GPU library, each thread has its own current
+  context: several threads draw at once (`osmesa/r3d_switch.c` keeps the
+  current context per thread, and Mesa 26's glapi switches to per-thread
+  dispatch once a second thread makes a context current; one thread costs
+  nothing more). With the command stream, RISC3D's current context is
+  global: one thread draws.
 
 The client library is in `risc3d/` (RISC3D 0.2, MIT), built into libEGL by
 `build/build-egl.sh`. The host harness checks the wiring against a fake

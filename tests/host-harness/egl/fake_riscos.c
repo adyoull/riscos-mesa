@@ -794,4 +794,16 @@ int r3d_in_program(void) { return 0; }
 int r3d_draw_into(void *pixels, int row_bytes, int width, int height)
 { (void) pixels; (void) row_bytes; (void) width; (void) height; return 0; }
 int r3d_in_place(const void *pixels) { (void) pixels; return 0; }
+/* the GPU library's sharing (fake_r3d_share: as on a native Pi 4) */
+int fake_r3d_share, fake_r3d_shared;
+int r3d_can_share(void) { return fake_r3d_share; }
+struct r3d_context *r3d_create_shared(int api, int major, int minor, struct r3d_context *share)
+{
+    struct r3d_context *c;
+    (void) major; (void) minor;
+    if (!fake_r3d_share || !share) return NULL;
+    c = fr_new(api == R3D_API_GL ? 1 : api == R3D_API_GLES1 ? 2 : 0);
+    if (c) fake_r3d_shared++;
+    return c;
+}
 #endif /* FAKE_NO_R3D */

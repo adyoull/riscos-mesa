@@ -265,7 +265,7 @@ int main(int argc, char **argv)
     out = fopen(argc > 1 ? argv[1] : "Result", "w");
     say("v3dgles2: OpenGL ES 2.0 on riscos-mesa's v3d prototype (Mesa 26.1.6's v3d driver, through RISC3D)\n");
     say("     starting Mesa's v3d driver through RISC3D%s\n", getenv("V3DM$Fake") ? " (V3DM$Fake: no GPU)" : "");
-    c = v3dm_create(V3DM_API_GLES2, 2, 0, 0);
+    c = v3dm_create(V3DM_API_GLES2, 2, 0, 0, NULL);
     if (!c) {
         say("FAIL no context: %s\n", v3dm_error());
         return 1;

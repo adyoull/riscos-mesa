@@ -389,7 +389,7 @@ static const enum pipe_format depth_formats[] = {
 
 /* ---- contexts ---- */
 
-v3dm_context *v3dm_create(int api, int major, int minor, int depth)
+v3dm_context *v3dm_create(int api, int major, int minor, int depth, v3dm_context *share)
 {
     struct st_context_attribs attribs;
     enum st_context_error err;
@@ -416,7 +416,9 @@ v3dm_context *v3dm_create(int api, int major, int minor, int depth)
     attribs.major = major;
     attribs.minor = minor;
     attribs.visual = c->visual;
-    c->st = st_api_create_context(dev.fscreen, &attribs, &err, NULL);
+    /* share: the objects (textures, buffers, programs...) of another
+       context, which may be current in another thread */
+    c->st = st_api_create_context(dev.fscreen, &attribs, &err, share ? share->st : NULL);
     if (!c->st) {
         snprintf(dev.error, sizeof dev.error, "st_api_create_context failed (%d)", (int) err);
         FREE(c);
@@ -544,7 +546,10 @@ void v3dm_destroy(v3dm_context *c)
     if (!c)
         return;
     drop_targets(c);                    /* the caller may free its memory after this */
-    st_api_make_current(NULL, NULL, NULL);
+    /* (st_destroy_context binds c while it works and then binds again
+       whatever this thread had current, so c mustn't be that) */
+    if (st_api_get_current() == c->st)
+        st_api_make_current(NULL, NULL, NULL);
     st_context_flush(c->st, 0, NULL, NULL, NULL);
     st_destroy_context(c->st);
     fb_destroy(c->fb);

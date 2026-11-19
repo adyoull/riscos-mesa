@@ -573,7 +573,24 @@ static void test_risc3d(void)
     r = eglCreateContext(dpy, wcfg, EGL_NO_CONTEXT, NULL);
     CHECK(r != EGL_NO_CONTEXT && fake_r3d_live == before + 1, "driver: GL context is RISC3D's");
     CHECK(eglCreateContext(dpy, wcfg, r, NULL) == EGL_NO_CONTEXT && eglGetError() == EGL_BAD_MATCH,
-          "sharing with a RISC3D context refused");
+          "sharing with a RISC3D context refused (the command stream shares nothing)");
+    {
+        /* the GPU library (natively) shares: a RISC3D context sharing r's
+           objects, never an OSMesa one */
+        extern int fake_r3d_share, fake_r3d_shared;
+        EGLContext sh;
+        int n = fake_r3d_shared;
+        fake_r3d_share = 1;
+        sh = eglCreateContext(dpy, wcfg, r, NULL);
+        CHECK(sh != EGL_NO_CONTEXT && fake_r3d_shared == n + 1 && fake_r3d_live == before + 2,
+              "GPU library: sharing with a RISC3D context gives a RISC3D context");
+        eglDestroyContext(dpy, sh);
+        fake_r3d_fail = 1;
+        CHECK(eglCreateContext(dpy, wcfg, r, NULL) == EGL_NO_CONTEXT && eglGetError() == EGL_BAD_MATCH &&
+              fake_r3d_live == before + 1, "GPU library can't make one: refused, not an OSMesa context sharing nothing");
+        fake_r3d_fail = 0;
+        fake_r3d_share = 0;
+    }
     r2 = eglCreateContext(dpy, wcfg, o, NULL);
     CHECK(r2 != EGL_NO_CONTEXT && fake_r3d_live == before + 1, "sharing with OSMesa: OSMesa");
     {

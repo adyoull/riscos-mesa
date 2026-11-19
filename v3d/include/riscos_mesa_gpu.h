@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-#define RISCOS_MESA_GPU_VERSION 2
+#define RISCOS_MESA_GPU_VERSION 3
 
 /* a gl function by its GL name, as RISC3D's client lists its own */
 struct riscos_mesa_gpu_function { const char *name; void (*fn)(void); };
@@ -56,6 +56,12 @@ struct riscos_mesa_gpu {
     int (*draw_into)(void *context, void *pixels, int row_bytes, int width, int height);
     /* (version 2) the frame is finished. 0, or -1 */
     int (*finish)(void *context);
+    /* (version 3) create, sharing share's objects (textures, buffers,
+       renderbuffers, framebuffers, programs...): the same api. Contexts
+       may be current in different threads at once: each thread's current
+       context is its own (Mesa's glapi keeps one per thread once a second
+       thread makes one current). NULL: see error() */
+    void *(*create_shared)(int api, int major, int minor, void *share);
 };
 
 /* the library's one exported name */

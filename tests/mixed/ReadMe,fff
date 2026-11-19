@@ -42,6 +42,9 @@ they draw in software, as the others do.
   mx-gpu-glbench      glbench 640 480 5, results in GPUBench
   mx-gpu-egl-window   egltest in a window, results in gpueglwin
   mx-gpu-gles-window  OpenGL ES 1.1 and 2.0 in a window, gpu-gles-window
+  mx-gpu-share        two threads, each with a GLES 2 context, the second
+                      sharing the first's objects (as a threaded
+                      compositor would), results in gpushare. Loads PThreadTicker.
 *Set V3DM$Stats 1 before one of them prints, every 5 seconds, what it
 asked the GPU for and how long the GPU took (see v3d/README.md in the
 source).

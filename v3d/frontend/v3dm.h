@@ -31,8 +31,10 @@ const char *v3dm_device(void);
 /* the driver's name for the GPU, once started */
 const char *v3dm_renderer(void);
 
-/* a context; depth: with a 24-bit depth and 8-bit stencil buffer */
-v3dm_context *v3dm_create(int api, int major, int minor, int depth);
+/* a context; depth: with a 24-bit depth and 8-bit stencil buffer; share:
+   NULL, or a context whose objects it shares (of the same API). Contexts
+   may be current in different threads at once. */
+v3dm_context *v3dm_create(int api, int major, int minor, int depth, v3dm_context *share);
 /* makes c current, drawing into an off-screen RGBA frame of this size
    (made again if the size changes); NULL: none current */
 int v3dm_make_current(v3dm_context *c, unsigned width, unsigned height);

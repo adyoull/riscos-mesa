@@ -97,7 +97,7 @@ int main(int argc, char **argv)
 
     say("     starting Mesa's v3d driver through RISC3D%s\n", getenv("V3DM$Fake") ? " (V3DM$Fake: no GPU)" : "");
     t0 = clock();
-    c = v3dm_create(V3DM_API_GL, 2, 1, 1);
+    c = v3dm_create(V3DM_API_GL, 2, 1, 1, NULL);
     if (!c) {
         say("FAIL no context: %s\n", v3dm_error());
         return 1;
