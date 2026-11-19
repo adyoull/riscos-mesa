@@ -42,7 +42,9 @@
 static GLboolean image_lookup(void *image, OSMesaImage *desc);
 
 static void *r3dw_table;                /* the dispatch table, made once */
-static struct r3d_context *r3dw_current;        /* RISC3D's current context (r3dw_activate) */
+/* RISC3D's current context in the calling thread (each thread has its
+   own: RISC3D client 0.12, and the GPU library) */
+#define r3dw_current (thr()->active && thr()->active->r3d ? thr()->active->r3d : NULL)
 static void (*r3dw_glFinish)(void);
 static void (*r3dw_glTexImage2D)(GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum,
                                  const void *);
@@ -339,7 +341,6 @@ static int r3dw_activate(egl_context *c)
 {
     egl_surface *s = c->draw;
     r3d_make_current(c->r3d);
-    r3dw_current = c->r3d;
     OSMesaSetDispatchRISCOS(r3dw_table);
     r3d_surface(s ? s->w : 1, s ? s->h : 1);
     r3dw_place(s);
@@ -350,7 +351,6 @@ static int r3dw_activate(egl_context *c)
 static void r3dw_deactivate(void)
 {
     r3d_make_current(NULL);
-    r3dw_current = NULL;
     OSMesaSetDispatchRISCOS(NULL);
 }
 

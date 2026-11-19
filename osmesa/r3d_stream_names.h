@@ -33,3 +33,5 @@
 #define r3d_flush           r3ds_flush
 #define r3d_stats           r3ds_stats
 #define r3d_error           r3ds_error
+#define r3d_create_shared   r3ds_create_shared
+#define r3d_can_share       r3ds_can_share

@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <pthread.h>
 #include <swis.h>
 #include <kernel.h>
 #include "r3d_gl.h"
@@ -125,11 +126,29 @@ struct vao
   GLuint element_buffer;
 };
 
+/* (0.12) What contexts sharing objects have in common (one for a context
+   that shares with none): the names given (textures, buffers, display
+   lists, sync objects: one set for the group, as the renderer has one),
+   and the display lists' records. Names are taken with atomic operations,
+   as contexts of a group are usually in different threads. */
+struct r3d_group
+{
+  int refs;
+  GLuint next_texture, next_buffer, next_list;
+  uint32_t next_sync;			/* sync objects: numbers, the renderer's table */
+  pthread_mutex_t lock;			/* (display lists, when threads draw) */
+  struct list **lists;			/* (each its own block: they don't move) */
+  size_t nlists, caplists;
+};
+
 /* One context: its RISC3D handle, the shared memory, and what the library
-   has to remember of GL's state. The gl functions work on the current one. */
+   has to remember of GL's state. The gl functions work on the current one
+   (each thread's own, 0.12). */
 struct r3d_context
 {
   int handle;
+  int api;				/* R3D_API_*: what it was made as */
+  struct r3d_group *grp;		/* its names and lists (shared ones) */
   struct r3d_area *area;
   uint32_t *ring;
   uint32_t ring_words;
@@ -150,8 +169,6 @@ struct r3d_context
   GLuint array_buffer, element_buffer, pack_buffer, unpack_buffer;
   struct pixelstore pack, unpack;
 
-  /* names: the next to give; above every name the program has used */
-  GLuint next_texture, next_buffer, next_list;
 
   /* kept state */
   struct stack modelview, projection, texture[MAX_UNITS];
@@ -167,9 +184,7 @@ struct r3d_context
   struct saved_client client_stack[MAX_ATTRIB_DEPTH];
   int client_depth;
 
-  /* display lists */
-  struct list *lists;
-  size_t nlists, caplists;
+  /* display lists (their records: grp) */
   GLuint compiling;			/* the list being made, or 0 */
   GLenum compile_mode;
   struct list *recording;
@@ -200,7 +215,6 @@ struct r3d_context
   int restart, restart_fixed;		/* primitive restart, and its index */
   GLuint program, pipeline;		/* glUseProgram's, glBindProgramPipeline's */
   GLuint restart_index;
-  uint32_t next_sync;			/* sync objects: numbers, the renderer's table */
   const char **ext_list;		/* glGetStringi's: GL_EXTENSIONS split */
   GLuint ext_count;
 
@@ -228,8 +242,74 @@ struct r3d_context
   uint32_t *imm_cmd;			/* the draw being filled in the ring */
   uint32_t imm_cmd_head;		/* where it starts */
 };
-static struct r3d_context none = { .handle = -1 };
-static struct r3d_context *cur = &none;
+static struct r3d_group none_group = { .refs = 1, .next_texture = 1, .next_buffer = 1, .next_list = 1,
+				       .lock = PTHREAD_MUTEX_INITIALIZER };
+static struct r3d_context none = { .handle = -1, .grp = &none_group };
+
+/* The current context (0.12: each thread's). While one thread has made
+   contexts current it is a plain variable, as before, costing the gl
+   functions nothing more; once another thread makes one current (EGL's
+   contexts per thread: WebKit's Skia), every thread but the first keeps
+   its own in a pthread key. */
+static struct r3d_context *cur_one = &none;	/* the first thread's */
+static int threads_seen;			/* another thread has one */
+static int first_known;
+static pthread_t first_thread;
+static pthread_key_t cur_key;
+static pthread_mutex_t ctx_lock = PTHREAD_MUTEX_INITIALIZER;	/* (making, ending, close_all) */
+
+static struct r3d_context *
+cur_threaded (void)
+{
+  if (pthread_equal (pthread_self (), first_thread))
+    return cur_one;
+  struct r3d_context *c = pthread_getspecific (cur_key);
+  return c ? c : &none;
+}
+
+static inline __attribute__ ((always_inline)) struct r3d_context *
+r3d_cur (void)
+{
+  if (__builtin_expect (!threads_seen, 1))
+    return cur_one;
+  return cur_threaded ();
+}
+#define cur (r3d_cur ())
+
+static void
+set_cur (struct r3d_context *c)
+{
+  if (!first_known)
+    {
+      first_thread = pthread_self ();
+      first_known = 1;
+    }
+  if (!threads_seen && !pthread_equal (pthread_self (), first_thread))
+    {
+      pthread_mutex_lock (&ctx_lock);
+      if (!threads_seen && !pthread_key_create (&cur_key, 0))
+	__atomic_store_n (&threads_seen, 1, __ATOMIC_SEQ_CST);
+      pthread_mutex_unlock (&ctx_lock);
+    }
+  if (!threads_seen || pthread_equal (pthread_self (), first_thread))
+    cur_one = c;
+  else
+    pthread_setspecific (cur_key, c == &none ? 0 : c);
+}
+
+static void
+group_lock (void)
+{
+  if (threads_seen)
+    pthread_mutex_lock (&cur->grp->lock);
+}
+
+static void
+group_unlock (void)
+{
+  if (threads_seen)
+    pthread_mutex_unlock (&cur->grp->lock);
+}
 static const char *last_error;
 static char error_text[256];
 
@@ -699,39 +779,53 @@ st_pop_attrib (void)
 
 /* --- display lists: what each one changes of the kept state ------------- */
 
+/* (0.12: a share group's, so made and dropped under its lock; a list
+   isn't to be made in one thread while called or deleted in another) */
 static struct list *
 find_list (GLuint name, int make)
 {
-  for (size_t i = 0; i < cur->nlists; i++)
-    if (cur->lists[i].name == name)
-      return &cur->lists[i];
-  if (!make)
-    return 0;
-  if (cur->nlists == cur->caplists)
+  struct r3d_group *g = cur->grp;
+  struct list *l = 0;
+  group_lock ();
+  for (size_t i = 0; i < g->nlists && !l; i++)
+    if (g->lists[i]->name == name)
+      l = g->lists[i];
+  if (!l && make)
     {
-      size_t cap = cur->caplists ? cur->caplists * 2 : 64;
-      struct list *l = realloc (cur->lists, cap * sizeof *l);
-      if (!l)
-	return 0;
-      cur->lists = l;
-      cur->caplists = cap;
+      if (g->nlists == g->caplists)
+	{
+	  size_t cap = g->caplists ? g->caplists * 2 : 64;
+	  struct list **t = realloc (g->lists, cap * sizeof *t);
+	  if (t)
+	    {
+	      g->lists = t;
+	      g->caplists = cap;
+	    }
+	}
+      if (g->nlists < g->caplists && (l = calloc (1, sizeof *l)))
+	{
+	  l->name = name;
+	  g->lists[g->nlists++] = l;
+	}
     }
-  struct list *l = &cur->lists[cur->nlists++];
-  memset (l, 0, sizeof *l);
-  l->name = name;
+  group_unlock ();
   return l;
 }
 
 static void
 drop_list (GLuint name)
 {
-  for (size_t i = 0; i < cur->nlists; i++)
-    if (cur->lists[i].name == name)
+  struct r3d_group *g = cur->grp;
+  group_lock ();
+  for (size_t i = 0; i < g->nlists; i++)
+    if (g->lists[i]->name == name)
       {
-	free (cur->lists[i].w);
-	cur->lists[i] = cur->lists[--cur->nlists];
-	return;
+	free (g->lists[i]->w);
+	free (g->lists[i]);
+	g->lists[i] = g->lists[--g->nlists];
+	break;
       }
+  group_unlock ();
 }
 
 /* records a state change in the list being made: whether to make it now
@@ -826,14 +920,17 @@ replay (GLuint name, int depth)
 static void
 used_name (GLuint *next, GLuint name)
 {
-  if (name >= *next && name < 0x7fff0000u)
-    *next = name + 1;
+  /* (atomic: a share group's contexts may be in other threads) */
+  GLuint n = __atomic_load_n (next, __ATOMIC_RELAXED);
+  while (name >= n && name < 0x7fff0000u
+	 && !__atomic_compare_exchange_n (next, &n, name + 1, 1, __ATOMIC_RELAXED, __ATOMIC_RELAXED))
+    ;
 }
 
 static void
 r3d_track_glBindBuffer (GLenum target, GLuint buffer)
 {
-  used_name (&cur->next_buffer, buffer);
+  used_name (&cur->grp->next_buffer, buffer);
   switch (target)
     {
     case GL_ARRAY_BUFFER: cur->array_buffer = buffer; break;
@@ -848,7 +945,7 @@ static void
 r3d_track_glBindTexture (GLenum target, GLuint texture)
 {
   (void) target;
-  used_name (&cur->next_texture, texture);
+  used_name (&cur->grp->next_texture, texture);
 }
 
 static void
@@ -1061,7 +1158,7 @@ r3d_track_glNewList (GLuint list, GLenum mode)
 {
   if (!cur->desktop || cur->compiling || !list || (mode != GL_COMPILE && mode != GL_COMPILE_AND_EXECUTE))
     return;
-  used_name (&cur->next_list, list);
+  used_name (&cur->grp->next_list, list);
   drop_list (list);
   cur->compiling = list;
   cur->compile_mode = mode;
@@ -1080,9 +1177,9 @@ r3d_track_glDeleteLists (GLuint list, GLsizei range)
 {
   if (range <= 0)
     return;
-  for (size_t i = cur->nlists; i-- > 0; )
-    if (cur->lists[i].name >= list && cur->lists[i].name - list < (GLuint) range)
-      drop_list (cur->lists[i].name);
+  for (size_t i = cur->grp->nlists; i-- > 0; )
+    if (cur->grp->lists[i]->name >= list && cur->grp->lists[i]->name - list < (GLuint) range)
+      drop_list (cur->grp->lists[i]->name);
 }
 
 static void
@@ -2050,8 +2147,11 @@ glGetBooleanv (GLenum pname, GLboolean *data)
 static void
 gen_names (GLuint *next, GLsizei n, GLuint *names)
 {
-  for (GLsizei i = 0; names && i < n; i++)
-    names[i] = (*next)++;
+  if (!names || n <= 0)
+    return;
+  GLuint base = __atomic_fetch_add (next, (GLuint) n, __ATOMIC_RELAXED);
+  for (GLsizei i = 0; i < n; i++)
+    names[i] = base + (GLuint) i;
 }
 
 /* OpenGL 3.1 without the compatibility profile takes only names it gave:
@@ -2082,17 +2182,17 @@ void
 glGenTextures (GLsizei n, GLuint *textures)
 {
   if (cur->strict)
-    gen_core (OP_glGenTextures, &cur->next_texture, n, textures);
+    gen_core (OP_glGenTextures, &cur->grp->next_texture, n, textures);
   else
-    gen_names (&cur->next_texture, n, textures);
+    gen_names (&cur->grp->next_texture, n, textures);
 }
 void
 glGenBuffers (GLsizei n, GLuint *buffers)
 {
   if (cur->strict)
-    gen_core (OP_glGenBuffers, &cur->next_buffer, n, buffers);
+    gen_core (OP_glGenBuffers, &cur->grp->next_buffer, n, buffers);
   else
-    gen_names (&cur->next_buffer, n, buffers);
+    gen_names (&cur->grp->next_buffer, n, buffers);
 }
 
 GLuint
@@ -2100,9 +2200,7 @@ glGenLists (GLsizei range)
 {
   if (range <= 0 || cur->handle < 0)
     return 0;
-  GLuint base = cur->next_list;
-  cur->next_list += (GLuint) range;
-  return base;
+  return __atomic_fetch_add (&cur->grp->next_list, (GLuint) range, __ATOMIC_RELAXED);
 }
 
 GLboolean
@@ -2156,7 +2254,7 @@ glCallLists (GLsizei n, GLenum type, const void *lists)
   size_t bytes = (size_t) n * list_bytes (type);
   uint32_t f[3] = { (uint32_t) n, type, (uint32_t) bytes };
   r3d_put_data (OP_glCallLists, f, 3, lists, bytes);
-  if (!cur->desktop || (!cur->nlists && !cur->compiling))
+  if (!cur->desktop || (!cur->grp->nlists && !cur->compiling))
     return;
   /* what the lists change here, and their record in a list being made */
   uint32_t *names = malloc ((size_t) n * 4);
@@ -3348,21 +3446,27 @@ close_all (void)
   /* (at exit, maybe before a library's own handler that still releases
      its context, flushing: freeglut's fgDeinitialize, riscos-mesa found.
      A closed context's shared memory is gone, so it's marked closed and
-     anything sent to it after is dropped) */
+     anything sent to it after is dropped; another thread's current one
+     too, as its handle is) */
+  int was_cur = 0;
+  pthread_mutex_lock (&ctx_lock);
   for (int i = 0; i < MAX_OPEN; i++)
     if (open_ctx[i])
       {
 	_swix (RISC3D_Close, _IN (0), open_ctx[i]->handle);
 	open_ctx[i]->handle = -1;
-	if (cur == open_ctx[i])
-	  cur = &none;
+	was_cur |= cur == open_ctx[i];
 	open_ctx[i] = 0;
       }
+  pthread_mutex_unlock (&ctx_lock);
+  if (was_cur)
+    set_cur (&none);
 }
 
 static void
 remember (struct r3d_context *c, int on)
 {
+  pthread_mutex_lock (&ctx_lock);
   for (int i = 0; i < MAX_OPEN; i++)
     if (on ? !open_ctx[i] : open_ctx[i] == c)
       {
@@ -3371,6 +3475,35 @@ remember (struct r3d_context *c, int on)
       }
   if (on && !atexit_set)
     atexit_set = atexit (close_all) == 0;
+  pthread_mutex_unlock (&ctx_lock);
+}
+
+/* (0.12) a share group: a new one, or another context of one */
+static struct r3d_group *
+group_new (void)
+{
+  struct r3d_group *g = calloc (1, sizeof *g);
+  if (!g)
+    return 0;
+  g->refs = 1;
+  g->next_texture = g->next_buffer = g->next_list = 1;
+  pthread_mutex_init (&g->lock, 0);
+  return g;
+}
+
+static void
+group_drop (struct r3d_group *g)
+{
+  if (!g || g == &none_group || __atomic_sub_fetch (&g->refs, 1, __ATOMIC_ACQ_REL))
+    return;
+  for (size_t i = 0; i < g->nlists; i++)
+    {
+      free (g->lists[i]->w);
+      free (g->lists[i]);
+    }
+  free (g->lists);
+  pthread_mutex_destroy (&g->lock);
+  free (g);
 }
 
 static void
@@ -3380,9 +3513,7 @@ free_context (struct r3d_context *c)
   free (c->projection.m);
   for (int i = 0; i < MAX_UNITS; i++)
     free (c->texture[i].m);
-  for (size_t i = 0; i < c->nlists; i++)
-    free (c->lists[i].w);
-  free (c->lists);
+  group_drop (c->grp);
   for (int i = 0; i < 4; i++)
     free (c->maps[i].ptr);
   free (c->imm_v);
@@ -3393,23 +3524,37 @@ free_context (struct r3d_context *c)
 
 /* a context of OpenGL (desktop: the compatibility profile), GLES 1.1 or
    GLES 2/3: the renderer makes it now, so that a failure is seen here.
-   want: the version asked for (major * 10 + minor), or 0 */
+   want: the version asked for (major * 10 + minor), or 0. share: (0.12)
+   the context whose objects it shares, or 0 */
 static struct r3d_context *
-create_version (int api, int want)
+create_version (int api, int want, struct r3d_context *share)
 {
   int desktop = api == R3D_API_GL;
+  if (share && (share->handle < 0 || share->api != api))
+    {
+      last_error = share->handle < 0 ? "The context to share with is closed"
+				     : "A shared context must have the API of the one it shares with";
+      return 0;
+    }
   struct r3d_context *c = calloc (1, sizeof *c);
   unsigned bytes = 0;
-  if (!c)
+  if (!c || !(c->grp = share ? share->grp : group_new ()))
     {
+      free (c);
       last_error = "No memory for a RISC3D context";
       return 0;
     }
-  _kernel_oserror *e = _swix (RISC3D_Open, _IN (0) | _OUTR (0, 2), 0, &c->handle, &c->area, &bytes);
+  if (share)
+    __atomic_add_fetch (&c->grp->refs, 1, __ATOMIC_ACQ_REL);
+  c->api = api;
+  /* (RISC3D 0.06's flag bit 0: share context r1's objects) */
+  _kernel_oserror *e = share ? _swix (RISC3D_Open, _INR (0, 1) | _OUTR (0, 2), 1, share->handle, &c->handle, &c->area, &bytes)
+			     : _swix (RISC3D_Open, _IN (0) | _OUTR (0, 2), 0, &c->handle, &c->area, &bytes);
   if (e)
     {
       strncpy (error_text, e->errmess, sizeof error_text - 1);
       last_error = error_text;
+      group_drop (c->grp);
       free (c);
       return 0;
     }
@@ -3417,6 +3562,7 @@ create_version (int api, int want)
     {
       _swix (RISC3D_Close, _IN (0), c->handle);
       last_error = "RISC3D's driver gave no shared memory";
+      group_drop (c->grp);
       free (c);
       return 0;
     }
@@ -3424,14 +3570,13 @@ create_version (int api, int want)
   c->ring_words = c->area->ring_words;
   c->local_head = c->published = c->tail_seen = c->area->head;
   c->unpack.alignment = c->pack.alignment = 4;
-  c->next_texture = c->next_buffer = c->next_list = 1;
   array_defaults (c->attribs, c->fixed);
   c->matrix_mode = GL_MODELVIEW;
 
   struct r3d_context *was = cur;
   if (was != &none)
     publish ();
-  cur = c;
+  set_cur (c);
   int ok = 0;
   uint32_t *a = r3d_put (OP_CONTEXT, 2);
   if (a)
@@ -3488,7 +3633,7 @@ create_version (int api, int want)
       if (!ok && !last_error)
 	last_error = "No memory for a RISC3D context";
     }
-  cur = was;
+  set_cur (was);
   if (!ok)
     {
       _swix (RISC3D_Close, _IN (0), c->handle);
@@ -3499,8 +3644,28 @@ create_version (int api, int want)
   return c;
 }
 
-static struct r3d_context *create (int api) { return create_version (api, 0); }
-struct r3d_context *r3d_create_version (int api, int major, int minor) { return create_version (api, major * 10 + minor); }
+static struct r3d_context *create (int api) { return create_version (api, 0, 0); }
+struct r3d_context *r3d_create_version (int api, int major, int minor) { return create_version (api, major * 10 + minor, 0); }
+struct r3d_context *
+r3d_create_shared (int api, int major, int minor, struct r3d_context *share)
+{
+  if (!share)
+    return create_version (api, major * 10 + minor, 0);
+  return create_version (api, major * 10 + minor, share);
+}
+
+/* (0.12) contexts can share objects: Info's r4 bit 2, which only RISC3D
+   0.06 on sets, for a driver that can now (Linux3D 0.06 with rol-3d 0.20
+   on) */
+int
+r3d_can_share (void)
+{
+  const char *drv = 0;
+  unsigned flags = 0;
+  if (_swix (RISC3D_Info, _OUT (3) | _OUT (4), &drv, &flags) || !drv)
+    return 0;
+  return (flags & R3D_DRIVER_SHARE) && !(flags & R3D_DRIVER_DRM);
+}
 struct r3d_context *r3d_create (void) { return create (R3D_API_GLES2); }
 struct r3d_context *r3d_create_gl (void) { return create (R3D_API_GL); }
 struct r3d_context *r3d_create_es1 (void) { return create (R3D_API_GLES1); }
@@ -3511,7 +3676,7 @@ r3d_make_current (struct r3d_context *c)
 {
   if (cur != &none)
     publish ();
-  cur = c ? c : &none;
+  set_cur (c ? c : &none);
 }
 
 void
@@ -3522,7 +3687,7 @@ r3d_destroy (struct r3d_context *c)
   if (cur == c)
     {
       publish ();
-      cur = &none;
+      set_cur (&none);
     }
   remember (c, 0);
   _swix (RISC3D_Close, _IN (0), c->handle);
@@ -3728,7 +3893,7 @@ r3d_target (struct r3d_context *c, void *buffer, int width, int height, int form
     {
       if (was != &none)
 	publish ();
-      cur = c;
+      set_cur (c);
     }
   if (width != c->surface_w || height != c->surface_h)
     {
@@ -3739,7 +3904,7 @@ r3d_target (struct r3d_context *c, void *buffer, int width, int height, int form
   if (was != c)
     {
       publish ();
-      cur = was;
+      set_cur (was);
     }
   c->target = buffer;
   c->target_w = width;
@@ -3821,10 +3986,10 @@ r3d_target_copy (struct r3d_context *c)
   if (!c || !c->target)
     return -1;
   struct r3d_context *was = cur;
-  cur = c;
+  set_cur (c);
   int r = target_copy ();
   c->target_head = c->local_head;
-  cur = was;
+  set_cur (was);
   return r;
 }
 
@@ -4478,7 +4643,7 @@ glFenceSync (GLenum condition, GLbitfield flags)
   uint32_t *a = r3d_put (OP_glFenceSync, 3);
   if (!a)
     return 0;
-  uint32_t id = ++cur->next_sync;
+  uint32_t id = __atomic_add_fetch (&cur->grp->next_sync, 1, __ATOMIC_RELAXED);
   a[0] = id;
   a[1] = condition;
   a[2] = flags;

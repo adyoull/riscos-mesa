@@ -65,6 +65,8 @@ int r3ds_swap_overlay(void);
 void r3ds_flush(void);
 int r3ds_stats(unsigned long long v[4]);
 const char *r3ds_error(void);
+struct r3d_context *r3ds_create_shared(int api, int major, int minor, struct r3d_context *share);
+int r3ds_can_share(void);
 
 /* ---- the GPU library, if linked in ---- */
 extern const struct riscos_mesa_gpu *riscos_mesa_gpu(void) __attribute__((weak));
@@ -307,13 +309,15 @@ struct r3d_context *r3d_create_shared(int api, int major, int minor, struct r3d_
     decide();
     if (!share)
         return r3d_create_version(api, major, minor);
-    return gpu ? gpu_create_shared(api, major, minor, share) : NULL;     /* (the stream shares nothing) */
+    /* the command stream: RISC3D client 0.12, with RISC3D 0.06 on and (on
+       RISC OS on Linux) Linux3D 0.06 and rol-3d 0.20 on */
+    return gpu ? gpu_create_shared(api, major, minor, share) : r3ds_create_shared(api, major, minor, share);
 }
 
 int r3d_can_share(void)
 {
     decide();
-    return gpu && gpu->version >= 3;
+    return gpu ? gpu->version >= 3 : r3ds_can_share();
 }
 
 struct r3d_context *r3d_create(void)

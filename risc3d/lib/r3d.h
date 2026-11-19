@@ -6,7 +6,7 @@
    functions, and takes each finished frame as pixels (r3d_swap): 32 bits a
    pixel in a RISC OS sprite's order (&BBGGRR words), top row first.
 
-   PROTOTYPE: the SWI numbers are provisional and the interface will change.
+   The SWI numbers are allocated (RISC OS Allocations, 18 Nov 2026).
 
    Copyright (c) 2026 Andrew Youll. MIT licence (see LICENSE). */
 #ifndef R3D_H
@@ -59,7 +59,26 @@ const char *r3d_target (struct r3d_context *, void *buffer, int width, int heigh
    (V3DRender), which takes no command stream. */
 #define R3D_DRIVER_DRM		1
 #define R3D_DRIVER_SOFTWARE	2
+#define R3D_DRIVER_SHARE	4	/* (from RISC3D 0.12) contexts can share objects */
 int r3d_driver_flags (void);
+
+/* (from RISC3D 0.12) Shared contexts, as EGL's share_context: a context
+   of the API asked for (as r3d_create_version) that shares share's
+   objects (textures, buffers, renderbuffers, programs, shaders, samplers,
+   sync objects, display lists), drawn by the same driver. share must be
+   of the same API (R3D_API_*); 0 makes an unshared one. 0: see r3d_error.
+   r3d_can_share: 1 if contexts can share now (RISC3D module 0.06 on; on
+   RISC OS on Linux, Linux3D 0.06 with rol-3d 0.20 on), else 0: then draw
+   in software, as with no driver.
+
+   Threads: each thread has its own current context (r3d_make_current is
+   the calling thread's), so contexts may draw in several threads at once,
+   one thread to a context at a time. Work in one context is seen by
+   another after glFinish in the first (or a fence the second waits for):
+   glFlush alone doesn't promise it, as in GL. One thread drawing costs
+   no more than before. */
+struct r3d_context *r3d_create_shared (int api, int major, int minor, struct r3d_context *share);
+int r3d_can_share (void);
 /* (from RISC3D 0.9) how the renderer takes arrays and indices from the
    program's memory: 1 (the default), given to the driver as memory, as a
    Linux program gives them; 0, each in a buffer object of its own (0.8's

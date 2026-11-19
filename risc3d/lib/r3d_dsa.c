@@ -23,14 +23,14 @@ temp_bind (uint32_t kind, GLenum target, GLuint name)
 static void
 temp_texture (GLenum target, GLuint texture)
 {
-  used_name (&cur->next_texture, texture);
+  used_name (&cur->grp->next_texture, texture);
   temp_bind (0, target, texture);
 }
 
 static void
 temp_buffer (GLuint buffer)
 {
-  used_name (&cur->next_buffer, buffer);
+  used_name (&cur->grp->next_buffer, buffer);
   temp_bind (1, GL_COPY_WRITE_BUFFER, buffer);
 }
 

@@ -164,17 +164,21 @@ draws in software. The GPU module is only ever reached through RISC3D.
 - **Sharing objects:** with the GPU library (natively, from 20.3.5-23) a
   context created sharing a RISC3D context's objects is another RISC3D
   context sharing them (`r3d_create_shared`, Mesa's own sharing); with
-  RISC3D's command stream it is `EGL_BAD_MATCH` (the stream shares
-  nothing). Sharing with an OSMesa context gives an OSMesa one.
+  RISC3D's command stream, the same through RISC3D client 0.12 when
+  `r3d_can_share()` (RISC3D and Linux3D 0.06, rol-3d 0.20, from
+  20.3.5-23), else `EGL_BAD_MATCH`. Sharing with an OSMesa context gives
+  an OSMesa one.
 - **Threads:** with the GPU library, each thread has its own current
   context: several threads draw at once (`osmesa/r3d_switch.c` keeps the
   current context per thread, and Mesa 26's glapi switches to per-thread
   dispatch once a second thread makes a context current; one thread costs
-  nothing more). With the command stream, RISC3D's current context is
-  global: one thread draws.
+  nothing more). With the command stream, RISC3D client 0.12 keeps the
+  current context per thread too (`r3d_make_current` is the calling
+  thread's). EGL's own idea of RISC3D's current context is the calling
+  thread's (`r3dw_current`).
 
-The client library is in `risc3d/` (RISC3D 0.2, MIT), built into libEGL by
-`build/build-egl.sh`. The host harness checks the wiring against a fake
+The client library is in `risc3d/` (RISC3D client 0.12, MIT), built into libOSMesa by
+`build/build-mesa.sh`. The host harness checks the wiring against a fake
 RISC3D (`test_risc3d`), and `tests/host-harness/egl/r3d_e2e.sh` runs it
 end to end with RISC3D's real client and Linux helper, drawn by the build
 machine's Mesa (run-all's `risc3d` step, given `R3D_SRC=`).

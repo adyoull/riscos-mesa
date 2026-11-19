@@ -127,8 +127,9 @@ All of these are system variables, read when the program starts:
 - A command-line program that crashes keeps its GPU file (and GPU
   memory) until a restart. Desktop programs are cleaned up by the Wimp's
   close-down.
-- Under RISC OS on Linux (RISC3D's command stream), contexts still don't
-  share objects and one thread draws: that needs RISC3D's protocol.
+- Under RISC OS on Linux (RISC3D's command stream) sharing and threads
+  come from RISC3D client 0.12 with RISC3D/Linux3D 0.06 and rol-3d 0.20;
+  with older parts there, contexts don't share and one thread draws.
 - Screen banks don't switch in step with the display on the Pi 4 (as in
   software), so they stay opt-in.
 - Only V3D has a Mesa driver here. Another GPU's module (an i.MX6's, say)

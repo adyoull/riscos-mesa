@@ -1,10 +1,10 @@
-RISC3D client library 0.11 (18 November 2026), for riscos-mesa's EGL
+RISC3D client library 0.12 (19 November 2026), for riscos-mesa's EGL
 =====================================================================
 
 RISC3D's front end for RISC OS programs: the GL functions as commands for
 the RISC3D module (r3d_glXxx, listed by name in r3d_gl_functions[]), and
 contexts. Source and a prebuilt static library, from RISC3D's repository
-at tag v0.11 (RiscOS/RISC3D/risc3d.bundle). MIT licence (LICENSE).
+at tag v0.12 (RiscOS/RISC3D/risc3d.bundle). MIT licence (LICENSE).
 
   lib/r3d.h          the interface (all EGL needs)
   lib/r3d_gl.c       the library; it #includes lib/r3d_dsa.c,
@@ -15,6 +15,38 @@ at tag v0.11 (RiscOS/RISC3D/risc3d.bundle). MIT licence (LICENSE).
   proto/r3d_shared.h the memory shared with the renderer
   libRISC3D.a        built with riscos-crossdev 1.11's GCC 10:
                      -O2 -mfpu=vfpv3 -mfloat-abi=hard (not PIC)
+
+New in 0.12:
+  r3d_create_shared (api, major,  a context sharing share's objects
+    minor, share)                 (textures, buffers, renderbuffers,
+                                  programs, shaders, samplers, sync
+                                  objects, display lists), as EGL's
+                                  share_context; same API as share. 0 and
+                                  r3d_error if it can't. Needs the RISC3D
+                                  module 0.06 and, on RISC OS on Linux,
+                                  Linux3D 0.06 with rol-3d 0.20
+                                  (riscos-risc3d 0.23-1)
+  r3d_can_share ()                1 if contexts can share now (RISC3D_Info
+                                  r4 bit 2, R3D_DRIVER_SHARE), else 0
+  a current context per thread    r3d_make_current is the calling
+                                  thread's: contexts draw in several
+                                  threads at once (one thread to a
+                                  context at a time). While only one
+                                  thread has made contexts current it
+                                  costs nothing more than before
+  names for the group             glGen* names (textures, buffers, lists)
+                                  and sync object numbers are one set for
+                                  contexts that share, taken atomically
+  ordering                        glFinish in one context, then the other
+                                  sees its work; or a fence: glFenceSync,
+                                  glFlush, then glWaitSync or
+                                  glClientWaitSync in the other (rol-3d
+                                  0.20 waits for a fence that hasn't
+                                  reached its renderer yet, up to 2 s)
+  C library                       0.11's list and UnixLib's pthread_equal,
+                                  _getspecific, _key_create, _mutex_init,
+                                  _mutex_destroy, _mutex_lock,
+                                  _mutex_unlock, _self, _setspecific
 
 New in 0.11:
   RISC3D's SWIs at their allocated  RISC3D_Info &5AF80, _Register &5AF81,
