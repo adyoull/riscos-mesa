@@ -4,6 +4,10 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## 20.3.5-23 (in development)
+
+- **EGL: `EGL_MESA_platform_surfaceless`.** `eglGetPlatformDisplayEXT(EGL_PLATFORM_SURFACELESS_MESA, NULL, NULL)` gives the display, for programs that draw only into framebuffer objects (made current with no surface: `EGL_KHR_surfaceless_context`). Host harness: 582 checks.
+
 ## 20.3.5-22: RISC3D's allocated SWIs
 
 RISC OS Allocations gave RISC3D its own SWI chunk, &5AF80 (it used the provisional &C3D00), and RISC3D 0.05 answers only the new numbers. This release talks to it there: with RISC3D 0.05 or later programs draw on the GPU again; an older !MesaLibs or a program linked against 20.3.5-21 or earlier finds no RISC3D 0.05 and draws in software.

@@ -361,12 +361,20 @@ static void destroy_images(egl_display *d)
 
 /* ------------------------------------------------------------------ */
 /* EGL_EXT_platform_base with EGL_RISCOS_platform_wimp                 */
+/* and EGL_MESA_platform_surfaceless                                   */
 
+#ifndef EGL_PLATFORM_SURFACELESS_MESA
+#define EGL_PLATFORM_SURFACELESS_MESA 0x31DD
+#endif
+
+/* The surfaceless platform (for programs that draw only into framebuffer
+   objects and pbuffers) is the same display; programs
+   that ask for it simply make no window surfaces. */
 EGLAPI EGLDisplay EGLAPIENTRY eglGetPlatformDisplayEXT(EGLenum platform, void *native_display,
                                                        const EGLint *attrib_list)
 {
     ENTER();
-    if (platform != EGL_PLATFORM_RISCOS) {
+    if (platform != EGL_PLATFORM_RISCOS && platform != EGL_PLATFORM_SURFACELESS_MESA) {
         fail(EGL_BAD_PARAMETER);
         return EGL_NO_DISPLAY;
     }

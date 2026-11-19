@@ -54,7 +54,8 @@
 /* Client extensions: eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS) */
 #define EGL_RISCOS_CLIENT_EXTENSIONS \
     "EGL_EXT_client_extensions EGL_EXT_platform_base " \
-    "EGL_KHR_client_get_all_proc_addresses EGL_KHR_debug EGL_RISCOS_platform_wimp"
+    "EGL_KHR_client_get_all_proc_addresses EGL_KHR_debug EGL_MESA_platform_surfaceless " \
+    "EGL_RISCOS_platform_wimp"
 
 #define MAGIC_DISPLAY 0x444C4745   /* "EGLD" */
 #define MAGIC_SURFACE 0x534C4745   /* "EGLS" */

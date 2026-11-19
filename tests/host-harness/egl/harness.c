@@ -1493,6 +1493,9 @@ static void test_client_and_platform(void)
           !strstr(s, "EGL_EXT_platform_base"), "display extensions, without the client ones");
 
     CHECK(eglGetPlatformDisplayEXT(EGL_PLATFORM_RISCOS, NULL, NULL) == dpy, "platform display");
+    CHECK(eglGetPlatformDisplayEXT(0x31DD /* EGL_PLATFORM_SURFACELESS_MESA */, NULL, NULL) == dpy &&
+          strstr(eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS), "EGL_MESA_platform_surfaceless"),
+          "the surfaceless platform is the same display");
     CHECK(eglGetPlatformDisplayEXT(EGL_PLATFORM_X11_KHR, NULL, NULL) == EGL_NO_DISPLAY &&
           eglGetError() == EGL_BAD_PARAMETER, "other platform refused");
     CHECK(eglGetPlatformDisplayEXT(EGL_PLATFORM_RISCOS, &handle, NULL) == EGL_NO_DISPLAY &&
