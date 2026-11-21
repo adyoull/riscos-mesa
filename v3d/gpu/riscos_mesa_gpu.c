@@ -62,9 +62,39 @@ static int finish(void *context)
     return v3dm_finish((v3dm_context *) context);
 }
 
+static void *image_create(void *pixels, int row_bytes, int width, int height, unsigned fourcc)
+{
+    if (width <= 0 || height <= 0)
+        return NULL;
+    return v3dm_image_create(pixels, row_bytes, (unsigned) width, (unsigned) height, fourcc);
+}
+
+static void image_destroy(void *image)
+{
+    v3dm_image_destroy((v3dm_image *) image);
+}
+
+/* (Mesa's glapi; these two aren't among the library's static gl entry
+   points, so they are found by name, through the current dispatch) */
+void *_mesa_glapi_get_proc_address(const char *name);
+
+static void image_target(int renderbuffer, unsigned target, void *image)
+{
+    static void (*texture)(unsigned, void *), (*storage)(unsigned, void *);
+    void (*fn)(unsigned, void *);
+    if (!texture) {
+        storage = (void (*)(unsigned, void *)) _mesa_glapi_get_proc_address("glEGLImageTargetRenderbufferStorageOES");
+        texture = (void (*)(unsigned, void *)) _mesa_glapi_get_proc_address("glEGLImageTargetTexture2DOES");
+    }
+    fn = renderbuffer ? storage : texture;
+    if (fn)
+        fn(target, image);
+}
+
 static const struct riscos_mesa_gpu gpu = {
     RISCOS_MESA_GPU_VERSION, device, create, destroy, make_current, read_frame,
     riscos_mesa_gpu_functions, v3dm_error, draw_into, finish, create_shared,
+    image_create, image_destroy, image_target,
 };
 
 __attribute__((visibility("default")))

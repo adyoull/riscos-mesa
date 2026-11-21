@@ -45,6 +45,10 @@ they draw in software, as the others do.
   mx-gpu-share        two threads, each with a GLES 2 context, the second
                       sharing the first's objects (as a threaded
                       compositor would), results in gpushare. Loads PThreadTicker.
+  mx-gpu-image        the GPU drawing straight into the program's own
+                      memory (EGL_RISCOS_image_memory, as a
+                      compositor would), with the time for a 1024x768
+                      frame against glReadPixels, results in gpuimage.
 *Set V3DM$Stats 1 before one of them prints, every 5 seconds, what it
 asked the GPU for and how long the GPU took (see v3d/README.md in the
 source).

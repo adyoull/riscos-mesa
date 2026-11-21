@@ -157,6 +157,11 @@ draws in software. The GPU module is only ever reached through RISC3D.
   that relies on the texture following the sprite asks for an OSMesa
   context with `EGL_CONTEXT_SOFTWARE_RISCOS` (`EGL_RISCOS_renderer`);
   `eglQueryContext` with the same name says which renderer a context got.
+  With the GPU library (natively, from 20.3.5-23) an image over the
+  program's own memory (`EGL_RISCOS_image_memory`) is the library's own:
+  the GPU draws into it in place through
+  `glEGLImageTargetRenderbufferStorageOES`, or samples it through
+  `glEGLImageTargetTexture2DOES`, with no copy (`egl/include/EGL/eglext_riscos.h`).
 - **Strings.** RISC3D answers `GL_VERSION` with what its stream carries
   ("2.1 RISC3D (...)", "OpenGL ES 2.0 RISC3D (...)") and trims
   `GL_EXTENSIONS`; EGL adds `GL_OES_EGL_image`, whose function it gives.

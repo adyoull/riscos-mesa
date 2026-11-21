@@ -43,14 +43,19 @@
 
 #define EGL_RISCOS_VENDOR  "riscos-mesa"
 #define EGL_RISCOS_VERSION "1.4 riscos-mesa (OSMesa)"
-#define EGL_RISCOS_EXTENSIONS \
+#define EGL_RISCOS_EXTENSIONS_KHR \
     "EGL_EXT_buffer_age EGL_EXT_swap_buffers_with_damage " \
     "EGL_KHR_context_flush_control EGL_KHR_create_context EGL_KHR_fence_sync " \
     "EGL_KHR_get_all_proc_addresses EGL_KHR_image EGL_KHR_image_base " \
     "EGL_KHR_image_pixmap EGL_KHR_lock_surface EGL_KHR_lock_surface2 " \
     "EGL_KHR_lock_surface3 EGL_KHR_partial_update EGL_KHR_reusable_sync " \
-    "EGL_KHR_surfaceless_context EGL_KHR_swap_buffers_with_damage EGL_KHR_wait_sync " \
+    "EGL_KHR_surfaceless_context EGL_KHR_swap_buffers_with_damage EGL_KHR_wait_sync "
+#define EGL_RISCOS_EXTENSIONS_OWN \
     "EGL_RISCOS_overlay EGL_RISCOS_renderer EGL_RISCOS_wimp_window"
+#define EGL_RISCOS_EXTENSIONS EGL_RISCOS_EXTENSIONS_KHR EGL_RISCOS_EXTENSIONS_OWN
+/* with the GPU library drawing (images over the program's memory) */
+#define EGL_RISCOS_EXTENSIONS_GPU \
+    EGL_RISCOS_EXTENSIONS_KHR "EGL_RISCOS_image_memory " EGL_RISCOS_EXTENSIONS_OWN
 /* Client extensions: eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS) */
 #define EGL_RISCOS_CLIENT_EXTENSIONS \
     "EGL_EXT_client_extensions EGL_EXT_platform_base " \
@@ -181,6 +186,11 @@ int r3d_draw_into(void *pixels, int row_bytes, int width, int height);
 int r3d_in_place(const void *pixels);
 int r3d_can_share(void);
 struct r3d_context *r3d_create_shared(int api, int major, int minor, struct r3d_context *share);
+int r3d_can_image(void);
+void *r3d_image_create(void *pixels, int row_bytes, int width, int height, unsigned fourcc);
+void r3d_image_destroy(void *image);
+void r3d_image_target(int renderbuffer, unsigned target, void *image);
+const char *r3d_error(void);
 
 typedef struct egl_surface {
     EGLint magic;
@@ -290,7 +300,8 @@ typedef struct egl_sync {
 
 typedef struct egl_image {
     EGLint magic;
-    const void *sprite;         /* the native pixmap it was made from */
+    const void *sprite;         /* the native pixmap it was made from, or NULL */
+    void *gpu;                  /* or (EGL_RISCOS_image_memory) the GPU library's image */
     void *pixels;
     int w, h;
     int layout;                 /* LAYOUT_TBGR or LAYOUT_TRGB */
@@ -449,6 +460,8 @@ static EGLSurface create_pixmap_surface(EGLDisplay dpy, EGLConfig config,
 
 /* parts/extensions.c */
 static GLboolean image_lookup(void *image, OSMesaImage *desc);
+static void *gpu_image_lookup(void *image);
+static int images_in_memory(void);
 static void destroy_images(egl_display *d);
 
 #endif /* EGL_INTERNAL_H */

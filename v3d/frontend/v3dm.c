@@ -31,6 +31,7 @@
 #include "util/format/u_format.h"
 #include "util/u_inlines.h"
 #include "util/u_memory.h"
+#include "util/simple_mtx.h"
 #include "util/xmlconfig.h"
 #include "v3d/v3d_screen.h"
 
@@ -261,6 +262,150 @@ static void fb_destroy(struct v3dm_buffer *b)
     FREE(b);
 }
 
+/* ---- images over the caller's memory (EGL_RISCOS_image_memory) ----
+   A colour buffer in rows over memory the program has (a
+   shared memory buffer, say), mapped into the GPU by the module
+   (DRM_IOCTL_RISCOS_IMPORT_MEMORY), for glEGLImageTargetRenderbuffer-
+   StorageOES (the GPU draws straight into it) or glEGLImageTarget-
+   Texture2DOES. The GPU's row 0 (GL's y = 0, the bottom) is the
+   memory's first. Mesa asks the frontend what an image handle is
+   (get_egl_image), from whatever thread draws. */
+
+struct v3dm_image {
+    struct pipe_resource *res;
+    struct v3dm_image *next;
+};
+
+static simple_mtx_t images_lock = SIMPLE_MTX_INITIALIZER;
+static struct v3dm_image *images;
+
+static enum pipe_format fourcc_format(unsigned fourcc)
+{
+    switch (fourcc) {
+    case DRM_FORMAT_ARGB8888: return PIPE_FORMAT_B8G8R8A8_UNORM;    /* B,G,R,A bytes (cairo's ARGB32) */
+    case DRM_FORMAT_XRGB8888: return PIPE_FORMAT_B8G8R8X8_UNORM;
+    case DRM_FORMAT_ABGR8888: return PIPE_FORMAT_R8G8B8A8_UNORM;    /* R,G,B,A bytes (a sprite's &BBGGRR) */
+    case DRM_FORMAT_XBGR8888: return PIPE_FORMAT_R8G8B8X8_UNORM;
+    default: return PIPE_FORMAT_NONE;
+    }
+}
+
+static v3dm_image *image_make(void *pixels, int row_bytes, unsigned width, unsigned height, unsigned fourcc);
+
+v3dm_image *v3dm_image_create(void *pixels, int row_bytes, unsigned width, unsigned height, unsigned fourcc)
+{
+    v3dm_image *m = image_make(pixels, row_bytes, width, height, fourcc);
+    if (dev.trace && m)
+        fprintf(stderr, "v3dm: image %p over %p, %ux%u, rows %d bytes\n", (void *) m, pixels, width, height,
+                row_bytes);
+    else if (dev.trace)
+        fprintf(stderr, "v3dm: no image over %p (%s)\n", pixels, dev.error);
+    return m;
+}
+
+static v3dm_image *image_make(void *pixels, int row_bytes, unsigned width, unsigned height, unsigned fourcc)
+{
+    struct drm_riscos_import_memory im;
+    struct pipe_resource t, *r;
+    struct v3dm_image *m;
+    if (!v3dm_init())
+        return NULL;
+    memset(&t, 0, sizeof t);
+    t.target = PIPE_TEXTURE_2D;
+    t.format = fourcc_format(fourcc);
+    t.width0 = width;
+    t.height0 = height;
+    t.depth0 = 1;
+    t.array_size = 1;
+    t.bind = PIPE_BIND_RENDER_TARGET | PIPE_BIND_SAMPLER_VIEW | PIPE_BIND_LINEAR;
+    if (t.format == PIPE_FORMAT_NONE ||
+        !dev.screen->is_format_supported(dev.screen, t.format, PIPE_TEXTURE_2D, 0, 0, PIPE_BIND_RENDER_TARGET)) {
+        snprintf(dev.error, sizeof dev.error, "the GPU can't draw into memory of format %08x", fourcc);
+        return NULL;
+    }
+    if (!pixels || ((uintptr_t) pixels & 4095) || !width || !height || width > 4096 || height > 4096 ||
+        row_bytes < (int) width * 4 || (row_bytes & 15)) {
+        snprintf(dev.error, sizeof dev.error, "memory for the GPU: 4 KB aligned, at most 4096 x 4096, "
+                 "rows a multiple of 16 bytes");
+        return NULL;
+    }
+    if (dev.no_import) {
+        snprintf(dev.error, sizeof dev.error, "the GPU module can't map memory (V3DM$NoImport, or refused before)");
+        return NULL;
+    }
+    memset(&im, 0, sizeof im);
+    im.address = (uintptr_t) pixels;
+    im.size = ((size_t) row_bytes * height + 4095) & ~4095u;
+    if (import_memory(&im)) {
+        snprintf(dev.error, sizeof dev.error, "the GPU module wouldn't map the memory (%d)", errno);
+        return NULL;
+    }
+    r = from_handle(&t, im.handle, (unsigned) row_bytes);
+    if (!r) {
+        close_handle(im.handle);
+        snprintf(dev.error, sizeof dev.error, "Mesa's driver refused the mapped memory");
+        return NULL;
+    }
+    m = CALLOC_STRUCT(v3dm_image);
+    if (!m) {
+        snprintf(dev.error, sizeof dev.error, "no memory");
+        pipe_resource_reference(&r, NULL);
+        return NULL;
+    }
+    m->res = r;
+    simple_mtx_lock(&images_lock);
+    m->next = images;
+    images = m;
+    simple_mtx_unlock(&images_lock);
+    return m;
+}
+
+/* The image goes; its memory stays mapped while a renderbuffer or texture
+   made from it is left (the resource is theirs too) */
+void v3dm_image_destroy(v3dm_image *m)
+{
+    struct v3dm_image **p;
+    simple_mtx_lock(&images_lock);
+    for (p = &images; *p && *p != m; p = &(*p)->next)
+        ;
+    if (*p)
+        *p = m->next;
+    simple_mtx_unlock(&images_lock);
+    if (!m)
+        return;
+    pipe_resource_reference(&m->res, NULL);
+    FREE(m);
+}
+
+static bool get_egl_image(struct pipe_frontend_screen *fscreen, void *image, struct st_egl_image *out)
+{
+    struct v3dm_image *m;
+    (void) fscreen;
+    simple_mtx_lock(&images_lock);
+    for (m = images; m && m != image; m = m->next)
+        ;
+    if (m) {
+        pipe_resource_reference(&out->texture, m->res);
+        out->format = m->res->format;
+        out->level = 0;
+        out->layer = 0;
+        out->internalformat = 0x1908;   /* GL_RGBA */
+    }
+    simple_mtx_unlock(&images_lock);
+    return m != NULL;
+}
+
+static bool validate_egl_image(struct pipe_frontend_screen *fscreen, void *image)
+{
+    struct v3dm_image *m;
+    (void) fscreen;
+    simple_mtx_lock(&images_lock);
+    for (m = images; m && m != image; m = m->next)
+        ;
+    simple_mtx_unlock(&images_lock);
+    return m != NULL;
+}
+
 /* ---- the device ---- */
 
 static int get_param(struct pipe_frontend_screen *fscreen, enum st_manager_param param)
@@ -326,6 +471,8 @@ int v3dm_init(void)
     dev.fscreen = CALLOC_STRUCT(pipe_frontend_screen);
     dev.fscreen->screen = dev.screen;
     dev.fscreen->get_param = get_param;
+    dev.fscreen->get_egl_image = get_egl_image;
+    dev.fscreen->validate_egl_image = validate_egl_image;
     return 1;
 }
 

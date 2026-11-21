@@ -231,6 +231,60 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS (EGLDisplay dpy, EGLSurface
 #endif /* EGL_RISCOS_renderer */
 
 /*
+ * EGL_RISCOS_image_memory (riscos-mesa 20.3.5-23 and later)
+ *   Listed in the display's EGL_EXTENSIONS only where the GPU library
+ *   (libMesaGPU, natively: RISC3D with V3DRender on a Pi 4) draws OpenGL
+ *   ES, and the program carries it. An EGLImage over the program's own
+ *   memory, which the GPU draws into (or reads) in place, with no copy:
+ *
+ *     img = eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_MEMORY_RISCOS,
+ *                             (EGLClientBuffer) pixels, attribs);
+ *
+ *   attribs: EGL_WIDTH and EGL_HEIGHT (1 to 4096); EGL_ROW_BYTES_RISCOS
+ *   (the bytes from one row to the next: a multiple of 16, at least 4 x
+ *   width; default 4 x width); EGL_LINUX_DRM_FOURCC_EXT, the byte order:
+ *   DRM_FORMAT_ARGB8888 (B,G,R,A bytes, as cairo's ARGB32; the default),
+ *   DRM_FORMAT_XRGB8888, DRM_FORMAT_ABGR8888 (R,G,B,A, as a sprite's
+ *   &BBGGRR words) or DRM_FORMAT_XBGR8888. pixels must be 4 KB aligned;
+ *   whole pages from it to the end of its last row are mapped into the
+ *   GPU, so the program's memory should be whole pages too. It must stay
+ *   where it is (not moved, freed or shrunk) while the image, or a
+ *   renderbuffer or texture made from it, is left.
+ *   Errors: EGL_BAD_PARAMETER (an attribute, the alignment, a context
+ *   given, or no GPU library drawing here), EGL_BAD_ACCESS (that memory is
+ *   an image already), EGL_BAD_ALLOC (the GPU module wouldn't map it;
+ *   *Set V3DM$Trace 1 says why).
+ *
+ *   Then, with the context current (of the GPU library: any of its
+ *   contexts, which may share objects or be current in other threads):
+ *   - glEGLImageTargetRenderbufferStorageOES(GL_RENDERBUFFER, img) makes a
+ *     renderbuffer of it, to be a framebuffer object's colour attachment:
+ *     the GPU draws straight into the memory;
+ *   - glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, img) makes a texture of
+ *     it. (The GPU samples a tiled copy, made again after the GPU draws
+ *     into the image; after the program writes to the memory itself, call
+ *     it again.)
+ *   - Row order: the memory's first row is GL's y = 0, the bottom of a
+ *     framebuffer object, as with any. A program that wants the top row
+ *     first draws upside down (flips y in its projection).
+ *   - The frame is in the memory once the GPU has finished: glFinish, or
+ *     an EGL_KHR_fence_sync fence (made after the drawing: riscos-mesa's
+ *     fences finish when made) and eglClientWaitSyncKHR, in any thread. The
+ *     GPU module cleans the processor's caches, so another task can read
+ *     the memory then.
+ *   - eglDestroyImageKHR; the memory stays mapped while a renderbuffer or
+ *     texture made from it is left.
+ */
+#ifndef EGL_RISCOS_image_memory
+#define EGL_RISCOS_image_memory 1
+#define EGL_MEMORY_RISCOS               0x3FFB
+#define EGL_ROW_BYTES_RISCOS            0x3FFC
+#ifndef EGL_LINUX_DRM_FOURCC_EXT
+#define EGL_LINUX_DRM_FOURCC_EXT        0x3271
+#endif
+#endif /* EGL_RISCOS_image_memory */
+
+/*
  * riscos_mesa_pick_renderer (riscos-mesa 20.3.5-19 and later)
  *   riscos-mesa's one choice of renderer, which eglCreateContext and SDL's
  *   GL windows both follow: for api EGL_OPENGL_API or EGL_OPENGL_ES_API

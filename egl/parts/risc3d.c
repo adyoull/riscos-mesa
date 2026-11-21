@@ -22,7 +22,9 @@
  *   there as with OSMesa; so does eglCopyBuffers.
  * - glEGLImageTargetTexture2DOES on a RISC3D context copies the sprite into
  *   the texture at the call (RISC3D can't draw from RISC OS memory): later
- *   changes to the sprite need the call again. A program that relies on
+ *   changes to the sprite need the call again. Images over the program's
+ *   memory (EGL_RISCOS_image_memory, the GPU library only) are used in
+ *   place, by glEGLImageTargetRenderbufferStorageOES too. A program that relies on
  *   the texture following the sprite (zero copy) asks for an OSMesa
  *   context with EGL_CONTEXT_SOFTWARE_RISCOS.
  * - Not given to RISC3D: OpenGL ES 3, OpenGL 3 and core profiles,
@@ -38,8 +40,6 @@
 
 #include "r3d.h"
 
-/* from extensions.c, included later */
-static GLboolean image_lookup(void *image, OSMesaImage *desc);
 
 static void *r3dw_table;                /* the dispatch table, made once */
 /* RISC3D's current context in the calling thread (each thread has its
@@ -116,10 +116,17 @@ static void APIENTRY r3dw_finish(void)
     r3dw_copy_back();
 }
 
-/* GL_OES_EGL_image on a RISC3D context: the sprite's pixels, copied now */
+/* GL_OES_EGL_image on a RISC3D context: an image over the program's
+   memory (EGL_RISCOS_image_memory) is the GPU library's own, used in
+   place; a sprite's pixels are copied now */
 static void APIENTRY r3dw_image_target(GLenum target, void *image)
 {
     OSMesaImage m;
+    void *gpu = gpu_image_lookup(image);
+    if (gpu) {
+        r3d_image_target(0, target, gpu);
+        return;
+    }
     if (target != GL_TEXTURE_2D || !r3dw_glTexImage2D || !image_lookup(image, &m))
         return;
     if (m.format == OSMESA_BGRA) {
@@ -160,6 +167,16 @@ static void APIENTRY r3dw_image_target(GLenum target, void *image)
     }
 }
 
+/* glEGLImageTargetRenderbufferStorageOES on a RISC3D context: images over
+   the program's memory only (the GPU draws straight into it); with a
+   sprite's image it does nothing */
+static void APIENTRY r3dw_image_storage(GLenum target, void *image)
+{
+    void *gpu = gpu_image_lookup(image);
+    if (gpu)
+        r3d_image_target(1, target, gpu);
+}
+
 /* glGetString on a RISC3D context: RISC3D's answer, but GL_EXTENSIONS
    always lists GL_OES_EGL_image, whose function EGL gives
    (r3dw_image_target) whatever the renderer has */
@@ -196,6 +213,7 @@ static void *r3dw_dispatch(void)
     static const OSMesaDispatchEntry own[] = {
         { "glFinish", (void (*)(void)) r3dw_finish },
         { "glEGLImageTargetTexture2DOES", (void (*)(void)) r3dw_image_target },
+        { "glEGLImageTargetRenderbufferStorageOES", (void (*)(void)) r3dw_image_storage },
         { "glGetString", (void (*)(void)) r3dw_get_string },
     };
     OSMesaDispatchEntry *list;

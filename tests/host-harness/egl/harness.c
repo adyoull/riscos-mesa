@@ -764,6 +764,67 @@ static void test_risc3d(void)
             eglDestroyImageKHR(dpy, img);
             free(ispr - 4);           /* make_sprite: the area is 4 words before */
         }
+
+        /* EGL_RISCOS_image_memory: the GPU library's images over the
+           program's memory (fake_r3d_image: as on a native Pi 4) */
+        {
+            extern int fake_r3d_image, fake_r3d_images, fake_r3d_image_rb, fake_r3d_image_target;
+            extern unsigned fake_r3d_image_fourcc;
+            extern void *fake_r3d_image_last;
+            typedef void (*Target_t)(GLenum, void *);
+            Target_t storage = (Target_t) eglGetProcAddress("glEGLImageTargetRenderbufferStorageOES");
+            Target_t texture = (Target_t) eglGetProcAddress("glEGLImageTargetTexture2DOES");
+            EGLint wh[] = { EGL_WIDTH, 64, EGL_HEIGHT, 16, EGL_NONE };
+            EGLint rgba[] = { EGL_WIDTH, 64, EGL_HEIGHT, 16, EGL_ROW_BYTES_RISCOS, 512,
+                              EGL_LINUX_DRM_FOURCC_EXT, 0x34324241, EGL_NONE };
+            EGLint odd[] = { EGL_WIDTH, 64, EGL_HEIGHT, 16, EGL_ROW_BYTES_RISCOS, 260, EGL_NONE };
+            EGLint fmt[] = { EGL_WIDTH, 64, EGL_HEIGHT, 16, EGL_LINUX_DRM_FOURCC_EXT, 0x36314752, EGL_NONE };
+            unsigned char *mem = (unsigned char *) aligned_alloc(4096, 16384);
+            EGLImageKHR m1, m2;
+            int n = fake_r3d_images;
+
+            CHECK(!strstr(eglQueryString(dpy, EGL_EXTENSIONS), "EGL_RISCOS_image_memory") &&
+                  eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_MEMORY_RISCOS, mem, wh) == EGL_NO_IMAGE_KHR &&
+                  eglGetError() == EGL_BAD_PARAMETER, "image_memory: not listed, nor made, without the GPU library");
+            fake_r3d_image = 1;
+            CHECK(strstr(eglQueryString(dpy, EGL_EXTENSIONS), "EGL_RISCOS_image_memory") != NULL,
+                  "image_memory: listed with the GPU library");
+            CHECK(eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_MEMORY_RISCOS, mem + 64, wh) == EGL_NO_IMAGE_KHR &&
+                  eglGetError() == EGL_BAD_PARAMETER &&
+                  eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_MEMORY_RISCOS, mem, odd) == EGL_NO_IMAGE_KHR &&
+                  eglGetError() == EGL_BAD_PARAMETER &&
+                  eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_MEMORY_RISCOS, mem, fmt) == EGL_NO_IMAGE_KHR &&
+                  eglGetError() == EGL_BAD_PARAMETER &&
+                  eglCreateImageKHR(dpy, rp, EGL_MEMORY_RISCOS, mem, wh) == EGL_NO_IMAGE_KHR &&
+                  eglGetError() == EGL_BAD_PARAMETER && fake_r3d_images == n,
+                  "image_memory: misaligned, odd rows, another format, a context: EGL_BAD_PARAMETER");
+            m1 = eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_MEMORY_RISCOS, mem, wh);
+            CHECK(m1 != EGL_NO_IMAGE_KHR && fake_r3d_images == n + 1 && fake_r3d_image_rb == 256 &&
+                  fake_r3d_image_fourcc == 0x34325241, "image_memory: made (rows 4 x width, ARGB8888 by default)");
+            CHECK(eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_MEMORY_RISCOS, mem, wh) == EGL_NO_IMAGE_KHR &&
+                  eglGetError() == EGL_BAD_ACCESS, "image_memory: the same memory again: EGL_BAD_ACCESS");
+            m2 = eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_MEMORY_RISCOS, mem + 8192, rgba);
+            CHECK(m2 != EGL_NO_IMAGE_KHR && fake_r3d_image_rb == 512 && fake_r3d_image_fourcc == 0x34324241,
+                  "image_memory: rows and format given");
+            fake_r3d_fail = 1;
+            CHECK(eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_MEMORY_RISCOS, mem + 4096, wh) == EGL_NO_IMAGE_KHR &&
+                  eglGetError() == EGL_BAD_ALLOC, "image_memory: the GPU library refuses: EGL_BAD_ALLOC");
+            fake_r3d_fail = 0;
+            fake_r3d_image_last = NULL;
+            if (storage)
+                storage(GL_RENDERBUFFER, m1);
+            CHECK(storage && fake_r3d_image_target == 1 && fake_r3d_image_last != NULL && fake_r3d_image_last != m1,
+                  "image_memory: glEGLImageTargetRenderbufferStorageOES gets the GPU library's image");
+            fake_r3d_image_last = NULL;
+            fake_r3d_tex_w = 0;
+            texture(GL_TEXTURE_2D, m2);
+            CHECK(fake_r3d_image_target == 0 && fake_r3d_image_last != NULL && fake_r3d_tex_w == 0,
+                  "image_memory: glEGLImageTargetTexture2DOES too (no copy)");
+            CHECK(eglDestroyImageKHR(dpy, m1) && fake_r3d_images == n + 1, "image_memory: destroyed");
+            CHECK(eglDestroyImageKHR(dpy, m2) && fake_r3d_images == n, "image_memory: both destroyed");
+            fake_r3d_image = 0;
+            free(mem);
+        }
         eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         eglDestroyContext(dpy, rp);
     }

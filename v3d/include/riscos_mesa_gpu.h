@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-#define RISCOS_MESA_GPU_VERSION 3
+#define RISCOS_MESA_GPU_VERSION 4
 
 /* a gl function by its GL name, as RISC3D's client lists its own */
 struct riscos_mesa_gpu_function { const char *name; void (*fn)(void); };
@@ -62,6 +62,17 @@ struct riscos_mesa_gpu {
        context is its own (Mesa's glapi keeps one per thread once a second
        thread makes one current). NULL: see error() */
     void *(*create_shared)(int api, int major, int minor, void *share);
+    /* (version 4) an image over the caller's memory (EGL_RISCOS_image_memory):
+       rows row_bytes apart (a multiple of 16), the first GL's bottom row,
+       4 KB aligned with whole pages to its end; fourcc a DRM format
+       (ARGB8888: B,G,R,A bytes; XRGB8888; ABGR8888: R,G,B,A; XBGR8888).
+       It can be used in any of the library's contexts. NULL: see error() */
+    void *(*image_create)(void *pixels, int row_bytes, int width, int height, unsigned fourcc);
+    void (*image_destroy)(void *image);
+    /* (version 4) glEGLImageTargetTexture2DOES (renderbuffer 0) or
+       glEGLImageTargetRenderbufferStorageOES (1) with such an image, in the
+       current context */
+    void (*image_target)(int renderbuffer, unsigned target, void *image);
 };
 
 /* the library's one exported name */

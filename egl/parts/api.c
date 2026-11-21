@@ -87,7 +87,7 @@ EGLAPI const char *EGLAPIENTRY eglQueryString(EGLDisplay dpy, EGLint name)
     switch (name) {
     case EGL_VENDOR:      return EGL_RISCOS_VENDOR;
     case EGL_VERSION:     return r3dw_version();   /* says if RISC3D draws too */
-    case EGL_EXTENSIONS:  return EGL_RISCOS_EXTENSIONS;
+    case EGL_EXTENSIONS:  return images_in_memory() ? EGL_RISCOS_EXTENSIONS_GPU : EGL_RISCOS_EXTENSIONS;
     case EGL_CLIENT_APIS: return "OpenGL OpenGL_ES";
     }
     fail(EGL_BAD_PARAMETER);

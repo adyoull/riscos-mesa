@@ -77,7 +77,7 @@ static program; a mixed program shares !MesaLibs' copy.
 | `patches/mesa-26.1.6-riscos-v3d.patch` | Mesa's changes: RISC OS in meson.build and util (UnixLib has no pthread barriers, open_memstream, mkstemps or sysinfo); the v3d driver's mmap, munmap and close of the GPU module's file and of sync files; BOs opened by handle (imported memory); a global GL dispatch and context (GCCSDK's thread-local variables are emulated), each thread's own once a second thread draws; `V3DM$Why`. |
 | `libdrm/` | The part of libdrm that Mesa's v3d driver uses, as requests to the GPU module (`src/drm_riscos.c`, per V3DRender's docs/INTERFACE.md). The module is found through RISC3D: `RISC3D_Info` r4 bit 0 = DRM device, r5 its ioctl SWI, r6 its DRM driver name; `RISC3D_Open` r1 = its file. The module's answers are Linux errno numbers, mapped to UnixLib's. `xf86drm.h`, `xf86drmMode.h`, `drm.h`, `drm_mode.h` are libdrm 2.4.124's, unchanged (MIT). `include/drm_riscos.h` has the RISC OS requests (sync files, cached buffers, imported memory, GPU time). |
 | `frontend/` | `v3dm.h`: contexts and frames on the GPU, after Mesa's hgl frontend and its removed OSMesa one. It picks Mesa's driver by the DRM driver name, so another GPU's module that registers with RISC3D needs only its Mesa driver added. |
-| `gpu/`, `include/riscos_mesa_gpu.h` | The library's one entry point, `riscos_mesa_gpu()`: a table of functions (device, create, destroy, make current, read back, draw into, finish, the gl entry points) that libOSMesa's RISC3D switch uses. `tools/gpu-functions.py` makes the gl entry point list. |
+| `gpu/`, `include/riscos_mesa_gpu.h` | The library's one entry point, `riscos_mesa_gpu()`: a table of functions (device, create, destroy, make current, read back, draw into, finish, the gl entry points, sharing, images over memory) that libOSMesa's RISC3D switch uses. `tools/gpu-functions.py` makes the gl entry point list. |
 | `tests/v3dtri.c`, `tests/v3dgles2.c` | Bring-up tests on the GPU without EGL: a fixed-function triangle and quad; OpenGL ES 2.0 with GLSL, a vertex buffer, a texture and blending at 1920x1080. The EGL ones are `gpu-egltest`, `gpu-glestest` and `gpu-glbench`, in the tests-mixed zip. |
 
 The library is linked from all of the above with `ld -r`. Every defined
@@ -109,6 +109,31 @@ share C++ names whose COMDAT groups would otherwise merge.
   `V3DM$Fake`: 14 checks pass, with the threads interleaved over 20,000
   rounds.
 
+## Drawing into the program's own memory (from 20.3.5-23)
+
+`EGL_RISCOS_image_memory` (in `EGL/eglext_riscos.h`, listed only where
+this library draws) makes an EGLImage over memory the program has: a
+shared memory buffer another task shows, say. The library maps it into the
+GPU, as it maps window surfaces (`DRM_IOCTL_RISCOS_IMPORT_MEMORY`), and
+gives Mesa a resource in rows over it through the frontend's
+`get_egl_image`. `glEGLImageTargetRenderbufferStorageOES` makes it a
+renderbuffer, so a framebuffer object draws straight into the memory with
+nothing read back; `glEGLImageTargetTexture2DOES` makes it a texture (V3D
+samples a tiled copy, made again when the GPU has drawn into it).
+
+- The memory: 4 KB aligned, whole pages to the end of its last row, rows
+  a multiple of 16 bytes, at most 4096 x 4096. It must stay put while the
+  image, or a renderbuffer or texture made from it, is left.
+- Byte order by DRM format: ARGB8888 (B,G,R,A, cairo's ARGB32), XRGB8888,
+  ABGR8888 (R,G,B,A, a sprite's), XBGR8888.
+- The memory's first row is GL's y = 0 (a framebuffer object's bottom
+  row): a program wanting the top first draws with y flipped.
+- `glFinish`, or a fence (riscos-mesa's finish when made) and
+  `eglClientWaitSyncKHR`: then the frame is in the memory, and V3DRender
+  has cleaned the processor's caches over it.
+- `gpu-image` (tests-mixed, `mx-gpu-image`) checks it and times a
+  1024x768 frame drawn into memory against drawn and read back.
+
 ## Finding problems
 
 All of these are system variables, read when the program starts:
@@ -124,9 +149,11 @@ All of these are system variables, read when the program starts:
 
 ## Not yet
 
-- A command-line program that crashes keeps its GPU file (and GPU
-  memory) until a restart. Desktop programs are cleaned up by the Wimp's
-  close-down.
+- A program that crashes (rather than exiting) keeps its GPU file (and
+  GPU memory) until a restart, unless it is a Wimp task, which RISC3D and
+  V3DRender clean up after at its close-down. Programs that exit close it
+  themselves (from 20.3.5-23: before, programs that weren't Wimp tasks
+  left it).
 - Under RISC OS on Linux (RISC3D's command stream) sharing and threads
   come from RISC3D client 0.12 with RISC3D/Linux3D 0.06 and rol-3d 0.20;
   with older parts there, contexts don't share and one thread draws.

@@ -124,8 +124,26 @@ int drm_riscos_available(void)
     return drm_riscos_device() != NULL;
 }
 
+/* The program's file is closed when it exits (exit() or returning from
+   main), so its GPU memory and RISC3D's record of it go then. A program
+   that isn't a Wimp task (a child process, a command) has no close-down
+   for RISC3D to clean up after (its contexts were left, listed under task
+   0 until a restart, 21 Nov 2026). Mesa's clean-up after that
+   (another atexit handler, a library's destructor) finds every request
+   answered with success, doing nothing. */
+static int closed_at_exit;
+
+static void close_at_exit(void)
+{
+    if (program_file > 0 && program_context && !fake)
+        _swix(RISC3D_Close, _IN(0), program_context);
+    program_file = program_context = 0;
+    closed_at_exit = 1;
+}
+
 int drm_riscos_open(void)
 {
+    static int atexit_done;
     int fd = 0, context = 0;
     find_device();
     if (fake)
@@ -140,6 +158,11 @@ int drm_riscos_open(void)
         program_file = fd;
         program_context = context;
     }
+    if (!atexit_done) {
+        atexit(close_at_exit);
+        atexit_done = 1;
+    }
+    closed_at_exit = 0;
     return fd;
 }
 
@@ -505,6 +528,8 @@ int drmIoctl(int fd, unsigned long request, void *arg)
     int r = 0;
     _kernel_oserror *e = NULL;
     double t0 = 0;
+    if (closed_at_exit)
+        return 0;                               /* (exiting: see close_at_exit) */
     modes();
     drm_riscos_dump_before(request, arg);
     if (stats)

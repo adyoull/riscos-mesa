@@ -277,7 +277,7 @@ static GLboolean image_lookup(void *image, OSMesaImage *desc)
     if (!display.initialised)
         return GL_FALSE;
     for (m = display.images; m; m = m->next)
-        if (m == (egl_image *) image) {
+        if (m == (egl_image *) image && !m->gpu) {   /* (not the GPU library's) */
             desc->pixels = m->pixels;
             desc->width = m->w;
             desc->height = m->h;
@@ -286,6 +286,84 @@ static GLboolean image_lookup(void *image, OSMesaImage *desc)
             return GL_TRUE;
         }
     return GL_FALSE;
+}
+
+/* The GPU library's image for an EGL image of EGL_RISCOS_image_memory (for
+   glEGLImageTarget* on a context it draws), or NULL */
+static void *gpu_image_lookup(void *image)
+{
+    egl_image *m;
+    LOCK();
+    if (!display.initialised)
+        return NULL;
+    for (m = display.images; m; m = m->next)
+        if (m == (egl_image *) image)
+            return m->gpu;
+    return NULL;
+}
+
+/* EGL_RISCOS_image_memory: listed (and its images made) where the GPU
+   library draws OpenGL ES (natively, through RISC3D and V3DRender) */
+static int images_in_memory(void)
+{
+    return riscos_mesa_pick_renderer(EGL_OPENGL_ES_API, 0, 0) == RISCOS_MESA_RISC3D && r3d_can_image();
+}
+
+/* EGL_RISCOS_image_memory: an image over the program's own memory, drawn
+   into (or read) by the GPU in place. buffer: the memory, 4 KB aligned;
+   EGL_WIDTH, EGL_HEIGHT (1-4096), EGL_ROW_BYTES_RISCOS (a multiple of 16,
+   at least 4 x width; default 4 x width), EGL_LINUX_DRM_FOURCC_EXT
+   (DRM_FORMAT_ARGB8888, the default, XRGB8888, ABGR8888 or XBGR8888).
+   Whole pages from buffer to the end of its last row are mapped. */
+static egl_image *create_memory_image(EGLClientBuffer buffer, const EGLint *attrib_list)
+{
+    int i, w = 0, h = 0, row_bytes = 0;
+    unsigned fourcc = 0x34325241;       /* DRM_FORMAT_ARGB8888 ('AR24'): B,G,R,A bytes */
+    egl_image *m;
+    void *gpu;
+
+    for (i = 0; attrib_list && attrib_list[i] != EGL_NONE; i += 2) {
+        EGLint v = attrib_list[i + 1];
+        switch (attrib_list[i]) {
+        case EGL_WIDTH:                 w = v; break;
+        case EGL_HEIGHT:                h = v; break;
+        case EGL_ROW_BYTES_RISCOS:      row_bytes = v; break;
+        case EGL_LINUX_DRM_FOURCC_EXT:  fourcc = (unsigned) v; break;
+        case EGL_IMAGE_PRESERVED_KHR:
+            if (v == EGL_TRUE || v == EGL_FALSE)
+                break;
+            /* fall through */
+        default:
+            fail(EGL_BAD_PARAMETER);
+            return NULL;
+        }
+    }
+    if (!row_bytes)
+        row_bytes = w * 4;
+    if (!buffer || ((uintptr_t) buffer & 4095) || w <= 0 || h <= 0 || w > 4096 || h > 4096 ||
+        row_bytes < w * 4 || (row_bytes & 15) ||
+        (fourcc != 0x34325241 && fourcc != 0x34325258 && fourcc != 0x34324241 && fourcc != 0x34324258)) {
+        fail(EGL_BAD_PARAMETER);        /* (AR24, XR24, AB24, XB24) */
+        return NULL;
+    }
+    for (m = display.images; m; m = m->next)
+        if (m->gpu && m->pixels == (void *) buffer) {
+            fail(EGL_BAD_ACCESS);       /* already an image */
+            return NULL;
+        }
+    m = (egl_image *) calloc(1, sizeof *m);
+    gpu = m ? r3d_image_create((void *) buffer, row_bytes, w, h, fourcc) : NULL;
+    if (!gpu) {                         /* (V3DM$Trace says why) */
+        free(m);
+        fail(EGL_BAD_ALLOC);
+        return NULL;
+    }
+    m->gpu = gpu;
+    m->pixels = (void *) buffer;
+    m->w = w;
+    m->h = h;
+    m->layout = fourcc == 0x34325241 || fourcc == 0x34325258 ? LAYOUT_TRGB : LAYOUT_TBGR;
+    return m;
 }
 
 EGLAPI EGLImageKHR EGLAPIENTRY eglCreateImageKHR(EGLDisplay dpy, EGLContext ctx, EGLenum target,
@@ -299,34 +377,43 @@ EGLAPI EGLImageKHR EGLAPIENTRY eglCreateImageKHR(EGLDisplay dpy, EGLContext ctx,
     ENTER();
     if (!(d = get_display(dpy, 1)))
         return EGL_NO_IMAGE_KHR;
-    for (i = 0; attrib_list && attrib_list[i] != EGL_NONE; i += 2)
-        if (attrib_list[i] != EGL_IMAGE_PRESERVED_KHR ||
-            (attrib_list[i + 1] != EGL_TRUE && attrib_list[i + 1] != EGL_FALSE)) {
+    if (target == EGL_MEMORY_RISCOS) {
+        if (ctx != EGL_NO_CONTEXT || !images_in_memory()) {
+            fail(EGL_BAD_PARAMETER);    /* (no GPU library drawing here) */
+            return EGL_NO_IMAGE_KHR;
+        }
+        if (!(m = create_memory_image(buffer, attrib_list)))
+            return EGL_NO_IMAGE_KHR;
+    } else {
+        for (i = 0; attrib_list && attrib_list[i] != EGL_NONE; i += 2)
+            if (attrib_list[i] != EGL_IMAGE_PRESERVED_KHR ||
+                (attrib_list[i + 1] != EGL_TRUE && attrib_list[i + 1] != EGL_FALSE)) {
+                fail(EGL_BAD_PARAMETER);
+                return EGL_NO_IMAGE_KHR;
+            }
+        /* EGL_KHR_image_pixmap: sprites only, and no context */
+        if (target != EGL_NATIVE_PIXMAP_KHR || ctx != EGL_NO_CONTEXT ||
+            !pixmap_info((void *) buffer, &w, &h, &layout, &pixels)) {
             fail(EGL_BAD_PARAMETER);
             return EGL_NO_IMAGE_KHR;
         }
-    /* EGL_KHR_image_pixmap: sprites only, and no context */
-    if (target != EGL_NATIVE_PIXMAP_KHR || ctx != EGL_NO_CONTEXT ||
-        !pixmap_info((void *) buffer, &w, &h, &layout, &pixels)) {
-        fail(EGL_BAD_PARAMETER);
-        return EGL_NO_IMAGE_KHR;
-    }
-    for (m = d->images; m; m = m->next)
-        if (m->sprite == (const void *) buffer) {
-            fail(EGL_BAD_ACCESS);       /* already an image */
+        for (m = d->images; m; m = m->next)
+            if (m->sprite == (const void *) buffer) {
+                fail(EGL_BAD_ACCESS);   /* already an image */
+                return EGL_NO_IMAGE_KHR;
+            }
+        m = (egl_image *) calloc(1, sizeof *m);
+        if (!m) {
+            fail(EGL_BAD_ALLOC);
             return EGL_NO_IMAGE_KHR;
         }
-    m = (egl_image *) calloc(1, sizeof *m);
-    if (!m) {
-        fail(EGL_BAD_ALLOC);
-        return EGL_NO_IMAGE_KHR;
+        m->sprite = (const void *) buffer;
+        m->pixels = pixels;
+        m->w = w;
+        m->h = h;
+        m->layout = layout;
     }
     m->magic = MAGIC_IMAGE;
-    m->sprite = (const void *) buffer;
-    m->pixels = pixels;
-    m->w = w;
-    m->h = h;
-    m->layout = layout;
     m->next = d->images;
     d->images = m;
     ok();
@@ -344,6 +431,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglDestroyImageKHR(EGLDisplay dpy, EGLImageKHR ima
         ;
     *p = m->next;
     m->magic = 0;
+    r3d_image_destroy(m->gpu);
     free(m);
     return ok();
 }
@@ -354,6 +442,7 @@ static void destroy_images(egl_display *d)
     for (m = d->images; m; m = mn) {
         mn = m->next;
         m->magic = 0;
+        r3d_image_destroy(m->gpu);
         free(m);
     }
     d->images = NULL;

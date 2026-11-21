@@ -30,7 +30,7 @@ heap in one arena, and the tests run on a thread whose stack is at 1.5 GB.
     F="-no-pie -O1 -w -std=gnu99 -DEGL_RISCOS_HOST -Ifake -I$X/include -I$X -I../../../egl/include -I$M/include"
     gcc $F -D__riscos__ -c harness_es.c $X/bcm_host.c
     gcc -no-pie -O1 -w -std=gnu99 -I../ovl/fake -I. -Ifake -c ../ovl/fake_ovl.c
-    gcc $F harness.c harness_ovl.c fake_riscos.c fake_ovl.o ../../../egl/egl_riscos.c harness_es.o bcm_host.o \
+    gcc $F harness.c harness_ovl.c fake_riscos.c fake_ovl.o ../../../egl/egl_riscos.c ../../../osmesa/pick.c harness_es.o bcm_host.o \
       -o harness -L$O -lOSMesa -lpthread -Wl,-rpath,$O && ./harness
 
 Expected: `N checks, 0 failures: ALL PASS` (over 400 checks).

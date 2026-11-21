@@ -51,6 +51,17 @@ int v3dm_finish(v3dm_context *c);
 /* c's frame (c current), finished, as R,G,B,A bytes: rows row_bytes
    apart, the top row first or (top_first 0) last. 0, or -1 */
 int v3dm_read(v3dm_context *c, void *pixels, int row_bytes, int top_first);
+/* An image over the caller's memory (EGL_RISCOS_image_memory), for
+   glEGLImageTargetRenderbufferStorageOES and glEGLImageTargetTexture2DOES
+   in any context: rows row_bytes apart (a multiple of 16), row 0 GL's
+   bottom one, the memory 4 KB aligned and whole pages to its end; fourcc
+   DRM_FORMAT_ARGB8888 (B,G,R,A bytes), XRGB8888, ABGR8888 (R,G,B,A) or
+   XBGR8888. NULL: see v3dm_error. The memory must stay put while the
+   image, or a renderbuffer or texture made from it, is left. */
+typedef struct v3dm_image v3dm_image;
+v3dm_image *v3dm_image_create(void *pixels, int row_bytes, unsigned width, unsigned height, unsigned fourcc);
+void v3dm_image_destroy(v3dm_image *m);
+
 /* the formats of c's frame, as text */
 const char *v3dm_formats(v3dm_context *c);
 

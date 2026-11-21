@@ -36,4 +36,16 @@ int r3d_in_place(const void *pixels);
 int r3d_can_share(void);
 struct r3d_context *r3d_create_shared(int api, int major, int minor, struct r3d_context *share);
 
+/* With the GPU library (version 4): images over the program's memory
+   (EGL_RISCOS_image_memory). r3d_image_create: rows row_bytes apart (a
+   multiple of 16), the first GL's bottom row, 4 KB aligned with whole
+   pages to its end; fourcc a DRM format (ARGB8888, XRGB8888, ABGR8888,
+   XBGR8888). NULL: it can't (r3d_error says why). r3d_image_target:
+   glEGLImageTargetTexture2DOES (renderbuffer 0) or
+   glEGLImageTargetRenderbufferStorageOES (1) in the current context. */
+int r3d_can_image(void);
+void *r3d_image_create(void *pixels, int row_bytes, int width, int height, unsigned fourcc);
+void r3d_image_destroy(void *image);
+void r3d_image_target(int renderbuffer, unsigned target, void *image);
+
 #endif

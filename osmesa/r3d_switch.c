@@ -320,6 +320,30 @@ int r3d_can_share(void)
     return gpu ? gpu->version >= 3 : r3ds_can_share();
 }
 
+/* images over the program's memory: the GPU library only (version 4) */
+int r3d_can_image(void)
+{
+    decide();
+    return gpu && gpu->version >= 4;
+}
+
+void *r3d_image_create(void *pixels, int row_bytes, int width, int height, unsigned fourcc)
+{
+    return r3d_can_image() ? gpu->image_create(pixels, row_bytes, width, height, fourcc) : NULL;
+}
+
+void r3d_image_destroy(void *image)
+{
+    if (image && r3d_can_image())
+        gpu->image_destroy(image);
+}
+
+void r3d_image_target(int renderbuffer, unsigned target, void *image)
+{
+    if (r3d_can_image() && cur)
+        gpu->image_target(renderbuffer, target, image);
+}
+
 struct r3d_context *r3d_create(void)
 {
     decide();

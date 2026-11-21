@@ -806,4 +806,22 @@ struct r3d_context *r3d_create_shared(int api, int major, int minor, struct r3d_
     if (c) fake_r3d_shared++;
     return c;
 }
+/* the GPU library's images over the program's memory (fake_r3d_image: as
+   on a native Pi 4); fake_r3d_fail makes it refuse */
+int fake_r3d_image, fake_r3d_images, fake_r3d_image_rb, fake_r3d_image_target = -1;
+unsigned fake_r3d_image_fourcc;
+void *fake_r3d_image_last;
+int r3d_can_image(void) { return fake_r3d_image; }
+void *r3d_image_create(void *pixels, int row_bytes, int width, int height, unsigned fourcc)
+{
+    (void) pixels; (void) width; (void) height;
+    if (!fake_r3d_image || fake_r3d_fail) return NULL;
+    fake_r3d_image_rb = row_bytes;
+    fake_r3d_image_fourcc = fourcc;
+    fake_r3d_images++;
+    return malloc(4);
+}
+void r3d_image_destroy(void *image) { if (image) { fake_r3d_images--; free(image); } }
+void r3d_image_target(int renderbuffer, unsigned target, void *image)
+{ (void) target; fake_r3d_image_target = renderbuffer; fake_r3d_image_last = image; }
 #endif /* FAKE_NO_R3D */
