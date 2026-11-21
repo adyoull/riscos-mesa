@@ -1,0 +1,12 @@
+| GPUProbe [-o file]: what the GPU gives programs through riscos-mesa, for
+| RISC3D's setup window: for OpenGL, OpenGL ES (its highest) and OpenGL ES
+| 1.1, the route (RISC3D or software), GL_VERSION, GL_RENDERER, the shading
+| language, the largest texture and the extensions, as "key: value" lines
+| (see !Help). Start it as a task of its own (Wimp_StartTask), as an ELF
+| program it needs its own slot. RISC3D decides GPU or software, as for
+| every program.
+If "<SharedLibs$Dir>" = "" Then IfThere Boot:Resources.!SharedLibs.!Boot Then Run Boot:Resources.!SharedLibs.!Boot
+If "<MesaLibs$Dir>" = "" Then Run <Obey$Dir>.!Boot
+Set gpuprobe$LD$Env "LD_LIBRARY_PATH=/MesaLibs:"
+WimpSlot -min 16000K -max 16000K
+Run <Obey$Dir>.bin.gpuprobe %*0

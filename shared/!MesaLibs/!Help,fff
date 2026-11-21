@@ -36,6 +36,13 @@ The libraries (in lib):
   libMesaGPU/so/1   Mesa 26.1.6's driver for a Pi 4's GPU, for programs
                     linked with -lMesaGPU. Other programs never load it.
 
+GPUProbe says what the GPU gives programs here (for RISC3D's setup window,
+or *Obey <MesaLibs$Dir>.GPUProbe -o <file> from a task window): for OpenGL,
+OpenGL ES (its highest) and OpenGL ES 1.1, lines of "key: value" --
+gpuprobe (the format, 1), egl, then for each: api, route (RISC3D,
+software or none), version, renderer, shading, max_texture_size,
+extensions, end.
+
 Programs don't choose between the GPU and software: RISC3D decides. With
 !RISC3D in !Boot.Resources, programs draw on the GPU driver it loads at
 start-up; without one they draw in software. LIBGL_ALWAYS_SOFTWARE or

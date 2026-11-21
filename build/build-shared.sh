@@ -168,6 +168,11 @@ mixed() {   # mixed NAME SOURCES... -- LIBRARIES...
   libs=("$@")
   $CC $RO_CFLAGS $INC "${src[@]}" -o "$M/$name" $MIXED "${libs[@]}" -lm
 }
+# !MesaLibs.GPUProbe's program (shared/gpuprobe.c): what the GPU RISC3D
+# has gives, for RISC3D's setup window, with no other program running
+$CC $RO_CFLAGS $INC "$R/shared/gpuprobe.c" -o "$OUT/gpuprobe" $MIXED -lEGL -lOSMesa -lMesaGPU -lm
+mkdir -p "$PACK/bin"
+$STRIP -o "$PACK/bin/gpuprobe,e1f" "$OUT/gpuprobe"
 mixed glbench   "$T/glbench.c" "$T/hrtime.c"                 -- -lOSMesa
 mixed glutest   "$T/glutest.c"                               -- -lGLU -lOSMesa
 mixed egltest   "$T/egltest.c" "$T/hrtime.c"                 -- -lEGL -lOSMesa
