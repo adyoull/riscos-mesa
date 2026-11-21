@@ -53,6 +53,11 @@ struct drm_riscos_file_stats { struct drm_riscos_queue_stats file[5], all[5]; };
    suspended); 0 if it may */
 int drm_riscos_cpu_uncached(const void *p, size_t n);
 
+/* 1 if every page of [p, p + n) has a physical page behind it (a page not
+   yet put in by an area that does so when touched is read once first); 0
+   if not, with the first such page's address in *missing */
+int drm_riscos_memory_present(const void *p, size_t n, uintptr_t *missing);
+
 /* the GPU's DRM driver name ("v3d"), if RISC3D's choice of driver is a
    DRM device; NULL: none */
 const char *drm_riscos_device(void);

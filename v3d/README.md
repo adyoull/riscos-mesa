@@ -74,7 +74,7 @@ static program; a mixed program shares !MesaLibs' copy.
 | Part | What it is |
 |---|---|
 | `build/build-v3d.sh` | Fetches Mesa 26.1.6 (Debian's copy of the release tarball, sha256-checked), patches it, builds it with meson for RISC OS, and makes `libMesaGPU.a` and the test programs. Needs meson 1.4 or later (`MESON=`; `build/ci.sh` installs one). `RO_PIC=1` makes the position-independent build that `build-shared.sh` turns into `libMesaGPU.so.1`. |
-| `patches/mesa-26.1.6-riscos-v3d.patch` | Mesa's changes: RISC OS in meson.build and util (UnixLib has no pthread barriers, open_memstream, mkstemps or sysinfo); the v3d driver's mmap, munmap and close of the GPU module's file and of sync files; BOs opened by handle (imported memory); a global GL dispatch and context (GCCSDK's thread-local variables are emulated), each thread's own once a second thread draws; `V3DM$Why`. |
+| `patches/mesa-26.1.6-riscos-v3d.patch` | Mesa's changes: RISC OS in meson.build and util (UnixLib has no pthread barriers, open_memstream, mkstemps or sysinfo; driconf doesn't match Linux applications); the v3d driver's mmap, munmap and close of the GPU module's file and of sync files; BOs opened by handle (imported memory); a global GL dispatch and context (GCCSDK's thread-local variables are emulated), each thread's own once a second thread draws; `V3DM$Why`. |
 | `libdrm/` | The part of libdrm that Mesa's v3d driver uses, as requests to the GPU module (`src/drm_riscos.c`, per V3DRender's docs/INTERFACE.md). The module is found through RISC3D: `RISC3D_Info` r4 bit 0 = DRM device, r5 its ioctl SWI, r6 its DRM driver name; `RISC3D_Open` r1 = its file. The module's answers are Linux errno numbers, mapped to UnixLib's. `xf86drm.h`, `xf86drmMode.h`, `drm.h`, `drm_mode.h` are libdrm 2.4.124's, unchanged (MIT). `include/drm_riscos.h` has the RISC OS requests (sync files, cached buffers, imported memory, GPU time). |
 | `frontend/` | `v3dm.h`: contexts and frames on the GPU, after Mesa's hgl frontend and its removed OSMesa one. It picks Mesa's driver by the DRM driver name, so another GPU's module that registers with RISC3D needs only its Mesa driver added. |
 | `gpu/`, `include/riscos_mesa_gpu.h` | The library's one entry point, `riscos_mesa_gpu()`: a table of functions (device, create, destroy, make current, read back, draw into, finish, the gl entry points, sharing, images over memory) that libOSMesa's RISC3D switch uses. `tools/gpu-functions.py` makes the gl entry point list. |
@@ -123,7 +123,11 @@ samples a tiled copy, made again when the GPU has drawn into it).
 
 - The memory: 4 KB aligned, whole pages to the end of its last row, rows
   a multiple of 16 bytes, at most 4096 x 4096. It must stay put while the
-  image, or a renderbuffer or texture made from it, is left.
+  image, or a renderbuffer or texture made from it, is left. Every page
+  must have a physical page behind it: each is looked up first, and one
+  that has none is read once (areas that put pages in when touched do so)
+  and then refused if it still has none. Pages RISC OS moves afterwards
+  are followed by V3DRender (0.23 or later).
 - Byte order by DRM format: ARGB8888 (B,G,R,A, cairo's ARGB32), XRGB8888,
   ABGR8888 (R,G,B,A, a sprite's), XBGR8888.
 - The memory's first row is GL's y = 0 (a framebuffer object's bottom

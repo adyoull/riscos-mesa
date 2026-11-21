@@ -631,3 +631,22 @@ diff -ruN a/src/util/u_thread.h b/src/util/u_thread.h
  
  typedef pthread_barrier_t util_barrier;
  
+diff -ruN a/src/util/xmlconfig.c b/src/util/xmlconfig.c
+--- a/src/util/xmlconfig.c
++++ b/src/util/xmlconfig.c
+@@ -1165,6 +1165,15 @@
+ 
+       data->inApp++;
+ 
++#ifdef __riscos__
++      /* RISC OS programs are none of the applications and engines listed,
++         and matching them runs UnixLib's regex over every pattern each time
++         a screen starts: GPUProbe died in regexec about one run in four
++         when a UnixLib program started it (RISC3D, 21 Nov 2026). */
++      data->inApp--;
++      continue;
++#endif
++
+       for (unsigned j = 0; j < d->num_engines; j++) {
+          const struct driconf_engine *e = &d->engines[j];
+          const char *engattr[] = {

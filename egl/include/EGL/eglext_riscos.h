@@ -252,7 +252,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS (EGLDisplay dpy, EGLSurface
  *   renderbuffer or texture made from it, is left.
  *   Errors: EGL_BAD_PARAMETER (an attribute, the alignment, a context
  *   given, or no GPU library drawing here), EGL_BAD_ACCESS (that memory is
- *   an image already), EGL_BAD_ALLOC (the GPU module wouldn't map it;
+ *   an image already), EGL_BAD_ALLOC (a page has no physical page behind
+ *   it even after being read, or the GPU module wouldn't map it;
  *   *Set V3DM$Trace 1 says why).
  *
  *   Then, with the context current (of the GPU library: any of its

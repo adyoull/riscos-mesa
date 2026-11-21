@@ -521,6 +521,44 @@ int drm_riscos_cpu_uncached(const void *p, size_t n)
     return 1;
 }
 
+/* ---- memory with pages behind it ----
+   The GPU module maps memory by its physical pages when it is imported. A
+   page with none behind it yet (ARMEABISupport's areas, which put a page in
+   when it is first touched: UnixLib's shared memory, 21 Nov 2026)
+   went to the GPU as page 0, and the GPU's writes went somewhere else.
+   Each page is looked up (OS_Memory 0, logical to physical); one with no
+   page is read once, so that an area that pages in on touch does so, and
+   looked up again. */
+
+#ifndef OS_Memory
+#define OS_Memory 0x68
+#endif
+
+static int page_present(uintptr_t a)
+{
+    unsigned block[3] = { 0, (unsigned) a, 0 };
+    return !_swix(OS_Memory, _INR(0, 2), (1 << 9) | (1 << 13), block, 1) && block[2] != 0;
+}
+
+int drm_riscos_memory_present(const void *p, size_t n, uintptr_t *missing)
+{
+    uintptr_t a = (uintptr_t) p & ~(uintptr_t) 4095, end = (uintptr_t) p + n;
+    modes();
+    if (fake)
+        return 1;                       /* (nothing is mapped into a GPU) */
+    for (; a < end; a += 4096) {
+        if (page_present(a))
+            continue;
+        (void) *(volatile const unsigned char *) a;     /* paged in on touch */
+        if (!page_present(a)) {
+            if (missing)
+                *missing = a;
+            return 0;
+        }
+    }
+    return 1;
+}
+
 /* ---- the call ---- */
 
 int drmIoctl(int fd, unsigned long request, void *arg)

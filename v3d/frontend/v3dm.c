@@ -120,9 +120,18 @@ static void close_handle(uint32_t handle)
 /* DRM_IOCTL_RISCOS_IMPORT_MEMORY of im's memory; memory the CPU doesn't
    cache (screen memory) marked so (V3DRender 0.13: no cache cleaning and
    invalidating around jobs), or not on an older module */
+static uintptr_t missing_page;         /* import_memory refused: the page with none behind it */
+
 static int import_memory(struct drm_riscos_import_memory *im)
 {
     im->flags = 0;
+    missing_page = 0;
+    if (!drm_riscos_memory_present((void *) (uintptr_t) im->address, im->size, &missing_page)) {
+        if (dev.trace)
+            fprintf(stderr, "v3dm: not mapped: %08x has no page behind it\n", (unsigned) missing_page);
+        errno = EFAULT;
+        return -1;
+    }
     if (!dev.no_uncached && drm_riscos_cpu_uncached((void *) (uintptr_t) im->address, im->size)) {
         im->flags = DRM_RISCOS_IMPORT_UNCACHED;
         if (drmIoctl(dev.fd, DRM_IOCTL_RISCOS_IMPORT_MEMORY, im) == 0)
@@ -337,7 +346,11 @@ static v3dm_image *image_make(void *pixels, int row_bytes, unsigned width, unsig
     im.address = (uintptr_t) pixels;
     im.size = ((size_t) row_bytes * height + 4095) & ~4095u;
     if (import_memory(&im)) {
-        snprintf(dev.error, sizeof dev.error, "the GPU module wouldn't map the memory (%d)", errno);
+        if (missing_page)
+            snprintf(dev.error, sizeof dev.error, "the memory at %08x has no page behind it",
+                     (unsigned) missing_page);
+        else
+            snprintf(dev.error, sizeof dev.error, "the GPU module wouldn't map the memory (%d)", errno);
         return NULL;
     }
     r = from_handle(&t, im.handle, (unsigned) row_bytes);
