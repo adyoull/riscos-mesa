@@ -55,7 +55,10 @@ RISC3D under RISC OS on Linux, and adds shared libraries for "mixed"
 programs (!MesaLibs). 20.3.5-20 does it natively on a Pi 4: a 640x480
 window at 365 fps, full screen at the display's 60 fps, glbench's scenes
 in 1.6-2.8 ms a frame against 9.7-13.6 ms in software. 20.3.5-21 puts the
-loader mixed programs need into !MesaLibs.
+loader mixed programs need into !MesaLibs. 20.3.5-23 lets GPU contexts
+share objects and be current in several threads, and lets the GPU draw
+straight into a program's own memory (`EGL_RISCOS_image_memory`), for
+programs that composite with the GPU.
 
 ## The GPU
 
