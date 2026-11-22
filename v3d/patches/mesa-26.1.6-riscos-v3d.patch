@@ -69,7 +69,79 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
  
  #include "util/perf/cpu_trace.h"
  #include "util/u_hash_table.h"
-@@ -203,7 +206,11 @@
+@@ -75,9 +78,27 @@
+         }
+ }
+ 
++#ifdef __riscos__
++/* riscos-mesa: on RISC OS a new BO is dear. V3DRender claims its pages one
++ * by one from RISC OS and clears them through an uncached mapping, where
++ * Linux hands out shmem pages; and a compositor drawing with the GPU makes and
++ * drops tiles and scratch surfaces all the time (22 Nov 2026). So
++ * freed BOs are kept longer (RISCOS_BO_KEEP seconds, up to
++ * RISCOS_BO_CACHE_MAX bytes, the oldest going first), and a request is
++ * also met from a BO up to a quarter bigger. A failed allocation still
++ * frees the whole cache first, as before. */
++#define RISCOS_BO_KEEP 8
++#define RISCOS_BO_CACHE_MAX (48u << 20)
++#define RISCOS_BO_LOOK 4                /* non-empty bigger buckets tried */
++static uint32_t riscos_cached_bytes;
++#endif
++
+ static void
+ v3d_bo_remove_from_cache(struct v3d_bo_cache *cache, struct v3d_bo *bo)
+ {
++#ifdef __riscos__
++        riscos_cached_bytes -= bo->size;
++#endif
+         list_del(&bo->time_list);
+         list_del(&bo->size_list);
+ }
+@@ -93,6 +114,33 @@
+ 
+         struct v3d_bo *bo = NULL;
+         mtx_lock(&cache->lock);
++#ifdef __riscos__
++        {
++                /* this size, else a little bigger: the first bucket whose
++                 * oldest BO has gone idle */
++                uint32_t last = page_index + page_index / 4, tried = 0;
++                if (last >= cache->size_list_size)
++                        last = cache->size_list_size - 1;
++                for (uint32_t i = page_index; i <= last && tried < RISCOS_BO_LOOK; i++) {
++                        if (list_is_empty(&cache->size_list[i]))
++                                continue;
++                        tried++;
++                        struct v3d_bo *c = list_first_entry(&cache->size_list[i],
++                                                            struct v3d_bo, size_list);
++                        if (v3d_bo_wait(c, 0, NULL)) {
++                                bo = c;
++                                break;
++                        }
++                }
++                if (bo) {
++                        pipe_reference_init(&bo->reference, 1);
++                        v3d_bo_remove_from_cache(cache, bo);
++                        bo->name = name;
++                }
++                mtx_unlock(&cache->lock);
++                return bo;
++        }
++#endif
+         if (!list_is_empty(&cache->size_list[page_index])) {
+                 bo = list_first_entry(&cache->size_list[page_index],
+                                       struct v3d_bo, size_list);
+@@ -128,6 +176,9 @@
+         size = align(size, 4096);
+ 
+         bo = v3d_bo_from_cache(screen, size, name);
++#ifdef __riscos__
++        drm_riscos_note_bo(bo != NULL, bo ? bo->size : size);
++#endif
+         if (bo) {
+                 if (dump_stats) {
+                         mesa_logd("Allocated %s %dkb from cache:", name, size / 1024);
+@@ -203,7 +254,11 @@
                  } else
  #endif
                  {
@@ -81,7 +153,30 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
                          VG(VALGRIND_FREELIKE_BLOCK(bo->map, 0));
                  }
          }
-@@ -374,6 +381,19 @@
+@@ -238,7 +293,12 @@
+         list_for_each_entry_safe(struct v3d_bo, bo, &cache->time_list,
+                                  time_list) {
+                 /* If it's more than a second old, free it. */
++#ifdef __riscos__
++                if (time - bo->free_time > RISCOS_BO_KEEP ||
++                    riscos_cached_bytes > RISCOS_BO_CACHE_MAX) {
++#else
+                 if (time - bo->free_time > 2) {
++#endif
+                         if (dump_stats && !freed_any) {
+                                 mesa_logd("Freeing stale BOs:");
+                                 v3d_bo_dump_stats(screen);
+@@ -310,6 +370,9 @@
+         bo->free_time = time;
+         list_addtail(&bo->size_list, &cache->size_list[page_index]);
+         list_addtail(&bo->time_list, &cache->time_list);
++#ifdef __riscos__
++        riscos_cached_bytes += bo->size;
++#endif
+         if (dump_stats) {
+                 mesa_logd("Freed %s %dkb to cache:", bo->name, bo->size / 1024);
+                 v3d_bo_dump_stats(screen);
+@@ -374,6 +437,19 @@
          return bo;
  }
  
@@ -101,7 +196,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
  struct v3d_bo *
  v3d_bo_open_name(struct v3d_screen *screen, uint32_t name)
  {
-@@ -515,8 +535,14 @@
+@@ -515,8 +591,14 @@
                  abort();
          }
  

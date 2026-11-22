@@ -144,7 +144,7 @@ All of these are system variables, read when the program starts:
 
 | Variable | What it does |
 |---|---|
-| `V3DM$Stats` | Every 5 s on stderr: each kind of request to the GPU module with its count and the ms spent in it. Then, with V3DRender 0.13 or later, this program's GPU jobs and their time on the GPU per queue. Shows whether a slow program waits for the GPU or the CPU. |
+| `V3DM$Stats` | Every 5 s on stderr: each kind of request to the GPU module with its count and the ms spent in it; how many buffers came from Mesa's BO cache and how many were made new (CREATE_BO is dear natively, so on RISC OS the cache keeps freed BOs 8 s, up to 48 MB, and gives BOs up to a quarter bigger than asked). Then, with V3DRender 0.13 or later, this program's GPU jobs and their time on the GPU per queue. Shows whether a slow program waits for the GPU or the CPU. |
 | `V3DM$Why` | A line per job Mesa submits: why (`pipe flush` for glFlush, glFinish, a swap or a read-back; `reading a resource a job writes`; `writing a resource a job reads`; `a BO a job uses`; `directly` for blits, clears and compute), and two addresses as offsets from `v3d_job_submit`, to look up in the shared build's link map `stage/shared/obj/libMesaGPU.so.1.map` (sections are named after functions). |
 | `V3DM$Trace` | Every request to the module, and each frame made, chosen and finished. |
 | `V3DM$Dump <file>` | The first jobs (`V3DM$DumpJobs`, default 3) with every buffer they use, for replaying off the Pi; `tools/v3dm-dump.py` prints one. After a GPU hang, V3DRender's `*V3DDump` and its kit's replay are the other half. |

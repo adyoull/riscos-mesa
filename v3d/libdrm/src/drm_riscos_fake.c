@@ -110,9 +110,12 @@ int drm_riscos_fake_ioctl(unsigned long request, void *arg)
     case DRM_COMMAND_BASE + DRM_V3D_WAIT_BO: {
         /* as a module answers a busy check (timeout 0) on a BO still in
            use: Linux's ETIME, -62 (the answers here are Linux's numbers,
-           as a module's are) */
+           as a module's are). Nothing runs here, so every BO is idle;
+           one busy check in four says busy all the same, so that both of
+           Mesa's paths (reuse from its BO cache, and a new BO) are used. */
+        static unsigned checks;
         struct drm_v3d_wait_bo *a = arg;
-        return a->timeout_ns == 0 ? -62 : 0;
+        return a->timeout_ns == 0 && (checks++ & 3) == 0 ? -62 : 0;
     }
     case DRM_COMMAND_BASE + DRM_V3D_SUBMIT_CL:
     case DRM_COMMAND_BASE + DRM_V3D_SUBMIT_TFU:

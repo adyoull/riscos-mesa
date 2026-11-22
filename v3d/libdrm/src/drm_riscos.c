@@ -435,6 +435,30 @@ static void stats_gpu(int fd)
     gpu_last = now;
 }
 
+/* Mesa's BO cache (the riscos-v3d patch, v3d_bufmgr.c): buffers given
+   from it, and those made new (CREATE_BO), since the last line */
+static unsigned bo_cached, bo_cached_kb, bo_new, bo_new_kb;
+
+void drm_riscos_note_bo(int from_cache, uint32_t size)
+{
+    if (from_cache) {
+        bo_cached++;
+        bo_cached_kb += size / 1024;
+    } else {
+        bo_new++;
+        bo_new_kb += size / 1024;
+    }
+}
+
+static void stats_bos(void)
+{
+    if (!bo_cached && !bo_new)
+        return;
+    fprintf(stderr, "V3DM$Stats: buffers: %u from Mesa's cache (%u KB), %u made new (%u KB)\n",
+            bo_cached, bo_cached_kb, bo_new, bo_new_kb);
+    bo_cached = bo_cached_kb = bo_new = bo_new_kb = 0;
+}
+
 static const char *request_name(unsigned long request)
 {
     switch (request & 0xffff) {
@@ -489,6 +513,7 @@ static void stats_note(int fd, unsigned long request, void *arg, int r, double s
         fputc(';', stderr);
     }
     fputc('\n', stderr);
+    stats_bos();
     stats_gpu(fd);
     memset(st, 0, sizeof st);
     st_start = now;

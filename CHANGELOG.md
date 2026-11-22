@@ -6,6 +6,12 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-23 (in development)
 
+- **The GPU library makes fewer new buffers** (a profile on the Pi of a program that makes and drops many textures and render targets: `DRM_IOCTL_V3D_CREATE_BO` was the GPU library's largest item, ~5% of its time). Natively a new BO is dear: V3DRender claims its pages from RISC OS one by one and clears them uncached. On RISC OS, Mesa's BO cache (`v3d_bufmgr.c`) now:
+  - keeps freed BOs 8 s instead of 2, up to 48 MB, the oldest going first;
+  - meets a request from a BO up to a quarter bigger, trying the oldest BO in up to 4 buckets.
+  - `V3DM$Stats` adds a line, `buffers: N from Mesa's cache (KB), M made new (KB)`.
+  - Under QEMU with `V3DM$Fake` (whose busy checks now say busy one time in four), glbench gets about 3 of 4 buffers from the cache; `gpu-image` 19 of 19.
+
 - **The GPU library refuses memory with no pages behind it** instead of giving the GPU page 0. Before memory is imported (window surfaces, `EGL_RISCOS_image_memory`), each of its pages is looked up (`OS_Memory 0`). A page with none behind it is read once, so that an area which puts pages in when they are first touched (ARMEABISupport's, as behind UnixLib's shared memory) does so, and looked up again. If it still has none, the import is refused: `eglCreateImageKHR` gives `EGL_BAD_ALLOC`, `V3DM$Trace` names the page, and a window surface is read back as before. GPU hangs, MMU errors at page 0 and lost tiles seen on the Pi had this as one cause. The other was pages RISC OS moved after the import, which V3DRender 0.23 follows.
 - **GPUProbe no longer crashes when a UnixLib program starts it** (RISC3D's setup window: about one run in four, in `driParseConfigFiles`). Mesa 26's driconf matched each context's program against its table of Linux applications and engines with UnixLib's `regcomp`/`regexec`, and died in `regexec`. RISC OS programs are none of those, so on RISC OS the matching is skipped (`v3d/patches`: `src/util/xmlconfig.c`).
 - **GPUProbe no longer leaves a RISC3D context per run.** This is the change below, closing the GPU file at exit.

@@ -58,6 +58,10 @@ int drm_riscos_cpu_uncached(const void *p, size_t n);
    if not, with the first such page's address in *missing */
 int drm_riscos_memory_present(const void *p, size_t n, uintptr_t *missing);
 
+/* For V3DM$Stats: Mesa gave a buffer of size bytes from its cache
+   (from_cache 1) or made a new one */
+void drm_riscos_note_bo(int from_cache, uint32_t size);
+
 /* the GPU's DRM driver name ("v3d"), if RISC3D's choice of driver is a
    DRM device; NULL: none */
 const char *drm_riscos_device(void);
