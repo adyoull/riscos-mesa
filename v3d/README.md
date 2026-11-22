@@ -67,7 +67,9 @@ static program; a mixed program shares !MesaLibs' copy.
     software;
   - ClassiCube, TORCS, Warzone 2100 and YSFlight run on it.
 - **Use V3DRender 0.15 or later:** 0.11–0.14 spend most of a windowed
-  program's frame on cache maintenance.
+  program's frame on cache maintenance. With images over a program's own
+  memory, 0.23 or later (it follows pages RISC OS moves); 0.25 keeps freed
+  pages for the next new buffer, behind Mesa's own BO cache.
 
 ## The parts
 

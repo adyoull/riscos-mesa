@@ -10,6 +10,7 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
   - keeps freed BOs 8 s instead of 2, up to 48 MB, the oldest going first;
   - meets a request from a BO up to a quarter bigger, trying the oldest BO in up to 4 buckets.
   - `V3DM$Stats` adds a line, `buffers: N from Mesa's cache (KB), M made new (KB)`.
+  - V3DRender 0.25 adds a pool of freed pages behind it (a new BO without claiming pages from RISC OS), and confirmed that a BO closed while a job still uses it keeps its pages until the job is done.
   - Under QEMU with `V3DM$Fake` (whose busy checks now say busy one time in four), glbench gets about 3 of 4 buffers from the cache; `gpu-image` 19 of 19.
 
 - **The GPU library refuses memory with no pages behind it** instead of giving the GPU page 0. Before memory is imported (window surfaces, `EGL_RISCOS_image_memory`), each of its pages is looked up (`OS_Memory 0`). A page with none behind it is read once, so that an area which puts pages in when they are first touched (ARMEABISupport's, as behind UnixLib's shared memory) does so, and looked up again. If it still has none, the import is refused: `eglCreateImageKHR` gives `EGL_BAD_ALLOC`, `V3DM$Trace` names the page, and a window surface is read back as before. GPU hangs, MMU errors at page 0 and lost tiles seen on the Pi had this as one cause. The other was pages RISC OS moved after the import, which V3DRender 0.23 follows.
