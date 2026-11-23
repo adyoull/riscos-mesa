@@ -59,7 +59,7 @@ diff -ruN a/src/c11/impl/threads_posix.c b/src/c11/impl/threads_posix.c
 diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_bufmgr.c
 --- a/src/gallium/drivers/v3d/v3d_bufmgr.c
 +++ b/src/gallium/drivers/v3d/v3d_bufmgr.c
-@@ -27,10 +27,17 @@
+@@ -27,10 +27,14 @@
  #include <fcntl.h>
  #include <xf86drm.h>
  #include <xf86drmMode.h>
@@ -71,13 +71,10 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
  #include "util/u_hash_table.h"
  #include "util/u_memory.h"
 +#include "util/u_atomic.h"
-+#ifdef __riscos__
-+#include <unistd.h>
-+#endif
  #include "util/ralloc.h"
  
  #include "v3d_context.h"
-@@ -75,9 +82,27 @@
+@@ -75,9 +79,27 @@
          }
  }
  
@@ -105,7 +102,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
          list_del(&bo->time_list);
          list_del(&bo->size_list);
  }
-@@ -93,6 +118,33 @@
+@@ -93,6 +115,33 @@
  
          struct v3d_bo *bo = NULL;
          mtx_lock(&cache->lock);
@@ -139,7 +136,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
          if (!list_is_empty(&cache->size_list[page_index])) {
                  bo = list_first_entry(&cache->size_list[page_index],
                                        struct v3d_bo, size_list);
-@@ -128,6 +180,9 @@
+@@ -128,6 +177,9 @@
          size = align(size, 4096);
  
          bo = v3d_bo_from_cache(screen, size, name);
@@ -149,7 +146,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
          if (bo) {
                  if (dump_stats) {
                          mesa_logd("Allocated %s %dkb from cache:", name, size / 1024);
-@@ -149,6 +204,9 @@
+@@ -149,6 +201,9 @@
          struct drm_v3d_create_bo create = {
                  .size = size
          };
@@ -159,7 +156,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
  
   retry:
          ret = v3d_ioctl(screen->fd, DRM_IOCTL_V3D_CREATE_BO, &create);
-@@ -159,6 +217,35 @@
+@@ -159,6 +214,42 @@
                          v3d_bo_cache_free_all(&screen->bo_cache);
                          goto retry;
                  }
@@ -176,7 +173,14 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
 +                 * says GL_OUT_OF_MEMORY (v3d/frontend), so the program can
 +                 * say so. */
 +                if (riscos_waits++ < 10) {
-+                        usleep(5000);
++                        /* 5 ms (no usleep: a mixed program linked
++                         * before this needed it doesn't give it) */
++                        struct timespec t0, t1;
++                        clock_gettime(CLOCK_MONOTONIC, &t0);
++                        do
++                                clock_gettime(CLOCK_MONOTONIC, &t1);
++                        while ((t1.tv_sec - t0.tv_sec) * 1000000000LL +
++                               (t1.tv_nsec - t0.tv_nsec) < 5000000LL);
 +                        goto retry;
 +                }
 +                if (posix_memalign(&bo->map, 4096, size) == 0) {
@@ -195,7 +199,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
  
                  mesa_loge("Failed to allocate device memory for BO");
                  free(bo);
-@@ -195,6 +282,14 @@
+@@ -195,6 +286,14 @@
  {
          struct v3d_screen *screen = bo->screen;
  
@@ -210,7 +214,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
          if (bo->map) {
  #if USE_V3D_SIMULATOR
                  if (bo->name &&
-@@ -203,7 +298,11 @@
+@@ -203,7 +302,11 @@
                  } else
  #endif
                  {
@@ -222,7 +226,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
                          VG(VALGRIND_FREELIKE_BLOCK(bo->map, 0));
                  }
          }
-@@ -238,7 +337,12 @@
+@@ -238,7 +341,12 @@
          list_for_each_entry_safe(struct v3d_bo, bo, &cache->time_list,
                                   time_list) {
                  /* If it's more than a second old, free it. */
@@ -235,7 +239,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
                          if (dump_stats && !freed_any) {
                                  mesa_logd("Freeing stale BOs:");
                                  v3d_bo_dump_stats(screen);
-@@ -310,6 +414,9 @@
+@@ -310,6 +418,9 @@
          bo->free_time = time;
          list_addtail(&bo->size_list, &cache->size_list[page_index]);
          list_addtail(&bo->time_list, &cache->time_list);
@@ -245,7 +249,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
          if (dump_stats) {
                  mesa_logd("Freed %s %dkb to cache:", bo->name, bo->size / 1024);
                  v3d_bo_dump_stats(screen);
-@@ -374,6 +481,19 @@
+@@ -374,6 +485,19 @@
          return bo;
  }
  
@@ -265,7 +269,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
  struct v3d_bo *
  v3d_bo_open_name(struct v3d_screen *screen, uint32_t name)
  {
-@@ -476,6 +596,10 @@
+@@ -476,6 +600,10 @@
          struct v3d_screen *screen = bo->screen;
  
          MESA_TRACE_SCOPE("%s reason=\"%s\"", __func__, reason);
@@ -276,7 +280,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
  
          if (V3D_DBG(PERF) && timeout_ns && reason) {
                  if (v3d_wait_bo_ioctl(screen->fd, bo->handle, 0) == -ETIME) {
-@@ -515,8 +639,14 @@
+@@ -515,8 +643,14 @@
                  abort();
          }
  
