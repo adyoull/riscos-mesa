@@ -1,0 +1,5 @@
+8 stencil bits
+PASS EXT_stencil_two_side
+PASS ATI_separate_stencil
+PASS glStencilOpSeparate (GL 2.0)
+0 failures

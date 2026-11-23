@@ -605,3 +605,12 @@ Moving to a newer Mesa
     and osmesa-buffers would have counterparts. docs/DECISIONS.md has the
     reasons for staying on 20.3.5 and a speed comparison with Mesa 26.
 
+
+mesa-20.3.5-riscos-two-sided-stencil.patch
+    swrast_setup/ss_tritmp.h: with two-sided stencil (front and back
+    stencil state differing: GL_EXT_stencil_two_side, ATI_separate_stencil,
+    glStencilOpSeparate), quads were dropped, and so was every quad after
+    them until the triangle functions were chosen again: the unfilled path
+    two-sided stencil uses drew a quad only when the vertex buffer had edge
+    flags, which it has only in GL_LINE/GL_POINT polygon modes. Found by
+    David Sharp's d3gltest (Doom 3's shadow volumes in software).

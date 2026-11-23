@@ -114,10 +114,15 @@ unsigned riscos_mesa_gpu_glGetError(void)
     return glGetError();
 }
 
+static void (*get_proc(const char *name))(void)
+{
+    return (void (*)(void)) _mesa_glapi_get_proc_address(name);
+}
+
 static const struct riscos_mesa_gpu gpu = {
     RISCOS_MESA_GPU_VERSION, device, create, destroy, make_current, read_frame,
     riscos_mesa_gpu_functions, v3dm_error, draw_into, finish, create_shared,
-    image_create, image_destroy, image_target, draw_tiled, present,
+    image_create, image_destroy, image_target, draw_tiled, present, get_proc,
 };
 
 __attribute__((visibility("default")))

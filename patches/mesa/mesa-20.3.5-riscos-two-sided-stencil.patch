@@ -1,0 +1,28 @@
+Two-sided stencil drew no quads (2026-11-23, David Sharp's d3gltest)
+
+- swrast_setup/ss_tritmp.h: two-sided stencil makes swrast_setup take its
+  unfilled-polygon path, to know each triangle's facing. There a quad was
+  drawn only if the vertex buffer had edge flags, which tnl gives only
+  for GL_LINE/GL_POINT polygon modes, so with both modes GL_FILL every
+  quad (glBegin(GL_QUADS)) was dropped: the shadow volume itself, and
+  every quad after it until the triangle functions were chosen again
+  (Mesa's own comment there: "this test shouldn't be needed (bug
+  12614)"). Without edge flags the quad is now its two triangles.
+
+--- a/src/mesa/swrast_setup/ss_tritmp.h
++++ b/src/mesa/swrast_setup/ss_tritmp.h
+@@ -227,6 +227,14 @@
+          VB->EdgeFlag[v3] = 0;
+          TAG(triangle)( ctx, v1, v2, v3 );
+          VB->EdgeFlag[v3] = ef3;
++      } else {
++         /* riscos-mesa: no edge flags (both modes GL_FILL: this path is
++          * taken for two-sided stencil, which needs each triangle's
++          * facing). The quad was dropped, and so was every quad after it
++          * until the triangle functions were chosen again (David Sharp,
++          * d3gltest: two-sided stencil shadow volumes in software). */
++         TAG(triangle)( ctx, v0, v1, v3 );
++         TAG(triangle)( ctx, v1, v2, v3 );
+       }
+    } else {
+       TAG(triangle)( ctx, v0, v1, v3 );

@@ -249,11 +249,22 @@ static void APIENTRY switch_glFlush(void)
     copy_to_target(cur);
 }
 
+/* Mesa 20.3.5's dispatch (the software renderer's, which EGL's and
+   OSMesa's dispatch tables are made from), for every GL name it has */
+unsigned int _glapi_get_dispatch_table_size(void);
+const char *_glapi_get_proc_name(unsigned int offset);
+
+static int gpu_function_cmp(const void *key, const void *entry)
+{
+    return strcmp((const char *) key, ((const struct riscos_mesa_gpu_function *) entry)->name);
+}
+
 const struct r3d_gl_function *r3d_functions(void)
 {
     static struct r3d_gl_function *list;
     const struct riscos_mesa_gpu_function *f;
-    int n;
+    unsigned int slots = 0, off;
+    int n, total;
     decide();
     if (!gpu)
         return r3ds_gl_functions;
@@ -261,7 +272,11 @@ const struct r3d_gl_function *r3d_functions(void)
         return list;
     for (n = 0; gpu->functions[n].name; n++)
         ;
-    list = (struct r3d_gl_function *) calloc((size_t) n + 1, sizeof *list);
+    /* (version 6) room for the GPU library's entry points that aren't in
+       its list, found by name below */
+    if (gpu->version >= 6)
+        slots = _glapi_get_dispatch_table_size();
+    list = (struct r3d_gl_function *) calloc((size_t) n + slots + 1, sizeof *list);
     if (!list) {
         static const struct r3d_gl_function none[1] = { { NULL, NULL } };
         return none;
@@ -281,6 +296,27 @@ const struct r3d_gl_function *r3d_functions(void)
         free(list);
         list = NULL;
         return r3ds_gl_functions;
+    }
+    /* Its list has only the functions Mesa 26 has entry points for by
+       name; extension functions (glActiveStencilFaceEXT, ...) are only
+       had through GetProcAddress. Without them, a GPU context's call went
+       to the software renderer's function and did nothing (David Sharp:
+       GL_EXT_stencil_two_side's back face never set). So every name Mesa
+       20.3.5's dispatch has that isn't in the list is asked for. (The
+       list is sorted by name: tools/gpu-functions.py.) */
+    total = n;
+    for (off = 0; off < slots; off++) {
+        const char *name = _glapi_get_proc_name(off);
+        void (*fn)(void);
+        if (!name || strncmp(name, "gl", 2) ||
+            bsearch(name, gpu->functions, (size_t) n, sizeof *gpu->functions, gpu_function_cmp))
+            continue;
+        fn = gpu->get_proc(name);
+        if (fn) {
+            list[total].name = name;
+            list[total].fn = fn;
+            total++;
+        }
     }
     return list;
 }

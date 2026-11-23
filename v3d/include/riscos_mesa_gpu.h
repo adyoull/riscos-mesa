@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-#define RISCOS_MESA_GPU_VERSION 5
+#define RISCOS_MESA_GPU_VERSION 6
 
 /* a gl function by its GL name, as RISC3D's client lists its own */
 struct riscos_mesa_gpu_function { const char *name; void (*fn)(void); };
@@ -86,6 +86,11 @@ struct riscos_mesa_gpu {
        ENOTTY not offered, EINVAL not this screen or frame, EBUSY not just
        now (plot it this time) */
     int (*present)(void *context, const int *rects, int n);
+    /* (version 6) any gl entry point by its GL name, as Mesa's own
+       GetProcAddress gives it, including the extension functions that
+       aren't in functions (glActiveStencilFaceEXT, say); NULL if Mesa 26
+       doesn't know the name. libOSMesa fills its list from this. */
+    void (*(*get_proc)(const char *name))(void);
 };
 
 /* the library's one exported name */
