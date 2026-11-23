@@ -336,10 +336,195 @@ static int r3dw_es3(void)
    waits for the frame. Where it can't (not 4 KB aligned, rows not a
    multiple of 16 bytes, 0x00RRGGBB layout, an older GPU module), frames
    are read back as before. */
+/* ------------------------------------------------------------------ */
+/* The GPU's present (V3DRender 0.31: DRM_IOCTL_RISCOS_PRESENT)        */
+/*                                                                     */
+/* A visible-area window surface drawn by the GPU library is drawn in  */
+/* the GPU's own tiles (faster to draw into than rows, and           */
+/* glCopyTexSubImage2D from it stays on the GPU), and shown by the GPU */
+/* copying it into the screen: the rectangles of the Wimp's update or  */
+/* redraw loop, collected as plot_loop goes and copied when it ends.  */
+/* To the Wimp it's an ordinary redraw, so menus and other windows     */
+/* stay over it. The copy is waited for before the loop's caller goes  */
+/* on: once the program polls the Wimp, a menu may be drawn there. If  */
+/* the present is refused, the frame is read back and plotted as       */
+/* before, and from the next frame the surface is drawn into its      */
+/* sprite again (until the screen mode changes). EGL$Present 0: never. */
+
+static void r3dw_place(egl_surface *s);
+
+/* one key for a screen mode, as far as the present cares (never 0) */
+static int r3dw_mode_key(const screen_info *scr)
+{
+    return ((scr->width & 0x3FFF) << 18 | (scr->height & 0x3FFF) << 4 | (scr->log2bpp & 15)) + 1;
+}
+
+static int r3dw_present_setting(void)
+{
+    static int on = -1;
+    if (on < 0) {
+        const char *v = getenv("EGL$Present");
+        on = !(v && (v[0] == '0' || v[0] == 'n' || v[0] == 'N' ||
+                     ((v[0] == 'o' || v[0] == 'O') && (v[1] == 'f' || v[1] == 'F'))));
+    }
+    return on;
+}
+
+/* s (the active RISC3D context's draw surface) can be shown by the GPU's
+   present: a visible-area window surface shown as it is, with no other
+   way of showing it, on a screen the module takes */
+static int r3dw_present_wanted(egl_surface *s)
+{
+    screen_info scr;
+    int r;
+    if (!r3d_in_program() || !r3dw_present_setting())
+        return 0;
+    if (s->kind != SURF_WINDOW || s->handle <= 0 || s->fixed || s->dmx || s->banks ||
+        s->direct || is_scaled(s) || s->ever_locked || s->ovl_want == 1 || s->ovl_shown ||
+        s->r3d_ovl == R3O_ON || s->cfg->layout != LAYOUT_TBGR || !s->sprite)
+        return 0;
+    read_screen(&scr);
+    if (s->r3d_pres_no == r3dw_mode_key(&scr))
+        return 0;                       /* refused on this screen before */
+    r = r3d_present(NULL, 0);
+    if (r != 0 && r != -EBUSY)
+        s->r3d_pres_no = r3dw_mode_key(&scr);   /* not asked again until the mode changes */
+    return r == 0;
+}
+
+/* the rectangles collected for the present: screen pixels (6 ints each,
+   as r3d_present takes them), and in OS units for a plot instead */
+#define R3DW_PRESENT_RECTS 128
+static struct {
+    egl_surface *s;
+    int handle, wa_dx, wa_dy;           /* the window; screen = work area + wa_d */
+    int n;
+    int px[R3DW_PRESENT_RECTS * 6];
+    os_rect os[R3DW_PRESENT_RECTS];
+} r3dw_pres;
+
+/* plot_loop: one rectangle (OS units, screen) of s, which the GPU copies
+   when the loop ends (block: the Wimp's) */
+static void r3dw_collect(egl_surface *s, const int *block, const screen_info *scr, const os_rect *clip)
+{
+    int *p, top = scr->height << scr->yeig;
+    if (clip->x0 >= clip->x1 || clip->y0 >= clip->y1)
+        return;
+    if (r3dw_pres.n && (r3dw_pres.s != s || r3dw_pres.n == R3DW_PRESENT_RECTS))
+        r3dw_present_collected(&display);
+    r3dw_pres.s = s;
+    r3dw_pres.handle = block[0];
+    r3dw_pres.wa_dx = block[1] - block[5];
+    r3dw_pres.wa_dy = block[4] - block[6];
+    p = r3dw_pres.px + r3dw_pres.n * 6;
+    p[0] = clip->x0 >> scr->xeig;
+    p[1] = (top - clip->y1) >> scr->yeig;
+    p[2] = (clip->x1 - clip->x0) >> scr->xeig;
+    p[3] = (clip->y1 - clip->y0) >> scr->yeig;
+    p[4] = (clip->x0 - block[1]) >> scr->xeig;     /* from the visible area's top left */
+    p[5] = (block[4] - clip->y1) >> scr->yeig;
+    r3dw_pres.os[r3dw_pres.n++] = *clip;
+}
+
+/* the rectangles collected: copied by the GPU, or (refused, or the
+   surface's context isn't current here) its frame plotted there */
+static void r3dw_present_collected(egl_display *d)
+{
+    egl_context *c = thr()->active;
+    egl_surface *s = r3dw_pres.s;
+    os_rect all;
+    int n = r3dw_pres.n, i, r, block[11];
+    _kernel_swi_regs regs;
+
+    if (!n)
+        return;
+    r3dw_pres.n = 0;
+    r = c && c->r3d && c->draw == s ? r3d_present(r3dw_pres.px, n) : -ENOENT;
+    if (r == 0)
+        return;
+    if (r != -EBUSY && r != -ENOENT) {
+        screen_info scr;
+        read_screen(&scr);
+        s->r3d_pres_no = r3dw_mode_key(&scr);
+        s->r3d_pres_drop = 1;           /* plotted from the next frame (api.c's swap) */
+    }
+    /* plot it instead: the frame read back into its sprite, if its
+       context is here (otherwise the sprite as it is), then the same
+       area updated as plot_loop does it */
+    if (r != -ENOENT)
+        r3dw_frame_into(s, 0);
+    all = r3dw_pres.os[0];
+    for (i = 1; i < n; i++) {
+        if (r3dw_pres.os[i].x0 < all.x0) all.x0 = r3dw_pres.os[i].x0;
+        if (r3dw_pres.os[i].y0 < all.y0) all.y0 = r3dw_pres.os[i].y0;
+        if (r3dw_pres.os[i].x1 > all.x1) all.x1 = r3dw_pres.os[i].x1;
+        if (r3dw_pres.os[i].y1 > all.y1) all.y1 = r3dw_pres.os[i].y1;
+    }
+    block[0] = r3dw_pres.handle;
+    block[1] = all.x0 - r3dw_pres.wa_dx;
+    block[2] = all.y0 - r3dw_pres.wa_dy;
+    block[3] = all.x1 - r3dw_pres.wa_dx;
+    block[4] = all.y1 - r3dw_pres.wa_dy;
+    regs.r[1] = (int) block;
+    s->r3d_pres = 0;                    /* (for plot_loop: plot it) */
+    if (_kernel_swi(Wimp_UpdateWindow, &regs, &regs) == NULL)
+        plot_loop(d, block[0], s, block, regs.r[0]);
+    s->r3d_pres = 1;
+}
+
+/* eglSwapBuffers of a desktop window surface (the GPU's present, or the
+   CPU's plot): timed as a full screen plot is (its swap interval from the
+   last one, starting just after a vsync), so the copy, quicker than the
+   display's scan, doesn't tear. Not for DispmanX's windows (libbcm_host
+   polls the Wimp itself), screen banks or the screen itself (timed in
+   present_fullscreen), or a surface on a hardware overlay (timed by its
+   buffer switch). As through an overlay, the wait is up to one vsync, and
+   eglSwapWouldWaitRISCOS says when it would be longer than SWAP_SOON_US,
+   so a program (SDL's driver) can wait in Wimp_PollIdle instead and keep
+   the desktop running (docs/DECISIONS.md). */
+static int r3dw_window_timed(const egl_surface *s)
+{
+    return s->kind == SURF_WINDOW && s->handle > 0 && !s->dmx && !s->banks && !s->direct &&
+           !s->ovl_shown && s->swap_interval > 0;
+}
+
+static void r3dw_present_vsync(egl_surface *s)
+{
+    if (!r3dw_window_timed(s))
+        return;
+    if (s->swap_interval > 0) {
+        int n = plot_vsyncs_needed(s);
+        if (n > 0) {
+            wait_vsyncs(n);
+            note_vsync();
+        }
+        s->plot_vsync = vsync_counter();
+    }
+}
+
+/* the end of a swap: a surface whose present was refused goes back to
+   being drawn into its sprite; on another screen mode, it's asked again */
+static void r3dw_present_end_swap(egl_surface *s, const screen_info *scr)
+{
+    if (s->r3d_pres_drop) {
+        s->r3d_pres_drop = 0;
+        s->r3d_pres = 0;
+        r3dw_place(s);
+    } else if (!s->r3d_pres && s->r3d_pres_no && s->r3d_pres_no != r3dw_mode_key(scr)) {
+        r3dw_place(s);
+    }
+}
+
 static void r3dw_place(egl_surface *s)
 {
     if (!r3d_in_program())
         return;
+    if (s && r3dw_present_wanted(s) && r3d_draw_tiled(1, s->w, s->h)) {
+        s->r3d_pres = 1;
+        return;
+    }
+    if (s)
+        s->r3d_pres = 0;
     if (s && s->kind == SURF_WINDOW && s->pixels && s->cfg->layout == LAYOUT_TBGR &&
         s->r3d_ovl != R3O_ON && r3d_draw_into(s->pixels, s->stride * 4, s->w, s->h))
         return;

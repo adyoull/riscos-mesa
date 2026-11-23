@@ -12,6 +12,7 @@
 #ifndef EGL_INTERNAL_H
 #define EGL_INTERNAL_H
 
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -184,6 +185,8 @@ const struct r3d_gl_function *r3d_functions(void);
 int r3d_in_program(void);
 int r3d_draw_into(void *pixels, int row_bytes, int width, int height);
 int r3d_in_place(const void *pixels);
+int r3d_draw_tiled(int on, int width, int height);
+int r3d_present(const int *rects, int n);
 int r3d_can_share(void);
 struct r3d_context *r3d_create_shared(int api, int major, int minor, struct r3d_context *share);
 int r3d_can_image(void);
@@ -245,6 +248,10 @@ typedef struct egl_surface {
     struct r3d_context *r3d_ovl_ctx;    /* the context whose plane shows it */
     unsigned int r3d_key;       /* the colour to paint (&BBGGRR) */
     int r3d_place[5];           /* x, y, w, h (pixels) placed or refused at; screen width */
+    /* the GPU's present (V3DRender 0.31, parts/risc3d.c) */
+    int r3d_pres;               /* drawn in the GPU's tiles, shown by its copy into the screen */
+    int r3d_pres_no;            /* the screen (r3dw_mode_key) the present was refused for; 0 none */
+    int r3d_pres_drop;          /* refused: go back to plotting at the end of this swap */
     /* pbuffer */
     void *mem;
     /* buffer age (EGL_EXT_buffer_age), partial update, locking */
@@ -427,6 +434,8 @@ static void ovl_check_all(egl_display *d);
 #define R3O_ON      1           /* frames on a display plane, under the key colour */
 #define R3O_FAILED  2           /* the plane said no: not until the place or mode changes */
 static void r3dw_paint_key(const egl_surface *s, const int *block);
+static void r3dw_collect(egl_surface *s, const int *block, const screen_info *scr, const os_rect *clip);
+static void r3dw_present_collected(egl_display *d);
 static void r3dw_surface_gone(egl_surface *s);
 static void r3dw_release_pixels(egl_surface *s);
 static void r3dw_context_gone(egl_display *d, struct r3d_context *r);

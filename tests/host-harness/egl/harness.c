@@ -5,6 +5,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <string.h>
 #include <malloc.h>
 #include <pthread.h>
@@ -985,6 +986,120 @@ static void test_risc3d_plane(void)
     fake_r3d_on = 0;
 }
 
+/* The GPU's present (V3DRender 0.31): a visible-area window surface drawn
+   in the GPU's tiles and copied into the Wimp's rectangles by the GPU,
+   nothing read back; refusals plotted as before */
+static void test_risc3d_present(void)
+{
+    extern int fake_r3d_present, fake_r3d_present_screen, fake_r3d_present_err, fake_r3d_presents,
+        fake_r3d_present_tests, fake_r3d_present_rects, fake_r3d_present_last[6], fake_r3d_tiled;
+    EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 16, EGL_WINDOW_BIT);
+    EGLContext r;
+    EGLSurface ws, ws2;
+    EGLint dmg[4] = { 10, 10, 20, 20 };
+    int block[64], swaps, pres, vs, *l = fake_r3d_present_last;
+
+    eglBindAPI(EGL_OPENGL_API);
+    fake_r3d_on = 1;
+    fake_r3d_present = 1;
+    fake_r3d_present_screen = 0;
+    r = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+    fake_open_window(0x3100, 200, 300, 400, 460, 0, 0);        /* 100x80 at (100, 250) */
+    ws = eglCreateWindowSurface(dpy, cfg, 0x3100, NULL);
+    eglMakeCurrent(dpy, ws, ws, r);
+    CHECK(fake_r3d_tiled == 1 && fake_r3d_present_tests > 0, "present offered: drawn in the GPU's tiles");
+
+    swaps = fake_r3d_swaps; pres = fake_r3d_presents; vs = fake_vsyncs;
+    clear(0, 0, 1);
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_swaps == swaps && fake_r3d_presents == pres + 1, "swap: presented, nothing read back");
+    CHECK(box_is(100, 250, 100, 80, BLUE_TBGR), "the frame on screen");
+    CHECK(l[0] == 100 && l[1] == 250 && l[2] == 100 && l[3] == 80 && l[4] == 0 && l[5] == 0,
+          "one rectangle: the visible area in pixels from the top left (%d,%d %dx%d from %d,%d)",
+          l[0], l[1], l[2], l[3], l[4], l[5]);
+    CHECK(fake_vsyncs > vs, "swap interval 1: timed to a vsync");
+
+    /* damage: only that part, with its offset in the frame */
+    pres = fake_r3d_presents;
+    eglSwapBuffersWithDamageKHR(dpy, ws, dmg, 1);
+    CHECK(fake_r3d_presents == pres + 1 && l[2] <= 100 && l[3] <= 80 && l[2] < 100 &&
+          l[4] == l[0] - 100 && l[5] == l[1] - 250 && l[4] <= 10 && l[4] + l[2] >= 30 &&
+          l[5] <= 50 && l[5] + l[3] >= 70,
+          "damage: part of the frame, at its own offset (%d,%d %dx%d from %d,%d)", l[0], l[1], l[2], l[3], l[4], l[5]);
+
+    /* a redraw copies again, with nothing read back */
+    memset(fake_screen.mem, 0, fake_screen.w * fake_screen.h * 4);
+    swaps = fake_r3d_swaps; pres = fake_r3d_presents;
+    block[0] = 0x3100;
+    CHECK(eglRedrawWindowRISCOS(dpy, block) && fake_r3d_presents == pres + 1 && fake_r3d_swaps == swaps &&
+          box_is(100, 250, 100, 80, BLUE_TBGR), "redraw: presented again");
+
+    /* EBUSY: plotted this time, presented next time */
+    fake_r3d_present_err = -EBUSY;
+    swaps = fake_r3d_swaps; pres = fake_r3d_presents;
+    clear(1, 0, 0);
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_swaps == swaps + 1 && box_is(100, 250, 100, 80, 0xFFu) && fake_r3d_tiled == 1,
+          "busy: read back and plotted, still in tiles");
+    clear(0, 1, 0);
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_presents == pres + 1 && box_is(100, 250, 100, 80, 0x00FF00u), "then presented again");
+
+    /* EINVAL: plotted, and drawn into the sprite from the next frame */
+    fake_r3d_present_err = -EINVAL;
+    swaps = fake_r3d_swaps; pres = fake_r3d_presents;
+    clear(0, 0, 1);
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_swaps == swaps + 1 && box_is(100, 250, 100, 80, BLUE_TBGR) && fake_r3d_tiled == 0,
+          "refused: read back and plotted, then out of tiles");
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_presents == pres && fake_r3d_swaps == swaps + 2, "and not presented again on this screen");
+    /* another screen mode: asked again */
+    fake_set_screen(800, 600, 0, 5);
+    eglSwapBuffers(dpy, ws);
+    pres = fake_r3d_presents;
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_tiled == 1 && fake_r3d_presents == pres + 1, "a new screen mode: presented again");
+    fake_set_screen(640, 480, 0, 5);
+    fake_reset_clip();
+    eglSwapBuffers(dpy, ws);
+
+    /* swap interval 0: no vsync wait */
+    eglSwapInterval(dpy, 0);
+    vs = fake_vsyncs;
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_vsyncs == vs, "swap interval 0: no vsync wait");
+    eglSwapInterval(dpy, 1);
+
+    /* not current: a redraw plots the sprite, no present */
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    pres = fake_r3d_presents;
+    block[0] = 0x3100;
+    CHECK(eglRedrawWindowRISCOS(dpy, block) && fake_r3d_presents == pres, "context not current: redraw plots");
+
+    /* a screen the module won't take, and no present at all */
+    fake_r3d_present_screen = -EINVAL;
+    fake_open_window(0x3101, 200, 300, 400, 460, 0, 0);
+    ws2 = eglCreateWindowSurface(dpy, cfg, 0x3101, NULL);
+    eglMakeCurrent(dpy, ws2, ws2, r);
+    swaps = fake_r3d_swaps;
+    eglSwapBuffers(dpy, ws2);
+    CHECK(fake_r3d_tiled == 0 && fake_r3d_swaps == swaps + 1, "screen refused: read back as before");
+    fake_r3d_present_screen = 0;
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    fake_r3d_present = 0;
+    eglMakeCurrent(dpy, ws2, ws2, r);
+    swaps = fake_r3d_swaps;
+    eglSwapBuffers(dpy, ws2);
+    CHECK(fake_r3d_tiled == 0 && fake_r3d_swaps == swaps + 1, "no present (ENOTTY): read back as before");
+
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, ws);
+    eglDestroySurface(dpy, ws2);
+    eglDestroyContext(dpy, r);
+    fake_r3d_on = 0;
+}
+
 static void test_window(void)
 {
     EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 16, EGL_WINDOW_BIT);
@@ -1011,7 +1126,8 @@ static void test_window(void)
     CHECK(RGB(fake_screen_pixel(99, 250)) == 0 && RGB(fake_screen_pixel(200, 250)) == 0 &&
           RGB(fake_screen_pixel(100, 249)) == 0 && RGB(fake_screen_pixel(100, 330)) == 0,
           "nothing outside it");
-    CHECK(fake_update_calls == 1 && fake_vsyncs == 0, "one UpdateWindow, no vsync wait in a window");
+    CHECK(fake_update_calls == 1 && fake_vsyncs == 1,
+          "one UpdateWindow, the plot timed to just after a vsync (up to one vsync's wait)");
 
     /* Redraw: wipe the screen, then the Redraw_Window_Request path */
     memset(fake_screen.mem, 0, fake_screen.w * fake_screen.h * 4);
@@ -2228,12 +2344,32 @@ static void test_swap_soon(void)
         eglMakeCurrent(dpy, fs, fs, ctx);
     }
 
-    /* a window surface never waits for a vsync */
+    /* a desktop window is timed as a full screen plot (as through an
+       overlay: up to one vsync), and says when a swap would wait longer
+       than 3 ms, so a program can wait in the Wimp instead */
     fake_open_window(0x1000, 200, 300, 400, 460, 0, 0);
     {
         EGLSurface ws = eglCreateWindowSurface(dpy, cfg, 0x1000, NULL);
         eglMakeCurrent(dpy, ws, ws, ctx);
-        CHECK(!eglSwapWouldWaitRISCOS(dpy, ws), "a window: wouldn't wait");
+        for (i = 0; i < 5; i++) {
+            fake_advance_us(5000);
+            eglSwapBuffers(dpy, ws);
+        }
+        CHECK(fake_time_us % 16667 == 0, "a window: each swap plotted just after a vsync");
+        fake_advance_us(2000);
+        CHECK(eglSwapWouldWaitRISCOS(dpy, ws), "a window, 14.7 ms to the vsync: would wait");
+        fake_advance_us(12000);
+        CHECK(!eglSwapWouldWaitRISCOS(dpy, ws), "a window, 2.7 ms to it: wouldn't");
+        t = fake_time_us;
+        eglSwapBuffers(dpy, ws);
+        CHECK(fake_time_us - t < 3000, "and the swap waited %lld us", fake_time_us - t);
+        eglSwapInterval(dpy, 0);
+        fake_advance_us(2000);
+        t = fake_time_us;
+        CHECK(!eglSwapWouldWaitRISCOS(dpy, ws), "a window, swap interval 0: wouldn't wait");
+        eglSwapBuffers(dpy, ws);
+        CHECK(fake_time_us == t, "and doesn't");
+        eglSwapInterval(dpy, 1);
         eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         eglDestroySurface(dpy, ws);
     }
@@ -2345,6 +2481,7 @@ static void *run(void *arg)
     test_eig_change_selector();
     test_risc3d();
     test_risc3d_plane();
+    test_risc3d_present();
     test_trgb_screen();
     test_overlay(dpy);          /* last: hooks in the fake VideoOverlay */
     return NULL;

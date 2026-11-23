@@ -1074,15 +1074,18 @@ static EGLBoolean swap(EGLDisplay dpy, EGLSurface surface, const EGLint *rects, 
         int big = (size_t) s->w * s->h * 4 > 16u * 1024 * 1024;
         int plane = r3dw_overlay_frame(d, c, s, &scr);
         if (plane <= 0) {
-            if (r3dw_frame_into(s, c->r3d_overlapped && !big) < 0)
+            if (!s->r3d_pres && r3dw_frame_into(s, c->r3d_overlapped && !big) < 0)
                 return fail(EGL_BAD_SURFACE);
+            r3dw_present_vsync(s);      /* (the GPU's present: nothing read back) */
             if (plane < 0)
                 n = 0;                  /* was on the plane: show all of it */
             present(d, s, &scr, n > 0 ? rects : NULL, n);
+            r3dw_present_end_swap(s, &scr);
         }
     } else {
         if (is_current && thr()->active)
             glFinish();
+        r3dw_present_vsync(s);          /* a desktop window: timed to the vsync */
         present(d, s, &scr, n > 0 ? rects : NULL, n);
     }
     s->swaps++;

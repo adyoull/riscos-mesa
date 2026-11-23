@@ -100,10 +100,13 @@ be worked out again. Each says what would have to change to revisit it.
 RISC OS multitasks cooperatively: a program that waits stops every other
 program.
 
-- **In a window, `eglSwapBuffers` doesn't wait for vsync**, whatever the
-  swap interval. Programs pace themselves with `Wimp_PollIdle`. (Through a
-  hardware overlay it can wait up to one vsync, as writing sooner would
-  tear; `eglSwapWouldWaitRISCOS` lets a program avoid even that.)
+- **In a window, `eglSwapBuffers` waits at most one vsync** (20.3.5-24,
+  was none), so the frame is plotted or presented just after it and
+  doesn't tear: the same rule as through a hardware overlay. Only with a
+  swap interval of 1 or more; never with 0. `eglSwapWouldWaitRISCOS` says
+  when the wait would be longer than 3 ms, so a program (SDL's driver
+  does) waits in `Wimp_PollIdle` instead and the desktop keeps running.
+  Programs still pace themselves with `Wimp_PollIdle`.
 - **Full screen programs own the machine**, so there the swap interval is
   honoured.
 - **SDL's driver yields**: `SDL_Delay` and `SDL_WaitEvent` wait in

@@ -14,6 +14,10 @@ $CC $RO_CFLAGS $GL -static "$T/prof.c"       -o "$STAGE/tests/prof,e1f"       $L
 [ -f "$STAGE/lib/libGLU.a" ] && $CC $RO_CFLAGS $GL -static "$T/glutest.c" -o "$STAGE/tests/glutest,e1f" -lGLU $LIBS
 [ -f "$STAGE/lib/libEGL.a" ] && $CC $RO_CFLAGS $GL -static "$T/egltest.c" "$T/hrtime.c" \
     -o "$STAGE/tests/egltest,e1f" -lEGL $LIBS
+# EGL window surfaces shown by V3DRender 0.31's present against the CPU plot
+# (a menu opened over the window; GPU library linked in)
+[ -f "$STAGE/lib/libMesaGPU.a" ] && $CC $RO_CFLAGS $GL -static "$T/presenttest.c" "$T/hrtime.c" \
+    -o "$STAGE/tests/presenttest,e1f" -lEGL -lOSMesa -Wl,-u,riscos_mesa_gpu -lMesaGPU -lstdc++ -lz -lm
 # Two texture units selected with the ARB names, through freeglut (as TORCS and plib)
 [ -f "$STAGE/lib/libglut.a" ] && $CC $RO_CFLAGS $GL -static "$T/multitex.c" \
     -o "$STAGE/tests/multitex,e1f" -lglut -lEGL $LIBS

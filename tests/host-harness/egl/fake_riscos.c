@@ -10,6 +10,7 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/mman.h>
@@ -790,9 +791,38 @@ const struct r3d_gl_function r3d_gl_functions[] = {
 };
 /* osmesa/r3d_switch.h's (the switch itself is in the real libOSMesa) */
 const struct r3d_gl_function *r3d_functions(void) { return r3d_gl_functions; }
-int r3d_in_program(void) { return 0; }
+/* the GPU library with V3DRender 0.31's present (fake_r3d_present: as on
+   a native Pi 4 with it). The copy fills each rectangle (clipped to the
+   screen) with the frame's colour; fake_r3d_present_screen is what a test
+   (no rectangles) answers, fake_r3d_present_err what the next present
+   with rectangles answers (then 0 again). */
+int fake_r3d_present, fake_r3d_present_screen, fake_r3d_present_err, fake_r3d_presents,
+    fake_r3d_present_tests, fake_r3d_present_rects, fake_r3d_present_last[6], fake_r3d_tiled;
+int r3d_in_program(void) { return fake_r3d_present; }
+int r3d_draw_tiled(int on, int width, int height)
+{ (void) width; (void) height; if (!fake_r3d_present || !fr_cur) return 0; fake_r3d_tiled = on; return 1; }
+int r3d_present(const int *rects, int n)
+{
+    int i, x, y;
+    if (!fake_r3d_present) return -ENOTTY;
+    if (!fr_cur) return -EINVAL;
+    if (n == 0) { fake_r3d_present_tests++; return fake_r3d_present_screen; }
+    if (fake_r3d_present_err) { i = fake_r3d_present_err; fake_r3d_present_err = 0; return i; }
+    fake_r3d_presents++;
+    fake_r3d_present_rects += n;
+    for (i = 0; i < n; i++) {
+        const int *p = rects + 6 * i;
+        memcpy(fake_r3d_present_last, p, sizeof fake_r3d_present_last);
+        for (y = p[1]; y < p[1] + p[3]; y++)
+            for (x = p[0]; x < p[0] + p[2]; x++)
+                if (x >= 0 && y >= 0 && x < fake_screen.w && y < fake_screen.h &&
+                    p[4] + x - p[0] < fr_cur->w && p[5] + y - p[1] < fr_cur->h)
+                    fake_screen.mem[(size_t) y * (fake_screen.line_length / 4) + x] = fr_cur->clear;
+    }
+    return 0;
+}
 int r3d_draw_into(void *pixels, int row_bytes, int width, int height)
-{ (void) pixels; (void) row_bytes; (void) width; (void) height; return 0; }
+{ (void) pixels; (void) row_bytes; (void) width; (void) height; fake_r3d_tiled = 0; return 0; }
 int r3d_in_place(const void *pixels) { (void) pixels; return 0; }
 /* the GPU library's sharing (fake_r3d_share: as on a native Pi 4) */
 int fake_r3d_share, fake_r3d_shared;

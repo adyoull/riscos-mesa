@@ -48,4 +48,16 @@ void *r3d_image_create(void *pixels, int row_bytes, int width, int height, unsig
 void r3d_image_destroy(void *image);
 void r3d_image_target(int renderbuffer, unsigned target, void *image);
 
+/* With the GPU library (version 5) and V3DRender 0.31: the current
+   context draws into a frame of its own in the GPU's tiles (r3d_draw_tiled
+   1; 0 or r3d_draw_into: as before), and r3d_present has the GPU copy it
+   into n screen rectangles (6 ints each: dst_x, dst_y, width, height,
+   src_x, src_y; screen pixels from the top left), returning once stored.
+   n 0: only whether a present would be taken. 0, or -errno: ENOTTY (not
+   offered: the command stream, an older library or module), EINVAL (not
+   this screen or frame), EBUSY (not just now). r3d_swap still reads the
+   frame back. */
+int r3d_draw_tiled(int on, int width, int height);
+int r3d_present(const int *rects, int n);
+
 #endif

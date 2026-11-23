@@ -423,7 +423,11 @@ static void *run(void *arg)
         for (k = 0; k < 10; k++) { frame(0, 0, 1); fake_ticks += 2; RISCOS_GL_SwapWindow(&dev, &win); }
         printf("  window, vsync: 10 frames of 2 ms work -> %d cooperative waits, %u ms waited, OS_Byte 19 x%d\n",
                delays, (unsigned) delay_ms_total, fake_vsyncs - sp);
-        CHECK(fake_vsyncs == sp, "window: never blocks the desktop with OS_Byte 19");
+        /* EGL times a window's plot to just after a vsync, as an
+           overlay's (up to one: the EGL harness checks that, with the
+           vsync timing known, eglSwapWouldWaitRISCOS lets SDL wait in the
+           Wimp for all but the last 3 ms of it) */
+        CHECK(fake_vsyncs - sp <= 10, "window: OS_Byte 19 at most once a frame (%d)", fake_vsyncs - sp);
         CHECK(delays >= 8 && delay_ms_total >= 8 * 12, "window: waits ~1 frame period each frame, via the Wimp");
         delays = 0;
         for (k = 0; k < 5; k++) { fake_ticks += 30; RISCOS_GL_SwapWindow(&dev, &win); }

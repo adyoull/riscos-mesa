@@ -34,6 +34,9 @@
 #include "util/simple_mtx.h"
 #include "util/xmlconfig.h"
 #include "v3d/v3d_screen.h"
+#include "broadcom/common/v3d_limits.h"
+#include "v3d/v3d_resource.h"
+#include "v3d/v3d_bufmgr.h"
 
 #include <errno.h>
 #include "xf86drm.h"
@@ -52,6 +55,7 @@ struct v3dm_buffer {
     void *requested;                    /* the caller's memory asked for (v3dm_draw_into) */
     void *target;                       /* the caller's memory it is, or NULL */
     int target_row_bytes;
+    int tiled;                          /* in the GPU's tiles, for v3dm_present */
 };
 
 struct v3dm_context {
@@ -60,6 +64,7 @@ struct v3dm_context {
     struct st_visual visual;
     void *target;                       /* v3dm_draw_into's memory, or NULL */
     int target_row_bytes;
+    int tiled;                          /* v3dm_draw_tiled: frames in tiles, shown by v3dm_present */
     /* frames used lately, kept for coming back to: EGL's screen banks
        take turns, each drawn into where it is */
 #define V3DM_SPARE_FBS 3
@@ -76,6 +81,7 @@ static struct {
     int no_import;              /* V3DM$NoImport, or the module refused an import */
     int no_uncached;            /* a module before V3DRender 0.13 (no DRM_RISCOS_IMPORT_UNCACHED) */
     int trace;                  /* V3DM$Trace: frames made, chosen and finished, on stderr */
+    uint32_t present_sync;      /* syncobj v3dm_present waits on (0: not made yet) */
     char error[160];
 } dev;
 
@@ -148,6 +154,8 @@ static struct pipe_resource *colour_resource(struct v3dm_buffer *b, const struct
 {
     struct pipe_resource *r;
     unsigned stride = t->width0 * 4;
+    if (b->tiled)
+        return dev.screen->resource_create(dev.screen, t);     /* the GPU's own, in tiles */
     if (!dev.tiled && b->target) {
         /* the caller's memory: whole 4 KB pages (the caller pads it), rows
            a multiple of 16 bytes */
@@ -201,7 +209,7 @@ static int fb_make(struct v3dm_buffer *b, enum st_attachment_type a)
         /* in rows (raster), not the GPU's tiles: the frame is read back as
            one sequential copy (or not at all), with no detiling by the CPU
            (V3DM$Tiled: tiles, to compare) */
-        if (!dev.tiled)
+        if (!dev.tiled && !(a == b->main && b->tiled))
             t.bind |= PIPE_BIND_LINEAR;
     }
     if (t.format == PIPE_FORMAT_NONE)
@@ -239,7 +247,7 @@ fb_flush_front(struct st_context *st, struct pipe_frontend_drawable *drawable,
 }
 
 static struct v3dm_buffer *fb_create(const struct st_visual *visual, unsigned w, unsigned h,
-                                     void *target, int target_row_bytes)
+                                     void *target, int target_row_bytes, int tiled)
 {
     struct v3dm_buffer *b = CALLOC_STRUCT(v3dm_buffer);
     if (!b)
@@ -251,6 +259,7 @@ static struct v3dm_buffer *fb_create(const struct st_visual *visual, unsigned w,
                                                                  : ST_ATTACHMENT_FRONT_LEFT;
     b->requested = b->target = target;
     b->target_row_bytes = target_row_bytes;
+    b->tiled = !target && tiled;
     b->base.visual = &b->visual;
     b->base.flush_front = fb_flush_front;
     b->base.validate = fb_validate;
@@ -608,10 +617,11 @@ static int fb_finish(v3dm_context *c, struct v3dm_buffer *b)
     return 0;
 }
 
-static int fb_fits(const struct v3dm_buffer *b, unsigned w, unsigned h, void *target, int row_bytes)
+static int fb_fits(const struct v3dm_buffer *b, unsigned w, unsigned h, void *target, int row_bytes,
+                   int tiled)
 {
     return b && b->width == w && b->height == h && b->requested == target &&
-           (!target || b->target_row_bytes == row_bytes);
+           (!target || b->target_row_bytes == row_bytes) && b->tiled == (!target && tiled);
 }
 
 /* The frame c->fb was, kept as a spare (the oldest spare goes) */
@@ -632,17 +642,17 @@ int v3dm_make_current(v3dm_context *c, unsigned width, unsigned height)
     int ok;
     if (!c)
         return st_api_make_current(NULL, NULL, NULL);
-    if (!fb_fits(c->fb, width, height, c->target, c->target_row_bytes)) {
+    if (!fb_fits(c->fb, width, height, c->target, c->target_row_bytes, c->tiled)) {
         struct v3dm_buffer *b = NULL;
         for (i = 0; i < V3DM_SPARE_FBS && !b; i++)
-            if (fb_fits(c->spare[i], width, height, c->target, c->target_row_bytes)) {
+            if (fb_fits(c->spare[i], width, height, c->target, c->target_row_bytes, c->tiled)) {
                 b = c->spare[i];
                 for (; i + 1 < V3DM_SPARE_FBS; i++)
                     c->spare[i] = c->spare[i + 1];
                 c->spare[V3DM_SPARE_FBS - 1] = NULL;
             }
         if (!b) {
-            b = fb_create(&c->visual, width, height, c->target, c->target_row_bytes);
+            b = fb_create(&c->visual, width, height, c->target, c->target_row_bytes, c->tiled);
             if (!b)
                 return 0;
             fb_make(b, b->main);        /* now: whether it draws into c->target is known */
@@ -691,9 +701,97 @@ int v3dm_draw_into(v3dm_context *c, void *pixels, int row_bytes, unsigned width,
         drop_targets(c);
     c->target = pixels;
     c->target_row_bytes = pixels ? row_bytes : 0;
+    c->tiled = 0;
     if (!v3dm_make_current(c, width, height))
         return 0;
     return pixels && c->fb->target == pixels;
+}
+
+int v3dm_draw_tiled(v3dm_context *c, int on, unsigned width, unsigned height)
+{
+    if (!c)
+        return 0;
+    if (on && c->target)
+        drop_targets(c);
+    if (on)
+        c->target = NULL, c->target_row_bytes = 0;
+    c->tiled = on != 0;
+    return v3dm_make_current(c, width, height);
+}
+
+/* the DRM fourcc of a colour buffer's format, for V3DRender's present;
+   0 if it has none */
+static uint32_t present_fourcc(enum pipe_format f)
+{
+    switch (f) {
+    case PIPE_FORMAT_R8G8B8A8_UNORM: case PIPE_FORMAT_R8G8B8A8_SRGB: return DRM_FORMAT_ABGR8888;
+    case PIPE_FORMAT_R8G8B8X8_UNORM: case PIPE_FORMAT_R8G8B8X8_SRGB: return DRM_FORMAT_XBGR8888;
+    case PIPE_FORMAT_B8G8R8A8_UNORM: case PIPE_FORMAT_B8G8R8A8_SRGB: return DRM_FORMAT_ARGB8888;
+    case PIPE_FORMAT_B8G8R8X8_UNORM: case PIPE_FORMAT_B8G8R8X8_SRGB: return DRM_FORMAT_XRGB8888;
+    case PIPE_FORMAT_B5G6R5_UNORM: return DRM_FORMAT_RGB565;
+    default: return 0;
+    }
+}
+
+/* V3DRender 0.31: the current frame copied by the GPU into the screen's
+   rectangles (6 ints each: dst_x, dst_y, width, height, src_x, src_y),
+   waiting until it's stored. n 0: only whether it would be taken. 0, or
+   -errno (ENOTTY: not offered) */
+int v3dm_present(v3dm_context *c, const int *rects, unsigned n)
+{
+    struct drm_riscos_present p;
+    struct pipe_resource *res = c && c->fb ? c->fb->textures[c->fb->main] : NULL;
+    unsigned done = 0;
+    if (!c || !dev.fd)
+        return -ENODEV;
+    memset(&p, 0, sizeof p);
+    if (res) {
+        struct v3d_resource *rsc = v3d_resource(res);
+        const struct v3d_resource_slice *sl = &rsc->slices[0];
+        p.handle = rsc->bo->handle;
+        p.format = present_fourcc(res->format);
+        p.width = res->width0;
+        p.height = res->height0;
+        switch (sl->tiling) {
+        case V3D_TILING_UIF_NO_XOR:
+            p.flags = DRM_RISCOS_PRESENT_SRC_UIF;
+            p.uif_height_or_stride = sl->padded_height;
+            break;
+        case V3D_TILING_UIF_XOR:
+            p.flags = DRM_RISCOS_PRESENT_SRC_UIF | DRM_RISCOS_PRESENT_SRC_UIF_XOR;
+            p.uif_height_or_stride = sl->padded_height;
+            break;
+        case V3D_TILING_RASTER:
+            p.uif_height_or_stride = sl->stride;
+            break;
+        default:
+            return -EINVAL;             /* small frames in other tilings: plotted */
+        }
+        if (!p.format)
+            return -EINVAL;
+    } else if (n) {
+        return -ENOENT;                 /* no frame drawn yet */
+    }
+    if (!n)
+        return drmIoctl(dev.fd, DRM_IOCTL_RISCOS_PRESENT, &p) ? -errno : 0;
+    if (!dev.present_sync && drmSyncobjCreate(dev.fd, 0, &dev.present_sync))
+        return -errno;
+    st_context_flush(c->st, 0, NULL, NULL, NULL);       /* its jobs submitted: present waits for them */
+    p.out_sync = dev.present_sync;
+    while (done < n) {
+        unsigned k = n - done > DRM_RISCOS_PRESENT_MAX_RECTS ? DRM_RISCOS_PRESENT_MAX_RECTS : n - done;
+        p.rect_count = k;
+        p.rects = (uintptr_t) (rects + 6 * done);
+        if (drmIoctl(dev.fd, DRM_IOCTL_RISCOS_PRESENT, &p))
+            return done ? -EIO : -errno;
+        done += k;
+    }
+    /* stored before the caller lets the Wimp draw anything else there */
+    if (drmSyncobjWait(dev.fd, &dev.present_sync, 1, INT64_MAX, 0, NULL))
+        return -EIO;
+    if (dev.trace)
+        fprintf(stderr, "v3dm: presented frame %p, %u rectangles\n", (void *) c->fb, n);
+    return 0;
 }
 
 int v3dm_finish(v3dm_context *c)

@@ -589,7 +589,12 @@ static void plot_loop(egl_display *d, int handle, egl_surface *only, int *block,
                     n = subtract_rect(pieces, n, &hole);
                 }
             }
-            if (n == 1 && pieces[0].x0 == clip.x0 && pieces[0].x1 == clip.x1 &&
+            if (surf->r3d_pres) {
+                /* the GPU copies it into the screen, after the loop
+                   (parts/risc3d.c) */
+                for (i = 0; i < n; i++)
+                    r3dw_collect(surf, block, &s, &pieces[i]);
+            } else if (n == 1 && pieces[0].x0 == clip.x0 && pieces[0].x1 == clip.x1 &&
                 pieces[0].y0 == clip.y0 && pieces[0].y1 == clip.y1) {
                 plot_rectangle(surf, block, &s, &clip);
             } else {
@@ -613,6 +618,7 @@ static void plot_loop(egl_display *d, int handle, egl_surface *only, int *block,
         }
         more = next_redraw_rect(block);
     }
+    r3dw_present_collected(d);          /* before the Wimp can draw anything else there */
 }
 
 /* ---- damage: what a frame changed ---- */

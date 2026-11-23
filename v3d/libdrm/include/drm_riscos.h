@@ -48,6 +48,32 @@ struct drm_riscos_file_stats { struct drm_riscos_queue_stats file[5], all[5]; };
 #define DRM_IOCTL_RISCOS_FILE_STATS \
   _IOC (_IOC_READ, DRM_RISCOS_BASE, 0x03, sizeof (struct drm_riscos_file_stats))
 
+/* V3DRender 0.31: a finished frame copied by the GPU into the screen, into
+   rectangles (screen pixels, top-left origin, each with its offset in the
+   source; clipped to the screen and the source). The source is a BO in
+   UIF tiles (uif_height_or_stride: its padded height in rows) or in rows
+   (bytes a row); format a DRM fourcc (ABGR8888/XBGR8888, ARGB8888/
+   XRGB8888, RGB565; alpha ignored). rect_count 0: only whether a present
+   would be taken (the screen, and the source if handle isn't 0). out_sync
+   is signalled when the copy is stored. Errors: ENOTTY (not offered),
+   EINVAL (this screen or source can't), EBUSY (the screen is cached by
+   the CPU just now), EOPNOTSUPP (VSYNC), ENOENT (no such handle). */
+struct drm_riscos_present_rect { int32_t dst_x, dst_y, width, height, src_x, src_y; };
+struct drm_riscos_present {
+    uint32_t handle, format, flags;
+    uint32_t width, height;
+    uint32_t uif_height_or_stride;
+    uint32_t rect_count, pad;
+    uint64_t rects;                     /* struct drm_riscos_present_rect[rect_count] */
+    uint32_t in_sync, out_sync;
+};
+#define DRM_RISCOS_PRESENT_SRC_UIF     1u
+#define DRM_RISCOS_PRESENT_VSYNC       2u
+#define DRM_RISCOS_PRESENT_SRC_UIF_XOR 4u
+#define DRM_RISCOS_PRESENT_MAX_RECTS   256u
+#define DRM_IOCTL_RISCOS_PRESENT \
+  _IOC (_IOC_WRITE, DRM_RISCOS_BASE, 0x04, sizeof (struct drm_riscos_present))
+
 /* 1 if the CPU doesn't cache any of [p, p + n): all in one dynamic area
    whose flags say not cacheable (and, for screen memory, the screen cache
    suspended); 0 if it may */

@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-#define RISCOS_MESA_GPU_VERSION 4
+#define RISCOS_MESA_GPU_VERSION 5
 
 /* a gl function by its GL name, as RISC3D's client lists its own */
 struct riscos_mesa_gpu_function { const char *name; void (*fn)(void); };
@@ -73,6 +73,19 @@ struct riscos_mesa_gpu {
        glEGLImageTargetRenderbufferStorageOES (1) with such an image, in the
        current context */
     void (*image_target)(int renderbuffer, unsigned target, void *image);
+    /* (version 5) on: the context, made current at this size, draws into
+       a frame of its own in the GPU's tiles, to be shown with present
+       (read still reads it); off: its own frame in rows, as before.
+       1, or 0 */
+    int (*draw_tiled)(void *context, int on, int width, int height);
+    /* (version 5, V3DRender 0.31) the context's current frame copied by
+       the GPU into the screen, into n rectangles of 6 ints (dst_x, dst_y,
+       width, height, src_x, src_y: screen pixels from the screen's top
+       left, and the offset in the frame, top row first), returning once
+       it is stored. n 0: only whether it would be taken. 0, or -errno:
+       ENOTTY not offered, EINVAL not this screen or frame, EBUSY not just
+       now (plot it this time) */
+    int (*present)(void *context, const int *rects, int n);
 };
 
 /* the library's one exported name */

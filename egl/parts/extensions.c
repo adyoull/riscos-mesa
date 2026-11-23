@@ -670,7 +670,9 @@ EGLAPI EGLBoolean EGLAPIENTRY eglCheckOverlaysRISCOS(EGLDisplay dpy)
    (3 ms), so a program that asks between short pieces of work waits at
    most that long. False until the vsync timing is known (after a few
    swaps, and only with a HAL counter): then the swap waits as it always
-   did. False where there is no wait (a plotted window, swap interval 0). */
+   did. A desktop window (the CPU's plot or the GPU's present) likewise:
+   it is shown just after a vsync. False where there is no wait (swap
+   interval 0, DispmanX's windows). */
 EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS(EGLDisplay dpy, EGLSurface surface)
 {
     egl_display *d;
@@ -687,6 +689,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapWouldWaitRISCOS(EGLDisplay dpy, EGLSurface 
             wait = plot_wait_us(s) > SWAP_SOON_US;
         else if (s->handle >= 0 && s->ovl_shown)
             wait = vsync_counter() == s->ovl_vsync;
+        else if (r3dw_window_timed(s))
+            wait = plot_wait_us(s) > SWAP_SOON_US;      /* a desktop window, timed as a full screen plot */
     }
     ok();
     return wait ? EGL_TRUE : EGL_FALSE;

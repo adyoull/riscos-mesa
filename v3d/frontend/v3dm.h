@@ -48,6 +48,16 @@ void v3dm_destroy(v3dm_context *c);
 int v3dm_draw_into(v3dm_context *c, void *pixels, int row_bytes, unsigned width, unsigned height);
 /* c's frame is finished (in the caller's memory, if drawn there). 0, or -1 */
 int v3dm_finish(v3dm_context *c);
+/* on: the context's frames are in the GPU's own tiles (not the caller's
+   memory, nor rows), at this size, to be shown with v3dm_present; off: as
+   before. 1, or 0 */
+int v3dm_draw_tiled(v3dm_context *c, int on, unsigned width, unsigned height);
+/* V3DRender 0.31: the current frame copied by the GPU into the screen, into
+   n rectangles of 6 ints (dst_x, dst_y, width, height, src_x, src_y: screen
+   pixels from the top left, and the source's offset), returning once it is
+   stored. n 0: whether it would be taken. 0, or -errno (ENOTTY: not
+   offered; EINVAL: not this screen or frame; EBUSY: not just now) */
+int v3dm_present(v3dm_context *c, const int *rects, unsigned n);
 /* c's frame (c current), finished, as R,G,B,A bytes: rows row_bytes
    apart, the top row first or (top_first 0) last. 0, or -1 */
 int v3dm_read(v3dm_context *c, void *pixels, int row_bytes, int top_first);

@@ -30,6 +30,7 @@
 
 #include <pthread.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <string.h>
 #include <kernel.h>
 #include <swis.h>
@@ -342,6 +343,31 @@ void r3d_image_target(int renderbuffer, unsigned target, void *image)
 {
     if (r3d_can_image() && cur)
         gpu->image_target(renderbuffer, target, image);
+}
+
+/* frames in tiles, shown by the GPU's present: the GPU library only
+   (version 5) */
+int r3d_draw_tiled(int on, int width, int height)
+{
+    decide();
+    if (!gpu || gpu->version < 5 || !cur)
+        return 0;
+    cur->into = NULL;
+    if (width > 0 && height > 0) {
+        cur->w = width;
+        cur->h = height;
+    }
+    return gpu->draw_tiled(cur->c, on, cur->w, cur->h);
+}
+
+int r3d_present(const int *rects, int n)
+{
+    decide();
+    if (!gpu || gpu->version < 5)
+        return -ENOTTY;
+    if (!cur)
+        return -EINVAL;
+    return gpu->present(cur->c, rects, n);
 }
 
 struct r3d_context *r3d_create(void)
