@@ -195,7 +195,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
      if (!read_mode_block(current_mode, &mode, SDL_TRUE)) {
          return SDL_SetError("Unsupported mode block format %d", current_mode[0]);
      }
-@@ -225,7 +255,42 @@ int RISCOS_InitModes(_THIS)
+@@ -225,7 +255,45 @@ int RISCOS_InitModes(_THIS)
      return SDL_AddBasicVideoDisplay(&mode);
  }
  
@@ -213,6 +213,9 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
 +
 +    if (_this->num_displays < 1)
 +        return;
++    /* 2026: relative mouse mode: where the pointer is after a mode change
++       isn't a move */
++    ((SDL_VideoData *) _this->driverdata)->rel_discard = SDL_TRUE;
 +    display = &_this->displays[0];
 +    /* SDL's own mode (full screen with a mode change) isn't the desktop's:
 +       the desktop mode is what it goes back to */
@@ -239,7 +242,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
  {
      SDL_DisplayMode mode;
      _kernel_swi_regs regs;
-@@ -237,7 +302,7 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
+@@ -237,7 +305,7 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
      regs.r[6] = 0;
      regs.r[7] = 0;
      error = _kernel_swi(OS_ScreenMode, &regs, &regs);
@@ -248,7 +251,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
          SDL_SetError("Unable to enumerate screen modes: %s (%i)", error->errmess, error->errnum);
          return;
      }
-@@ -251,7 +316,7 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
+@@ -251,7 +319,7 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
      regs.r[6] = (int)block;
      regs.r[7] = -regs.r[7];
      error = _kernel_swi(OS_ScreenMode, &regs, &regs);
@@ -257,7 +260,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
          SDL_free(block);
          SDL_SetError("Unable to enumerate screen modes: %s (%i)", error->errmess, error->errnum);
          return;
-@@ -262,9 +327,8 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
+@@ -262,9 +330,8 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
              continue;
          }
  
@@ -268,7 +271,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
  
          mode.driverdata = convert_mode_block(pos + 4);
          if (!mode.driverdata) {
-@@ -280,17 +344,25 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
+@@ -280,17 +347,26 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
      SDL_free(block);
  }
  
@@ -285,6 +288,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
 -    regs.r[1] = (int)mode->driverdata;
 -    error = _kernel_swi(OS_ScreenMode, &regs, &regs);
 -    if (error) {
++    ((SDL_VideoData *) _this->driverdata)->rel_discard = SDL_TRUE;  /* (relative mouse) */
 +    if (((SDL_VideoData *) _this->driverdata)->wimp_task != 0) {
 +        /* Fix 13: never change mode behind the Wimp's back; Wimp_SetMode
 +           broadcasts the change so the desktop redraws properly. */
@@ -299,7 +303,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
          return SDL_SetError("Unable to set the current screen mode: %s (%i)", error->errmess, error->errnum);
      }
  
-@@ -302,6 +374,8 @@ int RISCOS_SetDisplayMode(_THIS, SDL_VideoDisplay *display, SDL_DisplayMode *mod
+@@ -302,6 +378,8 @@ int RISCOS_SetDisplayMode(_THIS, SDL_VideoDisplay *display, SDL_DisplayMode *mod
      /* Update cursor visibility, since it may have been disabled by the mode change. */
      SDL_SetCursor(NULL);
  

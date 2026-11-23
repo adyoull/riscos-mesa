@@ -30,7 +30,7 @@ diff --git src/video/riscos/SDL_riscosmouse.c src/video/riscos/SDL_riscosmouse.c
  {
      SDL_Cursor *cursor;
  
-@@ -41,25 +46,68 @@ static SDL_Cursor *RISCOS_CreateDefaultCursor()
+@@ -41,25 +46,69 @@ static SDL_Cursor *RISCOS_CreateDefaultCursor()
      return cursor;
  }
  
@@ -97,6 +97,7 @@ diff --git src/video/riscos/SDL_riscosmouse.c src/video/riscos/SDL_riscosmouse.c
 +        return SDL_Unsupported();
 +    vdata->relative_mouse = enabled;
 +    vdata->rel_rest_x = vdata->rel_rest_y = 0;
++    vdata->rel_discard = SDL_TRUE;      /* the first reading isn't a move */
 +    if (enabled)
 +        RISCOS_CentrePointer(_this, vdata->wimp_sdl_window ? vdata->wimp_sdl_window : _this->windows);
 +    return 0;
@@ -107,7 +108,7 @@ diff --git src/video/riscos/SDL_riscosmouse.c src/video/riscos/SDL_riscosmouse.c
  {
      SDL_Mouse *mouse = SDL_GetMouse();
  
-@@ -67,9 +115,9 @@ int RISCOS_InitMouse(_THIS)
+@@ -67,9 +116,9 @@ int RISCOS_InitMouse(_THIS)
      /* mouse->CreateSystemCursor = RISCOS_CreateSystemCursor; */
      mouse->ShowCursor = RISCOS_ShowCursor;
      mouse->FreeCursor = RISCOS_FreeCursor;

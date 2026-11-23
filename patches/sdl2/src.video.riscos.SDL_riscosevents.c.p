@@ -268,7 +268,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  }
  
  static const Uint8 mouse_button_map[] = {
-@@ -109,49 +296,440 @@ static const Uint8 mouse_button_map[] = {
+@@ -109,49 +296,465 @@ static const Uint8 mouse_button_map[] = {
      SDL_BUTTON_X2 + 3
  };
  
@@ -479,23 +479,41 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +    return 0;
 +}
 +
++/* 2026: where relative mode holds the pointer: the window's middle, on
++   the whole screen pixel OS_Word 21 really puts it on. (Off a pixel, every
++   poll read the half pixel between as a move: the view drifted with the
++   mouse still. David Sharp, dhewm3 on a Pi 4.) */
++static void
++RISCOS_RelativeCentre(_THIS, SDL_Window *window, const RISCOS_PointerMap *m, int *cx, int *cy)
++{
++    SDL_VideoData *vdata = (SDL_VideoData *)_this->driverdata;
++    RISCOS_WindowToScreen(_this, window, m, window->w / 2, window->h / 2, cx, cy);
++    *cx &= ~((1 << vdata->xeig) - 1);
++    *cy &= ~((1 << vdata->yeig) - 1);
++}
++
 +void
 +RISCOS_CentrePointer(_THIS, SDL_Window *window)
 +{
 +    RISCOS_PointerMap m;
 +    int osx, osy;
 +    if (window && RISCOS_GetPointerMap(_this, window, &m)) {
-+        RISCOS_WindowToScreen(_this, window, &m, window->w / 2, window->h / 2, &osx, &osy);
++        RISCOS_RelativeCentre(_this, window, &m, &osx, &osy);
 +        RISCOS_SetPointerPosition(osx, osy);
 +    }
 +}
 +
 +/* 2026: relative mouse mode (mouse look in first person games): the
 +   pointer is kept in the middle of the window. Each poll reports how far
-+   it has moved from there, in window pixels (fractions carried over to
-+   the next poll, so slow movements over a stretched picture aren't lost),
-+   and puts it back. Not while another task has the input focus: the
-+   pointer is the desktop's then. Returns SDL_TRUE if it took the motion. */
++   it has moved from there in screen pixels, as other systems report a
++   mouse's own movement: not scaled to the window's pixels, so a game
++   turns as fast at any window scale or render size (a 300 line render
++   size full screen turned it at under half speed: David Sharp). Then it
++   puts the pointer back. Not while another task has the input focus: the
++   pointer is the desktop's then, and where it is when relative mode
++   takes it again isn't a move (rel_discard; likewise after the mode
++   starts and after a screen mode change: that turned the view at the
++   start of play). Returns SDL_TRUE if it took the motion. */
 +static SDL_bool
 +RISCOS_PollRelativeMotion(_THIS, SDL_Window *window, int osx, int osy)
 +{
@@ -504,19 +522,26 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +    int cx, cy, dx, dy;
 +
 +    if (!vdata->relative_mouse || !window || (RISCOS_IsWindowed(vdata) && !vdata->has_caret) ||
-+        !RISCOS_GetPointerMap(_this, window, &m))
++        !RISCOS_GetPointerMap(_this, window, &m)) {
++        vdata->rel_discard = SDL_TRUE;
 +        return SDL_FALSE;
-+    RISCOS_WindowToScreen(_this, window, &m, window->w / 2, window->h / 2, &cx, &cy);
-+    /* screen pixels moved (y up on the screen, down in SDL) times the
-+       window's size, divided by the screen pixels it covers */
-+    vdata->rel_rest_x += ((osx - cx) / (1 << vdata->xeig)) * window->w;
-+    vdata->rel_rest_y += ((cy - osy) / (1 << vdata->yeig)) * window->h;
-+    dx = vdata->rel_rest_x / m.sw;
-+    dy = vdata->rel_rest_y / m.sh;
-+    vdata->rel_rest_x -= dx * m.sw;
-+    vdata->rel_rest_y -= dy * m.sh;
-+    if (dx != 0 || dy != 0)
-+        SDL_SendMouseMotion(window, SDL_GetMouse()->mouseID, 1, dx, dy);
++    }
++    RISCOS_RelativeCentre(_this, window, &m, &cx, &cy);
++    if (vdata->rel_discard) {
++        vdata->rel_discard = SDL_FALSE;
++        vdata->rel_rest_x = vdata->rel_rest_y = 0;
++    } else {
++        /* OS units moved (y up on the screen, down in SDL), sent as whole
++           screen pixels, the rest carried over */
++        vdata->rel_rest_x += osx - cx;
++        vdata->rel_rest_y += cy - osy;
++        dx = vdata->rel_rest_x / (1 << vdata->xeig);
++        dy = vdata->rel_rest_y / (1 << vdata->yeig);
++        vdata->rel_rest_x -= dx * (1 << vdata->xeig);
++        vdata->rel_rest_y -= dy * (1 << vdata->yeig);
++        if (dx != 0 || dy != 0)
++            SDL_SendMouseMotion(window, SDL_GetMouse()->mouseID, 1, dx, dy);
++    }
 +    if (osx != cx || osy != cy)
 +        RISCOS_SetPointerPosition(cx, cy);
 +    return SDL_TRUE;
@@ -533,10 +558,9 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +/* 2026: mouse handling for a Wimp window. */
 +static void
 +RISCOS_PollMouseWindowed(_THIS)
- {
-     SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
-     SDL_Mouse *mouse = SDL_GetMouse();
--    SDL_Rect rect;
++{
++    SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
++    SDL_Mouse *mouse = SDL_GetMouse();
 +    SDL_Window *window = driverdata->wimp_sdl_window;
 +    int xeig = driverdata->xeig, yeig = driverdata->yeig;
 +    RISCOS_PointerMap map;
@@ -639,13 +663,14 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +
 +static void
 +RISCOS_PollMouseFullscreen(_THIS)
-+{
+ {
 +    /* 2026: always report against our (full screen) window rather than
 +       mouse->focus, so that once the pointer has touched a screen edge and
 +       SDL has dropped the focus, it gets it back; convert OS units with the
 +       real eigen factors instead of assuming 2 OS units per pixel. */
-+    SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
-+    SDL_Mouse *mouse = SDL_GetMouse();
+     SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
+     SDL_Mouse *mouse = SDL_GetMouse();
+-    SDL_Rect rect;
 +    SDL_Window *window = _this->windows ? _this->windows : mouse->focus;
 +    RISCOS_PointerMap map;
      _kernel_swi_regs regs;
@@ -669,13 +694,13 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +    if (y < 0) y = 0;
 +    if (x >= window->w) x = window->w - 1;
 +    if (y >= window->h) y = window->h - 1;
-+
-+    if (mouse->focus != window) {
-+        SDL_SetMouseFocus(window);
-+    }
  
 -    if (mouse->x != x || mouse->y != y) {
 -        SDL_SendMouseMotion(mouse->focus, mouse->mouseID, 0, x, y);
++    if (mouse->focus != window) {
++        SDL_SetMouseFocus(window);
++    }
++
 +    if (!relative && (mouse->x != x || mouse->y != y)) {
 +        SDL_SendMouseMotion(window, mouse->mouseID, 0, x, y);
      }
@@ -724,7 +749,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
  
      _kernel_swi(OS_Mouse, &regs, &regs);
      driverdata->last_mouse_buttons = regs.r[2];
-@@ -162,13 +740,354 @@ int RISCOS_InitEvents(_THIS)
+@@ -162,13 +765,354 @@ int RISCOS_InitEvents(_THIS)
      return 0;
  }
  
@@ -740,7 +765,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +
 +static void
 +RISCOS_IconbarMenu(int x)
-+{
+ {
 +    _kernel_swi_regs regs;
 +    /* Title: the program's name (indirected, so it may be longer than 11
 +       characters; flag bit 8 of the first item says so). */
@@ -959,7 +984,7 @@ diff --git src/video/riscos/SDL_riscosevents.c src/video/riscos/SDL_riscosevents
 +   screen (single tasking by design) or not in the desktop. */
 +SDL_bool
 +RISCOS_WimpDelay(_THIS, Uint32 ms)
- {
++{
 +    SDL_VideoData *driverdata = (SDL_VideoData *)_this->driverdata;
 +    Uint32 cs = (ms + 5) / 10;
 +

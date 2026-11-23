@@ -116,8 +116,10 @@ _kernel_oserror *_kernel_swi(int no, _kernel_swi_regs *in, _kernel_swi_regs *out
             memcpy(fake_box, (void *)(intptr_t)in->r[1], sizeof fake_box);
         if (in->r[0] == 21 && *(unsigned char *)(intptr_t)in->r[1] == 3) {   /* move the pointer */
             const unsigned char *b = (const unsigned char *)(intptr_t)in->r[1];
-            fake_ptr[0] = (short)(b[1] | b[2] << 8);
-            fake_ptr[1] = (short)(b[3] | b[4] << 8);
+            /* as RISC OS: on a whole pixel (2 OS units here), whatever
+               was asked for (the pointer is read back there) */
+            fake_ptr[0] = (short)(b[1] | b[2] << 8) & ~1;
+            fake_ptr[1] = (short)(b[3] | b[4] << 8) & ~1;
             n_pointer_set++;
         }
         break;
@@ -758,7 +760,7 @@ static void test_warp_and_relative(void)
     vdata.xeig = vdata.yeig = 1;
     vdata.has_caret = SDL_TRUE;
     RISCOS_WarpPointer(&device, &window, 160, 120);
-    CHECK(n_pointer_set == 1 && fake_ptr[0] == 100 + 2 * 160 && fake_ptr[1] == 899 - 2 * 120,
+    CHECK(n_pointer_set == 1 && fake_ptr[0] == 100 + 2 * 160 && fake_ptr[1] == ((899 - 2 * 120) & ~1),
           "warp to 160,120 in a 1:1 window: OS_Word 21,3 to %d,%d", fake_ptr[0], fake_ptr[1]);
     mouse.x = mouse.y = -1;
     RISCOS_PollMouse(&device);
@@ -790,9 +792,18 @@ static void test_warp_and_relative(void)
     window.driverdata = NULL;
     window.w = 320; window.h = 240;
     vdata.relative_mouse = SDL_TRUE;
+    vdata.rel_discard = SDL_TRUE;       /* (as SDL_SetRelativeMouseMode leaves it) */
     RISCOS_CentrePointer(&device, &window);
     {
         int cx = fake_ptr[0], cy = fake_ptr[1];
+        CHECK((cx & 1) == 0 && (cy & 1) == 0, "relative mode: centred on a whole pixel (%d,%d)", cx, cy);
+        /* the first reading isn't a move (David Sharp: the view turned at
+           the start of play) */
+        n_rel = 0;
+        fake_ptr[0] += 300; fake_ptr[1] -= 100;
+        RISCOS_PollMouse(&device);
+        CHECK(n_rel == 0 && fake_ptr[0] == cx && fake_ptr[1] == cy,
+              "the first reading: not a move, the pointer put back in the middle");
         rel_dx = rel_dy = n_rel = 0;
         motion_x = -7;
         fake_ptr[0] += 20; fake_ptr[1] -= 10;
@@ -808,7 +819,8 @@ static void test_warp_and_relative(void)
         RISCOS_PollMouse(&device);
         CHECK(rel_dx == 1010 && vdata.pointer_in, "a big move out of the window: still reported (%d)", rel_dx);
 
-        /* stretched 2x: two 1-pixel moves are one window pixel */
+        /* stretched 2x: a screen pixel is still one, as at 1:1: the render
+           size doesn't change how fast the view turns (David Sharp) */
         window.driverdata = &wd;
         window.w = 160; window.h = 120;
         wd.render_w = 160; wd.render_h = 120;
@@ -817,10 +829,14 @@ static void test_warp_and_relative(void)
         rel_dx = 0;
         fake_ptr[0] = cx + 2;
         RISCOS_PollMouse(&device);
-        CHECK(rel_dx == 0, "stretched 2x: 1 screen pixel isn't a window pixel yet (%d)", rel_dx);
-        fake_ptr[0] = cx + 2;
+        CHECK(rel_dx == 1, "stretched 2x: 1 screen pixel moved, 1 reported (%d)", rel_dx);
+        fake_ptr[0] = cx + 1;           /* (half a pixel: carried over) */
+        rel_dx = 0;
         RISCOS_PollMouse(&device);
-        CHECK(rel_dx == 1, "the second makes one (%d)", rel_dx);
+        CHECK(rel_dx == 0, "half a pixel: not yet (%d)", rel_dx);
+        fake_ptr[0] = cx + 1;
+        RISCOS_PollMouse(&device);
+        CHECK(rel_dx == 1, "the other half makes one (%d)", rel_dx);
 
         /* another task has the input focus: the pointer is left alone */
         vdata.has_caret = SDL_FALSE;
@@ -829,6 +845,9 @@ static void test_warp_and_relative(void)
         RISCOS_PollMouse(&device);
         CHECK(n_rel == 0 && n_pointer_set == 0, "without the input focus: no relative motion, pointer not moved");
         vdata.has_caret = SDL_TRUE;
+        fake_ptr[0] = cx + 600;         /* wherever the desktop left it */
+        RISCOS_PollMouse(&device);
+        CHECK(n_rel == 0 && fake_ptr[0] == cx, "the focus back: where the pointer was isn't a move, it's centred");
 
         /* full screen: the same, from the screen's middle */
         vdata.wimp_window = 0;
@@ -836,7 +855,12 @@ static void test_warp_and_relative(void)
         window.driverdata = NULL;
         window.w = 1920; window.h = 1080;
         RISCOS_CentrePointer(&device, &window);
-        CHECK(fake_ptr[0] == 1920 && fake_ptr[1] == 2159 - 1080, "full screen: centred at %d,%d", fake_ptr[0], fake_ptr[1]);
+        CHECK(fake_ptr[0] == 1920 && fake_ptr[1] == 1078, "full screen: centred on a whole pixel at %d,%d",
+              fake_ptr[0], fake_ptr[1]);
+        n_rel = 0;
+        RISCOS_PollMouse(&device);
+        RISCOS_PollMouse(&device);
+        CHECK(n_rel == 0, "the mouse still: no drift (%d moves)", n_rel);
         rel_dx = rel_dy = 0;
         fake_ptr[0] -= 6; fake_ptr[1] += 8;
         RISCOS_PollMouse(&device);
