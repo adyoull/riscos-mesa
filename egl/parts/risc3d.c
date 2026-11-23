@@ -381,7 +381,7 @@ static int r3dw_present_wanted(egl_surface *s)
         return 0;
     if (s->kind != SURF_WINDOW || s->handle <= 0 || s->fixed || s->dmx || s->banks ||
         s->direct || is_scaled(s) || s->ever_locked || s->ovl_want == 1 || s->ovl_shown ||
-        s->r3d_ovl == R3O_ON || s->cfg->layout != LAYOUT_TBGR || !s->sprite)
+        s->r3d_ovl == R3O_ON || !s->sprite)  /* (either layout: the GPU's frame is RGBA, V3DRender stores it in the screen's order) */
         return 0;
     read_screen(&scr);
     if (s->r3d_pres_no == r3dw_mode_key(&scr))
