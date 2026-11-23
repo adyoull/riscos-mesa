@@ -2,7 +2,7 @@ diff --git src/video/riscos/SDL_riscosopengl.h src/video/riscos/SDL_riscosopengl
 new file mode 100644
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.h
-@@ -0,0 +1,64 @@
+@@ -0,0 +1,68 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -61,6 +61,10 @@ new file mode 100644
 +   overlay right while nothing is swapped. Returns how soon (cs) it wants
 +   to run again when the program waits for events, or 0. */
 +extern int RISCOS_GL_Idle(_THIS, SDL_bool run);
++/* 2026: whether a GL context has been on RISC3D (a GPU) in this program.
++   Then video quit keeps the Wimp task (RISCOS_WimpQuit): RISC3D closes a
++   task's GPU contexts when it closes down, and Mesa's would be lost. */
++extern SDL_bool RISCOS_GL_UsedRISC3D(void);
 +
 +#endif /* SDL_VIDEO_OPENGL_OSMESA */
 +

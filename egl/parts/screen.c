@@ -498,6 +498,16 @@ static void plot_rectangle(const egl_surface *surf, const int *block, const scre
     r.r[3] = x;
     r.r[4] = top - (surf->sprite_h << s->yeig);
     r.r[5] = 0;
+    if (s->log2bpp != 5) {
+        /* not a 32 bpp screen (a 64K colour desktop, say): PutSpriteUserCoords
+           would copy the 32 bpp pixels as they are, two to a screen pixel
+           (David Sharp, 23 Nov 2026), so PutSpriteScaled at 1:1, whose
+           SpriteExtend converts true colour with no table */
+        static const int one[4] = { 1, 1, 1, 1 };
+        r.r[0] = SPRITEOP_PUT_SCALED;
+        r.r[6] = (int) one;
+        r.r[7] = 0;
+    }
     _kernel_swi(OS_SpriteOp, &r, &r);
     if (surf->sprite_h > surf->h)
         set_graphics_window(clip);

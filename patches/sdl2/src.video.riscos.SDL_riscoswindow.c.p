@@ -9,7 +9,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
  
    This software is provided 'as-is', without any express or implied
    warranty.  In no event will the authors be held liable for any damages
-@@ -20,47 +20,774 @@
+@@ -20,47 +20,807 @@
  */
  #include "../../SDL_internal.h"
  
@@ -193,6 +193,10 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    return _kernel_swi(TaskWindow_TaskInfo, &regs, &regs) == NULL && regs.r[0] != 0;
 +}
 +
++/* 2026: the Wimp task video quit kept for the next video init (see
++   RISCOS_WimpQuit), or 0 */
++static int riscos_kept_task = 0;
++
 +int
 +RISCOS_WimpStart(_THIS)
 +{
@@ -204,6 +208,12 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +        return 0;
 +
 +    RISCOS_FindAppIdentity();
++    if (riscos_kept_task != 0) {
++        /* still the task video quit kept (RISCOS_WimpQuit) */
++        vdata->wimp_task = riscos_kept_task;
++        riscos_kept_task = 0;
++        goto iconbar;
++    }
 +    regs.r[0] = 380;
 +    regs.r[1] = 0x4B534154; /* "TASK" */
 +    regs.r[2] = (int)riscos_app_name;      /* the name in the Task Manager */
@@ -229,6 +239,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +        }
 +    }
 +
++iconbar:
 +    /* Put the program's icon on the icon bar: its own sprite (!App, loaded
 +       by the Filer or IconSprites in !Run) or the generic "application". */
 +    vdata->iconbar_icon = -1;
@@ -577,7 +588,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +
 +    if (!RISCOS_IsWindowed(vdata) || vdata->wimp_sdl_window != window || vdata->full_window)
-+        return;
+         return;
 +
 +    {
 +        /* A render size: the program asked for a new desktop window size;
@@ -589,7 +600,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +            window->w = d->render_w;
 +            window->h = d->render_h;
 +        }
-+    }
+     }
 +    RISCOS_WimpFitWindow(_this, window);
 +}
 +
@@ -637,7 +648,7 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
 +
 +    if (!RISCOS_IsWindowed(vdata) || vdata->wimp_sdl_window != window)
-         return;
++        return;
 +    RISCOS_WimpShowWindow(_this, window);
 +}
 +
@@ -714,11 +725,11 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +        vdata->has_caret = SDL_FALSE;
 +        /* Make sure the pointer is visible again on the desktop. */
 +        _kernel_osbyte(106, 1, 0);
-     }
- 
++    }
++
 +    if (!driverdata)
 +        return;
-+
+ 
      SDL_free(driverdata);
      window->driverdata = NULL;
  }
@@ -731,6 +742,28 @@ diff --git src/video/riscos/SDL_riscoswindow.c src/video/riscos/SDL_riscoswindow
 +    RISCOS_KeepPointerOffBottom(_this, SDL_FALSE);
 +    if (vdata->wimp_task != 0) {
 +        _kernel_swi_regs regs;
++#if SDL_VIDEO_OPENGL_OSMESA
++        /* A GL context has been on RISC3D (a GPU): stay the same Wimp task
++           for the next video init. RISC3D closes a task's GPU contexts at
++           its Wimp_CloseDown, and Mesa's (the program's own copy of the
++           GPU's driver, or the GPU file a context still uses) would be
++           gone: the next context came out in software, and a context
++           still alive aborted (ioquake3's vid_restart and its shutdown,
++           David Sharp, 23 Nov 2026). The task ends with the program. */
++        if (RISCOS_GL_UsedRISC3D()) {
++            if (vdata->iconbar_icon >= 0) {
++                int block[2];
++                block[0] = -2;                  /* the icon bar */
++                block[1] = vdata->iconbar_icon;
++                regs.r[1] = (int)block;
++                _kernel_swi(Wimp_DeleteIcon, &regs, &regs);
++            }
++            riscos_kept_task = vdata->wimp_task;
++            vdata->wimp_task = 0;
++            vdata->iconbar_icon = -1;
++            return;
++        }
++#endif
 +        RISCOS_RestartShutdown();   /* while we are still a Wimp task */
 +        regs.r[0] = vdata->wimp_task;
 +        regs.r[1] = 0x4B534154;

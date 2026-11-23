@@ -116,7 +116,7 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
          SDL_free(driverdata->fb_area);
          return SDL_SetError("Unable to create sprite: %s (%i)", error->errmess, error->errnum);
      }
-@@ -91,31 +120,189 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window *window, Uint32 *format, vo
+@@ -91,31 +120,222 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window *window, Uint32 *format, vo
      return 0;
  }
  
@@ -136,7 +136,8 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 +   own mode specifier) the screen's. */
 +static void
 +RISCOS_SpriteEigs(const sprite_header *spr, int xeig, int yeig, int *sxe, int *sye)
-+{
+ {
+-    SDL_WindowData *driverdata = (SDL_WindowData *)window->driverdata;
 +    unsigned int mode = (unsigned int) spr->mode;
 +    *sxe = xeig;
 +    *sye = yeig;
@@ -150,22 +151,38 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 +    }
 +}
 +
-+/* 2026: plot the framebuffer sprite for each rectangle of a Wimp redraw or
-+   update loop.  block is the Wimp_RedrawWindow/UpdateWindow block.  Each
-+   SDL pixel covers wscale_x x wscale_y screen pixels (2x2 in EX0 EY0
-+   modes, see RISCOS_ChooseWindowScale). */
-+void
-+RISCOS_WimpPlotWindow(_THIS, SDL_Window *window, RISCOS_Redraw *redraw, int more)
- {
--    SDL_WindowData *driverdata = (SDL_WindowData *)window->driverdata;
-+    SDL_WindowData *driverdata = (SDL_WindowData *) window->driverdata;
-+    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
-+    int xeig = vdata->xeig, yeig = vdata->yeig;
-+    int sx = vdata->wscale_x > 0 ? vdata->wscale_x : 1;
-+    int sy = vdata->wscale_y > 0 ? vdata->wscale_y : 1;
-+    int scale[4], sxe, sye;
++/* 2026: whether a sprite has the screen's bits per pixel, so it can be
++   plotted as it is (PutSpriteUserCoords copies pixels without converting
++   them). A mode word's sprite type gives the sprite's (type 5: 16 bpp,
++   6: 32 bpp; RISC OS 5's mode word with flags has it in bits 20-26); a
++   mode number or specifier is the screen's own. A GL window's 32 bpp
++   sprite on a 64K colour desktop was shown as pairs of 16-bit pixels at
++   double width (David Sharp, 23 Nov 2026). */
++static SDL_bool
++RISCOS_SpriteMatchesScreen(const sprite_header *spr)
++{
++    unsigned int mode = (unsigned int) spr->mode;
++    int type, log2bpp = -1, screen = 0;
      _kernel_swi_regs regs;
 -    _kernel_oserror *error;
++    if (!(mode & 1) || (mode >> 27) == 0)
++        return SDL_TRUE;                /* a mode number or specifier: the screen's */
++    type = (mode >> 27) == 15 ? (int) ((mode >> 20) & 0x7F) : (int) (mode >> 27);
++    switch (type) {
++    case 1: log2bpp = 0; break;
++    case 2: log2bpp = 1; break;
++    case 3: log2bpp = 2; break;
++    case 4: log2bpp = 3; break;
++    case 5: log2bpp = 4; break;
++    case 6: log2bpp = 5; break;
++    default: return SDL_FALSE;
++    }
++    regs.r[0] = -1;
++    regs.r[1] = 9;                      /* Log2BPP */
++    if (_kernel_swi(OS_ReadModeVariable, &regs, &regs) == NULL)
++        screen = regs.r[2];
++    return log2bpp == screen ? SDL_TRUE : SDL_FALSE;
++}
  
 -    regs.r[0] = 512 + 52;
 -    regs.r[1] = (int)driverdata->fb_area;
@@ -178,6 +195,21 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 -    error = _kernel_swi(OS_SpriteOp, &regs, &regs);
 -    if (error) {
 -        return SDL_SetError("OS_SpriteOp 52 failed: %s (%i)", error->errmess, error->errnum);
++/* 2026: plot the framebuffer sprite for each rectangle of a Wimp redraw or
++   update loop.  block is the Wimp_RedrawWindow/UpdateWindow block.  Each
++   SDL pixel covers wscale_x x wscale_y screen pixels (2x2 in EX0 EY0
++   modes, see RISCOS_ChooseWindowScale). */
++void
++RISCOS_WimpPlotWindow(_THIS, SDL_Window *window, RISCOS_Redraw *redraw, int more)
++{
++    SDL_WindowData *driverdata = (SDL_WindowData *) window->driverdata;
++    SDL_VideoData *vdata = (SDL_VideoData *) _this->driverdata;
++    int xeig = vdata->xeig, yeig = vdata->yeig;
++    int sx = vdata->wscale_x > 0 ? vdata->wscale_x : 1;
++    int sy = vdata->wscale_y > 0 ? vdata->wscale_y : 1;
++    int scale[4], sxe, sye;
++    _kernel_swi_regs regs;
++
 +    while (more) {
 +        if (driverdata && driverdata->fb_sprite) {
 +            int ox = redraw->box.x0 - redraw->scroll_x;   /* work area origin on screen */
@@ -192,10 +224,11 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 +            regs.r[3] = ox;
 +            regs.r[4] = oy - ((window->h * sy) << yeig);
 +            regs.r[5] = 0;
-+            if (scale[0] == scale[2] && scale[1] == scale[3]) {
++            if (scale[0] == scale[2] && scale[1] == scale[3] &&
++                RISCOS_SpriteMatchesScreen(driverdata->fb_sprite)) {
 +                regs.r[0] = 512+34;     /* plain plot */
 +            } else {
-+                regs.r[0] = 512+52;     /* PutSpriteScaled */
++                regs.r[0] = 512+52;     /* PutSpriteScaled (converting pixels too) */
 +                regs.r[6] = (int)scale;
 +                regs.r[7] = 0;          /* no translation table: SpriteExtend converts true colour */
 +            }
@@ -205,7 +238,7 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 +        if (_kernel_swi(Wimp_GetRectangle, &regs, &regs) != NULL)
 +            break;
 +        more = regs.r[0];
-+    }
+     }
 +}
 +
 +static int
@@ -218,7 +251,7 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 +    RISCOS_Redraw update;
 +    int i;
 +    _kernel_swi_regs regs;
-+
+ 
 +    for (i = 0; i < numrects || (numrects == 0 && i == 0); i++) {
 +        int l = 0, t = 0, w = window->w, h = window->h;
 +        if (numrects > 0) {
@@ -235,12 +268,14 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 +            continue;
 +        RISCOS_WimpPlotWindow(_this, window, &update, regs.r[0]);
 +    }
-+    return 0;
-+}
-+
+     return 0;
+ }
+ 
+-void RISCOS_DestroyWindowFramebuffer(_THIS, SDL_Window *window)
 +static int
 +RISCOS_FullscreenUpdateFramebuffer(_THIS, SDL_Window * window, const SDL_Rect * rects, int numrects)
-+{
+ {
+-    SDL_WindowData *driverdata = (SDL_WindowData *)window->driverdata;
 +    /* 2026: plot only the dirty rectangles (by clipping the graphics window,
 +       which SpriteExtend honours) and align the framebuffer with the top of
 +       the screen so it matches the mouse coordinates from RISCOS_PollMouse. */
@@ -283,15 +318,13 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 +    }
 +    if (error != NULL) {
 +        return SDL_SetError("OS_SpriteOp 34 failed: %s (%i)", error->errmess, error->errnum);
-     }
- 
-     return 0;
- }
- 
--void RISCOS_DestroyWindowFramebuffer(_THIS, SDL_Window *window)
++    }
++
++    return 0;
++}
++
 +int RISCOS_UpdateWindowFramebuffer(_THIS, SDL_Window * window, const SDL_Rect * rects, int numrects)
- {
--    SDL_WindowData *driverdata = (SDL_WindowData *)window->driverdata;
++{
 +    SDL_WindowData *driverdata = (SDL_WindowData *) window->driverdata;
 +
 +#if SDL_VIDEO_OPENGL_OSMESA

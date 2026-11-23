@@ -145,17 +145,43 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
  {
      void *dst = SDL_malloc(alloc);
      if (dst) {
-@@ -197,7 +201,8 @@ static void *copy_memory(const void *src, size_t size, size_t alloc)
+@@ -197,8 +201,34 @@ static void *copy_memory(const void *src, size_t size, size_t alloc)
      return dst;
  }
  
 -int RISCOS_InitModes(_THIS)
++/* 2026: OS_ScreenMode 1's R1: a pointer to the mode selector, or (a
++   numbered mode, as RISC OS on Linux and RoMac boot in) the mode number.
++   A number is turned into a mode selector from its mode variables, in sel
++   (11 words): before, its number was read as a pointer ("Unsupported mode
++   block format", David Sharp, 23 Nov 2026). */
++static int *
++current_mode_selector(int r1, int *sel)
+ {
++    int i, vars[3] = { 0, 3, -1 };      /* ModeFlags, NColour */
++    if ((unsigned int) r1 >= 256)
++        return (int *) r1;
++    sel[0] = 1;
++    sel[1] = read_mode_variable((int *) r1, 11) + 1;
++    sel[2] = read_mode_variable((int *) r1, 12) + 1;
++    sel[3] = read_mode_variable((int *) r1, 9);
++    sel[4] = -1;                        /* the highest frame rate */
++    for (i = 0; vars[i] >= 0; i++) {
++        sel[5 + 2 * i] = vars[i];
++        sel[6 + 2 * i] = read_mode_variable((int *) r1, vars[i]);
++    }
++    sel[5 + 2 * i] = -1;
++    return sel;
++}
++
 +int
 +RISCOS_InitModes(_THIS)
- {
++{
++    int sel[11];
      SDL_DisplayMode mode;
      int *current_mode;
-@@ -207,7 +212,7 @@ int RISCOS_InitModes(_THIS)
+     _kernel_swi_regs regs;
+@@ -207,11 +237,11 @@ int RISCOS_InitModes(_THIS)
  
      regs.r[0] = 1;
      error = _kernel_swi(OS_ScreenMode, &regs, &regs);
@@ -164,7 +190,12 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
          return SDL_SetError("Unable to retrieve the current screen mode: %s (%i)", error->errmess, error->errnum);
      }
  
-@@ -225,7 +230,41 @@ int RISCOS_InitModes(_THIS)
+-    current_mode = (int *)regs.r[1];
++    current_mode = current_mode_selector(regs.r[1], sel);
+     if (!read_mode_block(current_mode, &mode, SDL_TRUE)) {
+         return SDL_SetError("Unsupported mode block format %d", current_mode[0]);
+     }
+@@ -225,7 +255,42 @@ int RISCOS_InitModes(_THIS)
      return SDL_AddBasicVideoDisplay(&mode);
  }
  
@@ -176,6 +207,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
 +    SDL_DisplayMode mode;
 +    _kernel_swi_regs regs;
 +    int *current_mode;
++    int sel[11];
 +    void *old;
 +    size_t size;
 +
@@ -189,7 +221,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
 +    regs.r[0] = 1;
 +    if (_kernel_swi(OS_ScreenMode, &regs, &regs) != NULL)
 +        return;
-+    current_mode = (int *)regs.r[1];
++    current_mode = current_mode_selector(regs.r[1], sel);
 +    if (!read_mode_block(current_mode, &mode, SDL_TRUE))
 +        return;
 +    size = measure_mode_block(current_mode);
@@ -207,7 +239,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
  {
      SDL_DisplayMode mode;
      _kernel_swi_regs regs;
-@@ -237,7 +276,7 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
+@@ -237,7 +302,7 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
      regs.r[6] = 0;
      regs.r[7] = 0;
      error = _kernel_swi(OS_ScreenMode, &regs, &regs);
@@ -216,7 +248,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
          SDL_SetError("Unable to enumerate screen modes: %s (%i)", error->errmess, error->errnum);
          return;
      }
-@@ -251,7 +290,7 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
+@@ -251,7 +316,7 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
      regs.r[6] = (int)block;
      regs.r[7] = -regs.r[7];
      error = _kernel_swi(OS_ScreenMode, &regs, &regs);
@@ -225,7 +257,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
          SDL_free(block);
          SDL_SetError("Unable to enumerate screen modes: %s (%i)", error->errmess, error->errnum);
          return;
-@@ -262,9 +301,8 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
+@@ -262,9 +327,8 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
              continue;
          }
  
@@ -236,7 +268,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
  
          mode.driverdata = convert_mode_block(pos + 4);
          if (!mode.driverdata) {
-@@ -280,17 +318,25 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
+@@ -280,17 +344,25 @@ void RISCOS_GetDisplayModes(_THIS, SDL_VideoDisplay *display)
      SDL_free(block);
  }
  
@@ -267,7 +299,7 @@ diff --git src/video/riscos/SDL_riscosmodes.c src/video/riscos/SDL_riscosmodes.c
          return SDL_SetError("Unable to set the current screen mode: %s (%i)", error->errmess, error->errnum);
      }
  
-@@ -302,6 +348,8 @@ int RISCOS_SetDisplayMode(_THIS, SDL_VideoDisplay *display, SDL_DisplayMode *mod
+@@ -302,6 +374,8 @@ int RISCOS_SetDisplayMode(_THIS, SDL_VideoDisplay *display, SDL_DisplayMode *mod
      /* Update cursor visibility, since it may have been disabled by the mode change. */
      SDL_SetCursor(NULL);
  

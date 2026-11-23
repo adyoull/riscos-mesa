@@ -2,7 +2,7 @@ diff --git src/video/riscos/SDL_riscosopengl.c src/video/riscos/SDL_riscosopengl
 new file mode 100644
 --- /dev/null
 +++ src/video/riscos/SDL_riscosopengl.c
-@@ -0,0 +1,1107 @@
+@@ -0,0 +1,1121 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
@@ -976,12 +976,26 @@ new file mode 100644
 +    return RISCOS_GL_RISC3D(_this);
 +}
 +
++static SDL_bool used_risc3d = SDL_FALSE;
++
++SDL_bool
++RISCOS_GL_UsedRISC3D(void)
++{
++    return used_risc3d;
++}
++
 +SDL_GLContext
 +RISCOS_GL_CreateContext(_THIS, SDL_Window *window)
 +{
++    SDL_GLContext c;
++    /* (OSMesa's own contexts go to RISC3D too where it has a driver) */
++    if (RISCOS_GL_RISC3D(_this))
++        used_risc3d = SDL_TRUE;
 +    if (RISCOS_GL_WantEGL(_this, window))
-+        return EGL_CreateContext(_this, window);
-+    return SPR_CreateContext(_this, window);
++        c = EGL_CreateContext(_this, window);
++    else
++        c = SPR_CreateContext(_this, window);
++    return c;
 +}
 +
 +int
