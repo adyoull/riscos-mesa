@@ -43,6 +43,7 @@
 #include "drm-uapi/v3d_drm.h"
 #include "drm-uapi/drm_fourcc.h"
 #include "frontend/winsys_handle.h"
+#include "main/errors.h"
 #include "drm_riscos.h"
 #include "v3dm.h"
 
@@ -792,6 +793,21 @@ int v3dm_present(v3dm_context *c, const int *rects, unsigned n)
     if (dev.trace)
         fprintf(stderr, "v3dm: presented frame %p, %u rectangles\n", (void *) c->fb, n);
     return 0;
+}
+
+/* Buffers the GPU module refused since this was last asked (v3d_bo_alloc
+   gave stand-ins: what needed them wasn't drawn): GL_OUT_OF_MEMORY in the
+   current context, for its next glGetError. The count. */
+int v3dm_report_oom(void)
+{
+    struct st_context *st;
+    int n;
+    if (!dev.screen)
+        return 0;
+    n = p_atomic_xchg(&v3d_screen(dev.screen)->riscos_oom, 0);
+    if (n > 0 && (st = st_api_get_current()) != NULL)
+        _mesa_error(st->ctx, GL_OUT_OF_MEMORY, "the GPU's memory is full (%d buffers refused)", n);
+    return n;
 }
 
 int v3dm_finish(v3dm_context *c)

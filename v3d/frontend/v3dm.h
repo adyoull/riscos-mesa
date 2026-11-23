@@ -48,6 +48,9 @@ void v3dm_destroy(v3dm_context *c);
 int v3dm_draw_into(v3dm_context *c, void *pixels, int row_bytes, unsigned width, unsigned height);
 /* c's frame is finished (in the caller's memory, if drawn there). 0, or -1 */
 int v3dm_finish(v3dm_context *c);
+/* buffers the GPU module refused since last asked: GL_OUT_OF_MEMORY in the
+   current context (its next glGetError). The count. */
+int v3dm_report_oom(void);
 /* on: the context's frames are in the GPU's own tiles (not the caller's
    memory, nor rows), at this size, to be shown with v3dm_present; off: as
    before. 1, or 0 */

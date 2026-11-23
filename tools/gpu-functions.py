@@ -15,9 +15,16 @@ if len(names) < 500:
 with open(out, 'w') as f:
     f.write('/* made by tools/gpu-functions.py from %s: %d functions */\n' % (archive.split('/')[-1], len(names)))
     f.write('#include <stddef.h>\n#include "riscos_mesa_gpu.h"\n\n')
+    # glGetError also reports buffers the GPU module refused (v3d/gpu)
+    wrapped = {'glGetError': 'riscos_mesa_gpu_glGetError'}
     for n in names:
         f.write('void %s(void);\n' % n)
+    for n in wrapped.values():
+        f.write('unsigned %s(void);\n' % n)
     f.write('\nconst struct riscos_mesa_gpu_function riscos_mesa_gpu_functions[] = {\n')
     for n in names:
-        f.write('    { "%s", %s },\n' % (n, n))
+        if n in wrapped:
+            f.write('    { "%s", (void (*)(void)) %s },\n' % (n, wrapped[n]))
+        else:
+            f.write('    { "%s", %s },\n' % (n, n))
     f.write('    { NULL, NULL }\n};\n')

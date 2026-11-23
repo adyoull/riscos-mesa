@@ -59,7 +59,7 @@ diff -ruN a/src/c11/impl/threads_posix.c b/src/c11/impl/threads_posix.c
 diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_bufmgr.c
 --- a/src/gallium/drivers/v3d/v3d_bufmgr.c
 +++ b/src/gallium/drivers/v3d/v3d_bufmgr.c
-@@ -27,6 +27,9 @@
+@@ -27,10 +27,17 @@
  #include <fcntl.h>
  #include <xf86drm.h>
  #include <xf86drmMode.h>
@@ -69,7 +69,15 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
  
  #include "util/perf/cpu_trace.h"
  #include "util/u_hash_table.h"
-@@ -75,9 +78,27 @@
+ #include "util/u_memory.h"
++#include "util/u_atomic.h"
++#ifdef __riscos__
++#include <unistd.h>
++#endif
+ #include "util/ralloc.h"
+ 
+ #include "v3d_context.h"
+@@ -75,9 +82,27 @@
          }
  }
  
@@ -97,7 +105,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
          list_del(&bo->time_list);
          list_del(&bo->size_list);
  }
-@@ -93,6 +114,33 @@
+@@ -93,6 +118,33 @@
  
          struct v3d_bo *bo = NULL;
          mtx_lock(&cache->lock);
@@ -131,7 +139,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
          if (!list_is_empty(&cache->size_list[page_index])) {
                  bo = list_first_entry(&cache->size_list[page_index],
                                        struct v3d_bo, size_list);
-@@ -128,6 +176,9 @@
+@@ -128,6 +180,9 @@
          size = align(size, 4096);
  
          bo = v3d_bo_from_cache(screen, size, name);
@@ -141,7 +149,68 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
          if (bo) {
                  if (dump_stats) {
                          mesa_logd("Allocated %s %dkb from cache:", name, size / 1024);
-@@ -203,7 +254,11 @@
+@@ -149,6 +204,9 @@
+         struct drm_v3d_create_bo create = {
+                 .size = size
+         };
++#ifdef __riscos__
++        int riscos_waits = 0;           /* (below) */
++#endif
+ 
+  retry:
+         ret = v3d_ioctl(screen->fd, DRM_IOCTL_V3D_CREATE_BO, &create);
+@@ -159,6 +217,35 @@
+                         v3d_bo_cache_free_all(&screen->bo_cache);
+                         goto retry;
+                 }
++#ifdef __riscos__
++                /* riscos-mesa: the GPU module refused it (its buffer area
++                 * full, or its tables). Memory that finished jobs still
++                 * hold comes back as they end: wait for that a little and
++                 * try again. Failing that, a stand-in in ordinary memory,
++                 * not NULL: v3d's callers map and use what this gives
++                 * (command lists, tile state, uploads) without checking,
++                 * and crashed (David Sharp: Quake 3, Doom 3, Mupen64Plus
++                 * with V3DRender's area clamped to 128 MB). A job naming a
++                 * stand-in isn't submitted (v3d_job_add_bo), and glGetError
++                 * says GL_OUT_OF_MEMORY (v3d/frontend), so the program can
++                 * say so. */
++                if (riscos_waits++ < 10) {
++                        usleep(5000);
++                        goto retry;
++                }
++                if (posix_memalign(&bo->map, 4096, size) == 0) {
++                        memset(bo->map, 0, size);
++                        bo->handle = 0;
++                        bo->offset = 0;
++                        bo->private = false;    /* never into the BO cache */
++                        bo->riscos_stand_in = true;
++                        p_atomic_inc(&screen->riscos_oom);
++                        mesa_loge_once("the GPU's memory is full: a buffer of %u KB (%s) was "
++                                       "refused; what needs it isn't drawn (GL_OUT_OF_MEMORY)",
++                                       size / 1024, name);
++                        return bo;
++                }
++#endif
+ 
+                 mesa_loge("Failed to allocate device memory for BO");
+                 free(bo);
+@@ -195,6 +282,14 @@
+ {
+         struct v3d_screen *screen = bo->screen;
+ 
++#ifdef __riscos__
++        if (bo->riscos_stand_in) {
++                free(bo->map);
++                free(bo);
++                return;
++        }
++#endif
++
+         if (bo->map) {
+ #if USE_V3D_SIMULATOR
+                 if (bo->name &&
+@@ -203,7 +298,11 @@
                  } else
  #endif
                  {
@@ -153,7 +222,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
                          VG(VALGRIND_FREELIKE_BLOCK(bo->map, 0));
                  }
          }
-@@ -238,7 +293,12 @@
+@@ -238,7 +337,12 @@
          list_for_each_entry_safe(struct v3d_bo, bo, &cache->time_list,
                                   time_list) {
                  /* If it's more than a second old, free it. */
@@ -166,7 +235,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
                          if (dump_stats && !freed_any) {
                                  mesa_logd("Freeing stale BOs:");
                                  v3d_bo_dump_stats(screen);
-@@ -310,6 +370,9 @@
+@@ -310,6 +414,9 @@
          bo->free_time = time;
          list_addtail(&bo->size_list, &cache->size_list[page_index]);
          list_addtail(&bo->time_list, &cache->time_list);
@@ -176,7 +245,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
          if (dump_stats) {
                  mesa_logd("Freed %s %dkb to cache:", bo->name, bo->size / 1024);
                  v3d_bo_dump_stats(screen);
-@@ -374,6 +437,19 @@
+@@ -374,6 +481,19 @@
          return bo;
  }
  
@@ -196,7 +265,18 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
  struct v3d_bo *
  v3d_bo_open_name(struct v3d_screen *screen, uint32_t name)
  {
-@@ -515,8 +591,14 @@
+@@ -476,6 +596,10 @@
+         struct v3d_screen *screen = bo->screen;
+ 
+         MESA_TRACE_SCOPE("%s reason=\"%s\"", __func__, reason);
++#ifdef __riscos__
++        if (bo->riscos_stand_in)
++                return true;    /* nothing on the GPU uses it */
++#endif
+ 
+         if (V3D_DBG(PERF) && timeout_ns && reason) {
+                 if (v3d_wait_bo_ioctl(screen->fd, bo->handle, 0) == -ETIME) {
+@@ -515,8 +639,14 @@
                  abort();
          }
  
@@ -214,7 +294,21 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_b
 diff -ruN a/src/gallium/drivers/v3d/v3d_bufmgr.h b/src/gallium/drivers/v3d/v3d_bufmgr.h
 --- a/src/gallium/drivers/v3d/v3d_bufmgr.h
 +++ b/src/gallium/drivers/v3d/v3d_bufmgr.h
-@@ -61,6 +61,9 @@
+@@ -54,6 +54,13 @@
+          * it's safe to reuse it in the BO cache).
+          */
+         bool private;
++#ifdef __riscos__
++        /* riscos-mesa: the GPU module refused the memory, so this stands
++         * in for it in ordinary memory (no handle): nothing crashes, a job
++         * naming it isn't submitted, and glGetError says
++         * GL_OUT_OF_MEMORY (v3d_bo_alloc). */
++        bool riscos_stand_in;
++#endif
+ };
+ 
+ struct v3d_bo *v3d_bo_alloc(struct v3d_screen *screen, uint32_t size,
+@@ -61,6 +68,9 @@
  void v3d_bo_last_unreference(struct v3d_bo *bo);
  void v3d_bo_last_unreference_locked_timed(struct v3d_bo *bo, time_t time);
  struct v3d_bo *v3d_bo_open_name(struct v3d_screen *screen, uint32_t name);
@@ -246,7 +340,19 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_context.c b/src/gallium/drivers/v3d/v3d_
 diff -ruN a/src/gallium/drivers/v3d/v3d_context.h b/src/gallium/drivers/v3d/v3d_context.h
 --- a/src/gallium/drivers/v3d/v3d_context.h
 +++ b/src/gallium/drivers/v3d/v3d_context.h
-@@ -830,6 +830,20 @@
+@@ -360,6 +360,11 @@
+  */
+ struct v3d_job {
+         struct v3d_context *v3d;
++#ifdef __riscos__
++        /* riscos-mesa: it names a stand-in for a refused buffer: not
++         * submitted (v3d_bo_alloc) */
++        bool riscos_dropped;
++#endif
+         struct v3d_cl bcl;
+         struct v3d_cl rcl;
+         struct v3d_cl indirect;
+@@ -830,6 +835,20 @@
  void v3d_job_add_write_resource(struct v3d_job *job, struct pipe_resource *prsc);
  void v3d_job_add_tf_write_resource(struct v3d_job *job, struct pipe_resource *prsc);
  void v3d_job_submit(struct v3d_context *v3d, struct v3d_job *job);
@@ -320,7 +426,18 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
  #include "v3d_context.h"
  /* The OQ/semaphore packets are the same across V3D versions. */
  #define V3D_VERSION 42
-@@ -157,6 +159,7 @@
+@@ -123,6 +125,10 @@
+         if (_mesa_set_search(job->bos, bo))
+                 return;
+ 
++#ifdef __riscos__
++        if (bo->riscos_stand_in)
++                job->riscos_dropped = true;
++#endif
+         v3d_bo_reference(bo);
+         _mesa_set_add(job->bos, bo);
+         job->referenced_size += bo->size;
+@@ -157,6 +163,7 @@
  v3d_flush_jobs_using_bo(struct v3d_context *v3d, struct v3d_bo *bo)
  {
          MESA_TRACE_FUNC();
@@ -328,7 +445,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
  
          hash_table_foreach(v3d->jobs, entry) {
                  struct v3d_job *job = entry->data;
-@@ -196,6 +199,7 @@
+@@ -196,6 +203,7 @@
                                  enum v3d_flush_cond flush_cond,
                                  bool is_compute_pipeline)
  {
@@ -336,7 +453,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
          struct hash_entry *entry = _mesa_hash_table_search(v3d->write_jobs,
                                                             prsc);
          if (!entry)
-@@ -250,6 +254,7 @@
+@@ -250,6 +258,7 @@
                                  enum v3d_flush_cond flush_cond,
                                  bool is_compute_pipeline)
  {
@@ -344,7 +461,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
          struct v3d_resource *rsc = v3d_resource(prsc);
  
          /* We only need to force the flush on TF writes, which is the only
-@@ -622,6 +627,33 @@
+@@ -622,6 +631,33 @@
  /**
   * Submits the job to the kernel and then reinitializes it.
   */
@@ -378,7 +495,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
  void
  v3d_job_submit(struct v3d_context *v3d, struct v3d_job *job)
  {
-@@ -632,6 +664,9 @@
+@@ -632,6 +668,9 @@
  
          if (!job->needs_flush)
                  goto done;
@@ -388,7 +505,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
  
          /* The GL_PRIMITIVES_GENERATED query is included with
           * OES_geometry_shader.
-@@ -660,7 +695,11 @@
+@@ -660,7 +699,11 @@
                  } else {
                     job->submit.in_sync_bcl = v3d->in_syncobj;
                  }
@@ -400,6 +517,18 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
                  v3d->in_fence_fd = -1;
          } else {
                  /* While the RCL will implicitly depend on the last RCL to have
+@@ -708,6 +751,11 @@
+ 
+         v3d_clif_dump(v3d, job);
+ 
++#ifdef __riscos__
++        if (job->riscos_dropped) {
++                /* riscos-mesa: a buffer it needs was refused: not drawn */
++        } else
++#endif
+         if (!V3D_DBG(NORAST)) {
+                 int ret;
+                 ret = v3d_ioctl(v3d->fd, DRM_IOCTL_V3D_SUBMIT_CL, &job->submit);
 diff -ruN a/src/gallium/drivers/v3d/v3d_resource.c b/src/gallium/drivers/v3d/v3d_resource.c
 --- a/src/gallium/drivers/v3d/v3d_resource.c
 +++ b/src/gallium/drivers/v3d/v3d_resource.c
@@ -745,3 +874,33 @@ diff -ruN a/src/util/xmlconfig.c b/src/util/xmlconfig.c
        for (unsigned j = 0; j < d->num_engines; j++) {
           const struct driconf_engine *e = &d->engines[j];
           const char *engattr[] = {
+diff -ruN a/src/gallium/drivers/v3d/v3d_screen.h b/src/gallium/drivers/v3d/v3d_screen.h
+--- a/src/gallium/drivers/v3d/v3d_screen.h
++++ b/src/gallium/drivers/v3d/v3d_screen.h
+@@ -54,6 +54,11 @@
+         struct pipe_screen base;
+         struct renderonly *ro;
+         int fd;
++#ifdef __riscos__
++        /* riscos-mesa: buffers the GPU module refused since glGetError last
++         * said GL_OUT_OF_MEMORY (v3d_bo_alloc; v3d/frontend's glGetError) */
++        int riscos_oom;
++#endif
+ 
+         struct v3d_device_info devinfo;
+ 
+diff -ruN a/src/gallium/drivers/v3d/v3dx_draw.c b/src/gallium/drivers/v3d/v3dx_draw.c
+--- a/src/gallium/drivers/v3d/v3dx_draw.c
++++ b/src/gallium/drivers/v3d/v3dx_draw.c
+@@ -1577,6 +1577,11 @@
+ 
+         v3d->last_perfmon = v3d->active_perfmon;
+ 
++#ifdef __riscos__
++        if (job->riscos_dropped) {
++                /* riscos-mesa: a buffer it needs was refused: not run */
++        } else
++#endif
+         if (!V3D_DBG(NORAST)) {
+                 int ret = v3d_ioctl(screen->fd, DRM_IOCTL_V3D_SUBMIT_CSD,
+                                     &submit);

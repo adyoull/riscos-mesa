@@ -56,6 +56,7 @@
    request on stderr), read once ---- */
 
 static int fake = -1, trace, stats;
+static long refuse_after = -1;  /* V3DM$Refuse <n>: CREATE_BO refused after n more (testing) */
 
 /* (getenv: only whether it is set is kept, never the pointer, which
    UnixLib reuses for the next system variable read) */
@@ -70,6 +71,10 @@ static void modes(void)
         fake = var_set("V3DM$Fake");
         trace = var_set("V3DM$Trace");
         stats = var_set("V3DM$Stats");
+        {
+            const char *v = getenv("V3DM$Refuse");
+            refuse_after = v ? strtol(v, NULL, 10) : -1;
+        }
     }
 }
 
@@ -597,7 +602,10 @@ int drmIoctl(int fd, unsigned long request, void *arg)
     drm_riscos_dump_before(request, arg);
     if (stats)
         t0 = stats_now();
-    if (fake)
+    if (refuse_after >= 0 && request == DRM_IOCTL_V3D_CREATE_BO && refuse_after-- == 0) {
+        refuse_after = 0;               /* (and every one after) */
+        r = -12;                        /* ENOMEM, in Linux's numbers as a module's are */
+    } else if (fake)
         r = drm_riscos_fake_ioctl(request, arg);
     else if (!device.ioctl_swi)
         r = -ENODEV;

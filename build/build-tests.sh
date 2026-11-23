@@ -18,6 +18,9 @@ $CC $RO_CFLAGS $GL -static "$T/prof.c"       -o "$STAGE/tests/prof,e1f"       $L
 # (a menu opened over the window; GPU library linked in)
 [ -f "$STAGE/lib/libMesaGPU.a" ] && $CC $RO_CFLAGS $GL -static "$T/presenttest.c" "$T/hrtime.c" \
     -o "$STAGE/tests/presenttest,e1f" -lEGL -lOSMesa -Wl,-u,riscos_mesa_gpu -lMesaGPU -lstdc++ -lz -lm
+# A buffer the GPU refuses: GL_OUT_OF_MEMORY and no crash (with *Set V3DM$Refuse <n>)
+[ -f "$STAGE/lib/libMesaGPU.a" ] && $CC $RO_CFLAGS $GL -static "$T/oomtest.c" \
+    -o "$STAGE/tests/oomtest,e1f" -lEGL -lOSMesa -Wl,-u,riscos_mesa_gpu -lMesaGPU -lstdc++ -lz -lm
 # Two texture units selected with the ARB names, through freeglut (as TORCS and plib)
 [ -f "$STAGE/lib/libglut.a" ] && $CC $RO_CFLAGS $GL -static "$T/multitex.c" \
     -o "$STAGE/tests/multitex,e1f" -lglut -lEGL $LIBS
