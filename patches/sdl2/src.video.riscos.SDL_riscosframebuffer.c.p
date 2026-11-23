@@ -116,7 +116,7 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
          SDL_free(driverdata->fb_area);
          return SDL_SetError("Unable to create sprite: %s (%i)", error->errmess, error->errnum);
      }
-@@ -91,31 +120,182 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window *window, Uint32 *format, vo
+@@ -91,31 +120,189 @@ int RISCOS_CreateWindowFramebuffer(_THIS, SDL_Window *window, Uint32 *format, vo
      return 0;
  }
  
@@ -128,15 +128,22 @@ diff --git src/video/riscos/SDL_riscosframebuffer.c src/video/riscos/SDL_riscosf
 +}
 +
 +/* 2026: the eigen factors a sprite plots with: a mode word's dpi (180 = 0,
-+   90 = 1, 45 = 2), otherwise (a mode number or the screen's own mode
-+   specifier) the screen's. */
++   90 = 1, 45 = 2), or the eigs themselves in RISC OS 5's mode word with
++   flags (type 15 in bits 27-31: bits 4-5 and 6-7 XEig and YEig, bits 8-15
++   ModeFlags, bits 20-26 the sprite type; what OS_SpriteOp 15 makes from an
++   alpha mode such as C16M LABGR, where reading it as dpi halved the
++   picture: RISC3D, 23 Nov 2026); otherwise (a mode number or the screen's
++   own mode specifier) the screen's. */
 +static void
 +RISCOS_SpriteEigs(const sprite_header *spr, int xeig, int yeig, int *sxe, int *sye)
 +{
 +    unsigned int mode = (unsigned int) spr->mode;
 +    *sxe = xeig;
 +    *sye = yeig;
-+    if ((mode & 1) && (mode >> 27) != 0) {
++    if ((mode & 1) && (mode >> 27) == 15) {
++        *sxe = (mode >> 4) & 3;
++        *sye = (mode >> 6) & 3;
++    } else if ((mode & 1) && (mode >> 27) != 0) {
 +        int xdpi = (mode >> 1) & 0x1FFF, ydpi = (mode >> 14) & 0x1FFF;
 +        *sxe = xdpi >= 180 ? 0 : xdpi >= 90 ? 1 : 2;
 +        *sye = ydpi >= 180 ? 0 : ydpi >= 90 ? 1 : 2;

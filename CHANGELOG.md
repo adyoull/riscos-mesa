@@ -4,6 +4,10 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
+## 20.3.5-24 (in development)
+
+- **SDL: windows drawn at the right size in alpha desktop modes** (`C16M LABGR`, Configure's RISC3D "z-layer complex overlays"). In those modes `OS_SpriteOp 15` makes the window's sprite with RISC OS 5's mode word with flags (type 15: the eigen factors in bits 4-7, ModeFlags in bits 8-15). SDL read it as an old-style mode word's dpi, so the picture was plotted at half width, with the window's right half never drawn: ClassiCube's launcher, found by RISC3D. `RISCOS_SpriteEigs` reads both forms. Checked on the owner's Pi 4 through TestAgent in `X1920 Y1200 C16M LABGR F60`: before, a 400x200 test window was drawn in its left half only; after, the whole window.
+
 ## 20.3.5-23: shared contexts and threads on the GPU, and the GPU drawing into a program's own memory
 
 For programs that draw on the GPU from several threads, and for RISC3D's setup window. Natively on a Pi 4, the GPU library's contexts can share objects and be current in several threads at once. A new EGL extension, `EGL_RISCOS_image_memory`, lets the GPU draw straight into memory the program has, with nothing read back. EGL gains the surfaceless platform. !MesaLibs gains GPUProbe, which reports what the GPU gives with no program running. The GPU library closes its GPU file at exit, refuses memory with no pages behind it, and makes fewer new buffers.
