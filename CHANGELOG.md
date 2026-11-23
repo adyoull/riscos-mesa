@@ -7,6 +7,20 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 ## 20.3.5-24 (in development)
 
 - **SDL: windows drawn at the right size in alpha desktop modes** (`C16M LABGR`, Configure's RISC3D "z-layer complex overlays"). In those modes `OS_SpriteOp 15` makes the window's sprite with RISC OS 5's mode word with flags (type 15: the eigen factors in bits 4-7, ModeFlags in bits 8-15). SDL read it as an old-style mode word's dpi, so the picture was plotted at half width, with the window's right half never drawn: ClassiCube's launcher, found by RISC3D. `RISCOS_SpriteEigs` reads both forms. Checked on the owner's Pi 4 through TestAgent in `X1920 Y1200 C16M LABGR F60`: before, a 400x200 test window was drawn in its left half only; after, the whole window.
+- **EGL: 16-bit (5:6:5) configs**, for software and the GPU. Four new configs (the depth/stencil choices) with red 5, green 6, blue 5, no alpha: red in bits 0-4, as RISC OS's 5:6:5 (sprite type 10, a C64K mode). `EGL_NATIVE_VISUAL_ID` 0x0080 (`EGL_RISCOS_VISUAL_565`), `EGL_MATCH_FORMAT_KHR` `EGL_FORMAT_RGB_565_KHR`.
+  - **Which comes first:** in a 16 bpp desktop the 5:6:5 configs sort first, unless a program asks for more than 5/6/5 bits, so a program that asks for 5/6/5 and takes the first config (as Pi programs do) gets 16 bits. In a 32 bpp desktop the 8-bit ones stay first.
+  - **In software** OSMesa draws 5:6:5 (`patches/mesa`: riscos-osmesa-565, a new `OSMESA_RGB_565_RISCOS` format) into a 16 bpp sprite, plotted pixel for pixel in a 5:6:5 desktop and converted (OS_SpriteOp 52) elsewhere. Full screen draws straight into a 5:6:5 screen's memory (or its banks). Pbuffers, pixmap surfaces on type 10 sprites and `eglCopyBuffers` between 16 and 32 bits work too (host-tested); `EGL_KHR_lock_surface` reports the 16-bit pixel layout (not yet tested). Hardware overlays and EGL images from sprites stay 32-bit.
+  - **On the GPU** the context's colour buffer is RGB565 (GPU library interface version 7, `create_format`; `r3d_create_format` in libOSMesa's RISC3D switch), half the memory and bandwidth, shown by V3DRender's present (0.32: its RGB565 source) or read back.
+  - **On the owner's Pi 4** (`presenttest -16`, a 640x400 window, swap interval 0, all checks passing: menu on top, colours by `OS_ReadPoint`):
+
+    | Desktop | GPU, 5:6:5 | Software, 5:6:5 | Software, 8888 |
+    |---|---|---|---|
+    | C64K | 626 fps | 812 fps | 422 fps |
+    | C16M | 580 fps | 516 fps | |
+
+    The GPU context reported 5/6/5 colour bits.
+  - A context and surface must both be 16-bit or both 32-bit (`EGL_BAD_MATCH` otherwise). Host harness: 640 checks (its fake RISC OS now has type 10 sprites and a real 5:6:5 screen).
+- eglChooseConfig could write past its list once there were more than 8 configs: the list is now sized from the configs.
 - **Windows shown by the GPU (V3DRender 0.31), under menus and other windows.** Natively on a Pi 4, an EGL window surface drawn by the GPU library is now drawn in the GPU's own tiles, and V3DRender 0.31's `DRM_IOCTL_RISCOS_PRESENT` copies each finished frame into the window's visible rectangles, as the Wimp gives them in its update and redraw loops. To the Wimp it's an ordinary redraw, so menus, other windows and drags stay over the picture, with no overlay, mode change or config.txt line. The copy is waited for before the swap returns, before the Wimp can draw anything else there.
   - **Speed:** on the owner's Pi 4, a 640x400 window cleared and swapped ran at 565 frames a second, against 66 with the plot. Drawing into tiles took 0.5 ms a frame where drawing into the sprite's rows took 13 ms; the copy itself is about 0.9 ms with the swap.
   - **glCopyTexSubImage2D from the window stays on the GPU** (David Sharp's Doom 3 item), as the window is an ordinary tiled colour buffer now.

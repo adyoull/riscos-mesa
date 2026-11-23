@@ -393,7 +393,8 @@ EGLAPI EGLImageKHR EGLAPIENTRY eglCreateImageKHR(EGLDisplay dpy, EGLContext ctx,
             }
         /* EGL_KHR_image_pixmap: sprites only, and no context */
         if (target != EGL_NATIVE_PIXMAP_KHR || ctx != EGL_NO_CONTEXT ||
-            !pixmap_info((void *) buffer, &w, &h, &layout, &pixels)) {
+            !pixmap_info((void *) buffer, &w, &h, &layout, &pixels) ||
+            layout == LAYOUT_565) {     /* (images: 32 bpp sprites only) */
             fail(EGL_BAD_PARAMETER);
             return EGL_NO_IMAGE_KHR;
         }

@@ -72,7 +72,11 @@
 
 #define LAYOUT_TBGR 0              /* 0x00BBGGRR: R,G,B,X in memory = OSMESA_RGBA */
 #define LAYOUT_TRGB 1              /* 0x00RRGGBB: B,G,R,X in memory = OSMESA_BGRA */
+#define LAYOUT_565  2              /* 16 bits: red in bits 0-4, blue in 11-15, as RISC OS's
+                                      5:6:5 (sprite type 10, a C64K mode) = OSMESA_RGB_565_RISCOS */
+#define LAYOUT_BYTES(l) ((l) == LAYOUT_565 ? 2 : 4)    /* bytes a pixel */
 #define MODEFLAG_TRGB 0x4000
+#define MODEFLAG_565  0x0080       /* a 16 bpp mode is 5:6:5 (else 1:5:5:5) */
 
 /* Native window handles that aren't Wimp windows */
 #define HANDLE_SCREEN   (-1)       /* the whole screen (EGL_RISCOS_SCREEN_WINDOW) */
@@ -114,6 +118,9 @@
    resolution (EX0 EY0) one. */
 #define SPRITE_MODE_TYPE6_EIG(xeig, yeig) \
     (1 | ((180 >> (xeig)) << 1) | ((180 >> (yeig)) << 14) | (6 << 27))
+/* 16bpp 5:6:5 sprite type 10 (red in bits 0-4), likewise */
+#define SPRITE_MODE_TYPE10_EIG(xeig, yeig) \
+    (1 | ((180 >> (xeig)) << 1) | ((180 >> (yeig)) << 14) | (10 << 27))
 
 #ifndef Wimp_GetWindowState
 #define Wimp_GetWindowState 0x400CB
@@ -159,6 +166,8 @@ typedef struct egl_config {
     EGLint id;
     EGLint depth, stencil;
     int layout;
+    int rank;                   /* sorts before depth: 0 the screen's own depth's configs
+                                   (565 first in a 16 bpp desktop), 1 the others */
 } egl_config;
 
 enum { SURF_WINDOW, SURF_PBUFFER, SURF_PIXMAP };
@@ -186,6 +195,7 @@ int r3d_in_program(void);
 int r3d_draw_into(void *pixels, int row_bytes, int width, int height);
 int r3d_in_place(const void *pixels);
 int r3d_draw_tiled(int on, int width, int height);
+struct r3d_context *r3d_create_format(int api, int major, int minor, struct r3d_context *share, int colour_bits);
 int r3d_present(const int *rects, int n);
 int r3d_can_share(void);
 struct r3d_context *r3d_create_shared(int api, int major, int minor, struct r3d_context *share);
@@ -319,7 +329,7 @@ typedef struct egl_image {
 typedef struct egl_display {
     EGLint magic;
     int initialised;
-    egl_config configs[8];
+    egl_config configs[12];
     int nconfigs;
     egl_surface *surfaces;
     egl_context *contexts;

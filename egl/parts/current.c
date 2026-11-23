@@ -23,7 +23,7 @@
 
 static GLenum osmesa_format(int layout)
 {
-    return layout == LAYOUT_TRGB ? OSMESA_BGRA : OSMESA_RGBA;
+    return layout == LAYOUT_TRGB ? OSMESA_BGRA : layout == LAYOUT_565 ? OSMESA_RGB_565_RISCOS : OSMESA_RGBA;
 }
 
 /* The surface's OSMesaBuffer, made the first time and pointed at the
@@ -47,8 +47,8 @@ static OSMesaBuffer surface_buffer(egl_surface *s)
    objects are what such a context is for). */
 static OSMesaBuffer standin_buffer(int layout)
 {
-    static OSMesaBuffer standin[2];
-    static unsigned int pixel[2];
+    static OSMesaBuffer standin[3];
+    static unsigned int pixel[3];
     if (!standin[layout]) {
         standin[layout] = OSMesaCreateBuffer(osmesa_format(layout), 0, 0);
         if (standin[layout])

@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-#define RISCOS_MESA_GPU_VERSION 6
+#define RISCOS_MESA_GPU_VERSION 7
 
 /* a gl function by its GL name, as RISC3D's client lists its own */
 struct riscos_mesa_gpu_function { const char *name; void (*fn)(void); };
@@ -91,6 +91,10 @@ struct riscos_mesa_gpu {
        aren't in functions (glActiveStencilFaceEXT, say); NULL if Mesa 26
        doesn't know the name. libOSMesa fills its list from this. */
     void (*(*get_proc)(const char *name))(void);
+    /* (version 7) create_shared (share NULL: none) with a colour buffer of
+       32 bits (RGBA8) or 16 (RGB565: EGL's 5:6:5 configs). read still
+       gives R,G,B,A bytes. NULL: see error() */
+    void *(*create_format)(int api, int major, int minor, void *share, int colour_bits);
 };
 
 /* the library's one exported name */

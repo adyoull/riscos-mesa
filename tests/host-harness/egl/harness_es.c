@@ -65,7 +65,7 @@ void test_gles(EGLDisplay dpy)
     unsigned char px[4];
 
     CHECK(strcmp(eglQueryString(dpy, EGL_CLIENT_APIS), "OpenGL OpenGL_ES") == 0, "client APIs");
-    CHECK(eglChooseConfig(dpy, NULL, NULL, 0, &n) && n == 8, "default choose (ES) finds all 8 (%d)", n);
+    CHECK(eglChooseConfig(dpy, NULL, NULL, 0, &n) && n == 12, "default choose (ES) finds all 12 (%d)", n);
     cfg = es_config(dpy, EGL_OPENGL_ES2_BIT);
     CHECK(cfg != NULL, "ES2 config");
     glc = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);     /* GL bound: desktop */

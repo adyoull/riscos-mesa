@@ -67,7 +67,7 @@ static int r3dw_frame_into(egl_surface *s, int overlapped)
     static unsigned int *tmp;
     static size_t tmp_words;
     size_t words = (size_t) s->w * s->h, bytes = words * 4;
-    unsigned int *dst = (unsigned int *) s->pixels;
+    unsigned int *dst = (unsigned int *) s->pixels;     /* (32-bit TBGR only) */
     int x, y, r;
 
     if (!s->pixels || s->w <= 0 || s->h <= 0)
@@ -88,14 +88,12 @@ static int r3dw_frame_into(egl_surface *s, int overlapped)
         return r;
     for (y = 0; y < s->h; y++) {
         const unsigned int *src = tmp + (size_t) y * s->w;
-        unsigned int *row = dst + (size_t) y * s->stride;
+        void *row = (char *) s->pixels + (size_t) y * s->stride * LAYOUT_BYTES(s->cfg->layout);
         if (s->cfg->layout == LAYOUT_TBGR)
             memcpy(row, src, (size_t) s->w * 4);
         else
-            for (x = 0; x < s->w; x++) {
-                unsigned int p = src[x];
-                row[x] = (p & 0xFF00FF00u) | ((p & 0xFF) << 16) | ((p >> 16) & 0xFF);
-            }
+            for (x = 0; x < s->w; x++)
+                pixel_put(row, x, s->cfg->layout, src[x]);      /* TRGB, or 16 bits */
     }
     return r;
 }
@@ -246,12 +244,38 @@ static void *r3dw_dispatch(void)
 }
 
 /* eglCreateContext: a RISC3D context for this request, or NULL (OSMesa) */
-static struct r3d_context *r3dw_create(EGLenum api, const context_request *q, const egl_context *share)
+static struct r3d_context *r3dw_create(EGLenum api, const context_request *q, const egl_context *share,
+                                       const egl_config *cfg)
 {
     struct r3d_context *r = NULL;
 
     if (q->software || (share && !share->r3d))
         return NULL;                    /* (OSMesa contexts share with OSMesa ones) */
+    if (cfg->layout == LAYOUT_565 && r3d_in_program()) {
+        /* a 5:6:5 config: the GPU library's colour buffer in 16 bits too
+           (shown by V3DRender's present as it is, or read back) */
+        int a, major = 0, minor = 0;
+        if (api == EGL_OPENGL_ES_API) {
+            if (!share && riscos_mesa_pick_renderer(api, q->major, q->minor) != RISCOS_MESA_RISC3D)
+                return NULL;
+            a = q->es == 1 ? R3D_API_GLES1 : R3D_API_GLES2;
+            if (q->es == 3) { major = q->major; minor = q->minor; }
+        } else if (!q->es) {
+            if (!share && riscos_mesa_pick_renderer(api, q->explicit_version ? q->major : 0,
+                                                    q->explicit_version ? q->minor : 0) != RISCOS_MESA_RISC3D)
+                return NULL;
+            a = R3D_API_GL;
+            if (q->explicit_version && q->major >= 3) { major = q->major; minor = q->minor; }
+        } else {
+            return NULL;
+        }
+        r = r3d_create_format(a, major, minor, share ? share->r3d : NULL, 16);
+        if (r && !r3dw_dispatch()) {
+            r3d_destroy(r);
+            r = NULL;
+        }
+        return r;
+    }
     if (share) {
         /* sharing with a RISC3D context: the GPU library's contexts can
            (r3d_can_share), the command stream's can't (eglCreateContext
@@ -530,6 +554,8 @@ static void r3dw_place(egl_surface *s)
         return;
     r3d_draw_into(NULL, 0, s ? s->w : 1, s ? s->h : 1);
 }
+
+/* (r3d_create_format: osmesa/r3d_switch.h) */
 
 /* s's memory is about to go or move: the GPU stops drawing into it */
 static void r3dw_release_pixels(egl_surface *s)

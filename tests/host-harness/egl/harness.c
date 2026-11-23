@@ -81,13 +81,13 @@ static void test_basics(void)
     CHECK(strcmp(eglQueryString(dpy, EGL_CLIENT_APIS), "OpenGL OpenGL_ES") == 0, "client APIs");
     ext = eglQueryString(dpy, EGL_EXTENSIONS);
     CHECK(ext && strstr(ext, "EGL_RISCOS_wimp_window"), "extension string");
-    CHECK(eglGetConfigs(dpy, NULL, 0, &n) && n == 8, "8 configs (got %d)", n);
+    CHECK(eglGetConfigs(dpy, NULL, 0, &n) && n == 12, "12 configs: 8888 in two orders, 5:6:5 (got %d)", n);
 
     /* The spec's default EGL_RENDERABLE_TYPE is ES: desktop GL configs don't match. */
-    CHECK(eglChooseConfig(dpy, NULL, cfgs, 16, &n) && n == 8, "default choose (ES) = all (%d)", n);
+    CHECK(eglChooseConfig(dpy, NULL, cfgs, 16, &n) && n == 12, "default choose (ES) = all (%d)", n);
     {
         EGLint a[] = { EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_NONE };
-        CHECK(eglChooseConfig(dpy, a, cfgs, 16, &n) && n == 8, "GL configs (%d)", n);
+        CHECK(eglChooseConfig(dpy, a, cfgs, 16, &n) && n == 12, "GL configs (%d)", n);
         eglGetConfigAttrib(dpy, cfgs[0], EGL_DEPTH_SIZE, &v);
         CHECK(v == 0, "sorted: smallest depth first (%d)", v);
         eglGetConfigAttrib(dpy, cfgs[0], EGL_NATIVE_VISUAL_ID, &v);
@@ -95,7 +95,7 @@ static void test_basics(void)
     }
     {
         EGLint a[] = { EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_DEPTH_SIZE, 17, EGL_STENCIL_SIZE, 1, EGL_NONE };
-        CHECK(eglChooseConfig(dpy, a, cfgs, 16, &n) && n == 2, "depth>=17 stencil>=1 (%d)", n);
+        CHECK(eglChooseConfig(dpy, a, cfgs, 16, &n) && n == 3, "depth>=17 stencil>=1: one a colour format (%d)", n);
         eglGetConfigAttrib(dpy, cfgs[0], EGL_DEPTH_SIZE, &v);
         CHECK(v == 24, "depth 24");
     }
@@ -1612,7 +1612,7 @@ static void test_trgb_screen(void)
         eglChooseConfig(dpy, d, c, 16, &n);
         eglGetConfigAttrib(dpy, c[0], EGL_DEPTH_SIZE, &d0);
         eglGetConfigAttrib(dpy, c[1], EGL_DEPTH_SIZE, &d1);
-        CHECK(n == 6 && d0 == 16 && d1 == 16, "sorted by depth before config id");
+        CHECK(n == 9 && d0 == 16 && d1 == 16, "sorted by depth before config id (%d)", n);
     }
     cfg = cfgs[0];
     ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
@@ -1639,6 +1639,191 @@ static void test_trgb_screen(void)
     /* Terminate with nothing current frees everything */
     CHECK(eglTerminate(dpy), "terminate");
     CHECK(!eglMakeCurrent(dpy, ws, ws, ctx) && eglGetError() == EGL_NOT_INITIALIZED, "gone after terminate");
+}
+
+/* 16-bit (5:6:5) configs: red in bits 0-4, as sprite type 10 and a C64K
+   mode. First in a 16 bpp desktop; plotted pixel for pixel in a 5:6:5
+   one, converted in a 32 bpp one; full screen straight into a 5:6:5
+   screen; pbuffers, pixmaps and eglCopyBuffers; RISC3D contexts asked
+   for a 16-bit colour buffer. */
+static void test_565(void)
+{
+    extern int fake_r3d_16;
+    EGLConfig cfgs[16], c565, c32;
+    EGLContext ctx, x32;
+    EGLSurface ws, ps, ds;
+    EGLint n, v, r, g, b, a, bs;
+    EGLint gl[] = { EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_NONE };
+    EGLint want565[] = { EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_RED_SIZE, 5, EGL_GREEN_SIZE, 6,
+                         EGL_BLUE_SIZE, 5, EGL_NONE };
+    EGLint want8[] = { EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_RED_SIZE, 8, EGL_NONE };
+    EGLint fmt[] = { EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_MATCH_FORMAT_KHR, EGL_FORMAT_RGB_565_KHR, EGL_NONE };
+    int plots, scaled, plots16;
+
+    /* a 32 bpp desktop: 8888 first, even when 5/6/5 is asked for */
+    fake_set_screen(640, 480, 0, 5);
+    eglInitialize(dpy, NULL, NULL);
+    eglChooseConfig(dpy, want565, cfgs, 16, &n);
+    eglGetConfigAttrib(dpy, cfgs[0], EGL_BUFFER_SIZE, &bs);
+    CHECK(n == 12 && bs == 32, "32 bpp desktop: 5/6/5 asked for, 8888 first (%d configs, %d bits)", n, bs);
+    eglChooseConfig(dpy, fmt, cfgs, 16, &n);
+    eglGetConfigAttrib(dpy, cfgs[0], EGL_RED_SIZE, &r);
+    eglGetConfigAttrib(dpy, cfgs[0], EGL_GREEN_SIZE, &g);
+    eglGetConfigAttrib(dpy, cfgs[0], EGL_BLUE_SIZE, &b);
+    eglGetConfigAttrib(dpy, cfgs[0], EGL_ALPHA_SIZE, &a);
+    eglGetConfigAttrib(dpy, cfgs[0], EGL_BUFFER_SIZE, &bs);
+    eglGetConfigAttrib(dpy, cfgs[0], EGL_NATIVE_VISUAL_ID, &v);
+    CHECK(n == 4 && r == 5 && g == 6 && b == 5 && a == 0 && bs == 16 && v == EGL_RISCOS_VISUAL_565,
+          "EGL_FORMAT_RGB_565_KHR: 4 configs, 5/6/5/0, 16 bits, visual &80 (%d: %d %d %d %d %d &%X)",
+          n, r, g, b, a, bs, v);
+    eglTerminate(dpy);
+
+    /* a 5:6:5 desktop: 5:6:5 first, unless more is asked for */
+    fake_set_screen(640, 480, 2, 4);
+    eglInitialize(dpy, NULL, NULL);
+    eglChooseConfig(dpy, gl, cfgs, 16, &n);
+    eglGetConfigAttrib(dpy, cfgs[0], EGL_BUFFER_SIZE, &bs);
+    CHECK(bs == 16, "16 bpp desktop: 5:6:5 first (%d bits)", bs);
+    eglChooseConfig(dpy, want565, cfgs, 16, &n);
+    eglGetConfigAttrib(dpy, cfgs[0], EGL_BUFFER_SIZE, &bs);
+    CHECK(bs == 16, "and when 5/6/5 is asked for (%d bits)", bs);
+    eglChooseConfig(dpy, want8, cfgs, 16, &n);
+    eglGetConfigAttrib(dpy, cfgs[0], EGL_BUFFER_SIZE, &bs);
+    CHECK(n == 8 && bs == 32, "red 8 asked for: 8888 only (%d, %d bits)", n, bs);
+
+    c565 = choose(EGL_RISCOS_VISUAL_565, 16, EGL_WINDOW_BIT);
+    c32 = choose(EGL_RISCOS_VISUAL_TBGR, 16, EGL_WINDOW_BIT);
+    ctx = eglCreateContext(dpy, c565, EGL_NO_CONTEXT, NULL);
+    CHECK(ctx != EGL_NO_CONTEXT, "5:6:5 context (software)");
+    fake_open_window(0x1000, 200, 300, 400, 460, 0, 0);     /* 100x80 at (100, 250) */
+    ws = eglCreateWindowSurface(dpy, c565, 0x1000, NULL);
+    CHECK(ws != EGL_NO_SURFACE && eglMakeCurrent(dpy, ws, ws, ctx), "5:6:5 window surface current");
+    {
+        GLint rb = 0, gb = 0, bb = 0;
+        glGetIntegerv(GL_RED_BITS, &rb); glGetIntegerv(GL_GREEN_BITS, &gb); glGetIntegerv(GL_BLUE_BITS, &bb);
+        CHECK(rb == 5 && gb == 6 && bb == 5, "GL sees 5/6/5 (%d %d %d)", rb, gb, bb);
+    }
+    plots = fake_plots; scaled = fake_scaled_plots; plots16 = fake_plots_16;
+    clear(0, 0, 1);
+    eglSwapBuffers(dpy, ws);
+    CHECK(box_is(100, 250, 100, 80, BLUE_TBGR), "blue on the 5:6:5 screen");
+    CHECK(fake_plots_16 > plots16 && fake_scaled_plots == scaled,
+          "a 5:6:5 sprite, plotted pixel for pixel (%d plots, %d scaled)", fake_plots - plots, fake_scaled_plots - scaled);
+    clear(1, 1, 0);
+    eglSwapBuffers(dpy, ws);
+    CHECK(box_is(100, 250, 100, 80, 0x00FFFF), "yellow too (red in the low bits)");
+    {
+        /* context and surface must match: a 32-bit one is EGL_BAD_MATCH */
+        x32 = eglCreateContext(dpy, c32, EGL_NO_CONTEXT, NULL);
+        CHECK(!eglMakeCurrent(dpy, ws, ws, x32) && eglGetError() == EGL_BAD_MATCH,
+              "8888 context, 5:6:5 surface: EGL_BAD_MATCH");
+        eglMakeCurrent(dpy, ws, ws, ctx);
+    }
+
+    /* the same surface in a 32 bpp desktop: converted on plot */
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    fake_set_screen(640, 480, 0, 5);
+    fake_reset_clip();
+    eglMakeCurrent(dpy, ws, ws, ctx);
+    scaled = fake_scaled_plots;
+    clear(0, 1, 0);
+    eglSwapBuffers(dpy, ws);
+    CHECK(box_is(100, 250, 100, 80, 0x00FF00) && fake_scaled_plots > scaled,
+          "in a 32 bpp desktop: converted (OS_SpriteOp 52)");
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, ws);
+
+    /* full screen, straight into a 5:6:5 screen's memory */
+    fake_set_screen(640, 480, 2, 4);
+    fake_reset_clip();
+    {
+        EGLint sb[] = { EGL_RENDER_BUFFER, EGL_SINGLE_BUFFER, EGL_NONE };
+        ds = eglCreateWindowSurface(dpy, c565, EGL_RISCOS_SCREEN_WINDOW, sb);
+        CHECK(ds != EGL_NO_SURFACE && eglMakeCurrent(dpy, ds, ds, ctx), "5:6:5 full screen, single buffered");
+        plots = fake_plots;
+        clear(1, 0, 0);
+        glFinish();
+        CHECK(RGB(fake_screen_pixel(0, 0)) == 0x0000FF && RGB(fake_screen_pixel(639, 479)) == 0x0000FF &&
+              fake_plots == plots, "drawn straight into screen memory, 2 bytes a pixel (&%06X)",
+              RGB(fake_screen_pixel(639, 479)));
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(dpy, ds);
+    }
+
+    /* a pbuffer, and eglCopyBuffers into a 32 bpp and a 5:6:5 pixmap */
+    {
+        EGLConfig pc = choose(EGL_RISCOS_VISUAL_565, 16, EGL_PBUFFER_BIT);
+        EGLint pa[] = { EGL_WIDTH, 7, EGL_HEIGHT, 5, EGL_NONE };
+        int *s32 = make_sprite(7, 5, 0), *area16, *s16;
+        unsigned char px[4];
+        ps = eglCreatePbufferSurface(dpy, pc, pa);
+        CHECK(ps != EGL_NO_SURFACE && eglMakeCurrent(dpy, ps, ps, ctx), "5:6:5 pbuffer (7x5: odd rows)");
+        clear(0, 1, 1);
+        glReadPixels(6, 4, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+        CHECK(px[0] == 0 && px[1] == 255 && px[2] == 255, "pbuffer reads back cyan (%d %d %d)", px[0], px[1], px[2]);
+        CHECK(eglCopyBuffers(dpy, ps, (EGLNativePixmapType) s32) &&
+              RGB(((unsigned *) ((char *) s32 + s32[8]))[6 + 4 * 7]) == 0xFFFF00,
+              "copied into a 32 bpp sprite (&%06X)", RGB(((unsigned *) ((char *) s32 + s32[8]))[6 + 4 * 7]));
+        /* a 7x5 5:6:5 sprite: rows of 4 words (8 pixels, the last unused) */
+        area16 = (int *) calloc(1, 16 + 44 + 16 * 5 + 16);
+        area16[0] = 16 + 44 + 16 * 5 + 16; area16[2] = 16; area16[3] = 16;
+        {
+            _kernel_swi_regs rr;
+            rr.r[0] = 256 + 15; rr.r[1] = (int) (long) area16; rr.r[2] = (int) (long) "p16"; rr.r[3] = 0;
+            rr.r[4] = 7; rr.r[5] = 5; rr.r[6] = 1 | (90 << 1) | (90 << 14) | (10 << 27);
+            _kernel_swi(0x2E /* OS_SpriteOp */, &rr, &rr);
+        }
+        s16 = area16 + 4;
+        CHECK(s16[7] == 15 && s16[4] == 3, "fake: a 7-wide 5:6:5 sprite is 4 words a row");
+        CHECK(eglCopyBuffers(dpy, ps, (EGLNativePixmapType) s16) &&
+              ((unsigned short *) ((char *) s16 + s16[8]))[6 + 4 * 8] == 0xFFE0,
+              "copied into a 5:6:5 sprite as it is (&%04X)", ((unsigned short *) ((char *) s16 + s16[8]))[6 + 4 * 8]);
+        {
+            /* and a pixmap surface on it */
+            EGLConfig xc = choose(EGL_RISCOS_VISUAL_565, 0, EGL_PIXMAP_BIT);
+            EGLContext x0 = eglCreateContext(dpy, xc, EGL_NO_CONTEXT, NULL);
+            EGLSurface xs = eglCreatePixmapSurface(dpy, xc, (EGLNativePixmapType) s16, NULL);
+            CHECK(xs != EGL_NO_SURFACE && eglMakeCurrent(dpy, xs, xs, x0), "pixmap surface on a 5:6:5 sprite");
+            clear(1, 0, 0);
+            glFinish();
+            CHECK(((unsigned short *) ((char *) s16 + s16[8]))[6 + 4 * 8] == 0x001F &&
+                  ((unsigned short *) ((char *) s16 + s16[8]))[0] == 0x001F,
+                  "drawn into it, rows 8 pixels apart (&%04X)", ((unsigned short *) ((char *) s16 + s16[8]))[6 + 4 * 8]);
+            eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+            eglDestroySurface(dpy, xs);
+            eglDestroyContext(dpy, x0);
+        }
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(dpy, ps);
+        free(area16);
+    }
+
+    /* RISC3D: a 5:6:5 config asks the GPU library for a 16-bit colour
+       buffer; its frame is read back into the 5:6:5 sprite */
+    {
+        extern int fake_r3d_present;
+        EGLContext r;
+        int before = fake_r3d_16;
+        fake_r3d_on = 1;
+        fake_r3d_present = 1;           /* (r3d_in_program: the GPU library) */
+        r = eglCreateContext(dpy, c565, EGL_NO_CONTEXT, NULL);
+        CHECK(r != EGL_NO_CONTEXT && fake_r3d_16 == before + 1, "GPU library: a 16-bit colour buffer asked for");
+        fake_r3d_present = 0;           /* (no present: read back) */
+        ws = eglCreateWindowSurface(dpy, c565, 0x1000, NULL);
+        eglMakeCurrent(dpy, ws, ws, r);
+        clear(1, 0, 1);
+        eglSwapBuffers(dpy, ws);
+        CHECK(box_is(100, 250, 100, 80, 0xFF00FF), "its frame read back into 5:6:5 and plotted");
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(dpy, ws);
+        eglDestroyContext(dpy, r);
+        fake_r3d_on = 0;
+    }
+    eglDestroyContext(dpy, ctx);
+    eglDestroyContext(dpy, x32);
+    eglTerminate(dpy);
+    fake_set_screen(640, 480, 0, 5);
+    fake_reset_clip();
 }
 
 /* ------------------------------------------------------------------ */
@@ -2483,6 +2668,7 @@ static void *run(void *arg)
     test_risc3d_plane();
     test_risc3d_present();
     test_trgb_screen();
+    test_565();
     test_overlay(dpy);          /* last: hooks in the fake VideoOverlay */
     return NULL;
 }

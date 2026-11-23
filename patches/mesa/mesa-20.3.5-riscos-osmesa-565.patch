@@ -1,0 +1,141 @@
+OSMesa: a 16-bit format in RISC OS's 5:6:5 order (2026-11-23)
+
+- include/GL/osmesa.h, drivers/osmesa/osmesa.c: OSMESA_RGB_565_RISCOS,
+  16-bit pixels with red in bits 0-4 and blue in 11-15, as RISC OS's 5:6:5
+  sprites (type 10) and C64K screens (Mesa's MESA_FORMAT_R5G6B5_UNORM;
+  OSMESA_RGB_565 has red at the top). For contexts (OSMESA_FORMAT),
+  OSMesaMakeCurrent (type GL_UNSIGNED_SHORT_5_6_5) and OSMesaBuffers, whose
+  rows are then 2 bytes a pixel. EGL's 16-bit configs draw with it.
+  OSMesa's own fast lines and triangles stay 32-bit only, as before.
+
+--- a/include/GL/osmesa.h
++++ b/include/GL/osmesa.h
+@@ -113,6 +113,11 @@
+ /* riscos-mesa: OSMesaCreateContextAttribs: a non-zero value always draws
+    in software, never through RISC3D (EGL's own contexts use it) */
+ #define OSMESA_SOFTWARE_RISCOS       0x7F00
++/* riscos-mesa: a format: 16-bit pixels with red in bits 0-4, green in 5-10
++   and blue in 11-15, as RISC OS's 5:6:5 (sprite type 10, a C64K mode).
++   (OSMESA_RGB_565 has red at the top.) Through OSMesaMakeCurrent the type
++   is GL_UNSIGNED_SHORT_5_6_5. */
++#define OSMESA_RGB_565_RISCOS        0x7F01
+ 
+ 
+ typedef struct osmesa_context *OSMesaContext;
+@@ -368,7 +373,7 @@
+  *
+  * An OSMesaBuffer is a drawable of its own: its colour buffer is memory
+  * the caller supplies (32-bit OSMESA_RGBA or OSMESA_BGRA pixels, as
+- * GL_UNSIGNED_BYTE), and its depth and stencil buffers belong to it rather
++ * GL_UNSIGNED_BYTE, or 16-bit OSMESA_RGB_565_RISCOS), and its depth and stencil buffers belong to it rather
+  * than to a context. So several contexts drawing into it in turn share its
+  * depth buffer, as EGL requires, and a context can draw into one buffer
+  * and read (glReadPixels, glCopyTexImage...) from another.
+--- a/src/mesa/drivers/osmesa/osmesa.c
++++ b/src/mesa/drivers/osmesa/osmesa.c
+@@ -739,6 +739,9 @@
+       assert(osmesa->DataType == GL_UNSIGNED_BYTE);
+       rb->Format = MESA_FORMAT_B5G6R5_UNORM;
+    }
++   else if (osmesa->format == OSMESA_RGB_565_RISCOS) {
++      rb->Format = MESA_FORMAT_R5G6B5_UNORM;    /* riscos-mesa: red in bits 0-4 */
++   }
+    else {
+       _mesa_problem(ctx, "bad pixel format in osmesa renderbuffer_storage");
+    }
+@@ -791,7 +794,8 @@
+    if (rb->ClassID == OSMESA_BUFFER_RB_CLASS) {
+       /* riscos-mesa: an OSMesaBuffer's colour: its own row length and order */
+       const struct osmesa_buffer_rb *brb = (const struct osmesa_buffer_rb *) rb;
+-      const GLint rowStride = brb->RowLength * 4;
++      const GLint bpp = brb->Format == OSMESA_RGB_565_RISCOS ? 2 : 4;
++      const GLint rowStride = brb->RowLength * bpp;
+ 
+       if (!brb->YUp) {
+          y = rb->Height - y - 1;
+@@ -800,7 +804,7 @@
+       else {
+          *rowStrideOut = rowStride;
+       }
+-      *mapOut = (GLubyte *) brb->Base.Buffer + y * rowStride + x * 4;
++      *mapOut = (GLubyte *) brb->Base.Buffer + y * rowStride + x * bpp;
+    }
+    else if (rb->ClassID == OSMESA_RENDERBUFFER_CLASS) {
+       /* this is an OSMesa renderbuffer which wraps user memory */
+@@ -1007,6 +1011,7 @@
+          case OSMESA_RGB:
+          case OSMESA_BGR:
+          case OSMESA_RGB_565:
++         case OSMESA_RGB_565_RISCOS:
+             /* legal */
+             break;
+          default:
+@@ -1113,7 +1118,7 @@
+       bind = 0;
+    }
+ #if CHAN_TYPE == GL_UNSIGNED_BYTE
+-   else if (format==OSMESA_RGB_565) {
++   else if (format==OSMESA_RGB_565 || format==OSMESA_RGB_565_RISCOS) {
+       redBits = 5;
+       greenBits = 6;
+       blueBits = 5;
+@@ -1344,7 +1349,8 @@
+       return GL_FALSE;
+    }
+ 
+-   if (osmesa->format == OSMESA_RGB_565 && type != GL_UNSIGNED_SHORT_5_6_5) {
++   if ((osmesa->format == OSMESA_RGB_565 || osmesa->format == OSMESA_RGB_565_RISCOS) &&
++       type != GL_UNSIGNED_SHORT_5_6_5) {
+       return GL_FALSE;
+    }
+ 
+@@ -1422,6 +1428,9 @@
+    (void) ctx;
+    (void) internalFormat;
+ #if UTIL_ARCH_LITTLE_ENDIAN
++   if (brb->Format == OSMESA_RGB_565_RISCOS)
++      rb->Format = MESA_FORMAT_R5G6B5_UNORM;
++   else
+    rb->Format = brb->Format == OSMESA_BGRA ? MESA_FORMAT_B8G8R8A8_UNORM
+                                            : MESA_FORMAT_R8G8B8A8_UNORM;
+ #else
+@@ -1440,13 +1449,17 @@
+    struct osmesa_buffer *buf;
+    struct gl_config *visual;
+ 
+-   if ((format != OSMESA_RGBA && format != OSMESA_BGRA) ||
++   if ((format != OSMESA_RGBA && format != OSMESA_BGRA && format != OSMESA_RGB_565_RISCOS) ||
+        depthBits < 0 || depthBits > 32 || stencilBits < 0 || stencilBits > 8)
+       return NULL;
+ 
+    buf = CALLOC_STRUCT(osmesa_buffer);
+    if (!buf)
+       return NULL;
++   if (format == OSMESA_RGB_565_RISCOS)
++      visual = _mesa_create_visual(GL_FALSE, GL_FALSE, 5, 6, 5, 0,
++                                   depthBits, stencilBits, 0, 0, 0, 0, 1);
++   else
+    visual = _mesa_create_visual(GL_FALSE, GL_FALSE, 8, 8, 8, 8,
+                                 depthBits, stencilBits, 0, 0, 0, 0, 1);
+    if (visual) {
+@@ -1465,8 +1478,8 @@
+    buf->rb->Base.Base.ClassID = OSMESA_BUFFER_RB_CLASS;
+    buf->rb->Base.Base.Delete = osmesa_delete_renderbuffer;
+    buf->rb->Base.Base.AllocStorage = osmesa_buffer_rb_storage;
+-   buf->rb->Base.Base.InternalFormat = GL_RGBA;
+-   buf->rb->Base.Base._BaseFormat = GL_RGBA;
++   buf->rb->Base.Base.InternalFormat = format == OSMESA_RGB_565_RISCOS ? GL_RGB : GL_RGBA;
++   buf->rb->Base.Base._BaseFormat = format == OSMESA_RGB_565_RISCOS ? GL_RGB : GL_RGBA;
+    buf->rb->Format = format;
+    _mesa_attach_and_reference_rb(buf->fb, BUFFER_FRONT_LEFT,
+                                  &buf->rb->Base.Base);
+@@ -1542,7 +1555,8 @@
+ 
+    /* for OSMesa's own fast line and triangle functions */
+    set_row_addresses(osmesa, (GLubyte *) draw->rb->Base.Buffer, draw->height,
+-                     draw->rb->RowLength * 4, draw->rb->YUp);
++                     draw->rb->RowLength * (draw->rb->Format == OSMESA_RGB_565_RISCOS ? 2 : 4),
++                     draw->rb->YUp);
+    return GL_TRUE;
+ }
+ 

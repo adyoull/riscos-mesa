@@ -121,7 +121,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglChooseConfig(EGLDisplay dpy, const EGLint *attr
                                               EGLint *num_config)
 {
     egl_display *d;
-    const egl_config *match[8];
+    const egl_config *match[sizeof ((egl_display *) 0)->configs / sizeof (egl_config)];
     int i, n;
 
     ENTER();
@@ -357,7 +357,7 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreatePbufferSurface(EGLDisplay dpy, EGLConfig 
     s->w = w > 0 ? w : 1;
     s->h = h > 0 ? h : 1;
     s->stride = s->w;
-    s->mem = calloc((size_t) s->w * s->h, 4);
+    s->mem = calloc((size_t) s->w * s->h, LAYOUT_BYTES(c->layout));
     if (!s->mem) {
         free(s);
         fail(EGL_BAD_ALLOC);
@@ -378,7 +378,7 @@ static EGLSurface create_pixmap_surface(EGLDisplay dpy, EGLConfig config,
     egl_display *d;
     const egl_config *c;
     egl_surface *s;
-    int i, w, h, layout;
+    int i, w, h, layout, stride;
     void *px;
 
     if (!(d = get_display(dpy, 1)) || !(c = get_config(d, config)))
@@ -389,7 +389,7 @@ static EGLSurface create_pixmap_surface(EGLDisplay dpy, EGLConfig config,
             return EGL_NO_SURFACE;
         }
     }
-    if (!pixmap_info(pixmap, &w, &h, &layout, &px)) {
+    if (!pixmap_info_stride(pixmap, &w, &h, &layout, &px, &stride)) {
         fail(EGL_BAD_NATIVE_PIXMAP);
         return EGL_NO_SURFACE;
     }
@@ -402,7 +402,7 @@ static EGLSurface create_pixmap_surface(EGLDisplay dpy, EGLConfig config,
     s->render_buffer = EGL_SINGLE_BUFFER;
     s->w = w;
     s->h = h;
-    s->stride = w;
+    s->stride = stride;
     s->pixels = px;
     add_surface(d, s);
     ok();
@@ -437,13 +437,14 @@ static EGLBoolean query_surface(EGLDisplay dpy, EGLSurface surface, EGLint attri
 {
     egl_display *d;
     egl_surface *s;
-    int trgb;
+    int trgb, s565;
 
     if (!(d = get_display(dpy, 1)) || !(s = get_surface(d, surface)))
         return EGL_FALSE;
     if (!value)
         return fail(EGL_BAD_PARAMETER);
     trgb = s->cfg->layout == LAYOUT_TRGB;
+    s565 = s->cfg->layout == LAYOUT_565;
     switch (attribute) {
     case EGL_CONFIG_ID:        *value = s->cfg->id; break;
     case EGL_WIDTH:            *value = s->kind == SURF_PBUFFER ? s->pb_w : s->w; break;
@@ -501,14 +502,14 @@ static EGLBoolean query_surface(EGLDisplay dpy, EGLSurface surface, EGLint attri
             return fail(EGL_BAD_ACCESS);
         switch (attribute) {
         case EGL_BITMAP_POINTER_KHR:  *value = (EGLAttribKHR) s->pixels; break;
-        case EGL_BITMAP_PITCH_KHR:    *value = s->stride * 4; break;
+        case EGL_BITMAP_PITCH_KHR:    *value = s->stride * LAYOUT_BYTES(s->cfg->layout); break;
         case EGL_BITMAP_ORIGIN_KHR:   *value = EGL_UPPER_LEFT_KHR; break;
-        case EGL_BITMAP_PIXEL_RED_OFFSET_KHR:   *value = trgb ? 16 : 0; break;
-        case EGL_BITMAP_PIXEL_GREEN_OFFSET_KHR: *value = 8; break;
-        case EGL_BITMAP_PIXEL_BLUE_OFFSET_KHR:  *value = trgb ? 0 : 16; break;
-        case EGL_BITMAP_PIXEL_ALPHA_OFFSET_KHR: *value = 24; break;
+        case EGL_BITMAP_PIXEL_RED_OFFSET_KHR:   *value = s565 ? 0 : trgb ? 16 : 0; break;
+        case EGL_BITMAP_PIXEL_GREEN_OFFSET_KHR: *value = s565 ? 5 : 8; break;
+        case EGL_BITMAP_PIXEL_BLUE_OFFSET_KHR:  *value = s565 ? 11 : trgb ? 0 : 16; break;
+        case EGL_BITMAP_PIXEL_ALPHA_OFFSET_KHR: *value = s565 ? 0 : 24; break;
         case EGL_BITMAP_PIXEL_LUMINANCE_OFFSET_KHR: *value = 0; break;
-        case EGL_BITMAP_PIXEL_SIZE_KHR: *value = 32; break;
+        case EGL_BITMAP_PIXEL_SIZE_KHR: *value = s565 ? 16 : 32; break;
         }
         break;
     default:
@@ -811,7 +812,7 @@ static void osmesa_context_attribs(const egl_config *c, const context_request *q
 {
     int n = 0;
     attribs[n++] = OSMESA_FORMAT;
-    attribs[n++] = c->layout == LAYOUT_TRGB ? OSMESA_BGRA : OSMESA_RGBA;
+    attribs[n++] = osmesa_format(c->layout);
     attribs[n++] = OSMESA_DEPTH_BITS;   attribs[n++] = c->depth;
     attribs[n++] = OSMESA_STENCIL_BITS; attribs[n++] = c->stencil;
     attribs[n++] = OSMESA_ACCUM_BITS;   attribs[n++] = 0;
@@ -868,7 +869,7 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
         return EGL_NO_CONTEXT;
     }
     /* RISC3D (a hardware path) where it has a driver; OSMesa otherwise */
-    ctx->r3d = r3dw_create(api, &q, share);
+    ctx->r3d = r3dw_create(api, &q, share, c);
     if (ctx->r3d)
         ctx->r3d_overlapped = r3dw_want_overlapped();
     else if (share && share->r3d)
@@ -1137,13 +1138,13 @@ EGLAPI EGLBoolean EGLAPIENTRY eglCopyBuffers(EGLDisplay dpy, EGLSurface surface,
 {
     egl_display *d;
     egl_surface *s;
-    int w, h, layout, x, y, cw, ch;
+    int w, h, layout, x, y, cw, ch, stride;
     void *px;
 
     ENTER();
     if (!(d = get_display(dpy, 1)) || !(s = get_surface(d, surface)))
         return EGL_FALSE;
-    if (!pixmap_info(target, &w, &h, &layout, &px))
+    if (!pixmap_info_stride(target, &w, &h, &layout, &px, &stride))
         return fail(EGL_BAD_NATIVE_PIXMAP);
     if (thr()->active && thr()->active->r3d && thr()->active->draw == s) {
         if (!thr()->active->r3d_overlapped && s->r3d_ovl != R3O_ON)
@@ -1154,16 +1155,13 @@ EGLAPI EGLBoolean EGLAPIENTRY eglCopyBuffers(EGLDisplay dpy, EGLSurface surface,
     cw = w < s->w ? w : s->w;
     ch = h < s->h ? h : s->h;
     for (y = 0; y < ch; y++) {
-        const unsigned int *src = (const unsigned int *) s->pixels + (size_t) y * s->stride;
-        unsigned int *dst = (unsigned int *) px + (size_t) y * w;
-        if (layout == s->cfg->layout) {
-            memcpy(dst, src, cw * 4);
-        } else {
-            for (x = 0; x < cw; x++) {
-                unsigned int p = src[x];
-                dst[x] = (p & 0xFF00FF00u) | ((p >> 16) & 0xFF) | ((p & 0xFF) << 16);
-            }
-        }
+        const char *src = (const char *) s->pixels + (size_t) y * s->stride * LAYOUT_BYTES(s->cfg->layout);
+        char *dst = (char *) px + (size_t) y * stride * LAYOUT_BYTES(layout);
+        if (layout == s->cfg->layout)
+            memcpy(dst, src, (size_t) cw * LAYOUT_BYTES(layout));
+        else
+            for (x = 0; x < cw; x++)
+                pixel_put(dst, x, layout, pixel_get(src, x, s->cfg->layout));
     }
     return ok();
 }

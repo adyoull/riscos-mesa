@@ -70,8 +70,10 @@
  *   default is 1: pixel for pixel, as before.
  *
  *   EGL_NATIVE_VISUAL_ID of a config is the RISC OS ModeFlags colour order
- *   of its pixels: 0 (0x00BBGGRR, as sprite type 6) or 0x4000 (0x00RRGGBB).
- *   The configs matching the current screen mode have the lowest IDs.
+ *   of its pixels: 0 (0x00BBGGRR, as sprite type 6), 0x4000 (0x00RRGGBB),
+ *   or 0x0080 (16 bits: 5:6:5 with red in bits 0-4, as sprite type 10 and
+ *   a C64K mode). The configs matching the current screen mode have the
+ *   lowest IDs, and in a 16 bpp mode the 5:6:5 ones sort first.
  */
 #ifndef EGLEXT_RISCOS_H
 #define EGLEXT_RISCOS_H
@@ -112,6 +114,7 @@ extern "C" {
 /* ModeFlags colour order bits reported as EGL_NATIVE_VISUAL_ID */
 #define EGL_RISCOS_VISUAL_TBGR          0x0000
 #define EGL_RISCOS_VISUAL_TRGB          0x4000
+#define EGL_RISCOS_VISUAL_565           0x0080
 
 typedef EGLBoolean (EGLAPIENTRYP PFNEGLREDRAWWINDOWRISCOSPROC) (EGLDisplay dpy, int *block);
 typedef EGLBoolean (EGLAPIENTRYP PFNEGLPLOTSURFACERISCOSPROC) (EGLDisplay dpy, EGLSurface surface, const int *block);

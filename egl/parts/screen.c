@@ -49,9 +49,39 @@ static void read_screen(screen_info *s)
 /* Colour order of the screen, or -1 if it isn't 32bpp. */
 static int screen_layout(const screen_info *s)
 {
+    if (s->log2bpp == 4)        /* only 5:6:5 in TBGR order is a layout of ours */
+        return (s->flags & (MODEFLAG_565 | MODEFLAG_TRGB)) == MODEFLAG_565 ? LAYOUT_565 : -1;
     if (s->log2bpp != 5)
         return -1;
     return (s->flags & MODEFLAG_TRGB) ? LAYOUT_TRGB : LAYOUT_TBGR;
+}
+
+/* A pixel of a row in a layout (LAYOUT_*) as &AABBGGRR (5:6:5: opaque),
+   and back */
+static unsigned int pixel_get(const void *row, int x, int layout)
+{
+    unsigned int p;
+    if (layout == LAYOUT_565) {
+        unsigned int r, g, b;
+        p = ((const unsigned short *) row)[x];
+        r = p & 31; g = (p >> 5) & 63; b = p >> 11;
+        return 0xFF000000u | (r << 3 | r >> 2) | (g << 2 | g >> 4) << 8 | (b << 3 | b >> 2) << 16;
+    }
+    p = ((const unsigned int *) row)[x];
+    if (layout == LAYOUT_TRGB)
+        p = (p & 0xFF00FF00u) | ((p >> 16) & 0xFF) | ((p & 0xFF) << 16);
+    return p;
+}
+
+static void pixel_put(void *row, int x, int layout, unsigned int p)
+{
+    if (layout == LAYOUT_565)
+        ((unsigned short *) row)[x] = (unsigned short) (((p >> 3) & 31) | ((p >> 10) & 63) << 5 |
+                                                        ((p >> 19) & 31) << 11);
+    else if (layout == LAYOUT_TRGB)
+        ((unsigned int *) row)[x] = (p & 0xFF00FF00u) | ((p >> 16) & 0xFF) | ((p & 0xFF) << 16);
+    else
+        ((unsigned int *) row)[x] = p;
 }
 
 static int read_mode_variable(int mode, int var, int *value)
@@ -82,6 +112,8 @@ static int sprite_mode_for(int layout, const screen_info *s)
 
     if (layout == LAYOUT_TBGR)
         return SPRITE_MODE_TYPE6_EIG(s->xeig, s->yeig);
+    if (layout == LAYOUT_565)
+        return SPRITE_MODE_TYPE10_EIG(s->xeig, s->yeig);
     if (screen_layout(s) == LAYOUT_TRGB) {
         r.r[0] = 1;             /* return current mode specifier */
         if (_kernel_swi(OS_ScreenMode, &r, &r) == NULL)
@@ -498,11 +530,12 @@ static void plot_rectangle(const egl_surface *surf, const int *block, const scre
     r.r[3] = x;
     r.r[4] = top - (surf->sprite_h << s->yeig);
     r.r[5] = 0;
-    if (s->log2bpp != 5) {
-        /* not a 32 bpp screen (a 64K colour desktop, say): PutSpriteUserCoords
-           would copy the 32 bpp pixels as they are, two to a screen pixel
-           (David Sharp, 23 Nov 2026), so PutSpriteScaled at 1:1, whose
-           SpriteExtend converts true colour with no table */
+    if (surf->cfg->layout == LAYOUT_565 ? screen_layout(s) != LAYOUT_565 : s->log2bpp != 5) {
+        /* the sprite's pixels aren't the screen's (a 32 bpp sprite in a
+           64K colour desktop, say): PutSpriteUserCoords would copy them as
+           they are, two to a screen pixel (David Sharp, 23 Nov 2026), so
+           PutSpriteScaled at 1:1, whose SpriteExtend converts true colour
+           with no table. A 5:6:5 sprite in a 5:6:5 desktop is copied. */
         static const int one[4] = { 1, 1, 1, 1 };
         r.r[0] = SPRITEOP_PUT_SCALED;
         r.r[6] = (int) one;

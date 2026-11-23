@@ -101,7 +101,7 @@ static int screen_memory_usable(const egl_surface *surf, const screen_info *s)
 {
     return surf->handle == HANDLE_SCREEN && !surf->rw &&
            screen_layout(s) == surf->cfg->layout && s->start != NULL &&
-           (s->line_length & 3) == 0;
+           (s->line_length & 3) == 0;   /* (also whole pixels at 2 bytes) */
 }
 
 /* A window surface's buffer couldn't be made (EGL error set). If its old
@@ -123,6 +123,7 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
 {
     _kernel_swi_regs r;
     int w, h, size, mode, sprite_h, *area;
+    int bpp = LAYOUT_BYTES(surf->cfg->layout), row;     /* bytes a pixel, a sprite row */
     void *mem;
 
     surf->scale = surface_scale(surf, s);
@@ -132,7 +133,7 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
     if (screen_memory_usable(surf, s) && surf->render_buffer == EGL_BACK_BUFFER &&
         !surf->no_banks && surf->want_banks >= 2) {
         if (surf->banks && surf->bank_addr[1] == s->start && surf->w == w &&
-            surf->h == h && surf->stride == s->line_length / 4)
+            surf->h == h && surf->stride == s->line_length / bpp)
             return 0;
         free_buffers(surf);
         surf->banks = setup_banks(surf, s);
@@ -142,7 +143,7 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
             surf->pixels = surf->bank_addr[2];
             surf->w = w;
             surf->h = h;
-            surf->stride = s->line_length / 4;
+            surf->stride = s->line_length / bpp;
             surf->swap_behavior = EGL_BUFFER_DESTROYED;
             surf->swaps = 0;
             return 1;
@@ -152,14 +153,14 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
 
     if (screen_memory_usable(surf, s) && surf->render_buffer == EGL_SINGLE_BUFFER) {
         if (surf->direct && surf->pixels == s->start && surf->w == w &&
-            surf->h == h && surf->stride == s->line_length / 4)
+            surf->h == h && surf->stride == s->line_length / bpp)
             return 0;
         free_buffers(surf);
         surf->direct = 1;
         surf->pixels = s->start;
         surf->w = w;
         surf->h = h;
-        surf->stride = s->line_length / 4;
+        surf->stride = s->line_length / bpp;
         surf->swaps = 0;
         return 1;
     }
@@ -171,15 +172,16 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
 
     /* (w and h are a window's or the screen's size, or at most MAX_PBUFFER
        for work area, render size and DispmanX surfaces: no overflow) */
+    row = (w * bpp + 3) & ~3;           /* sprite rows are whole words */
     sprite_h = h;
-    if ((long) w * 4 * h < MIN_SPRITE_BYTES)
-        sprite_h = (MIN_SPRITE_BYTES + w * 4 - 1) / (w * 4);
-    size = 16 + 44 + w * 4 * sprite_h;
+    if ((long) row * h < MIN_SPRITE_BYTES)
+        sprite_h = (MIN_SPRITE_BYTES + row - 1) / row;
+    size = 16 + 44 + row * sprite_h;
     if (r3d_in_program()) {
         /* The GPU library draws straight into the sprite (parts/risc3d.c)
            when its pixels start a 4 KB page and end on one: the area is
            placed in a larger block to make it so. */
-        mem = malloc(4096 + 60 + (((size_t) w * 4 * sprite_h + 4095) & ~(size_t) 4095));
+        mem = malloc(4096 + 60 + (((size_t) row * sprite_h + 4095) & ~(size_t) 4095));
         area = mem ? (int *) ((((uintptr_t) mem + 60 + 4095) & ~(uintptr_t) 4095) - 60) : NULL;
     } else {
         mem = NULL;
@@ -210,31 +212,53 @@ static int update_window_buffer(egl_surface *surf, const screen_info *s)
     surf->w = w;
     surf->h = h;
     surf->sprite_h = sprite_h;
-    surf->stride = w;
+    surf->stride = row / bpp;
     surf->sprite_mode = mode;
     surf->sprite_eig = s->xeig << 4 | s->yeig;
     surf->swaps = 0;
     return 1;
 }
 
-/* Check a native pixmap (a sprite header) and fill in its format. */
-static int pixmap_info(void *pixmap, int *w, int *h, int *layout, void **pixels)
+/* Check a native pixmap (a sprite header) and fill in its format: a
+   32 bpp sprite, or a 16 bpp 5:6:5 one in TBGR order (type 10). *stride
+   (may be NULL) is its pixels from one row to the next. */
+static int pixmap_info_stride(void *pixmap, int *w, int *h, int *layout, void **pixels, int *stride)
 {
     const int *spr = (const int *) pixmap;
     int log2bpp, flags;
 
     if (!spr)
         return 0;
-    if (!read_mode_variable(spr[10], 9, &log2bpp) || log2bpp != 5)
+    if (!read_mode_variable(spr[10], 9, &log2bpp) || (log2bpp != 5 && log2bpp != 4))
         return 0;
     if (!read_mode_variable(spr[10], 0, &flags))
         flags = 0;
-    if (spr[6] != 0 || spr[7] != 31 || spr[4] < 0 || spr[5] < 0)
+    if (spr[6] != 0 || spr[4] < 0 || spr[5] < 0)
         return 0;
-    *w = spr[4] + 1;
+    if (log2bpp == 4) {
+        /* 5:6:5 only (not 1:5:5:5), red in the low bits; an odd width
+           leaves the last word's top half unused */
+        if ((flags & (MODEFLAG_565 | MODEFLAG_TRGB)) != MODEFLAG_565 || (spr[7] != 31 && spr[7] != 15))
+            return 0;
+        *w = (spr[4] + 1) * 2 - (spr[7] == 15);
+        *layout = LAYOUT_565;
+        if (stride)
+            *stride = (spr[4] + 1) * 2;
+    } else {
+        if (spr[7] != 31)
+            return 0;
+        *w = spr[4] + 1;
+        *layout = (flags & MODEFLAG_TRGB) ? LAYOUT_TRGB : LAYOUT_TBGR;
+        if (stride)
+            *stride = *w;
+    }
     *h = spr[5] + 1;
-    *layout = (flags & MODEFLAG_TRGB) ? LAYOUT_TRGB : LAYOUT_TBGR;
     *pixels = (char *) pixmap + spr[8];
     return 1;
+}
+
+static int pixmap_info(void *pixmap, int *w, int *h, int *layout, void **pixels)
+{
+    return pixmap_info_stride(pixmap, w, h, layout, pixels, NULL);
 }
 

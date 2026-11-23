@@ -154,7 +154,7 @@ static int import_memory(struct drm_riscos_import_memory *im)
 static struct pipe_resource *colour_resource(struct v3dm_buffer *b, const struct pipe_resource *t)
 {
     struct pipe_resource *r;
-    unsigned stride = t->width0 * 4;
+    unsigned stride = t->width0 * util_format_get_blocksize(t->format);
     if (b->tiled)
         return dev.screen->resource_create(dev.screen, t);     /* the GPU's own, in tiles */
     if (!dev.tiled && b->target) {
@@ -553,6 +553,11 @@ static enum pipe_format pick_format(const enum pipe_format *list, unsigned bind)
 static const enum pipe_format colour_formats[] = {
     PIPE_FORMAT_R8G8B8A8_UNORM, PIPE_FORMAT_B8G8R8A8_UNORM, PIPE_FORMAT_NONE
 };
+/* 16-bit colour (EGL's 5:6:5 configs): red at the top, as the GPU stores
+   5:6:5 (V3DRender's present stores it in the screen's own order) */
+static const enum pipe_format colour_formats_16[] = {
+    PIPE_FORMAT_B5G6R5_UNORM, PIPE_FORMAT_NONE
+};
 static const enum pipe_format depth_formats[] = {
     PIPE_FORMAT_S8_UINT_Z24_UNORM, PIPE_FORMAT_X8Z24_UNORM, PIPE_FORMAT_Z16_UNORM, PIPE_FORMAT_NONE
 };
@@ -560,6 +565,12 @@ static const enum pipe_format depth_formats[] = {
 /* ---- contexts ---- */
 
 v3dm_context *v3dm_create(int api, int major, int minor, int depth, v3dm_context *share)
+{
+    return v3dm_create_format(api, major, minor, depth, share, 32);
+}
+
+v3dm_context *v3dm_create_format(int api, int major, int minor, int depth, v3dm_context *share,
+                                 int colour_bits)
 {
     struct st_context_attribs attribs;
     enum st_context_error err;
@@ -569,11 +580,13 @@ v3dm_context *v3dm_create(int api, int major, int minor, int depth, v3dm_context
     c = CALLOC_STRUCT(v3dm_context);
     if (!c)
         return NULL;
-    c->visual.color_format = pick_format(colour_formats, PIPE_BIND_RENDER_TARGET);
+    c->visual.color_format = pick_format(colour_bits == 16 ? colour_formats_16 : colour_formats,
+                                         PIPE_BIND_RENDER_TARGET);
     c->visual.depth_stencil_format = depth ? pick_format(depth_formats, PIPE_BIND_DEPTH_STENCIL)
                                            : PIPE_FORMAT_NONE;
     if (c->visual.color_format == PIPE_FORMAT_NONE) {
-        snprintf(dev.error, sizeof dev.error, "the GPU offers no RGBA8 render target");
+        snprintf(dev.error, sizeof dev.error, "the GPU offers no %s render target",
+                 colour_bits == 16 ? "RGB565" : "RGBA8");
         FREE(c);
         return NULL;
     }
@@ -885,6 +898,25 @@ int v3dm_read(v3dm_context *c, void *pixels, int row_bytes, int top_first)
     src = (const unsigned char *) pipe->texture_map(pipe, res, 0, PIPE_MAP_READ, &box, &t);
     if (!src)
         return -1;
+    if (res->format != PIPE_FORMAT_R8G8B8A8_UNORM && !bgra) {
+        /* 16-bit colour: each row unpacked to R,G,B,A bytes (through a
+           cached copy: the frame is uncached) */
+        unsigned bytes = w * util_format_get_blocksize(res->format);
+        unsigned char *tmp = (unsigned char *) malloc(bytes);
+        if (!tmp) {
+            pipe->texture_unmap(pipe, t);
+            return -1;
+        }
+        for (y = 0; y < h; y++) {
+            copy_from_gpu(tmp, src + (size_t) y * t->stride, bytes);
+            util_format_unpack_rgba_8unorm_rect(res->format,
+                                                (uint8_t *) pixels + (size_t) (top_first ? y : h - 1 - y) * row_bytes,
+                                                (unsigned) row_bytes, tmp, bytes, w, 1);
+        }
+        free(tmp);
+        pipe->texture_unmap(pipe, t);
+        return 0;
+    }
     if (!bgra && top_first && t->stride == w * 4 && (unsigned) row_bytes == w * 4) {
         copy_from_gpu(pixels, src, (size_t) w * h * 4);     /* the whole frame at once */
         pipe->texture_unmap(pipe, t);

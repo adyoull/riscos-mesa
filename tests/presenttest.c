@@ -114,13 +114,20 @@ int main(int argc, char **argv)
     EGLContext ctx;
     EGLSurface ws;
     EGLint n, attrs[] = { EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8,
-                          EGL_BLUE_SIZE, 8, EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_NONE };
+                          EGL_BLUE_SIZE, 8, EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_NONE, 0, 0 };
+    EGLint sw_attrs[] = { EGL_CONTEXT_SOFTWARE_RISCOS, EGL_TRUE, EGL_NONE };
+    int software = 0;
 
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-t") && i + 1 < argc) secs = atof(argv[++i]);
         else if (!strcmp(argv[i], "-m") && i + 1 < argc) menu_secs = atof(argv[++i]);
         else if (!strcmp(argv[i], "-o") && i + 1 < argc) outname = argv[++i];
         else if (!strcmp(argv[i], "-i") && i + 1 < argc) interval = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "-16")) {         /* a 16-bit (5:6:5) config */
+            attrs[3] = 5; attrs[5] = 6; attrs[7] = 5;
+            attrs[10] = EGL_MATCH_FORMAT_KHR; attrs[11] = EGL_FORMAT_RGB_565_KHR; attrs[12] = EGL_NONE;
+        }
+        else if (!strcmp(argv[i], "-sw")) software = 1;
     }
     out = fopen(outname, "w");
 
@@ -151,7 +158,7 @@ int main(int argc, char **argv)
     eglInitialize(dpy, NULL, NULL);
     eglBindAPI(EGL_OPENGL_API);
     if (!eglChooseConfig(dpy, attrs, &cfg, 1, &n) || n < 1) { say("no config\n"); return 1; }
-    ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+    ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, software ? sw_attrs : NULL);
     ws = eglCreateWindowSurface(dpy, cfg, handle, NULL);
     if (ctx == EGL_NO_CONTEXT || ws == EGL_NO_SURFACE || !eglMakeCurrent(dpy, ws, ws, ctx)) {
         say("EGL setup failed (0x%04x)\n", eglGetError());
@@ -159,6 +166,16 @@ int main(int argc, char **argv)
     }
     if (interval >= 0)
         eglSwapInterval(dpy, interval);
+    {
+        EGLint bs = 0;
+        eglGetConfigAttrib(dpy, cfg, EGL_BUFFER_SIZE, &bs);
+        say("config: %d bits%s\n", bs, software ? ", software asked for" : "");
+    }
+    {
+        GLint rb = 0, gb = 0, bb = 0;
+        glGetIntegerv(GL_RED_BITS, &rb); glGetIntegerv(GL_GREEN_BITS, &gb); glGetIntegerv(GL_BLUE_BITS, &bb);
+        say("GL colour bits %d/%d/%d\n", rb, gb, bb);
+    }
     say("GL_RENDERER %s\nEGL$Present %s, swap interval %s\n", (const char *) glGetString(GL_RENDERER),
         getenv("EGL$Present") ? getenv("EGL$Present") : "(unset)", interval >= 0 ? "as -i" : "default");
 

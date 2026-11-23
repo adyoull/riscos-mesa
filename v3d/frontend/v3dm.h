@@ -35,6 +35,9 @@ const char *v3dm_renderer(void);
    NULL, or a context whose objects it shares (of the same API). Contexts
    may be current in different threads at once. */
 v3dm_context *v3dm_create(int api, int major, int minor, int depth, v3dm_context *share);
+/* as v3dm_create, its colour buffer 32 bits (RGBA8) or 16 (RGB565) */
+v3dm_context *v3dm_create_format(int api, int major, int minor, int depth, v3dm_context *share,
+                                 int colour_bits);
 /* makes c current, drawing into an off-screen RGBA frame of this size
    (made again if the size changes); NULL: none current */
 int v3dm_make_current(v3dm_context *c, unsigned width, unsigned height);

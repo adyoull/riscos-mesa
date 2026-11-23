@@ -22,6 +22,7 @@
 fake_screen_t fake_screen;
 fake_window_t fake_windows[FAKE_MAX_WINDOWS];
 int fake_vsyncs, fake_update_calls, fake_redraw_calls, fake_plots;
+int fake_plots_16;                      /* plots of 5:6:5 sprites */
 long long fake_time_us = -1;
 int fake_vsync_us = 16667;
 
@@ -70,8 +71,10 @@ void fake_set_screen(int w, int h, int trgb, int log2bpp)
     fake_screen.h = h;
     fake_screen.xeig = fake_screen.yeig = 1;
     fake_screen.log2bpp = log2bpp;
-    fake_screen.flags = trgb ? 0x4000 : 0;
+    fake_screen.flags = trgb == 2 ? 0x80 : trgb ? 0x4000 : 0;
     fake_screen.line_length = w * 4;
+    if (log2bpp == 4 && trgb == 2)          /* a real 5:6:5 screen: 16-bit pixels */
+        fake_screen.line_length = (w * 2 + 3) & ~3;
     fake_screen.mem = calloc((size_t) w * h * 3, 4);
     fake_screen.da_size = fake_screen.da_max = w * h * 4;     /* one bank, can't grow */
     fake_screen.vdu_bank = fake_screen.display_bank = 1;
@@ -107,8 +110,22 @@ unsigned int fake_bank_pixel(int bank, int x, int y_from_top)
                            (size_t) y_from_top * (fake_screen.line_length / 4) + x];
 }
 
+static int fake_screen_565(void) { return fake_screen.log2bpp == 4 && (fake_screen.flags & 0x80); }
+static unsigned int from_565(unsigned int p)
+{
+    unsigned int r = p & 31, g = (p >> 5) & 63, b = (p >> 11) & 31;
+    return (r << 3 | r >> 2) | (g << 2 | g >> 4) << 8 | (b << 3 | b >> 2) << 16;
+}
+static unsigned int to_565(unsigned int p)
+{
+    return ((p >> 3) & 31) | ((p >> 10) & 63) << 5 | ((p >> 19) & 31) << 11;
+}
+
 unsigned int fake_screen_pixel(int x, int y_from_top)
 {
+    if (fake_screen_565())
+        return from_565(((const unsigned short *) ((const char *) fake_screen.mem +
+                         (size_t) y_from_top * fake_screen.line_length))[x]);
     return fake_screen.mem[(size_t) y_from_top * (fake_screen.line_length / 4) + x];
 }
 
@@ -123,6 +140,7 @@ static int mode_info(int mode, int *log2bpp, int *flags)
     if (mode & 1) {                                 /* sprite mode word */
         int type = (mode >> 27) & 15;
         if (type == 6) { *log2bpp = 5; *flags = 0; return 1; }
+        if (type == 10) { *log2bpp = 4; *flags = 0x80; return 1; }      /* 5:6:5 */
         if (type == 5) { *log2bpp = 4; *flags = 0; return 1; }
         return 0;
     }
@@ -150,18 +168,18 @@ static _kernel_oserror *sprite_op(_kernel_swi_regs *r)
         int w = r->r[4], h = r->r[5], mode = r->r[6], log2bpp, flags, size;
         int *spr;
         if ((r->r[0] & 0xF00) != 0x100) return error("create: user area only");
-        if (!mode_info(mode, &log2bpp, &flags) || log2bpp != 5)
-            return error("create: 32bpp only in the fake");
-        size = 44 + w * h * 4;
+        if (!mode_info(mode, &log2bpp, &flags) || (log2bpp != 5 && !(log2bpp == 4 && (flags & 0x80))))
+            return error("create: 32bpp and 5:6:5 only in the fake");
+        size = 44 + (log2bpp == 4 ? (w * 2 + 3) & ~3 : w * 4) * h;
         if (area[3] + size > area[0]) return error("Not enough room in sprite area");
         spr = (int *) ((char *) area + area[3]);
         memset(spr, 0, size);
         spr[0] = size;
         strncpy((char *) &spr[1], (const char *) (long) r->r[2], 12);
-        spr[4] = w - 1;
+        spr[4] = log2bpp == 4 ? (w + 1) / 2 - 1 : w - 1;      /* words a row - 1 */
         spr[5] = h - 1;
         spr[6] = 0;
-        spr[7] = 31;
+        spr[7] = log2bpp == 4 && (w & 1) ? 15 : 31;
         spr[8] = 44;
         spr[9] = 44;
         spr[10] = mode;
@@ -173,11 +191,20 @@ static _kernel_oserror *sprite_op(_kernel_swi_regs *r)
     if (reason == 34 || reason == 52) {             /* put sprite (scaled) */
         const int *spr = (const int *) (long) r->r[2];
         const int *f = reason == 52 ? (const int *) (long) r->r[6] : NULL;
-        int w = spr[4] + 1, h = spr[5] + 1, log2bpp, flags, dx, dy, ow, oh, swap, sxe, sye;
+        int w = spr[4] + 1, h = spr[5] + 1, log2bpp, flags, dx, dy, ow, oh, swap, sxe, sye, s16;
         int px0 = r->r[3] >> fake_screen.xeig, py0 = r->r[4] >> fake_screen.yeig;
         const unsigned int *pix = (const unsigned int *) ((const char *) spr + spr[8]);
         if ((r->r[0] & 0xF00) != 0x200) return error("plot: pointer form only");
         mode_info(spr[10], &log2bpp, &flags);
+        s16 = log2bpp == 4;
+        if (s16) {
+            w = (spr[4] + 1) * 2 - (spr[7] == 15);
+            fake_plots_16++;
+            if (reason == 34 && !fake_screen_565())
+                return error("plot: a 5:6:5 sprite copied pixel for pixel into a screen of another format");
+        } else if (reason == 34 && fake_screen.log2bpp != 5) {
+            return error("plot: a 32bpp sprite copied pixel for pixel into a 16bpp screen");
+        }
         swap = ((flags ^ fake_screen.flags) & 0x4000) != 0;
         /* the sprite's own pixel size: a mode word's dpi, else the screen's */
         sxe = fake_screen.xeig; sye = fake_screen.yeig;
@@ -196,14 +223,21 @@ static _kernel_oserror *sprite_op(_kernel_swi_regs *r)
             if (y_up < 0 || y_up >= fake_screen.h || oy < clip[1] || oy >= clip[3]) continue;
             for (dx = 0; dx < ow; dx++) {
                 int x = px0 + dx, ox = x << fake_screen.xeig;
-                unsigned int p = pix[(size_t) sy * w + (int) ((long long) dx * w / ow)];
+                int sx = (int) ((long long) dx * w / ow);
+                unsigned int p = s16 ? from_565(((const unsigned short *) ((const char *) pix +
+                                                 (size_t) sy * (spr[4] + 1) * 4))[sx])
+                                     : pix[(size_t) sy * w + sx];
                 if (x < 0 || x >= fake_screen.w || ox < clip[0] || ox >= clip[2]) continue;
                 if (swap) p = (p & 0xFF00FF00u) | ((p >> 16) & 0xFF) | ((p & 0xFF) << 16);
                 if (x >= fake_watch[0] && x < fake_watch[2] &&
                     (fake_screen.h - 1 - y_up) >= fake_watch[1] && (fake_screen.h - 1 - y_up) < fake_watch[3] &&
                     (p & 0xFFFFFF) == (unsigned) fake_watch_value)
                     fake_watch_hits++;
-                fake_screen.mem[(size_t) (fake_screen.h - 1 - y_up) * (fake_screen.line_length / 4) + x] = p;
+                if (fake_screen_565())
+                    ((unsigned short *) ((char *) fake_screen.mem + (size_t) (fake_screen.h - 1 - y_up) *
+                                         fake_screen.line_length))[x] = (unsigned short) to_565(p);
+                else
+                    fake_screen.mem[(size_t) (fake_screen.h - 1 - y_up) * (fake_screen.line_length / 4) + x] = p;
             }
         }
         return NULL;
@@ -799,6 +833,15 @@ const struct r3d_gl_function *r3d_functions(void) { return r3d_gl_functions; }
 int fake_r3d_present, fake_r3d_present_screen, fake_r3d_present_err, fake_r3d_presents,
     fake_r3d_present_tests, fake_r3d_present_rects, fake_r3d_present_last[6], fake_r3d_tiled;
 int r3d_in_program(void) { return fake_r3d_present; }
+/* a GPU context with a 16-bit colour buffer: as any other here (r3d_swap
+   gives R,G,B,A all the same) */
+int fake_r3d_16;
+struct r3d_context *r3d_create_format(int api, int major, int minor, struct r3d_context *share, int colour_bits)
+{
+    (void) major; (void) minor; (void) share;
+    if (colour_bits == 16) fake_r3d_16++;
+    return fr_new(api == 1);
+}
 int r3d_draw_tiled(int on, int width, int height)
 { (void) width; (void) height; if (!fake_r3d_present || !fr_cur) return 0; fake_r3d_tiled = on; return 1; }
 int r3d_present(const int *rects, int n)

@@ -153,12 +153,15 @@ static void cur_set(struct r3d_context *r)
 
 static struct r3d_context *only;
 
-static struct r3d_context *gpu_create_shared(int api, int major, int minor, struct r3d_context *share)
+static struct r3d_context *gpu_create_format(int api, int major, int minor, struct r3d_context *share,
+                                             int colour_bits)
 {
     struct r3d_context *r = (struct r3d_context *) calloc(1, sizeof *r);
     if (!r)
         return NULL;
-    if (share)
+    if (gpu->version >= 7)
+        r->c = gpu->create_format(api, major, minor, share ? share->c : NULL, colour_bits);
+    else if (share)
         r->c = gpu->version >= 3 ? gpu->create_shared(api, major, minor, share->c) : NULL;
     else
         r->c = gpu->create(api, major, minor);
@@ -168,6 +171,11 @@ static struct r3d_context *gpu_create_shared(int api, int major, int minor, stru
     }
     r->w = r->h = 1;
     return r;
+}
+
+static struct r3d_context *gpu_create_shared(int api, int major, int minor, struct r3d_context *share)
+{
+    return gpu_create_format(api, major, minor, share, 32);
 }
 
 static struct r3d_context *gpu_create(int api, int major, int minor)
@@ -349,6 +357,19 @@ struct r3d_context *r3d_create_shared(int api, int major, int minor, struct r3d_
     /* the command stream: RISC3D client 0.12, with RISC3D 0.06 on and (on
        RISC OS on Linux) Linux3D 0.06 and rol-3d 0.20 on */
     return gpu ? gpu_create_shared(api, major, minor, share) : r3ds_create_shared(api, major, minor, share);
+}
+
+/* As r3d_create_shared (share NULL: none), the colour buffer 16 bits
+   (RGB565) or 32. Where that can't be (the command stream, a GPU library
+   before version 7) the context is 32 bits: its frame is read back as
+   R,G,B,A all the same. */
+struct r3d_context *r3d_create_format(int api, int major, int minor, struct r3d_context *share,
+                                      int colour_bits)
+{
+    decide();
+    if (gpu)
+        return gpu_create_format(api, major, minor, share, colour_bits);
+    return share ? r3ds_create_shared(api, major, minor, share) : r3ds_create_version(api, major, minor);
 }
 
 int r3d_can_share(void)

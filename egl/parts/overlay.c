@@ -166,8 +166,8 @@ static void ovl_status(const char *fmt, ...)
 static int ovl_wanted(const egl_surface *surf)
 {
     int user = ovl_user_setting();
-    if (user < 0 || surf->ovl_want == 0)
-        return 0;
+    if (user < 0 || surf->ovl_want == 0 || surf->cfg->layout == LAYOUT_565)
+        return 0;                       /* (the overlay's buffers are filled from 32-bit pixels) */
     return surf->ovl_want > 0 || user > 0;
 }
 

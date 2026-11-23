@@ -614,3 +614,9 @@ mesa-20.3.5-riscos-two-sided-stencil.patch
     two-sided stencil uses drew a quad only when the vertex buffer had edge
     flags, which it has only in GL_LINE/GL_POINT polygon modes. Found by
     David Sharp's d3gltest (Doom 3's shadow volumes in software).
+
+mesa-20.3.5-riscos-osmesa-565.patch
+    OSMesa: OSMESA_RGB_565_RISCOS, a 16-bit format with red in bits 0-4
+    (RISC OS's 5:6:5: sprite type 10, C64K screens; MESA_FORMAT_R5G6B5_UNORM),
+    for contexts, OSMesaMakeCurrent and OSMesaBuffers. EGL's 16-bit configs
+    draw with it.

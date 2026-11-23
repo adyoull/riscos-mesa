@@ -58,6 +58,11 @@ void r3d_image_target(int renderbuffer, unsigned target, void *image);
    this screen or frame), EBUSY (not just now). r3d_swap still reads the
    frame back. */
 int r3d_draw_tiled(int on, int width, int height);
+/* As r3d_create_shared (share NULL: none), with a 16-bit (RGB565) or
+   32-bit colour buffer; 32 where 16 can't be (the frame reads back as
+   R,G,B,A either way) */
+struct r3d_context *r3d_create_format(int api, int major, int minor, struct r3d_context *share,
+                                      int colour_bits);
 int r3d_present(const int *rects, int n);
 
 #endif

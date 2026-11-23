@@ -14,11 +14,11 @@ static int config_attrib(const egl_config *c, EGLint attrib, EGLint *value)
 {
     EGLint v;
     switch (attrib) {
-    case EGL_BUFFER_SIZE:              v = 32; break;
+    case EGL_BUFFER_SIZE:              v = c->layout == LAYOUT_565 ? 16 : 32; break;
     case EGL_RED_SIZE:
-    case EGL_GREEN_SIZE:
-    case EGL_BLUE_SIZE:
-    case EGL_ALPHA_SIZE:               v = 8; break;
+    case EGL_BLUE_SIZE:                v = c->layout == LAYOUT_565 ? 5 : 8; break;
+    case EGL_GREEN_SIZE:               v = c->layout == LAYOUT_565 ? 6 : 8; break;
+    case EGL_ALPHA_SIZE:               v = c->layout == LAYOUT_565 ? 0 : 8; break;
     case EGL_LUMINANCE_SIZE:           v = 0; break;
     case EGL_ALPHA_MASK_SIZE:          v = 0; break;
     case EGL_BIND_TO_TEXTURE_RGB:
@@ -39,7 +39,8 @@ static int config_attrib(const egl_config *c, EGLint attrib, EGLint *value)
     case EGL_MIN_SWAP_INTERVAL:        v = 0; break;
     case EGL_NATIVE_RENDERABLE:        v = EGL_TRUE; break;
     case EGL_NATIVE_VISUAL_ID:
-        v = (c->layout == LAYOUT_TRGB) ? EGL_RISCOS_VISUAL_TRGB : EGL_RISCOS_VISUAL_TBGR;
+        v = c->layout == LAYOUT_TRGB ? EGL_RISCOS_VISUAL_TRGB :
+            c->layout == LAYOUT_565 ? EGL_RISCOS_VISUAL_565 : EGL_RISCOS_VISUAL_TBGR;
         break;
     case EGL_NATIVE_VISUAL_TYPE:       v = EGL_NONE; break;
     case EGL_RENDERABLE_TYPE:          v = RENDERABLE_BITS | (r3dw_es3() ? EGL_OPENGL_ES3_BIT_KHR : 0); break;
@@ -52,7 +53,8 @@ static int config_attrib(const egl_config *c, EGLint attrib, EGLint *value)
         break;
     case EGL_MATCH_FORMAT_KHR:
         /* EXACT = B,G,R,A bytes in memory, which is 0x00RRGGBB */
-        v = (c->layout == LAYOUT_TRGB) ? EGL_FORMAT_RGBA_8888_EXACT_KHR : EGL_FORMAT_RGBA_8888_KHR;
+        v = c->layout == LAYOUT_TRGB ? EGL_FORMAT_RGBA_8888_EXACT_KHR :
+            c->layout == LAYOUT_565 ? EGL_FORMAT_RGB_565_KHR : EGL_FORMAT_RGBA_8888_KHR;
         break;
     case EGL_TRANSPARENT_TYPE:         v = EGL_NONE; break;
     case EGL_TRANSPARENT_RED_VALUE:
@@ -131,10 +133,14 @@ static int config_value_ok(EGLint attrib, EGLint v)
 
 static int config_compare(const void *a, const void *b)
 {
-    /* EGL 1.4 section 3.4.1.2 sort order; everything before depth is
-       identical for our configs. */
+    /* EGL 1.4 section 3.4.1.2 sort order, but for the colour sizes: the
+       screen's own depth first (in a 16 bpp desktop the 5:6:5 configs, so
+       a program asking for 5/6/5 and taking the first gets 16 bits; in a
+       32 bpp one the 8-bit ones, as before) */
     const egl_config *x = *(const egl_config * const *) a;
     const egl_config *y = *(const egl_config * const *) b;
+    if (x->rank != y->rank)
+        return x->rank - y->rank;
     if (x->depth != y->depth)
         return x->depth - y->depth;
     if (x->stencil != y->stencil)
@@ -148,14 +154,21 @@ static void make_configs(egl_display *d)
     screen_info s;
     int first, i, l, n = 0;
 
+    int order[3], sixteen;
+
     read_screen(&s);
     first = (screen_layout(&s) == LAYOUT_TRGB) ? LAYOUT_TRGB : LAYOUT_TBGR;
-    for (l = 0; l < 2; l++) {
+    sixteen = s.log2bpp == 4;           /* a 16 bpp desktop (5:6:5 or 1:5:5:5) */
+    order[0] = sixteen ? LAYOUT_565 : first;
+    order[1] = sixteen ? first : 1 - first;
+    order[2] = sixteen ? 1 - first : LAYOUT_565;
+    for (l = 0; l < 3; l++) {
         for (i = 0; i < 4; i++) {
             d->configs[n].id = n + 1;
             d->configs[n].depth = ds[i][0];
             d->configs[n].stencil = ds[i][1];
-            d->configs[n].layout = l == 0 ? first : 1 - first;
+            d->configs[n].layout = order[l];
+            d->configs[n].rank = (order[l] == LAYOUT_565) != sixteen;
             n++;
         }
     }
