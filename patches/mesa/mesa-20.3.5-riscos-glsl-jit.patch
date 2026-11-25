@@ -298,7 +298,7 @@ new file mode 100644
 index 0000000..b416467
 --- /dev/null
 +++ b/src/mesa/program/ro_jit_arm.c
-@@ -0,0 +1,1551 @@
+@@ -0,0 +1,1557 @@
 +/*
 + * riscos-mesa: a JIT compiler for fragment programs (patch riscos-glsl-jit).
 + *
@@ -1548,6 +1548,12 @@ index 0000000..b416467
 +   *homeBytes = (GLuint) g->nregs * 64;
 +
 +   rj_emit(g, 0xE92D4FF0);            /* push {r4-r11, lr} */
++   /* vpush stores 64 bytes at once: ARMEABISupport, which maps a stack
++      page when it is first touched, completes at most 60 bytes of the
++      access that touched it (UnixLib 5.0.3.11-rc8, M3). So both ends of
++      the area are loaded first, mapping their pages the ordinary way. */
++   rj_emit(g, 0xE51D4040);            /* ldr r4, [sp, #-64] */
++   rj_emit(g, 0xE51D4004);            /* ldr r4, [sp, #-4] */
 +   rj_emit(g, 0xED2D8B10);            /* vpush {d8-d15} */
 +   a_ldr(g, 4, 0, 0);
 +   a_ldr(g, 5, 0, 4);

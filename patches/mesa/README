@@ -342,6 +342,10 @@ mesa-20.3.5-riscos-glsl-jit.patch
     needs them, init_machine's per-span part is done once per span, and
     colour outputs are stored without store_outputs' tests. glbench's
     glsl scene: 55% fewer ARM instructions under qemu.
+    The compiled code loads a word from both ends of the area its
+    vpush {d8-d15} will store to first (2026-11-25): ARMEABISupport maps
+    a stack page on first touch and completes at most 60 bytes of that
+    access, so a 64-byte first touch killed the program.
 
 mesa-20.3.5-riscos-temps.patch
     GLSL programs that need more than 256 temporaries work. Mesa compacts

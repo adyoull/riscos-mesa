@@ -937,6 +937,19 @@ static void copy_from_gpu(void *dst, const void *src, size_t n)
     unsigned char *d = (unsigned char *) dst;
     const unsigned char *s = (const unsigned char *) src;
     if ((((uintptr_t) d | (uintptr_t) s) & 7) == 0) {
+        /* Each 128-byte store mustn't be the first touch of a page
+           ARMEABISupport maps on demand (a thread's stack, mmap'd memory):
+           it completes at most 60 bytes of such an access (UnixLib
+           5.0.3.11-rc8, M3). Loading a byte from each page first maps it
+           the ordinary way. */
+        if (n >= 128) {
+            uintptr_t last = (uintptr_t) d + (n & ~(size_t) 127) - 1, p;
+            for (p = (uintptr_t) d; ; p = (p | 4095) + 1) {
+                (void) *(const volatile unsigned char *) p;
+                if ((p | 4095) >= last)
+                    break;
+            }
+        }
         while (n >= 128) {
             __asm__ volatile("vldmia %0!, {d16-d31}\n\tvstmia %1!, {d16-d31}"
                              : "+r"(s), "+r"(d) : : "memory",
