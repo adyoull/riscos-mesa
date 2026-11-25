@@ -119,6 +119,7 @@ int r3d_in_program(void)
 struct r3d_context {
     void *c;                    /* the GPU library's */
     int w, h;                   /* the frame's size */
+    int sized;                  /* r3d_surface has given it a size (its viewport set to fit) */
     void *into;                 /* r3d_draw_into's memory, when the GPU draws there */
     void *buffer;               /* r3d_target's, or NULL */
     int format, row_length, y_up;
@@ -480,6 +481,16 @@ void r3d_make_current(struct r3d_context *r)
         gpu->make_current(NULL, 0, 0);
 }
 
+/* a gl function of the GPU library's, by name (NULL if it hasn't it) */
+static void (*gpu_gl(const char *name))(void)
+{
+    const struct riscos_mesa_gpu_function *f;
+    for (f = gpu->functions; f->name; f++)
+        if (!strcmp(f->name, name))
+            return f->fn;
+    return NULL;
+}
+
 void r3d_surface(int width, int height)
 {
     decide();
@@ -493,6 +504,23 @@ void r3d_surface(int width, int height)
         cur->w = width;
         cur->h = height;
         gpu->make_current(cur->c, width, height);
+    }
+    /* The first surface sets the viewport and scissor box to fit, as the
+       command stream's client does (and as GL does when a context is
+       first made current). Mesa set them at the context's first
+       make_current, at the 1x1 it had before it had a surface, so a
+       program that never calls glViewport drew into one pixel. */
+    if (!cur->sized && (width > 1 || height > 1)) {    /* (1x1: EGL's "no surface") */
+        static void (*viewport)(int, int, int, int), (*scissor)(int, int, int, int);
+        cur->sized = 1;
+        if (!viewport) {
+            viewport = (void (*)(int, int, int, int)) gpu_gl("glViewport");
+            scissor = (void (*)(int, int, int, int)) gpu_gl("glScissor");
+        }
+        if (viewport && scissor) {
+            viewport(0, 0, width, height);
+            scissor(0, 0, width, height);
+        }
     }
 }
 

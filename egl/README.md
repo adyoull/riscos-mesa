@@ -182,7 +182,7 @@ draws in software. The GPU module is only ever reached through RISC3D.
   thread's). EGL's own idea of RISC3D's current context is the calling
   thread's (`r3dw_current`).
 
-The client library is in `risc3d/` (RISC3D client 0.12, MIT), built into libOSMesa by
+The client library is in `risc3d/` (RISC3D client 0.13, MIT), built into libOSMesa by
 `build/build-mesa.sh`. The host harness checks the wiring against a fake
 RISC3D (`test_risc3d`), and `tests/host-harness/egl/r3d_e2e.sh` runs it
 end to end with RISC3D's real client and Linux helper, drawn by the build

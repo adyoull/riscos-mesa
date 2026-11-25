@@ -530,9 +530,16 @@ r3d_available (void)
   const char *drv = 0;
   unsigned flags = 0;
   int len = 0;
+  char v[32];
   /* (OS_ReadVarVal, not getenv: UnixLib's getenv of a name with a $ remakes
-     one buffer at each call, which a program may still be holding) */
-  if (!_swix (OS_ReadVarVal, _INR (0, 4) | _OUT (2), "RISC3D$Disable", 0, -1, 0, 0, &len) && len != 0)
+     one buffer at each call, which a program may still be holding.)
+     Read into a buffer: (0.13) the old test, R2 = -1, can't work, as
+     OS_ReadVarVal then returns an error exactly when the variable exists
+     (R2 = NOT its length), so RISC3D$Disable was never seen (found by the
+     riscos-dhewm3 port). Set to anything, it turns RISC3D off; a value too
+     long for the buffer is an error, so counts as set too. */
+  _kernel_oserror *e = _swix (OS_ReadVarVal, _INR (0, 4) | _OUT (2), "RISC3D$Disable", v, (int) sizeof v - 1, 0, 0, &len);
+  if (e ? e->errnum != 0x124 /* variable not found */ : len > 0)
     return 0;
   if (_swix (RISC3D_Info, _OUT (3) | _OUT (4), &drv, &flags))
     return 0;

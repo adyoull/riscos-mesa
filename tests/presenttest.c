@@ -18,7 +18,10 @@
  * the window; then the window's bottom left corner is checked too. -w: the
  * window's size (default 640x400). -d: a 24-bit depth buffer, cleared
  * each frame. -nf: no glFinish before the swap (the swap's time includes
- * the frame's drawing then, as in a game).
+ * the frame's drawing then, as in a game). -g N: N blended full-frame
+ * quads a frame in the background's colour (load for the GPU; -N: green,
+ * to see they're drawn). -p X Y: the window's bottom left (OS units;
+ * default 400 300), off the screen's edge to try that.
  *
  * Copyright (c) 2026 Andrew Youll. MIT licence.
  */
@@ -36,7 +39,7 @@
 #include "hrtime.h"
 
 #define TASK 0x4B534154
-static int WIN_W = 640, WIN_H = 400, depth, no_finish;
+static int WIN_W = 640, WIN_H = 400, depth, no_finish, gpu_load, pos_x = 400, pos_y = 300;
 
 static int task;
 static FILE *out;
@@ -98,6 +101,23 @@ static void scene(int w, int h, double t, unsigned bg)
     glDisable(GL_SCISSOR_TEST);
     glClearColor((bg & 0xFF) / 255.0f, ((bg >> 8) & 0xFF) / 255.0f, ((bg >> 16) & 0xFF) / 255.0f, 1);
     glClear(GL_COLOR_BUFFER_BIT | (depth ? GL_DEPTH_BUFFER_BIT : 0));
+    if (gpu_load) {
+        int q;
+        glMatrixMode(GL_PROJECTION); glLoadIdentity();
+        glMatrixMode(GL_MODELVIEW); glLoadIdentity();
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        if (gpu_load < 0)
+            glColor4f(0, 1, 0, 0.05f);  /* (-g -N: visible, to check it's drawn; colour checks fail) */
+        else
+            glColor4f((bg & 0xFF) / 255.0f, ((bg >> 8) & 0xFF) / 255.0f, ((bg >> 16) & 0xFF) / 255.0f, 0.5f);
+        glBegin(GL_QUADS);
+        for (q = 0; q < abs(gpu_load); q++) {
+            glVertex2f(-1, -1); glVertex2f(1, -1); glVertex2f(1, 1); glVertex2f(-1, 1);
+        }
+        glEnd();
+        glDisable(GL_BLEND);
+    }
     glEnable(GL_SCISSOR_TEST);
     glScissor(bx, 20, 80, 80);            /* low down: clear of the pixels checked */
     glClearColor(1, 1, 1, 1);
@@ -137,6 +157,8 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-w") && i + 2 < argc) { WIN_W = atoi(argv[++i]); WIN_H = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "-d")) depth = 1;
         else if (!strcmp(argv[i], "-nf")) no_finish = 1;
+        else if (!strcmp(argv[i], "-p") && i + 2 < argc) { pos_x = atoi(argv[++i]); pos_y = atoi(argv[++i]); }
+        else if (!strcmp(argv[i], "-g") && i + 1 < argc) gpu_load = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-r") && i + 2 < argc) { rw = atoi(argv[++i]); rh = atoi(argv[++i]); }
     }
     out = fopen(outname, "w");
@@ -151,10 +173,10 @@ int main(int argc, char **argv)
     task = r.r[1];
 
     memset(wb, 0, sizeof wb);
-    wx0 = 400; wy0 = 300;
+    wx0 = pos_x; wy0 = pos_y;
     wb[0] = wx0; wb[1] = wy0; wb[2] = wx0 + WIN_W * 2; wb[3] = wy0 + WIN_H * 2;
     wb[6] = -1;
-    wb[7] = (int) 0x87000002u;              /* moveable, back, close, title */
+    wb[7] = (int) 0x87000042u;              /* moveable, may go off the screen, back, close, title */
     wb[8] = 7 | (2 << 8) | (7 << 16) | (1 << 24);
     wb[9] = 3 | (1 << 8) | (12 << 16);
     wb[10] = 0; wb[11] = -WIN_H * 2; wb[12] = WIN_W * 2; wb[13] = 0;
@@ -193,7 +215,7 @@ int main(int argc, char **argv)
     {
         GLint rb = 0, gb = 0, bb = 0;
         glGetIntegerv(GL_RED_BITS, &rb); glGetIntegerv(GL_GREEN_BITS, &gb); glGetIntegerv(GL_BLUE_BITS, &bb);
-        say("GL colour bits %d/%d/%d\n", rb, gb, bb);
+        say("GL colour bits %d/%d/%d, GL_VERSION %s\n", rb, gb, bb, (const char *) glGetString(GL_VERSION));
         if (rw > 0 && rh > 0)
             say("render size %dx%d, shown at %dx%d\n", rw, rh, WIN_W, WIN_H);
     }
@@ -226,6 +248,11 @@ int main(int argc, char **argv)
         scene(rw > 0 ? rw : WIN_W, rh > 0 ? rh : WIN_H, t - t0, phase == 1 ? 0xFF0000u : 0x400000u);  /* blue (&BBGGRR) */
         if (!no_finish)
             glFinish();
+        if (frames == 0) {
+            GLenum e = glGetError();
+            if (e)
+                say("GL error 0x%04x after the first frame\n", e);
+        }
         render_t += hr_seconds() - t;
         t = hr_seconds();
         eglSwapBuffers(dpy, ws);
@@ -245,7 +272,7 @@ int main(int argc, char **argv)
             {
                 int px = (menu_x + 40) / 2, py = sh - (menu_y - 30) / 2;
                 long long in_menu = read_point(px, py);
-                long long in_win = read_point(wx0 / 2 + 4, sh - (wy0 + WIN_H) / 2 - 20);
+                long long in_win = read_point((wx0 < 0 ? 0 : wx0 / 2) + 4, sh - (wy0 + WIN_H) / 2 - 20);
                 checks += 2;
                 l = colour_is(in_menu, 0xFF0000u);
                 if (l) fails++;
@@ -253,13 +280,13 @@ int main(int argc, char **argv)
                     l ? "FAIL: the window's blue drawn over the menu" : "ok, not the window's blue");
                 l = colour_is(in_win, 0xFF0000u);
                 if (!l) fails++;
-                say("window at pixel %d,%d: colour &%X: %s\n", wx0 / 2 + 4, sh - (wy0 + WIN_H) / 2 - 20,
+                say("window at pixel %d,%d: colour &%X: %s\n", (wx0 < 0 ? 0 : wx0 / 2) + 4, sh - (wy0 + WIN_H) / 2 - 20,
                     (unsigned) in_win, l ? "ok, the window's blue" : "FAIL: not the window's blue");
             }
             {
                 /* the window's bottom left corner: the frame fills the
                    window (scaled, with -r) */
-                int cx = wx0 / 2 + 3, cy = sh - wy0 / 2 - 4;
+                int cx = (wx0 < 0 ? 0 : wx0 / 2) + 3, cy = sh - wy0 / 2 - 4;
                 long long c = read_point(cx, cy);
                 checks++;
                 l = colour_is(c, 0xFF0000u);

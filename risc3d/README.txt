@@ -1,5 +1,5 @@
-RISC3D client library 0.12 (19 November 2026), for riscos-mesa's EGL
-=====================================================================
+RISC3D client library 0.13 (23 November 2026: 0.12 with RISC3D$Disable read correctly), for riscos-mesa's EGL
+=============================================================================================================
 
 RISC3D's front end for RISC OS programs: the GL functions as commands for
 the RISC3D module (r3d_glXxx, listed by name in r3d_gl_functions[]), and

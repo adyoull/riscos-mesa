@@ -102,7 +102,8 @@ struct riscos_mesa_gpu {
     int (*present_scaled)(void *context, const int *rects, int n, int width, int height);
     /* (version 8) the end of the context's frame (eglSwapBuffers, before
        it's shown or read): its depth and stencil, undefined after a swap,
-       aren't stored */
+       aren't stored, and its jobs are submitted (drawn while the swap
+       waits for the vsync) */
     void (*end_frame)(void *context);
 };
 

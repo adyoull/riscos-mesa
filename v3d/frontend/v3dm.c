@@ -86,6 +86,7 @@ static struct {
     int no_uncached;            /* a module before V3DRender 0.13 (no DRM_RISCOS_IMPORT_UNCACHED) */
     int trace;                  /* V3DM$Trace: frames made, chosen and finished, on stderr */
     int keep_depth;             /* V3DM$KeepDepth: v3dm_end_frame keeps depth/stencil (to compare) */
+    int late_flush;             /* V3DM$LateFlush: v3dm_end_frame doesn't submit the frame (to compare) */
     uint32_t present_sync;      /* syncobj v3dm_present waits on (0: not made yet) */
     char error[160];
 } dev;
@@ -479,6 +480,7 @@ int v3dm_init(void)
     dev.no_import = dev.tiled || getenv("V3DM$NoImport") != NULL;
     dev.trace = getenv("V3DM$Trace") != NULL;
     dev.keep_depth = getenv("V3DM$KeepDepth") != NULL;
+    dev.late_flush = getenv("V3DM$LateFlush") != NULL;
     dev.fd = drm_riscos_open();
     if (dev.fd < 0) {
         snprintf(dev.error, sizeof dev.error, "the %s GPU's module wouldn't open", name);
@@ -868,19 +870,20 @@ int v3dm_present_scaled(v3dm_context *c, const int *rects, unsigned n,
    undefined after a swap (EGL 1.4, 3.9.3), so the frame's last job doesn't
    store them, and the next frame doesn't load them (as Linux's DRI
    frontend does: __DRI2_FLUSH_INVALIDATE_ANCILLARY). V3DM$KeepDepth:
-   kept, to compare. */
+   kept, to compare.
+   Then the frame's jobs are submitted, so the GPU draws it while the swap
+   waits for the vsync, rather than from when it's shown (V3DM$LateFlush:
+   as before, to compare). */
 void v3dm_end_frame(v3dm_context *c)
 {
     struct pipe_context *pipe;
-    unsigned a;
-    if (!c || !c->fb || dev.keep_depth)
+    if (!c || !c->fb)
         return;
     pipe = c->st->pipe;
-    if (!pipe->invalidate_resource)
-        return;
-    for (a = 0; a < ST_ATTACHMENT_COUNT; a++)
-        if (a == ST_ATTACHMENT_DEPTH_STENCIL && c->fb->textures[a])
-            pipe->invalidate_resource(pipe, c->fb->textures[a]);
+    if (!dev.keep_depth && pipe->invalidate_resource && c->fb->textures[ST_ATTACHMENT_DEPTH_STENCIL])
+        pipe->invalidate_resource(pipe, c->fb->textures[ST_ATTACHMENT_DEPTH_STENCIL]);
+    if (!dev.late_flush)
+        st_context_flush(c->st, 0, NULL, NULL, NULL);
 }
 
 /* Buffers the GPU module refused since this was last asked (v3d_bo_alloc
