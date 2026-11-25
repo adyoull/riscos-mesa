@@ -64,5 +64,13 @@ int r3d_draw_tiled(int on, int width, int height);
 struct r3d_context *r3d_create_format(int api, int major, int minor, struct r3d_context *share,
                                       int colour_bits);
 int r3d_present(const int *rects, int n);
+/* r3d_present of the frame scaled by the GPU to width x height first (the
+   size it's shown at; the rectangles' source offsets are in that); 0 x 0:
+   r3d_present. ENOTTY: the GPU library is older than version 8 */
+int r3d_present_scaled(const int *rects, int n, int width, int height);
+/* the end of the current context's frame (eglSwapBuffers): its depth and
+   stencil, undefined after a swap, aren't stored (GPU library version 8;
+   nothing otherwise) */
+void r3d_end_frame(void);
 
 #endif

@@ -1073,7 +1073,9 @@ static EGLBoolean swap(EGLDisplay dpy, EGLSurface surface, const EGLint *rects, 
            into the surface's pixels and shown as usual */
         egl_context *c = thr()->active;
         int big = (size_t) s->w * s->h * 4 > 16u * 1024 * 1024;
-        int plane = r3dw_overlay_frame(d, c, s, &scr);
+        int plane;
+        r3d_end_frame();                /* depth/stencil: undefined after the swap, not stored */
+        plane = r3dw_overlay_frame(d, c, s, &scr);
         if (plane <= 0) {
             if (!s->r3d_pres && r3dw_frame_into(s, c->r3d_overlapped && !big) < 0)
                 return fail(EGL_BAD_SURFACE);

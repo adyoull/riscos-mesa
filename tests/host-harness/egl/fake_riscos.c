@@ -864,6 +864,35 @@ int r3d_present(const int *rects, int n)
     }
     return 0;
 }
+/* GPU library version 8 (fake_r3d_scaled_ok): the frame scaled to the
+   size it's shown at first (fake_r3d_shown_w/h: the last one asked for) */
+int fake_r3d_scaled_ok, fake_r3d_shown_w, fake_r3d_shown_h, fake_r3d_scaled_presents;
+int fake_r3d_end_frames;
+void r3d_end_frame(void) { fake_r3d_end_frames++; }
+int r3d_present_scaled(const int *rects, int n, int width, int height)
+{
+    int i, x, y;
+    if (!width && !height) return r3d_present(rects, n);
+    if (!fake_r3d_present || !fake_r3d_scaled_ok) return -ENOTTY;
+    if (!fr_cur) return -EINVAL;
+    if (n == 0) { fake_r3d_present_tests++; return fake_r3d_present_screen; }
+    if (fake_r3d_present_err) { i = fake_r3d_present_err; fake_r3d_present_err = 0; return i; }
+    fake_r3d_presents++;
+    fake_r3d_scaled_presents++;
+    fake_r3d_present_rects += n;
+    fake_r3d_shown_w = width;
+    fake_r3d_shown_h = height;
+    for (i = 0; i < n; i++) {
+        const int *p = rects + 6 * i;
+        memcpy(fake_r3d_present_last, p, sizeof fake_r3d_present_last);
+        for (y = p[1]; y < p[1] + p[3]; y++)
+            for (x = p[0]; x < p[0] + p[2]; x++)
+                if (x >= 0 && y >= 0 && x < fake_screen.w && y < fake_screen.h &&
+                    p[4] + x - p[0] < width && p[5] + y - p[1] < height)
+                    fake_screen.mem[(size_t) y * (fake_screen.line_length / 4) + x] = fr_cur->clear;
+    }
+    return 0;
+}
 int r3d_draw_into(void *pixels, int row_bytes, int width, int height)
 { (void) pixels; (void) row_bytes; (void) width; (void) height; fake_r3d_tiled = 0; return 0; }
 int r3d_in_place(const void *pixels) { (void) pixels; return 0; }

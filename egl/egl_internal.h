@@ -197,6 +197,8 @@ int r3d_in_place(const void *pixels);
 int r3d_draw_tiled(int on, int width, int height);
 struct r3d_context *r3d_create_format(int api, int major, int minor, struct r3d_context *share, int colour_bits);
 int r3d_present(const int *rects, int n);
+int r3d_present_scaled(const int *rects, int n, int width, int height);
+void r3d_end_frame(void);
 int r3d_can_share(void);
 struct r3d_context *r3d_create_shared(int api, int major, int minor, struct r3d_context *share);
 int r3d_can_image(void);

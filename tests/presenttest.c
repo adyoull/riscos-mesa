@@ -13,6 +13,12 @@
  * Run it twice, with *Set EGL$Present 0 and unset, to compare.
  *
  *   presenttest [-t seconds] [-m menu seconds] [-o file] [-i swap interval]
+ *               [-16] [-sw] [-r width height] [-w width height] [-d]
+ * -r: a render size (EGL_RENDER_WIDTH/HEIGHT_RISCOS), shown scaled to fill
+ * the window; then the window's bottom left corner is checked too. -w: the
+ * window's size (default 640x400). -d: a 24-bit depth buffer, cleared
+ * each frame. -nf: no glFinish before the swap (the swap's time includes
+ * the frame's drawing then, as in a game).
  *
  * Copyright (c) 2026 Andrew Youll. MIT licence.
  */
@@ -30,8 +36,7 @@
 #include "hrtime.h"
 
 #define TASK 0x4B534154
-#define WIN_W 640
-#define WIN_H 400
+static int WIN_W = 640, WIN_H = 400, depth, no_finish;
 
 static int task;
 static FILE *out;
@@ -92,7 +97,7 @@ static void scene(int w, int h, double t, unsigned bg)
     int bx = (int) ((w - 80) * (0.5 + 0.5 * __builtin_sin(t * 2.0)));
     glDisable(GL_SCISSOR_TEST);
     glClearColor((bg & 0xFF) / 255.0f, ((bg >> 8) & 0xFF) / 255.0f, ((bg >> 16) & 0xFF) / 255.0f, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | (depth ? GL_DEPTH_BUFFER_BIT : 0));
     glEnable(GL_SCISSOR_TEST);
     glScissor(bx, 20, 80, 80);            /* low down: clear of the pixels checked */
     glClearColor(1, 1, 1, 1);
@@ -114,9 +119,10 @@ int main(int argc, char **argv)
     EGLContext ctx;
     EGLSurface ws;
     EGLint n, attrs[] = { EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8,
-                          EGL_BLUE_SIZE, 8, EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_NONE, 0, 0 };
+                          EGL_BLUE_SIZE, 8, EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_NONE, 0, 0, 0, 0 };
     EGLint sw_attrs[] = { EGL_CONTEXT_SOFTWARE_RISCOS, EGL_TRUE, EGL_NONE };
-    int software = 0;
+    int software = 0, rw = 0, rh = 0;
+    EGLint rs_attrs[] = { EGL_RENDER_WIDTH_RISCOS, 0, EGL_RENDER_HEIGHT_RISCOS, 0, EGL_NONE };
 
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-t") && i + 1 < argc) secs = atof(argv[++i]);
@@ -128,8 +134,17 @@ int main(int argc, char **argv)
             attrs[10] = EGL_MATCH_FORMAT_KHR; attrs[11] = EGL_FORMAT_RGB_565_KHR; attrs[12] = EGL_NONE;
         }
         else if (!strcmp(argv[i], "-sw")) software = 1;
+        else if (!strcmp(argv[i], "-w") && i + 2 < argc) { WIN_W = atoi(argv[++i]); WIN_H = atoi(argv[++i]); }
+        else if (!strcmp(argv[i], "-d")) depth = 1;
+        else if (!strcmp(argv[i], "-nf")) no_finish = 1;
+        else if (!strcmp(argv[i], "-r") && i + 2 < argc) { rw = atoi(argv[++i]); rh = atoi(argv[++i]); }
     }
     out = fopen(outname, "w");
+    if (depth) {
+        for (i = 0; attrs[i] != EGL_NONE; i += 2)
+            ;
+        attrs[i] = EGL_DEPTH_SIZE; attrs[i + 1] = 24; attrs[i + 2] = EGL_NONE;
+    }
 
     r.r[0] = 380; r.r[1] = TASK; r.r[2] = (int) "PresentTest"; r.r[3] = (int) messages;
     if (_kernel_swi(Wimp_Initialise, &r, &r) != NULL) { say("no desktop\n"); return 1; }
@@ -159,7 +174,8 @@ int main(int argc, char **argv)
     eglBindAPI(EGL_OPENGL_API);
     if (!eglChooseConfig(dpy, attrs, &cfg, 1, &n) || n < 1) { say("no config\n"); return 1; }
     ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, software ? sw_attrs : NULL);
-    ws = eglCreateWindowSurface(dpy, cfg, handle, NULL);
+    rs_attrs[1] = rw; rs_attrs[3] = rh;
+    ws = eglCreateWindowSurface(dpy, cfg, handle, rw > 0 && rh > 0 ? rs_attrs : NULL);
     if (ctx == EGL_NO_CONTEXT || ws == EGL_NO_SURFACE || !eglMakeCurrent(dpy, ws, ws, ctx)) {
         say("EGL setup failed (0x%04x)\n", eglGetError());
         return 1;
@@ -169,12 +185,17 @@ int main(int argc, char **argv)
     {
         EGLint bs = 0;
         eglGetConfigAttrib(dpy, cfg, EGL_BUFFER_SIZE, &bs);
-        say("config: %d bits%s\n", bs, software ? ", software asked for" : "");
+        EGLint ds = 0;
+        eglGetConfigAttrib(dpy, cfg, EGL_DEPTH_SIZE, &ds);
+        say("config: %d bits, depth %d%s; window %dx%d\n", bs, ds, software ? ", software asked for" : "",
+            WIN_W, WIN_H);
     }
     {
         GLint rb = 0, gb = 0, bb = 0;
         glGetIntegerv(GL_RED_BITS, &rb); glGetIntegerv(GL_GREEN_BITS, &gb); glGetIntegerv(GL_BLUE_BITS, &bb);
         say("GL colour bits %d/%d/%d\n", rb, gb, bb);
+        if (rw > 0 && rh > 0)
+            say("render size %dx%d, shown at %dx%d\n", rw, rh, WIN_W, WIN_H);
     }
     say("GL_RENDERER %s\nEGL$Present %s, swap interval %s\n", (const char *) glGetString(GL_RENDERER),
         getenv("EGL$Present") ? getenv("EGL$Present") : "(unset)", interval >= 0 ? "as -i" : "default");
@@ -202,8 +223,9 @@ int main(int argc, char **argv)
         if (r.r[0] == 3) break;
         if (r.r[0] != 0) continue;
         t = hr_seconds();
-        scene(WIN_W, WIN_H, t - t0, phase == 1 ? 0xFF0000u : 0x400000u);  /* blue (&BBGGRR) */
-        glFinish();
+        scene(rw > 0 ? rw : WIN_W, rh > 0 ? rh : WIN_H, t - t0, phase == 1 ? 0xFF0000u : 0x400000u);  /* blue (&BBGGRR) */
+        if (!no_finish)
+            glFinish();
         render_t += hr_seconds() - t;
         t = hr_seconds();
         eglSwapBuffers(dpy, ws);
@@ -233,6 +255,17 @@ int main(int argc, char **argv)
                 if (!l) fails++;
                 say("window at pixel %d,%d: colour &%X: %s\n", wx0 / 2 + 4, sh - (wy0 + WIN_H) / 2 - 20,
                     (unsigned) in_win, l ? "ok, the window's blue" : "FAIL: not the window's blue");
+            }
+            {
+                /* the window's bottom left corner: the frame fills the
+                   window (scaled, with -r) */
+                int cx = wx0 / 2 + 3, cy = sh - wy0 / 2 - 4;
+                long long c = read_point(cx, cy);
+                checks++;
+                l = colour_is(c, 0xFF0000u);
+                if (!l) fails++;
+                say("window corner at pixel %d,%d: colour &%X: %s\n", cx, cy, (unsigned) c,
+                    l ? "ok, the window's blue" : "FAIL: not the window's blue");
             }
             say("phase 2 (menu open): %d frames, %.1f fps, swap %.2f ms\n", frames,
                 frames / (t - phase_t), 1000 * swap_t / (frames ? frames : 1));

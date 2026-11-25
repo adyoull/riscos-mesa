@@ -374,6 +374,10 @@ static int r3dw_es3(void)
 /* the present is refused, the frame is read back and plotted as       */
 /* before, and from the next frame the surface is drawn into its      */
 /* sprite again (until the screen mode changes). EGL$Present 0: never. */
+/* A scaled one (a render size, or a window scale, filling the visible  */
+/* area) is scaled by the GPU to the visible area's size first (GPU    */
+/* library version 8: nearest for whole multiples, else bilinear), so  */
+/* it's presented too; with an older library it's plotted as before.  */
 
 static void r3dw_place(egl_surface *s);
 
@@ -404,8 +408,12 @@ static int r3dw_present_wanted(egl_surface *s)
     if (!r3d_in_program() || !r3dw_present_setting())
         return 0;
     if (s->kind != SURF_WINDOW || s->handle <= 0 || s->fixed || s->dmx || s->banks ||
-        s->direct || is_scaled(s) || s->ever_locked || s->ovl_want == 1 || s->ovl_shown ||
+        s->direct || s->ever_locked || s->ovl_want == 1 || s->ovl_shown ||
         s->r3d_ovl == R3O_ON || !s->sprite)  /* (either layout: the GPU's frame is RGBA, V3DRender stores it in the screen's order) */
+        return 0;
+    /* a scaled one (a render size, or a window scale: it fills the visible
+       area) is scaled by the GPU first: GPU library version 8 */
+    if (is_scaled(s) && r3d_present_scaled(NULL, 0, 1, 1) == -ENOTTY)
         return 0;
     read_screen(&scr);
     if (s->r3d_pres_no == r3dw_mode_key(&scr))
@@ -422,6 +430,7 @@ static int r3dw_present_wanted(egl_surface *s)
 static struct {
     egl_surface *s;
     int handle, wa_dx, wa_dy;           /* the window; screen = work area + wa_d */
+    int shown_w, shown_h;               /* a scaled surface: the size it's shown at (else 0) */
     int n;
     int px[R3DW_PRESENT_RECTS * 6];
     os_rect os[R3DW_PRESENT_RECTS];
@@ -440,6 +449,13 @@ static void r3dw_collect(egl_surface *s, const int *block, const screen_info *sc
     r3dw_pres.handle = block[0];
     r3dw_pres.wa_dx = block[1] - block[5];
     r3dw_pres.wa_dy = block[4] - block[6];
+    r3dw_pres.shown_w = r3dw_pres.shown_h = 0;
+    if (is_scaled(s)) {                 /* filling the visible area */
+        r3dw_pres.shown_w = (block[3] - block[1]) >> scr->xeig;
+        r3dw_pres.shown_h = (block[4] - block[2]) >> scr->yeig;
+        if (r3dw_pres.shown_w < 1) r3dw_pres.shown_w = 1;
+        if (r3dw_pres.shown_h < 1) r3dw_pres.shown_h = 1;
+    }
     p = r3dw_pres.px + r3dw_pres.n * 6;
     p[0] = clip->x0 >> scr->xeig;
     p[1] = (top - clip->y1) >> scr->yeig;
@@ -463,7 +479,8 @@ static void r3dw_present_collected(egl_display *d)
     if (!n)
         return;
     r3dw_pres.n = 0;
-    r = c && c->r3d && c->draw == s ? r3d_present(r3dw_pres.px, n) : -ENOENT;
+    r = c && c->r3d && c->draw == s
+        ? r3d_present_scaled(r3dw_pres.px, n, r3dw_pres.shown_w, r3dw_pres.shown_h) : -ENOENT;
     if (r == 0)
         return;
     if (r != -EBUSY && r != -ENOENT) {

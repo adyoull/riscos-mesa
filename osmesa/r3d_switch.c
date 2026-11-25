@@ -427,6 +427,25 @@ int r3d_present(const int *rects, int n)
     return gpu->present(cur->c, rects, n);
 }
 
+void r3d_end_frame(void)
+{
+    decide();
+    if (gpu && gpu->version >= 8 && cur)
+        gpu->end_frame(cur->c);
+}
+
+int r3d_present_scaled(const int *rects, int n, int width, int height)
+{
+    decide();
+    if (!width && !height)
+        return r3d_present(rects, n);
+    if (!gpu || gpu->version < 8)
+        return -ENOTTY;
+    if (!cur)
+        return -EINVAL;
+    return gpu->present_scaled(cur->c, rects, n, width, height);
+}
+
 struct r3d_context *r3d_create(void)
 {
     decide();

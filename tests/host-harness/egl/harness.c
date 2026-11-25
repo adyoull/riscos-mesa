@@ -1018,6 +1018,12 @@ static void test_risc3d_present(void)
           "one rectangle: the visible area in pixels from the top left (%d,%d %dx%d from %d,%d)",
           l[0], l[1], l[2], l[3], l[4], l[5]);
     CHECK(fake_vsyncs > vs, "swap interval 1: timed to a vsync");
+    {
+        extern int fake_r3d_end_frames;
+        int ef = fake_r3d_end_frames;
+        eglSwapBuffers(dpy, ws);
+        CHECK(fake_r3d_end_frames == ef + 1, "a swap ends the GPU's frame (depth/stencil not stored)");
+    }
 
     /* damage: only that part, with its offset in the frame */
     pres = fake_r3d_presents;
@@ -1097,6 +1103,102 @@ static void test_risc3d_present(void)
     eglDestroySurface(dpy, ws);
     eglDestroySurface(dpy, ws2);
     eglDestroyContext(dpy, r);
+    fake_r3d_on = 0;
+}
+
+/* Scaled windows (a render size, or a window scale) presented too: the
+   GPU scales the frame to the visible area first (GPU library version 8);
+   with an older library, plotted as before */
+static void test_risc3d_present_scaled(void)
+{
+    extern int fake_r3d_present, fake_r3d_present_screen, fake_r3d_presents, fake_r3d_present_last[6],
+        fake_r3d_tiled, fake_r3d_scaled_ok, fake_r3d_shown_w, fake_r3d_shown_h, fake_r3d_scaled_presents;
+    EGLConfig cfg = choose(EGL_RISCOS_VISUAL_TBGR, 16, EGL_WINDOW_BIT);
+    EGLint rs[] = { EGL_RENDER_WIDTH_RISCOS, 50, EGL_RENDER_HEIGHT_RISCOS, 40, EGL_NONE };
+    EGLint sc[] = { EGL_WINDOW_SCALE_RISCOS, 2, EGL_NONE };
+    EGLContext r;
+    EGLSurface ws;
+    EGLint dmg[4] = { 10, 10, 5, 5 };
+    int block[64], swaps, pres, *l = fake_r3d_present_last;
+
+    eglBindAPI(EGL_OPENGL_API);
+    fake_r3d_on = 1;
+    fake_r3d_present = 1;
+    fake_r3d_present_screen = 0;
+    fake_r3d_scaled_ok = 1;
+    r = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, NULL);
+
+    /* a render size: 50x40 shown in a 100x80 visible area */
+    fake_open_window(0x3100, 200, 300, 400, 460, 0, 0);
+    ws = eglCreateWindowSurface(dpy, cfg, 0x3100, rs);
+    eglMakeCurrent(dpy, ws, ws, r);
+    CHECK(fake_r3d_tiled == 1, "render size: drawn in the GPU's tiles");
+    memset(fake_screen.mem, 0, fake_screen.w * fake_screen.h * 4);
+    swaps = fake_r3d_swaps; pres = fake_r3d_scaled_presents;
+    clear(0, 0, 1);
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_swaps == swaps && fake_r3d_scaled_presents == pres + 1,
+          "render size: presented scaled, nothing read back");
+    CHECK(fake_r3d_shown_w == 100 && fake_r3d_shown_h == 80, "scaled to the visible area (%dx%d)",
+          fake_r3d_shown_w, fake_r3d_shown_h);
+    CHECK(box_is(100, 250, 100, 80, BLUE_TBGR), "the whole visible area filled");
+    CHECK(l[0] == 100 && l[1] == 250 && l[2] == 100 && l[3] == 80 && l[4] == 0 && l[5] == 0,
+          "one rectangle, offsets in the shown size (%d,%d %dx%d from %d,%d)", l[0], l[1], l[2], l[3], l[4], l[5]);
+
+    /* damage is stretched to the shown size */
+    pres = fake_r3d_scaled_presents;
+    eglSwapBuffersWithDamageKHR(dpy, ws, dmg, 1);
+    CHECK(fake_r3d_scaled_presents == pres + 1 && l[4] == l[0] - 100 && l[5] == l[1] - 250 &&
+          l[4] <= 20 && l[4] + l[2] >= 30 && l[2] < 100,
+          "damage stretched (%d,%d %dx%d from %d,%d)", l[0], l[1], l[2], l[3], l[4], l[5]);
+
+    /* the window resized: the new visible area */
+    fake_open_window(0x3100, 200, 300, 500, 500, 0, 0);
+    pres = fake_r3d_scaled_presents;
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_scaled_presents == pres + 1 && fake_r3d_shown_w == 150 && fake_r3d_shown_h == 100,
+          "resized: scaled to the new visible area (%dx%d)", fake_r3d_shown_w, fake_r3d_shown_h);
+
+    /* a redraw: presented scaled again */
+    pres = fake_r3d_scaled_presents; swaps = fake_r3d_swaps;
+    block[0] = 0x3100;
+    CHECK(eglRedrawWindowRISCOS(dpy, block) && fake_r3d_scaled_presents == pres + 1 && fake_r3d_swaps == swaps,
+          "redraw: presented scaled");
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, ws);
+
+    /* a window scale of 2 (visible area): presented, filling it */
+    fake_open_window(0x3100, 200, 300, 400, 460, 0, 0);
+    ws = eglCreateWindowSurface(dpy, cfg, 0x3100, sc);
+    eglMakeCurrent(dpy, ws, ws, r);
+    pres = fake_r3d_scaled_presents; swaps = fake_r3d_swaps;
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_scaled_presents == pres + 1 && fake_r3d_swaps == swaps &&
+          fake_r3d_shown_w == 100 && fake_r3d_shown_h == 80,
+          "window scale 2: presented scaled (%dx%d)", fake_r3d_shown_w, fake_r3d_shown_h);
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, ws);
+
+    /* an older GPU library: a scaled one is plotted, an unscaled one still presented */
+    fake_r3d_scaled_ok = 0;
+    ws = eglCreateWindowSurface(dpy, cfg, 0x3100, rs);
+    eglMakeCurrent(dpy, ws, ws, r);
+    swaps = fake_r3d_swaps; pres = fake_r3d_presents;
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_tiled == 0 && fake_r3d_swaps == swaps + 1 && fake_r3d_presents == pres,
+          "GPU library before version 8: scaled one read back and plotted");
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, ws);
+    ws = eglCreateWindowSurface(dpy, cfg, 0x3100, NULL);
+    eglMakeCurrent(dpy, ws, ws, r);
+    pres = fake_r3d_presents;
+    eglSwapBuffers(dpy, ws);
+    CHECK(fake_r3d_tiled == 1 && fake_r3d_presents == pres + 1, "and an unscaled one still presented");
+
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(dpy, ws);
+    eglDestroyContext(dpy, r);
+    fake_r3d_present = 0;
     fake_r3d_on = 0;
 }
 
@@ -2667,6 +2769,7 @@ static void *run(void *arg)
     test_risc3d();
     test_risc3d_plane();
     test_risc3d_present();
+    test_risc3d_present_scaled();
     test_trgb_screen();
     test_565();
     test_overlay(dpy);          /* last: hooks in the fake VideoOverlay */

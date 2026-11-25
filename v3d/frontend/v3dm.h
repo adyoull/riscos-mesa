@@ -64,6 +64,14 @@ int v3dm_draw_tiled(v3dm_context *c, int on, unsigned width, unsigned height);
    stored. n 0: whether it would be taken. 0, or -errno (ENOTTY: not
    offered; EINVAL: not this screen or frame; EBUSY: not just now) */
 int v3dm_present(v3dm_context *c, const int *rects, unsigned n);
+/* v3dm_present of the frame scaled by the GPU to width x height (the size
+   it's shown at; rectangles' source offsets in that), when that isn't the
+   frame's own size (0: as it is) */
+/* the end of c's frame (eglSwapBuffers): its depth/stencil are dropped,
+   not stored (undefined after a swap) */
+void v3dm_end_frame(v3dm_context *c);
+int v3dm_present_scaled(v3dm_context *c, const int *rects, unsigned n,
+                        unsigned width, unsigned height);
 /* c's frame (c current), finished, as R,G,B,A bytes: rows row_bytes
    apart, the top row first or (top_first 0) last. 0, or -1 */
 int v3dm_read(v3dm_context *c, void *pixels, int row_bytes, int top_first);

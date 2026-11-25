@@ -109,6 +109,19 @@ static int present(void *context, const int *rects, int n)
     return n < 0 ? -EINVAL : v3dm_present((v3dm_context *) context, rects, (unsigned) n);
 }
 
+static int present_scaled(void *context, const int *rects, int n, int width, int height)
+{
+    if (n < 0 || width < 0 || height < 0)
+        return -EINVAL;
+    return v3dm_present_scaled((v3dm_context *) context, rects, (unsigned) n,
+                               (unsigned) width, (unsigned) height);
+}
+
+static void end_frame(void *context)
+{
+    v3dm_end_frame((v3dm_context *) context);
+}
+
 /* glGetError, in riscos_mesa_gpu_functions (tools/gpu-functions.py): a
    buffer the GPU module refused is GL_OUT_OF_MEMORY */
 unsigned glGetError(void);
@@ -128,6 +141,7 @@ static const struct riscos_mesa_gpu gpu = {
     RISCOS_MESA_GPU_VERSION, device, create, destroy, make_current, read_frame,
     riscos_mesa_gpu_functions, v3dm_error, draw_into, finish, create_shared,
     image_create, image_destroy, image_target, draw_tiled, present, get_proc, create_format,
+    present_scaled, end_frame,
 };
 
 __attribute__((visibility("default")))

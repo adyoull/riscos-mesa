@@ -70,6 +70,9 @@ struct v3dm_context {
        take turns, each drawn into where it is */
 #define V3DM_SPARE_FBS 3
     struct v3dm_buffer *spare[V3DM_SPARE_FBS];
+    /* v3dm_present_scaled: the frame scaled by the GPU to the size it's
+       shown at, in tiles, presented instead of the frame (NULL: none yet) */
+    struct pipe_resource *scaled;
 };
 
 static struct {
@@ -82,6 +85,7 @@ static struct {
     int no_import;              /* V3DM$NoImport, or the module refused an import */
     int no_uncached;            /* a module before V3DRender 0.13 (no DRM_RISCOS_IMPORT_UNCACHED) */
     int trace;                  /* V3DM$Trace: frames made, chosen and finished, on stderr */
+    int keep_depth;             /* V3DM$KeepDepth: v3dm_end_frame keeps depth/stencil (to compare) */
     uint32_t present_sync;      /* syncobj v3dm_present waits on (0: not made yet) */
     char error[160];
 } dev;
@@ -474,6 +478,7 @@ int v3dm_init(void)
     dev.no_cached = dev.tiled || getenv("V3DM$Uncached") != NULL;
     dev.no_import = dev.tiled || getenv("V3DM$NoImport") != NULL;
     dev.trace = getenv("V3DM$Trace") != NULL;
+    dev.keep_depth = getenv("V3DM$KeepDepth") != NULL;
     dev.fd = drm_riscos_open();
     if (dev.fd < 0) {
         snprintf(dev.error, sizeof dev.error, "the %s GPU's module wouldn't open", name);
@@ -751,13 +756,64 @@ static uint32_t present_fourcc(enum pipe_format f)
    rectangles (6 ints each: dst_x, dst_y, width, height, src_x, src_y),
    waiting until it's stored. n 0: only whether it would be taken. 0, or
    -errno (ENOTTY: not offered) */
+/* c's frame scaled by the GPU to width x height (c->scaled, made or
+   remade at that size): nearest when both are whole multiples of the
+   frame's, else bilinear. The scaled frame, or NULL (couldn't be made) */
+static struct pipe_resource *scale_frame(v3dm_context *c, struct pipe_resource *res,
+                                         unsigned width, unsigned height)
+{
+    struct pipe_context *pipe = c->st->pipe;
+    struct pipe_blit_info bi;
+    if (!c->scaled || c->scaled->width0 != width || c->scaled->height0 != height ||
+        c->scaled->format != res->format) {
+        struct pipe_resource t;
+        pipe_resource_reference(&c->scaled, NULL);
+        memset(&t, 0, sizeof t);
+        t.target = PIPE_TEXTURE_2D;
+        t.format = res->format;
+        t.width0 = width;
+        t.height0 = height;
+        t.depth0 = 1;
+        t.array_size = 1;
+        t.bind = PIPE_BIND_RENDER_TARGET | PIPE_BIND_SAMPLER_VIEW;
+        c->scaled = dev.screen->resource_create(dev.screen, &t);
+        if (!c->scaled)
+            return NULL;
+    }
+    memset(&bi, 0, sizeof bi);
+    bi.src.resource = res;
+    bi.src.format = res->format;
+    u_box_2d(0, 0, res->width0, res->height0, &bi.src.box);
+    bi.dst.resource = c->scaled;
+    bi.dst.format = c->scaled->format;
+    u_box_2d(0, 0, width, height, &bi.dst.box);
+    bi.mask = PIPE_MASK_RGBA;
+    bi.filter = width % res->width0 == 0 && height % res->height0 == 0
+                ? PIPE_TEX_FILTER_NEAREST : PIPE_TEX_FILTER_LINEAR;
+    pipe->blit(pipe, &bi);
+    return c->scaled;
+}
+
 int v3dm_present(v3dm_context *c, const int *rects, unsigned n)
+{
+    return v3dm_present_scaled(c, rects, n, 0, 0);
+}
+
+int v3dm_present_scaled(v3dm_context *c, const int *rects, unsigned n,
+                        unsigned width, unsigned height)
 {
     struct drm_riscos_present p;
     struct pipe_resource *res = c && c->fb ? c->fb->textures[c->fb->main] : NULL;
     unsigned done = 0;
     if (!c || !dev.fd)
         return -ENODEV;
+    if (width > V3D_MAX_IMAGE_DIMENSION || height > V3D_MAX_IMAGE_DIMENSION)
+        return -EINVAL;
+    if (res && n && width && height && (width != res->width0 || height != res->height0)) {
+        res = scale_frame(c, res, width, height);
+        if (!res)
+            return -ENOMEM;
+    }
     memset(&p, 0, sizeof p);
     if (res) {
         struct v3d_resource *rsc = v3d_resource(res);
@@ -808,6 +864,25 @@ int v3dm_present(v3dm_context *c, const int *rects, unsigned n)
     return 0;
 }
 
+/* The end of c's frame (eglSwapBuffers): its depth and stencil are
+   undefined after a swap (EGL 1.4, 3.9.3), so the frame's last job doesn't
+   store them, and the next frame doesn't load them (as Linux's DRI
+   frontend does: __DRI2_FLUSH_INVALIDATE_ANCILLARY). V3DM$KeepDepth:
+   kept, to compare. */
+void v3dm_end_frame(v3dm_context *c)
+{
+    struct pipe_context *pipe;
+    unsigned a;
+    if (!c || !c->fb || dev.keep_depth)
+        return;
+    pipe = c->st->pipe;
+    if (!pipe->invalidate_resource)
+        return;
+    for (a = 0; a < ST_ATTACHMENT_COUNT; a++)
+        if (a == ST_ATTACHMENT_DEPTH_STENCIL && c->fb->textures[a])
+            pipe->invalidate_resource(pipe, c->fb->textures[a]);
+}
+
 /* Buffers the GPU module refused since this was last asked (v3d_bo_alloc
    gave stand-ins: what needed them wasn't drawn): GL_OUT_OF_MEMORY in the
    current context, for its next glGetError. The count. */
@@ -840,6 +915,7 @@ void v3dm_destroy(v3dm_context *c)
     st_context_flush(c->st, 0, NULL, NULL, NULL);
     st_destroy_context(c->st);
     fb_destroy(c->fb);
+    pipe_resource_reference(&c->scaled, NULL);
     {
         unsigned i;
         for (i = 0; i < V3DM_SPARE_FBS; i++)
