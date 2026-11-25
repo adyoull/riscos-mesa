@@ -938,7 +938,9 @@ static void copy_from_gpu(void *dst, const void *src, size_t n)
     const unsigned char *s = (const unsigned char *) src;
     if ((((uintptr_t) d | (uintptr_t) s) & 7) == 0) {
         /* Each 128-byte store mustn't be the first touch of a page
-           ARMEABISupport maps on demand (a thread's stack, mmap'd memory):
+           ARMEABISupport maps on demand (a thread's stack, if the caller's
+           buffer is there; malloc'd and mmap'd memory is mapped when it's
+           allocated):
            it completes at most 60 bytes of such an access (UnixLib
            5.0.3.11-rc8, M3). Loading a byte from each page first maps it
            the ordinary way. */
