@@ -113,6 +113,61 @@ static int differ(unsigned int a, unsigned int b, int tol)
     return 0;
 }
 
+/* Threads that draw with RISC3D contexts and end, as a web browser's
+   painting threads do (each a context sharing the main one's objects):
+   mode 0 lets go first (eglMakeCurrent with none, destroy,
+   eglReleaseThread); 1 destroys it while current, then eglReleaseThread;
+   2 ends with it current (EGL's thread-exit destructor lets go). */
+static EGLContext thread_share;
+static EGLConfig thread_cfg;
+static int thread_ok[16];
+
+static void *gl_thread(void *arg)
+{
+    int i = (int) (long) arg, mode = i % 3;
+    EGLint pa[] = { EGL_WIDTH, 16, EGL_HEIGHT, 16, EGL_NONE };
+    EGLSurface pb;
+    EGLContext c;
+    unsigned char px[4] = { 0, 0, 0, 0 };
+    eglBindAPI(EGL_OPENGL_API);
+    pb = eglCreatePbufferSurface(dpy, thread_cfg, pa);
+    c = eglCreateContext(dpy, thread_cfg, thread_share, NULL);
+    if (pb == EGL_NO_SURFACE || c == EGL_NO_CONTEXT || !eglMakeCurrent(dpy, pb, pb, c))
+        return NULL;
+    glClearColor(1, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glReadPixels(1, 1, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+    thread_ok[i] = px[0] == 255 && px[1] == 0;
+    if (mode == 0) {
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroyContext(dpy, c);
+        eglDestroySurface(dpy, pb);
+        eglReleaseThread();
+    } else if (mode == 1) {
+        eglDestroyContext(dpy, c);              /* (goes when let go) */
+        eglDestroySurface(dpy, pb);
+        eglReleaseThread();
+    }
+    return NULL;
+}
+
+/* threads below 2 GB too (their stacks are passed to the SWIs) */
+static void run_threads(int first, int n)
+{
+    pthread_t t[16];
+    int i;
+    for (i = 0; i < n; i++) {
+        pthread_attr_t a;
+        void *stack = mmap((void *) (0x62000000 + 0x100000 * (long) (first + i)), 1 << 20,
+                           PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+        pthread_attr_init(&a);
+        pthread_attr_setstack(&a, stack, 1 << 20);
+        pthread_create(&t[i], &a, gl_thread, (void *) (long) (first + i));
+    }
+    for (i = 0; i < n; i++)
+        pthread_join(t[i], NULL);
+}
+
 static void *run(void *arg)
 {
     /* RISC3D whatever the build machine draws with (its llvmpipe would
@@ -297,6 +352,38 @@ static void *run(void *arg)
         eglDestroyContext(dpy, ctx);
         eglDestroySurface(dpy, ps);
         free(area);
+    }
+    {
+        /* painting threads that end (a web browser's): one at a time, then
+           four at once, each way of ending; the main context draws after */
+        EGLContext main_ctx;
+        EGLSurface pb;
+        EGLint pa[] = { EGL_WIDTH, 16, EGL_HEIGHT, 16, EGL_NONE };
+        unsigned char px[4] = { 0, 0, 0, 0 };
+        int i, good = 0;
+        thread_cfg = choose(EGL_RISCOS_VISUAL_TBGR, 0, EGL_PBUFFER_BIT);
+        pb = eglCreatePbufferSurface(dpy, thread_cfg, pa);
+        main_ctx = eglCreateContext(dpy, thread_cfg, EGL_NO_CONTEXT, NULL);
+        CHECK(main_ctx != EGL_NO_CONTEXT && eglMakeCurrent(dpy, pb, pb, main_ctx), "main thread's context current");
+        thread_share = eglCreateContext(dpy, thread_cfg, main_ctx, NULL);
+        if (thread_share == EGL_NO_CONTEXT)
+            thread_share = EGL_NO_CONTEXT;  /* (sharing needs a newer renderer: plain contexts) */
+        else
+            eglDestroyContext(dpy, thread_share), thread_share = main_ctx;
+        for (i = 0; i < 3; i++)
+            run_threads(i, 1);
+        run_threads(3, 4);
+        run_threads(7, 6);
+        for (i = 0; i < 13; i++)
+            good += thread_ok[i];
+        CHECK(good == 13, "13 threads drew with RISC3D contexts and ended, every way (%d drew)", good);
+        glClearColor(0, 0, 1, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glReadPixels(1, 1, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+        CHECK(px[2] == 255 && px[0] == 0, "and the main thread's context still draws (%d %d %d)", px[0], px[1], px[2]);
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroyContext(dpy, main_ctx);
+        eglDestroySurface(dpy, pb);
     }
     eglTerminate(dpy);
     printf("%d checks, %d failures: %s\n", checks, failures, failures ? "FAIL" : "ALL PASS");

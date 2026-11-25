@@ -249,7 +249,7 @@ static struct r3d_context none = { .handle = -1, .grp = &none_group };
 /* The current context (0.12: each thread's). While one thread has made
    contexts current it is a plain variable, as before, costing the gl
    functions nothing more; once another thread makes one current (EGL's
-   contexts per thread: WebKit's Skia), every thread but the first keeps
+   contexts per thread: a web browser's painting threads), every thread but the first keeps
    its own in a pthread key. */
 static struct r3d_context *cur_one = &none;	/* the first thread's */
 static int threads_seen;			/* another thread has one */
