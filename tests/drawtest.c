@@ -145,6 +145,7 @@ int main(int argc, char **argv)
     double secs = 2;
     void *buf = malloc(SIZE * SIZE * 4);
     OSMesaContext ctx;
+    double t_start = hr_seconds(), t_ctx, t_setup, t_first = 0;
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-o") && i + 1 < argc) outf = fopen(argv[++i], "w");
         else if (!strcmp(argv[i], "-f") && i + 1 < argc) fixed = atoi(argv[++i]);
@@ -159,14 +160,19 @@ int main(int argc, char **argv)
         out("no context\n");
         return 1;
     }
+    t_ctx = hr_seconds() - t_start;
     out("drawtest: %s / %s, %d draws a frame, %.1f s a mode\n", (const char *) glGetString(GL_RENDERER),
         (const char *) glGetString(GL_VERSION), n, secs);
+    t_setup = hr_seconds();
     setup();
+    t_setup = hr_seconds() - t_setup;
     for (mode = 0; mode < M_COUNT; mode++) {
         double t0, t, issue = 0, fin = 0, start;
         int frames = 0;
         if (only >= 0 && mode != only) continue;
+        start = hr_seconds();
         frame(mode, n); glFinish();            /* (first frame: compiles and uploads, not counted) */
+        t_first += hr_seconds() - start;
         start = hr_seconds();
         do {
             t0 = hr_seconds();
@@ -180,6 +186,8 @@ int main(int argc, char **argv)
         out("%-10s %7.2f us a draw (CPU)  %7.2f ms a frame in glFinish  %6.1f frames a second\n", names[mode],
             1e6 * issue / frames / n, 1e3 * fin / frames, frames / (hr_seconds() - start));
     }
+    out("start-up: context %.1f ms, 4 programs and 8 textures %.1f ms, first frames %.1f ms\n",
+        1e3 * t_ctx, 1e3 * t_setup, 1e3 * t_first);
     if (glGetError()) out("GL error\n");
     OSMesaDestroyContext(ctx);
     return 0;

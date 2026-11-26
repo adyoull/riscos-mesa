@@ -143,6 +143,9 @@ $HOST-objcopy -R .group --redefine-syms="$O/mesagpu.syms" --keep-global-symbol=r
   "$O/mesagpu-all.o" "$O/mesagpu.o"
 leaked=$($HOST-nm -g --defined-only "$O/mesagpu.o" | awk '{print $3}' | grep -vx riscos_mesa_gpu || true)
 [ -z "$leaked" ] || { echo "libMesaGPU exports more than riscos_mesa_gpu: $leaked" >&2; exit 1; }
+# writable data sections of 4 bytes or more word aligned (riscos-crossdev's
+# check-data-align.py: a Pi aborts unaligned word accesses)
+python3 "$R/tools/elf-align-data.py" "$O/mesagpu.o"
 rm -f "$O/libMesaGPU.a"; $AR rcs "$O/libMesaGPU.a" "$O/mesagpu.o"
 mkdir -p "$STAGE/lib"; cp "$O/libMesaGPU.a" "$STAGE/lib/"
 ls -la "$STAGE/lib/libMesaGPU.a"
