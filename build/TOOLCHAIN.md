@@ -1,7 +1,7 @@
 # Building GCCSDK GCC 10.2.0 (arm-riscos-gnueabihf) from source
 
 riscos-mesa's releases and its GitHub builds use riscos-crossdev's
-toolchain (GCCSDK GCC 10.2 with riscos-unixlib 5.0.3.7; riscos-crossdev 1.11), in its container
+toolchain (GCCSDK GCC 10.2 with riscos-unixlib 5.0.3.12; riscos-crossdev 1.14), in its container
 image (`build/ci.sh`; README "Build"). You only need what follows if you
 want a GCCSDK GCC 10 install of your own. It follows GCCSDK's autobuilder recipe
 `autobuilder/develop/gcc/setvars` with two deviations, both marked below.

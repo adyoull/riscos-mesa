@@ -246,7 +246,7 @@ The zips store RISC OS filetypes. Releases are numbered after the Mesa version t
 The simplest way is riscos-crossdev's container image, which has the
 compiler (GCCSDK GCC 10.2 with riscos-unixlib): from a clean checkout,
 
-    docker run --rm -v "$PWD":/src ghcr.io/adyoull/riscos-crossdev:1.11 build/ci.sh [VERSION]
+    docker run --rm -v "$PWD":/src ghcr.io/adyoull/riscos-crossdev:1.14 build/ci.sh [VERSION]
 
 builds everything, makes the release zips and devkit in `dist/` and runs
 riscos-crossdev's checks on the test programs. GitHub runs the same
