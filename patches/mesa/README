@@ -624,3 +624,19 @@ mesa-20.3.5-riscos-osmesa-565.patch
     (RISC OS's 5:6:5: sprite type 10, C64K screens; MESA_FORMAT_R5G6B5_UNORM),
     for contexts, OSMesaMakeCurrent and OSMesaBuffers. EGL's 16-bit configs
     draw with it.
+
+mesa-20.3.5-riscos-convert-neon.patch
+    main/image.c: _mesa_convert_colors' float to 8-bit conversion (a
+    fragment program's colours going into a span) with NEON, two pixels at
+    a time, the same bit for bit as UNCLAMPED_FLOAT_TO_UBYTE (the bits
+    tested for below 0 and at or above 1.0, then f * 255/256 + 32768's low
+    byte). It was a seventh of glbench's glsl scene's instructions under
+    qemu (tools/hotfuncs.py over qemu's hotblocks plugin). Only where the
+    CPU has NEON (MESA_NO_NEON turns it off), as the other NEON paths.
+
+mesa-20.3.5-riscos-proc-names.patch
+    glapi: _glapi_riscos_proc_names fills a table of every dispatch slot's
+    name (what _glapi_get_proc_name gives) in one pass. libOSMesa's GPU
+    library switch (osmesa/r3d_switch.c) asked _glapi_get_proc_name for
+    every slot, each a search of the whole table: a fifth of a GPU
+    program's start-up instructions before its first frame.

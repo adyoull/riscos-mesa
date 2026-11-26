@@ -6,6 +6,24 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-24 (in development)
 
+- **On the GPU, half or less of the CPU time per draw call when state changes** (a texture bound, a program used, blending turned on or off). Found with a new test, `drawtest` (microseconds of CPU per draw, in seven kinds), and a profile of the GPU library itself under qemu-arm (`tests/host-harness/mesa/arm/prof-gpu.sh`: the RISC OS build linked into an ARM Linux program with a fake GPU, then `tools/hotfuncs.py` over qemu's hotblocks plugin). In Mesa 26's v3d driver (`v3d/patches`):
+  - the table of compiled shader variants hashed each lookup's key with BLAKE3, whose portable C (there's no ARM32 SIMD version) was half the CPU time of such draws: it now uses Mesa's ordinary hash (the table still compares whole keys);
+  - the last eight variants found for each stage are kept by key, so most draws skip the table altogether;
+  - a job's buffers are kept in a small table by address, before its hash set.
+
+  On the owner's Pi 4 (microseconds of CPU a draw, 500 draws a frame):
+
+  | Between draws | Before | After |
+  |---|---|---|
+  | nothing | 0.71 | 0.63 |
+  | `glUniform4f` | 2.78 | 2.15 |
+  | `glBindTexture` | 8.06 | 3.69 |
+  | `glEnable`/`glDisable(GL_BLEND)` | 4.91 | 1.66 |
+  | `glUseProgram` | 15.52 | 7.59 |
+  | client-side arrays | 2.33 | 1.68 |
+
+- **GPU programs start quicker:** libOSMesa's GPU switch asked Mesa 20's dispatch for each slot's name with a search of the whole table each time, a fifth of the instructions before the first frame. It now gets them all in one pass (`patches/mesa`: riscos-proc-names).
+- **Software Mesa: a fragment program's colours are converted to 8 bits with NEON** (`patches/mesa`: riscos-convert-neon), bit for bit the same (checked against the C over 616 million values, and by the ARM rendering checks). glbench's glsl scene on the owner's Pi 4: 12.8 ms a frame, against 13.2.
 - **No 64-byte or larger store is the first touch of a page in riscos-mesa's own code.** ARMEABISupport maps a stack page (and an mmap'd page given back with `madvise`, which nothing here does) when it is first touched, and completes at most 60 bytes of the access that touched it; a longer one killed the program ("ARMEABISupport could not handle an abort"). UnixLib 5.0.3.11-rc8 fixes memcpy and setjmp, which is what killed `presenttest` about 1 run in 8; with it, 30 of 30 runs passed on the owner's Pi 4. riscos-mesa's own two such stores now load a byte from each page first: the GLSL JIT's `vpush {d8-d15}` (`patches/mesa`: riscos-glsl-jit) and the GPU library's 128-byte copy out of the GPU's buffers. A function GCC compiles with a 64-byte `vpush` can still meet it: that needs ARMEABISupport to complete longer accesses.
 - **On the GPU, a program that never calls `glViewport` drew into one pixel.** Mesa sets a context's viewport and scissor box when it is first made current, and the GPU library's contexts were first made current at 1x1, before EGL gave them their surface's size. The first surface now sets them to fit, as RISC3D's command stream client already did (libOSMesa's RISC3D switch, `r3d_surface`). Found with `presenttest -g`: 40 layers of blended quads drew nothing, and with the fix they cover the window (owner's Pi 4).
 - **The GPU starts on a frame while the swap waits for the vsync.** `eglSwapBuffers` submits the frame's jobs before its vsync wait (as part of ending the frame, below), rather than when the frame is shown after it. `*Set V3DM$LateFlush 1` restores the old order, to compare. On the owner's Pi 4, a 1600x1000 window with about 12 ms of GPU drawing a frame at swap interval 1: 54.6 fps, against 35.2 fps the old way (`presenttest -g 12 -nf`).

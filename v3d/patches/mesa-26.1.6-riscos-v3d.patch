@@ -344,7 +344,27 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_context.c b/src/gallium/drivers/v3d/v3d_
 diff -ruN a/src/gallium/drivers/v3d/v3d_context.h b/src/gallium/drivers/v3d/v3d_context.h
 --- a/src/gallium/drivers/v3d/v3d_context.h
 +++ b/src/gallium/drivers/v3d/v3d_context.h
-@@ -360,6 +360,11 @@
+@@ -265,6 +265,19 @@
+ 
+         struct hash_table *cache[MESA_SHADER_STAGES];
+ 
++#ifdef __riscos__
++        /* riscos-mesa: the last eight variants found for each stage, by key
++         * (v3d_get_compiled_shader): most draws ask again for one just
++         * used, and the table's hash and compare cost more than this */
++        struct v3d_riscos_recent {
++                struct v3d_uncompiled_shader *uncompiled;
++                struct v3d_compiled_shader *shader;
++                uint32_t key_size;
++                uint8_t key[384];
++        } riscos_recent[MESA_SHADER_STAGES][8];
++        uint8_t riscos_recent_next[MESA_SHADER_STAGES];
++#endif
++
+         struct v3d_bo *spill_bo;
+         int spill_size_per_thread;
+ };
+@@ -360,6 +373,14 @@
   */
  struct v3d_job {
          struct v3d_context *v3d;
@@ -352,11 +372,14 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_context.h b/src/gallium/drivers/v3d/v3d_
 +        /* riscos-mesa: it names a stand-in for a refused buffer: not
 +         * submitted (v3d_bo_alloc) */
 +        bool riscos_dropped;
++        /* riscos-mesa: BOs added lately (v3d_job_add_bo), by address: most
++         * draws add the same few, and the set's hash lookup cost more */
++        struct v3d_bo *riscos_recent_bos[16];
 +#endif
          struct v3d_cl bcl;
          struct v3d_cl rcl;
          struct v3d_cl indirect;
-@@ -830,6 +835,20 @@
+@@ -830,6 +851,20 @@
  void v3d_job_add_write_resource(struct v3d_job *job, struct pipe_resource *prsc);
  void v3d_job_add_tf_write_resource(struct v3d_job *job, struct pipe_resource *prsc);
  void v3d_job_submit(struct v3d_context *v3d, struct v3d_job *job);
@@ -430,7 +453,16 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
  #include "v3d_context.h"
  /* The OQ/semaphore packets are the same across V3D versions. */
  #define V3D_VERSION 42
-@@ -123,6 +125,10 @@
+@@ -120,9 +122,19 @@
+         if (!bo)
+                 return;
+ 
++#ifdef __riscos__
++        struct v3d_bo **recent = &job->riscos_recent_bos[((uintptr_t) bo >> 6) & 15];
++        if (*recent == bo)
++                return;
++        *recent = bo;           /* (in the set by the end of this either way) */
++#endif
          if (_mesa_set_search(job->bos, bo))
                  return;
  
@@ -441,7 +473,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
          v3d_bo_reference(bo);
          _mesa_set_add(job->bos, bo);
          job->referenced_size += bo->size;
-@@ -157,6 +163,7 @@
+@@ -157,6 +169,7 @@
  v3d_flush_jobs_using_bo(struct v3d_context *v3d, struct v3d_bo *bo)
  {
          MESA_TRACE_FUNC();
@@ -449,7 +481,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
  
          hash_table_foreach(v3d->jobs, entry) {
                  struct v3d_job *job = entry->data;
-@@ -196,6 +203,7 @@
+@@ -196,6 +209,7 @@
                                  enum v3d_flush_cond flush_cond,
                                  bool is_compute_pipeline)
  {
@@ -457,7 +489,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
          struct hash_entry *entry = _mesa_hash_table_search(v3d->write_jobs,
                                                             prsc);
          if (!entry)
-@@ -250,6 +258,7 @@
+@@ -250,6 +264,7 @@
                                  enum v3d_flush_cond flush_cond,
                                  bool is_compute_pipeline)
  {
@@ -465,7 +497,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
          struct v3d_resource *rsc = v3d_resource(prsc);
  
          /* We only need to force the flush on TF writes, which is the only
-@@ -622,6 +631,33 @@
+@@ -622,6 +637,33 @@
  /**
   * Submits the job to the kernel and then reinitializes it.
   */
@@ -499,7 +531,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
  void
  v3d_job_submit(struct v3d_context *v3d, struct v3d_job *job)
  {
-@@ -632,6 +668,9 @@
+@@ -632,6 +674,9 @@
  
          if (!job->needs_flush)
                  goto done;
@@ -509,7 +541,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
  
          /* The GL_PRIMITIVES_GENERATED query is included with
           * OES_geometry_shader.
-@@ -660,7 +699,11 @@
+@@ -660,7 +705,11 @@
                  } else {
                     job->submit.in_sync_bcl = v3d->in_syncobj;
                  }
@@ -521,7 +553,7 @@ diff -ruN a/src/gallium/drivers/v3d/v3d_job.c b/src/gallium/drivers/v3d/v3d_job.
                  v3d->in_fence_fd = -1;
          } else {
                  /* While the RCL will implicitly depend on the last RCL to have
-@@ -708,6 +751,11 @@
+@@ -708,6 +757,11 @@
  
          v3d_clif_dump(v3d, job);
  
@@ -908,3 +940,77 @@ diff -ruN a/src/gallium/drivers/v3d/v3dx_draw.c b/src/gallium/drivers/v3d/v3dx_d
          if (!V3D_DBG(NORAST)) {
                  int ret = v3d_ioctl(screen->fd, DRM_IOCTL_V3D_SUBMIT_CSD,
                                      &submit);
+diff -ruN a/src/gallium/drivers/v3d/v3d_program.c b/src/gallium/drivers/v3d/v3d_program.c
+--- a/src/gallium/drivers/v3d/v3d_program.c
++++ b/src/gallium/drivers/v3d/v3d_program.c
+@@ -468,10 +468,34 @@
+ {
+         nir_shader *s = uncompiled->base.ir.nir;
+         struct hash_table *ht = v3d->prog.cache[s->info.stage];
++#ifdef __riscos__
++        unsigned stage = s->info.stage;
++        bool remember = stage < MESA_SHADER_STAGES &&
++                        key_size <= sizeof(v3d->prog.riscos_recent[0][0].key);
++        if (remember) {
++                for (int i = 0; i < 8; i++) {
++                        struct v3d_riscos_recent *r = &v3d->prog.riscos_recent[stage][i];
++                        if (r->shader && r->uncompiled == uncompiled && r->key_size == key_size &&
++                            memcmp(r->key, key, key_size) == 0)
++                                return r->shader;
++                }
++        }
++#endif
+         struct v3d_cache_key cache_key;
+         cache_key.key = key;
+         memcpy(cache_key.blake3, uncompiled->blake3, sizeof(cache_key.blake3));
+         struct hash_entry *entry = _mesa_hash_table_search(ht, &cache_key);
++#ifdef __riscos__
++        if (entry && remember) {
++                struct v3d_riscos_recent *r =
++                        &v3d->prog.riscos_recent[stage][v3d->prog.riscos_recent_next[stage]];
++                v3d->prog.riscos_recent_next[stage] = (v3d->prog.riscos_recent_next[stage] + 1) & 7;
++                r->uncompiled = uncompiled;
++                r->shader = entry->data;
++                r->key_size = key_size;
++                memcpy(r->key, key, key_size);
++        }
++#endif
+         if (entry)
+                 return entry->data;
+ 
+@@ -971,6 +995,16 @@
+ {
+         const struct v3d_cache_key *key = (struct v3d_cache_key *) _key;
+ 
++#if DETECT_OS_RISCOS
++        /* riscos-mesa: this runs at every variant lookup (after any state
++         * change a shader key depends on: a texture bound, a program
++         * used). BLAKE3 has no ARM32 SIMD code, and its portable C was
++         * half the CPU time of such draws on a Pi 4. A table's hash only
++         * spreads its entries (cache_compare checks the whole key), so
++         * the plain hash of the key's bytes, then the shader's, does. */
++        uint32_t h = _mesa_hash_data(key->key, key_size);
++        return _mesa_hash_data_with_seed(key->blake3, BLAKE3_KEY_LEN, h);
++#else
+         blake3_hasher ctx;
+         unsigned char blake3[BLAKE3_KEY_LEN];
+         _mesa_blake3_init(&ctx);
+@@ -978,6 +1012,7 @@
+         _mesa_blake3_update(&ctx, key->blake3, BLAKE3_KEY_LEN);
+         _mesa_blake3_final(&ctx, blake3);
+         return _mesa_hash_data(blake3, BLAKE3_KEY_LEN);
++#endif
+ }
+ 
+ static inline bool
+@@ -1047,6 +1082,10 @@
+         struct v3d_uncompiled_shader *so = hwcso;
+         nir_shader *s = so->base.ir.nir;
+ 
++#ifdef __riscos__
++        /* the variants freed below may be remembered */
++        memset(v3d->prog.riscos_recent, 0, sizeof(v3d->prog.riscos_recent));
++#endif
+         hash_table_foreach(v3d->prog.cache[s->info.stage], entry) {
+                 const struct v3d_cache_key *cache_key = entry->key;
+                 struct v3d_compiled_shader *shader = entry->data;

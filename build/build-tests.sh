@@ -22,6 +22,10 @@ $CC $RO_CFLAGS $GL -static "$T/prof.c"       -o "$STAGE/tests/prof,e1f"       $L
 [ -f "$STAGE/lib/libMesaGPU.a" ] && $CC $RO_CFLAGS $GL -static "$T/oomtest.c" \
     -o "$STAGE/tests/oomtest,e1f" -lEGL -lOSMesa -Wl,-u,riscos_mesa_gpu -lMesaGPU -lstdc++ -lz -lm
 # Two-sided stencil through EXT_stencil_two_side, ATI_separate_stencil and GL 2.0
+# what a draw call costs the CPU, by kind (GPU library linked in; software
+# with *Set LIBGL_ALWAYS_SOFTWARE 1)
+[ -f "$STAGE/lib/libMesaGPU.a" ] && $CC $RO_CFLAGS $GL -static "$T/drawtest.c" "$T/hrtime.c" \
+    -o "$STAGE/tests/drawtest,e1f" -lOSMesa -Wl,-u,riscos_mesa_gpu -lMesaGPU -lstdc++ -lz -lm
 [ -f "$STAGE/lib/libMesaGPU.a" ] && $CC $RO_CFLAGS $GL -static "$T/stenciltest.c" \
     -o "$STAGE/tests/stenciltest,e1f" -lEGL -lOSMesa -Wl,-u,riscos_mesa_gpu -lMesaGPU -lstdc++ -lz -lm
 # Two texture units selected with the ARB names, through freeglut (as TORCS and plib)

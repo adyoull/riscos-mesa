@@ -1,0 +1,73 @@
+diff --git a/src/mesa/main/image.c b/src/mesa/main/image.c
+--- a/src/mesa/main/image.c
++++ b/src/mesa/main/image.c
+@@ -38,6 +38,57 @@
+ #include "macros.h"
+ #include "mtypes.h"
+ 
++#if defined(__riscos__) && defined(__arm__) && defined(__ARM_EABI__) && !defined(DEBUG)
++/*
++ * riscos-mesa: _mesa_convert_colors' float to ubyte with NEON (a fragment
++ * program's colours into a span), two pixels at a time, the same bit for
++ * bit as UNCLAMPED_FLOAT_TO_UBYTE: a value whose bits are negative gives 0,
++ * one at or above 1.0's bits (1.0, infinity, NaN) 255, and anything else
++ * the low byte of f * (255/256) + 32768 (a multiply, then an add, each
++ * rounded to nearest as VFP does them; NEON flushes denormals to zero,
++ * which give 0 here either way). Masked-out pixels are left as they are.
++ * It was a seventh of the instructions of glbench's glsl scene.
++ */
++#define RO_NEON_CONVERT 1
++#include "program/prog_execute.h"
++#pragma GCC push_options
++#pragma GCC target("fpu=neon")
++#include <arm_neon.h>
++
++static inline uint32x4_t
++ro_float4_to_ubyte4(float32x4_t f)
++{
++   const int32x4_t bits = vreinterpretq_s32_f32(f);
++   const uint32x4_t big = vcgeq_s32(bits, vdupq_n_s32(0x3F800000));
++   const uint32x4_t neg = vcltq_s32(bits, vdupq_n_s32(0));
++   const float32x4_t t = vaddq_f32(vmulq_f32(f, vdupq_n_f32(255.0F / 256.0F)), vdupq_n_f32(32768.0F));
++   uint32x4_t r = vandq_u32(vreinterpretq_u32_f32(t), vdupq_n_u32(0xFF));
++   r = vbslq_u32(big, vdupq_n_u32(0xFF), r);
++   return vbicq_u32(r, neg);
++}
++
++static void
++ro_neon_float_rgba_to_ubyte(GLubyte (*dst)[4], const GLfloat (*src)[4], GLuint count,
++                            const GLubyte mask[])
++{
++   GLuint i = 0;
++   for (; i + 2 <= count; i += 2) {
++      const uint32x4_t a = ro_float4_to_ubyte4(vld1q_f32(src[i]));
++      const uint32x4_t b = ro_float4_to_ubyte4(vld1q_f32(src[i + 1]));
++      const uint8x8_t v = vmovn_u16(vcombine_u16(vmovn_u32(a), vmovn_u32(b)));
++      const uint32x2_t w = vreinterpret_u32_u8(v);
++      if (!mask || mask[i])
++         vst1_lane_u32((uint32_t *) dst[i], w, 0);
++      if (!mask || mask[i + 1])
++         vst1_lane_u32((uint32_t *) dst[i + 1], w, 1);
++   }
++   for (; i < count; i++)
++      if (!mask || mask[i])
++         _mesa_unclamped_float_rgba_to_ubyte(dst[i], src[i]);
++}
++#pragma GCC pop_options
++#endif
++
+ 
+ 
+ /**
+@@ -562,6 +613,11 @@
+          const GLfloat (*src4)[4] = (const GLfloat (*)[4]) src;
+          GLubyte (*dst1)[4] = (GLubyte (*)[4]) (useTemp ? tempBuffer : dst);
+          GLuint i;
++#ifdef RO_NEON_CONVERT
++         if (_mesa_ro_have_neon())
++            ro_neon_float_rgba_to_ubyte(dst1, src4, count, mask);
++         else
++#endif
+          for (i = 0; i < count; i++) {
+             if (!mask || mask[i])
+                _mesa_unclamped_float_rgba_to_ubyte(dst1[i], src4[i]);

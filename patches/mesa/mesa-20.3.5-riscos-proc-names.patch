@@ -1,0 +1,37 @@
+diff --git a/src/mapi/glapi/glapi_getproc.c b/src/mapi/glapi/glapi_getproc.c
+--- a/src/mapi/glapi/glapi_getproc.c
++++ b/src/mapi/glapi/glapi_getproc.c
+@@ -588,6 +588,33 @@
+ 
+ 
+ /**
++ * riscos-mesa: names[offset] = the name _glapi_get_proc_name(offset) would
++ * give for a built-in function (the first with that offset), for every
++ * offset below slots, in one pass over the table (NULL where there's
++ * none). _glapi_get_proc_name searches the whole table each time, and
++ * asking it for every slot (libOSMesa's GPU library switch, at start-up)
++ * was the start-up's biggest cost after the shader compiles.
++ */
++void
++_glapi_riscos_proc_names(const char **names, GLuint slots);
++void
++_glapi_riscos_proc_names(const char **names, GLuint slots)
++{
++   GLint i;
++   GLuint s;
++   for (s = 0; s < slots; s++)
++      names[s] = NULL;
++   for (i = 0; static_functions[i].Name_offset >= 0; i++) {
++      const GLint off = static_functions[i].Offset;
++      if (off >= 0 && (GLuint) off < slots && !names[off])
++         names[off] = gl_string_table + static_functions[i].Name_offset;
++   }
++   for (s = 0; s < slots; s++)          /* then those added since (as it does) */
++      if (!names[s])
++         names[s] = get_extension_proc_name(s);
++}
++
++/**
+  * Return the name of the function at the given dispatch offset.
+  * This is only intended for debugging.
+  */

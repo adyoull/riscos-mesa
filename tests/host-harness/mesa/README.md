@@ -50,6 +50,29 @@ the code GCCSDK compiled for the Pi is checked too. Needs `qemu-user` and
 
     STAGE=<stage dir> arm/run-arm.sh
 
+## Profiling the RISC OS build: `arm/prof-gpu.sh`
+
+Links the RISC OS `libOSMesa.a` and the GPU library `libMesaGPU.a` (Mesa
+26's v3d driver) into an ARM Linux program (`tests/drawtest.c` unless
+`PROG=` names another; `arm/shim_gpu.c` adds the UnixLib symbols the GPU
+library needs: pthreads for one thread, `_swix`, and plain `memcpy`/
+`memchr` in place of glibc's IFUNCs) and runs it under `qemu-arm` with
+`V3DM$Fake` set: the driver does all its own work, and the GPU's jobs
+finish at once. So it measures what the driver costs the CPU. With
+`LIBGL_ALWAYS_SOFTWARE=1` the same program runs Mesa 20's software
+renderer instead (`PROG=tests/glbench.c` for its scenes).
+
+For a profile by function, build qemu with plugins (`--enable-plugins`;
+in `contrib/plugins/hotblocks.c` raise `limit` so that every block is
+listed), then:
+
+    STAGE=<stage dir> QEMU=<that qemu-arm> QEMU_PLUGIN=<its libhotblocks.so> \
+        arm/prof-gpu.sh 200 -f 40 -m texture
+    tools/hotfuncs.py /tmp/mesa-prof-gpu/prog /tmp/mesa-prof-gpu/plugin.txt 30 [--base <another plugin.txt>]
+
+`--base` subtracts another run (another `drawtest` mode of the same length,
+say), to show what one kind of draw adds.
+
 ## Performance: `perf.sh`
 
 Counts the instructions Mesa executes per frame for each of glbench's

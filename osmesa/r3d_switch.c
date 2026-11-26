@@ -262,6 +262,7 @@ static void APIENTRY switch_glFlush(void)
    OSMesa's dispatch tables are made from), for every GL name it has */
 unsigned int _glapi_get_dispatch_table_size(void);
 const char *_glapi_get_proc_name(unsigned int offset);
+void _glapi_riscos_proc_names(const char **names, unsigned int slots);   /* (riscos-proc-names) */
 
 static int gpu_function_cmp(const void *key, const void *entry)
 {
@@ -272,6 +273,7 @@ const struct r3d_gl_function *r3d_functions(void)
 {
     static struct r3d_gl_function *list;
     const struct riscos_mesa_gpu_function *f;
+    const char **names;
     unsigned int slots = 0, off;
     int n, total;
     decide();
@@ -314,8 +316,11 @@ const struct r3d_gl_function *r3d_functions(void)
        20.3.5's dispatch has that isn't in the list is asked for. (The
        list is sorted by name: tools/gpu-functions.py.) */
     total = n;
+    names = slots ? (const char **) malloc(slots * sizeof *names) : NULL;
+    if (names)
+        _glapi_riscos_proc_names(names, slots);     /* (one pass, not one per slot) */
     for (off = 0; off < slots; off++) {
-        const char *name = _glapi_get_proc_name(off);
+        const char *name = names ? names[off] : _glapi_get_proc_name(off);
         void (*fn)(void);
         if (!name || strncmp(name, "gl", 2) ||
             bsearch(name, gpu->functions, (size_t) n, sizeof *gpu->functions, gpu_function_cmp))
@@ -327,6 +332,7 @@ const struct r3d_gl_function *r3d_functions(void)
             total++;
         }
     }
+    free(names);
     return list;
 }
 
