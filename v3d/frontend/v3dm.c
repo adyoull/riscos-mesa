@@ -801,51 +801,92 @@ int v3dm_present(v3dm_context *c, const int *rects, unsigned n)
     return v3dm_present_scaled(c, rects, n, 0, 0);
 }
 
+/* the present's request for a source (res: its colour buffer), or
+   -EINVAL if it can't be presented (small frames in other tilings, or a
+   format it has no fourcc for: plotted) */
+static int present_source(struct drm_riscos_present *p, struct pipe_resource *res)
+{
+    struct v3d_resource *rsc = v3d_resource(res);
+    const struct v3d_resource_slice *sl = &rsc->slices[0];
+    p->handle = rsc->bo->handle;
+    p->format = present_fourcc(res->format);
+    p->width = res->width0;
+    p->height = res->height0;
+    switch (sl->tiling) {
+    case V3D_TILING_UIF_NO_XOR:
+        p->flags = DRM_RISCOS_PRESENT_SRC_UIF;
+        p->uif_height_or_stride = sl->padded_height;
+        break;
+    case V3D_TILING_UIF_XOR:
+        p->flags = DRM_RISCOS_PRESENT_SRC_UIF | DRM_RISCOS_PRESENT_SRC_UIF_XOR;
+        p->uif_height_or_stride = sl->padded_height;
+        break;
+    case V3D_TILING_RASTER:
+        p->uif_height_or_stride = sl->stride;
+        break;
+    default:
+        return -EINVAL;
+    }
+    return p->format ? 0 : -EINVAL;
+}
+
+/* V3DRender 0.38 scales in the present itself (DRM_RISCOS_PRESENT_SCALE):
+   asked once (a test, no rectangles), V3DM$NoScale: never (our blit, to
+   compare). 1, or 0 */
+static int present_scales(void)
+{
+    static int known = -1;
+    if (known < 0) {
+        struct drm_riscos_present t;
+        memset(&t, 0, sizeof t);
+        t.flags = DRM_RISCOS_PRESENT_SRC_UIF | DRM_RISCOS_PRESENT_SCALE;
+        t.scaled_width = t.scaled_height = 1;
+        known = !getenv("V3DM$NoScale") && !drmIoctl(dev.fd, DRM_IOCTL_RISCOS_PRESENT_SCALED, &t);
+    }
+    return known;
+}
+
 int v3dm_present_scaled(v3dm_context *c, const int *rects, unsigned n,
                         unsigned width, unsigned height)
 {
     struct drm_riscos_present p;
     struct pipe_resource *res = c && c->fb ? c->fb->textures[c->fb->main] : NULL;
+    unsigned long request = DRM_IOCTL_RISCOS_PRESENT;
     unsigned done = 0;
+    int scaled;
     if (!c || !dev.fd)
         return -ENODEV;
     if (width > V3D_MAX_IMAGE_DIMENSION || height > V3D_MAX_IMAGE_DIMENSION)
         return -EINVAL;
-    if (res && n && width && height && (width != res->width0 || height != res->height0)) {
-        res = scale_frame(c, res, width, height);
-        if (!res)
-            return -ENOMEM;
-    }
+    scaled = res && n && width && height && (width != res->width0 || height != res->height0);
     memset(&p, 0, sizeof p);
     if (res) {
-        struct v3d_resource *rsc = v3d_resource(res);
-        const struct v3d_resource_slice *sl = &rsc->slices[0];
-        p.handle = rsc->bo->handle;
-        p.format = present_fourcc(res->format);
-        p.width = res->width0;
-        p.height = res->height0;
-        switch (sl->tiling) {
-        case V3D_TILING_UIF_NO_XOR:
-            p.flags = DRM_RISCOS_PRESENT_SRC_UIF;
-            p.uif_height_or_stride = sl->padded_height;
-            break;
-        case V3D_TILING_UIF_XOR:
-            p.flags = DRM_RISCOS_PRESENT_SRC_UIF | DRM_RISCOS_PRESENT_SRC_UIF_XOR;
-            p.uif_height_or_stride = sl->padded_height;
-            break;
-        case V3D_TILING_RASTER:
-            p.uif_height_or_stride = sl->stride;
-            break;
-        default:
-            return -EINVAL;             /* small frames in other tilings: plotted */
-        }
-        if (!p.format)
-            return -EINVAL;
+        if (present_source(&p, res))
+            return -EINVAL;             /* plotted */
     } else if (n) {
         return -ENOENT;                 /* no frame drawn yet */
     }
     if (!n)
         return drmIoctl(dev.fd, DRM_IOCTL_RISCOS_PRESENT, &p) ? -errno : 0;
+    if (scaled && (p.flags & DRM_RISCOS_PRESENT_SRC_UIF) && present_scales()) {
+        /* scaled by V3DRender as it copies: nearest for whole multiples,
+           else bilinear, as our blit */
+        p.flags |= DRM_RISCOS_PRESENT_SCALE;
+        if (width % res->width0 || height % res->height0)
+            p.flags |= DRM_RISCOS_PRESENT_LINEAR;
+        p.scaled_width = width;
+        p.scaled_height = height;
+        request = DRM_IOCTL_RISCOS_PRESENT_SCALED;
+        pipe_resource_reference(&c->scaled, NULL);      /* (our own blit's buffer: not needed) */
+    } else if (scaled) {
+        /* scaled by our blit into a buffer of the size it's shown at */
+        res = scale_frame(c, res, width, height);
+        if (!res)
+            return -ENOMEM;
+        memset(&p, 0, sizeof p);
+        if (present_source(&p, res))
+            return -EINVAL;
+    }
     if (!dev.present_sync && drmSyncobjCreate(dev.fd, 0, &dev.present_sync))
         return -errno;
     st_context_flush(c->st, 0, NULL, NULL, NULL);       /* its jobs submitted: present waits for them */
@@ -854,15 +895,30 @@ int v3dm_present_scaled(v3dm_context *c, const int *rects, unsigned n,
         unsigned k = n - done > DRM_RISCOS_PRESENT_MAX_RECTS ? DRM_RISCOS_PRESENT_MAX_RECTS : n - done;
         p.rect_count = k;
         p.rects = (uintptr_t) (rects + 6 * done);
-        if (drmIoctl(dev.fd, DRM_IOCTL_RISCOS_PRESENT, &p))
-            return done ? -EIO : -errno;
+        if (drmIoctl(dev.fd, request, &p)) {
+            int e = errno;
+            if (!done && e == EINVAL && (p.flags & DRM_RISCOS_PRESENT_SCALE)) {
+                /* this frame not taken scaled (its padding, say): our blit */
+                pipe_resource_reference(&c->scaled, NULL);
+                res = scale_frame(c, c->fb->textures[c->fb->main], width, height);
+                memset(&p, 0, sizeof p);
+                if (!res || present_source(&p, res))
+                    return -EINVAL;
+                st_context_flush(c->st, 0, NULL, NULL, NULL);   /* (the blit's jobs) */
+                p.out_sync = dev.present_sync;
+                request = DRM_IOCTL_RISCOS_PRESENT;
+                continue;
+            }
+            return done ? -EIO : -e;
+        }
         done += k;
     }
     /* stored before the caller lets the Wimp draw anything else there */
     if (drmSyncobjWait(dev.fd, &dev.present_sync, 1, INT64_MAX, 0, NULL))
         return -EIO;
     if (dev.trace)
-        fprintf(stderr, "v3dm: presented frame %p, %u rectangles\n", (void *) c->fb, n);
+        fprintf(stderr, "v3dm: presented frame %p, %u rectangles%s\n", (void *) c->fb, n,
+                request == DRM_IOCTL_RISCOS_PRESENT_SCALED ? ", scaled by the present" : "");
     return 0;
 }
 

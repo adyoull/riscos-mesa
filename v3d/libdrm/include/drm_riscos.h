@@ -66,12 +66,24 @@ struct drm_riscos_present {
     uint32_t rect_count, pad;
     uint64_t rects;                     /* struct drm_riscos_present_rect[rect_count] */
     uint32_t in_sync, out_sync;
+    uint32_t scaled_width, scaled_height;   /* (0.38) with SCALE: the size it's shown at */
 };
 #define DRM_RISCOS_PRESENT_SRC_UIF     1u
 #define DRM_RISCOS_PRESENT_VSYNC       2u
 #define DRM_RISCOS_PRESENT_SRC_UIF_XOR 4u
+/* (V3DRender 0.38) shown at scaled_width x scaled_height (the rectangles'
+   src_x, src_y in that), sampled by the GPU at each pixel's centre:
+   nearest, or with LINEAR bilinear. UIF sources (RGBA8, RGB565) up to
+   4096 x 4096 only. Only in the 56-byte request; 0.31-0.37 refuse it with
+   EINVAL, so a test (rect_count 0) with SCALE says whether it's offered. */
+#define DRM_RISCOS_PRESENT_SCALE       8u
+#define DRM_RISCOS_PRESENT_LINEAR     16u
 #define DRM_RISCOS_PRESENT_MAX_RECTS   256u
+/* the 48-byte request (without the scaled size: every V3DRender from
+   0.31), and the 56-byte one (0.38) */
 #define DRM_IOCTL_RISCOS_PRESENT \
+  _IOC (_IOC_WRITE, DRM_RISCOS_BASE, 0x04, 48)
+#define DRM_IOCTL_RISCOS_PRESENT_SCALED \
   _IOC (_IOC_WRITE, DRM_RISCOS_BASE, 0x04, sizeof (struct drm_riscos_present))
 
 /* 1 if the CPU doesn't cache any of [p, p + n): all in one dynamic area

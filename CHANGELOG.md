@@ -6,6 +6,16 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-24 (in development)
 
+- **Scaled windows scaled by V3DRender 0.38's present itself** (`DRM_RISCOS_PRESENT_SCALE`, bilinear with `LINEAR`), in place of the GPU library's own blit into a second buffer: one pass, and no second full-size buffer. Asked once (a test with `SCALE`, which 0.31-0.37 refuse); with an older V3DRender, or a frame it won't take scaled, the blit as before (`*Set V3DM$NoScale 1` for the blit, to compare). On the owner's Pi 4, `presenttest`, all checks passing:
+
+  | Window | 0.38 scaling | Our blit |
+  |---|---|---|
+  | 1600x1000 from 800x500 (nearest) | 240 fps (207 with a menu open) | 148 fps (122) |
+  | 1600x1000 from 1024x640 (bilinear) | 204 fps (186) | 144 fps (117) |
+  | 640x400 from 320x200 | 1125 fps | |
+  | 1600x1000 from 800x500, 5:6:5 frame | 254 fps | |
+
+  The same in a C64K desktop: 211-257 fps at 1600x1000, 32-bit and 5:6:5 frames, nearest and bilinear, all checks passing. The present's request is now 56 bytes when scaling (`DRM_IOCTL_RISCOS_PRESENT_SCALED`); unscaled presents keep the 48-byte request every V3DRender from 0.31 takes.
 - **On the GPU, half or less of the CPU time per draw call when state changes** (a texture bound, a program used, blending turned on or off). Found with a new test, `drawtest` (microseconds of CPU per draw, in seven kinds), and a profile of the GPU library itself under qemu-arm (`tests/host-harness/mesa/arm/prof-gpu.sh`: the RISC OS build linked into an ARM Linux program with a fake GPU, then `tools/hotfuncs.py` over qemu's hotblocks plugin). In Mesa 26's v3d driver (`v3d/patches`):
   - the table of compiled shader variants hashed each lookup's key with BLAKE3, whose portable C (there's no ARM32 SIMD version) was half the CPU time of such draws: it now uses Mesa's ordinary hash (the table still compares whole keys);
   - the last eight variants found for each stage are kept by key, so most draws skip the table altogether;
