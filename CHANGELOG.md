@@ -6,6 +6,8 @@ riscos-mesa build of it. Each release's full notes are on the GitHub
 
 ## 20.3.5-24 (in development)
 
+- **Built with UnixLib 5.0.3.11** (riscos-unixlib; the toolchain's `libunixlib.a` and its new `pthread.h`, `stdlib.h` and `unistd.h`). The test programs, examples and ports link it, so they no longer die now and then at start-up with "ARMEABISupport could not handle an abort" (its M3), and `__thread` variables are one per thread (its P12; the GPU library's few are per-thread scratch, so this is what it expects). The shared libraries in !MesaLibs don't contain UnixLib: a mixed program takes its own.
+  - **SDL doesn't call `sysconf` for the processor count or memory size** (`patches/sdl2`: `src.cpuinfo.SDL_cpuinfo.c.p`). The new `unistd.h` defines `_SC_NPROCESSORS_ONLN` and `_SC_PHYS_PAGES`, so SDL would have started asking, and the shared libSDL2 would then have needed `sysconf` from mixed programs linked before, which don't give it (`build/build-shared.sh` checks for exactly this). The answers stay as before.
 - **Scaled windows scaled by V3DRender 0.38's present itself** (`DRM_RISCOS_PRESENT_SCALE`, bilinear with `LINEAR`), in place of the GPU library's own blit into a second buffer: one pass, and no second full-size buffer. Asked once (a test with `SCALE`, which 0.31-0.37 refuse); with an older V3DRender, or a frame it won't take scaled, the blit as before (`*Set V3DM$NoScale 1` for the blit, to compare). On the owner's Pi 4, `presenttest`, all checks passing:
 
   | Window | 0.38 scaling | Our blit |

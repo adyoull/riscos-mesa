@@ -107,7 +107,7 @@ defined=$(for f in "$LIB"/*.so.*; do $READELF --dyn-syms -W "$f" | awk '$7!="UND
 # (#needed: lines), and theirs: a program linked with it exports all those
 allowed() {
   local todo="$1" done="" l
-  while [ -n "$todo" ]; do
+  while [ -n "${todo// }" ]; do
     set -- $todo; l=$1; shift; todo="$*"
     case " $done " in *" $l "*) continue ;; esac
     done="$done $l"

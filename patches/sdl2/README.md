@@ -229,6 +229,12 @@ It contains:
   the top row is reachable and rows aren't one out; and
   `sdl2-config`/`sdl2.pc` give `-lEGL` before `-lOSMesa` (libSDL2 always
   needs it), so ports built with pkg-config, CMake or autotools link.
+- `SDL_GetCPUCount` and `SDL_GetSystemRAM` don't ask `sysconf` on RISC OS
+  (`src.cpuinfo.SDL_cpuinfo.c.p`, 2026-11-26). UnixLib 5.0.3.11's headers
+  define `_SC_NPROCESSORS_ONLN` and `_SC_PHYS_PAGES` at last, so SDL would
+  start calling `sysconf`, and the shared libSDL2 would then need it from
+  mixed programs linked before, which don't give it. The answers are as
+  before (1 processor).
 
 The older `sdl2-riscos-framebuffer.p` from the buildkit is superseded by
 `src.video.riscos.SDL_riscosframebuffer.c.p` and must not be applied.
