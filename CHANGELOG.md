@@ -4,7 +4,12 @@ Releases are numbered after the Mesa version they contain; `-N` is the Nth
 riscos-mesa build of it. Each release's full notes are on the GitHub
 [Releases](../../releases) page.
 
-## 20.3.5-24 (in development)
+## 20.3.5-24: windows shown by the GPU, half the CPU a draw call, and UnixLib 5.0.3.12
+
+Natively on a Pi 4, a window the GPU draws is now shown by the GPU too (V3DRender's present), under menus and other windows, scaled by it when the window has a render size: a 640x400 window at 565 fps where the plot gave 66. Draw calls that change state cost the CPU half as much or less; the GPU starts on a frame while the swap waits for the vsync, and no longer stores depth and stencil at the end of it. EGL gains 16-bit (5:6:5) configs, in software and on the GPU. A buffer the GPU refuses is `GL_OUT_OF_MEMORY` rather than a crash, and SDL's mouse look, 16 bpp desktops and video restart are fixed. Built with riscos-crossdev 1.14 (UnixLib 5.0.3.12).
+
+What you need: RISC3D module 0.05 or later, as before. For windows shown by the GPU, V3DRender 0.31 or later (0.32 for C64K desktops, 0.37 for its one-pass present, 0.38 for scaled windows); with an older one, windows are plotted as before. Developers: relink with the new devkit, using riscos-crossdev 1.14 or UnixLib 5.0.3.12.
+
 
 - **Built with riscos-crossdev 1.14, whose toolchain has UnixLib 5.0.3.12** (`.riscos-deps`; before, 1.11's toolchain with 5.0.3.12's `libunixlib.a` and 5.0.3.11's new `pthread.h`, `stdlib.h` and `unistd.h` put in it by hand). 1.14 also brings 5.0.3.12's start-up `crt0.o`, whose data is now word aligned (1.11's wasn't; it happened to land aligned in our programs, which all passed `check-data-align.py`, and still do). The libraries are the same code as before.
 - **UnixLib 5.0.3.12** (riscos-unixlib; 5.0.3.12 word-aligns UnixLib's own data, which 5.0.3.10 and 5.0.3.11 left to the link: a program could abort before `main` on a Pi). The test programs, examples and ports link it, so they no longer die now and then at start-up with "ARMEABISupport could not handle an abort" (its M3), and `__thread` variables are one per thread (its P12; the GPU library's few are per-thread scratch, so this is what it expects). The shared libraries in !MesaLibs don't contain UnixLib: a mixed program takes its own.

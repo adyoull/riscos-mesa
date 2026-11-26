@@ -58,7 +58,10 @@ in 1.6-2.8 ms a frame against 9.7-13.6 ms in software. 20.3.5-21 puts the
 loader mixed programs need into !MesaLibs. 20.3.5-23 lets GPU contexts
 share objects and be current in several threads, and lets the GPU draw
 straight into a program's own memory (`EGL_RISCOS_image_memory`), for
-programs that composite with the GPU.
+programs that composite with the GPU. 20.3.5-24 shows GPU windows with the
+GPU itself (V3DRender's present), under menus and other windows, at up to
+nine times the plot's frame rate; halves the CPU cost of draw calls that
+change state; and adds 16-bit (5:6:5) EGL configs.
 
 ## The GPU
 
